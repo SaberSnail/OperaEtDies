@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+	<xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+		<xsd:element name="root" msdata:IsDataSet="true">
+			<xsd:complexType>
+				<xsd:choice maxOccurs="unbounded">
+					<xsd:element name="data">
+						<xsd:complexType>
+							<xsd:sequence>
+								<xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+								<xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+							</xsd:sequence>
+							<xsd:attribute name="name" type="xsd:string" msdata:Ordinal="1" />
+							<xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+							<xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+						</xsd:complexType>
+					</xsd:element>
+					<xsd:element name="resheader">
+						<xsd:complexType>
+							<xsd:sequence>
+								<xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+							</xsd:sequence>
+							<xsd:attribute name="name" type="xsd:string" use="required" />
+						</xsd:complexType>
+					</xsd:element>
+				</xsd:choice>
+			</xsd:complexType>
+		</xsd:element>
+	</xsd:schema>
+	<resheader name="resmimetype">
+		<value>text/microsoft-resx</value>
+	</resheader>
+	<resheader name="version">
+		<value>2.0</value>
+	</resheader>
+	<resheader name="reader">
+		<value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+	</resheader>
+	<resheader name="writer">
+		<value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+	</resheader>
+	<data name="StartNewGame" xml:space="preserve">
+		<value>Start New Game</value>
+	</data>
+	<data name="LoadGame" xml:space="preserve">
+		<value>Load Game</value>
+	</data>
+	<data name="ExitGame" xml:space="preserve">
+		<value>Exit Game</value>
+	</data>
+	<data name="EngineName" xml:space="preserve">
+		<value>Opera et Dies</value>
+		<comment>Shown as the title when the game's own title couldn't be loaded.</comment>
+	</data>
+	<data name="DataLoadErrorsHeader" xml:space="preserve">
+		<value>There were problems loading the game data:</value>
+	</data>
+	<data name="DataFileNotFound" xml:space="preserve">
+		<value>The file could not be found.</value>
+	</data>
+	<data name="DataFileReadError" xml:space="preserve">
+		<value>The file could not be read. {0}</value>
+		<comment>{0} is the system error message.</comment>
+	</data>
+	<data name="DataFileInvalidJson" xml:space="preserve">
+		<value>The file contains invalid JSON. {0}</value>
+		<comment>{0} is the JSON parser's error message.</comment>
+	</data>
+	<data name="DataFileEmpty" xml:space="preserve">
+		<value>The file is empty.</value>
+	</data>
+	<data name="GameInfoTitleMissing" xml:space="preserve">
+		<value>A game title is required.</value>
+	</data>
+	<data name="GameInfoDescriptionMissing" xml:space="preserve">
+		<value>A game description is required.</value>
+	</data>
+</root>

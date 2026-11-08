@@ -22,4 +22,24 @@
     <InternalsVisibleTo Include="OperaEtDies.Test" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Update="OurResources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>OurResources.resx</DependentUpon>
+    </Compile>
+    <EmbeddedResource Update="OurResources.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>OurResources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- Copy the Sub Corona data files into a Data folder next to the executable. -->
+  <PropertyGroup>
+    <SubCoronaDataDirectory>$(MSBuildThisFileDirectory)..\..\SubCorona\Data\</SubCoronaDataDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="$(SubCoronaDataDirectory)**\*.json" Link="Data\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

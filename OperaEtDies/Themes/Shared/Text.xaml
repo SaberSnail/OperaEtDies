@@ -5,5 +5,6 @@
 
 	<markupExtensions:FontSize x:Key="DefaultFontSize" Size="12" />
 	<markupExtensions:FontSize x:Key="LargeFontSize" Size="14" />
+	<markupExtensions:FontSize x:Key="TitleFontSize" Size="28" />
 
 </ResourceDictionary>

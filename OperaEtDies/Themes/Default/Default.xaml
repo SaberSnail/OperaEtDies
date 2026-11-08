@@ -71,6 +71,8 @@
 	<SolidColorBrush x:Key="ControlBorderBaseHoveredBrush" Color="{StaticResource ControlBorderBaseHoveredColor}" />
 	<SolidColorBrush x:Key="ControlBorderBasePressedBrush" Color="{StaticResource ControlBorderBasePressedColor}" />
 
+	<SolidColorBrush x:Key="ControlBorderHighContrastBrush" Color="{StaticResource ControlBorderHighContrastColor}" />
+
 	<!--  Splitters  -->
 	<SolidColorBrush x:Key="SplitterBackgroundBrush" Color="#D0D0D0" />
 

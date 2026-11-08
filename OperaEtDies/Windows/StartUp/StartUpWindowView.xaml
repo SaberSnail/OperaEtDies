@@ -1,0 +1,75 @@
+<Window
+	x:Class="OperaEtDies.Windows.StartUp.StartUpWindowView"
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:local="clr-namespace:OperaEtDies.Windows.StartUp"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:operaEtDies="clr-namespace:OperaEtDies"
+	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows"
+	Title="{Binding Title}"
+	Width="800"
+	Height="450"
+	d:DataContext="{d:DesignInstance Type=local:StartUpWindowViewModel}"
+	Background="{DynamicResource WindowBackgroundBrush}"
+	DataContext="{Binding ViewModel, RelativeSource={RelativeSource Self}}"
+	WindowStartupLocation="CenterScreen"
+	mc:Ignorable="d">
+
+	<Grid Margin="24">
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="*" />
+			<RowDefinition Height="Auto" />
+		</Grid.RowDefinitions>
+
+		<StackPanel Grid.Row="0" HorizontalAlignment="Center">
+			<TextBlock
+				HorizontalAlignment="Center"
+				FontSize="{DynamicResource TitleFontSize}"
+				Text="{Binding Title}" />
+			<TextBlock
+				Margin="0,8,0,0"
+				HorizontalAlignment="Center"
+				FontSize="{DynamicResource LargeFontSize}"
+				Foreground="{DynamicResource FontLightBrush}"
+				Text="{Binding Description}"
+				TextAlignment="Center"
+				TextWrapping="Wrap" />
+		</StackPanel>
+
+		<StackPanel
+			Grid.Row="1"
+			Width="200"
+			HorizontalAlignment="Center"
+			VerticalAlignment="Center">
+			<Button
+				Height="32"
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=StartNewGame}"
+				Content="{x:Static operaEtDies:OurResources.StartNewGame}"
+				IsDefault="True" />
+			<Button
+				Height="32"
+				Margin="0,8,0,0"
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=LoadGame}"
+				Content="{x:Static operaEtDies:OurResources.LoadGame}" />
+			<Button
+				Height="32"
+				Margin="0,8,0,0"
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ExitGame}"
+				Content="{x:Static operaEtDies:OurResources.ExitGame}" />
+		</StackPanel>
+
+		<StackPanel Grid.Row="2" Visibility="{Binding HasLoadErrors, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+			<TextBlock Text="{x:Static operaEtDies:OurResources.DataLoadErrorsHeader}" />
+			<ItemsControl Margin="12,4,0,0" ItemsSource="{Binding LoadErrors}">
+				<ItemsControl.ItemTemplate>
+					<DataTemplate>
+						<TextBlock Text="{Binding}" TextWrapping="Wrap" />
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+		</StackPanel>
+	</Grid>
+
+</Window>
