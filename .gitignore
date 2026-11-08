@@ -55,3 +55,45 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Visual Studio cache/options directory
+.vs/
+
+# Visual Studio user-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Visual Studio IntelliSense / database files
+*.VC.db
+*.VC.VC.opendb
+*.opendb
+*.sdf
+*.cachefile
+ipch/
+
+# Visual Studio profiler and diagnostics
+*.psess
+*.vsp
+*.vspx
+*.sap
+*.diagsession
+*.e2e
+
+# Visual Studio Live Unit Testing / test settings
+*.lutconfig
+*.testsettings
+TestResults/
+
+# Visual Studio code coverage
+*.coverage
+*.coveragexml
+
+# Rider / ReSharper
+.idea/
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
