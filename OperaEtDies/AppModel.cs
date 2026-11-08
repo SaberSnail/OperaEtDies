@@ -79,8 +79,15 @@ public sealed class AppModel : ViewModelBase
 	{
 		VerifyAccess();
 
+		var gameInfo = m_gameInfoResult.Value;
+		if (gameInfo is null)
+		{
+			Log.Error("Can't start a new game because the game info failed to load");
+			return;
+		}
+
 		// Open the main window before closing the start up window, so there's always a window showing.
-		MainWindow = new MainWindowViewModel();
+		MainWindow = new MainWindowViewModel(gameInfo);
 		CloseStartUpWindow();
 	}
 

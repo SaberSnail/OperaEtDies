@@ -5,10 +5,12 @@
 	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 	xmlns:local="clr-namespace:OperaEtDies.Windows.Main"
 	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-	Title="Opera et Dies"
+	Title="{Binding Title}"
 	Width="800"
 	Height="450"
+	d:DataContext="{d:DesignInstance Type=local:MainWindowViewModel}"
 	Background="{DynamicResource WindowBackgroundBrush}"
+	DataContext="{Binding ViewModel, RelativeSource={RelativeSource Self}}"
 	mc:Ignorable="d">
 
 	<Grid />
