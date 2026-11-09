@@ -95,7 +95,16 @@ namespace OperaEtDies {
                 return ResourceManager.GetString("DataFileEmpty", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to The file is not a supported image. {0}.
+        /// </summary>
+        public static string DataFileInvalidImage {
+            get {
+                return ResourceManager.GetString("DataFileInvalidImage", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to The file contains invalid JSON. {0}.
         /// </summary>
@@ -221,7 +230,16 @@ namespace OperaEtDies {
                 return ResourceManager.GetString("GameInfoTitleMissing", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to The icon &quot;{0}&quot; must be a file path relative to the data folder..
+        /// </summary>
+        public static string GameInfoIconInvalid {
+            get {
+                return ResourceManager.GetString("GameInfoIconInvalid", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Height.
         /// </summary>

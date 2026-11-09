@@ -34,12 +34,12 @@
     </EmbeddedResource>
   </ItemGroup>
 
-  <!-- Copy the Sub Corona data files into a Data folder next to the executable. -->
+  <!-- Copy the Sub Corona data files (JSON, images, etc.) into a Data folder next to the executable. -->
   <PropertyGroup>
     <SubCoronaDataDirectory>$(MSBuildThisFileDirectory)..\..\SubCorona\Data\</SubCoronaDataDirectory>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="$(SubCoronaDataDirectory)**\*.json" Link="Data\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(SubCoronaDataDirectory)**\*" Link="Data\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,5 @@
 using System.IO;
+using GoldenAnvil.Utility;
 using OperaEtDies.Data;
 
 namespace OperaEtDies.Test.Data;
@@ -27,6 +28,44 @@ public sealed class GameInfoTests
 		Assert.That(result.Errors, Is.Empty);
 		Assert.That(result.Value!.Title, Is.EqualTo("Sub Corona"));
 		Assert.That(result.Value.Description, Is.Not.Empty);
+		Assert.That(File.Exists(result.Value.GetIconPath(JsonDataLoader.DefaultDataDirectory)), Is.True);
+	}
+
+	[Test]
+	public void IconIsOptional()
+	{
+		WriteGameInfo("""{ "title": "Test Title", "description": "Test description." }""");
+
+		var result = GameInfo.Load(m_directory);
+
+		Assert.That(result.Succeeded, Is.True);
+		Assert.That(result.Value!.Icon, Is.Null);
+		Assert.That(result.Value.GetIconPath(m_directory), Is.Null);
+	}
+
+	[Test]
+	public void IconPathIsRelativeToDataDirectory()
+	{
+		WriteGameInfo("""{ "title": "Test Title", "description": "Test description.", "icon": "Images/Icon.ico" }""");
+
+		var result = GameInfo.Load(m_directory);
+
+		Assert.That(result.Succeeded, Is.True);
+		Assert.That(result.Value!.GetIconPath(m_directory), Is.EqualTo(Path.Combine(m_directory, "Images", "Icon.ico")));
+	}
+
+	[TestCase("")]
+	[TestCase(" ")]
+	[TestCase(@"C:\\Icon.ico")]
+	[TestCase(@"\\Icon.ico")]
+	public void InvalidIconPathReportsError(string icon)
+	{
+		WriteGameInfo($$"""{ "title": "Test Title", "description": "Test description.", "icon": "{{icon}}" }""");
+
+		var result = GameInfo.Load(m_directory);
+
+		Assert.That(result.Succeeded, Is.False);
+		Assert.That(result.Errors.Single().Message, Is.EqualTo(OurResources.GameInfoIconInvalid.FormatCurrentCulture(icon.Replace(@"\\", @"\", StringComparison.Ordinal))));
 	}
 
 	[Test]

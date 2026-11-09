@@ -1,4 +1,5 @@
-﻿using GoldenAnvil.Utility;
+﻿using System.Windows.Media;
+using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
 using Microsoft.VisualStudio.Threading;
@@ -47,6 +48,11 @@ public sealed class AppModel : ViewModelBase
 
 	public GameData? GameData => VerifyAccess(m_gameDataResult.Value);
 
+	/// <summary>
+	/// The application icon from the game data, or null if there isn't one.
+	/// </summary>
+	public ImageSource? Icon => VerifyAccess(m_icon);
+
 	public TaskGroup TaskGroup => m_taskGroup;
 
 	public Random Random { get; }
@@ -71,12 +77,19 @@ public sealed class AppModel : ViewModelBase
 
 		var gameInfoResult = GameInfo.Load(JsonDataLoader.DefaultDataDirectory);
 		var gameDataResult = GameData.Load(JsonDataLoader.DefaultDataDirectory);
+		var iconPath = gameInfoResult.Value?.GetIconPath(JsonDataLoader.DefaultDataDirectory);
+		var iconReadResult = iconPath is null ? null : ImageDataLoader.Read(iconPath);
 
 		await state.ToSyncContext();
 
+		// Images belong to the thread that decodes them, so the icon is decoded here rather than on the thread pool.
+		var iconResult = iconReadResult?.Value is { } iconContents ? ImageDataLoader.Decode(iconPath!, iconContents) : null;
+
 		m_gameInfoResult = gameInfoResult;
 		m_gameDataResult = gameDataResult;
-		RaisePropertyChanged(nameof(GameInfo), nameof(GameData));
+		m_icon = iconResult?.Value;
+		m_iconErrors = iconResult?.Errors ?? iconReadResult?.Errors ?? [];
+		RaisePropertyChanged(nameof(GameInfo), nameof(GameData), nameof(Icon));
 
 		OpenStartUpWindow();
 	}
@@ -134,7 +147,7 @@ public sealed class AppModel : ViewModelBase
 		if (m_startUpWindow is not null)
 			return;
 
-		var startUpWindow = new StartUpWindowViewModel(m_gameInfoResult.Value, m_gameDataResult.Value, Random, [.. m_gameInfoResult.Errors, .. m_gameDataResult.Errors]);
+		var startUpWindow = new StartUpWindowViewModel(m_gameInfoResult.Value, m_gameDataResult.Value, Random, [.. m_gameInfoResult.Errors, .. m_iconErrors, .. m_gameDataResult.Errors]);
 		startUpWindow.StartNewGameRequested += OnStartNewGameRequested;
 		startUpWindow.ExitGameRequested += OnExitGameRequested;
 		StartUpWindow = startUpWindow;
@@ -173,6 +186,8 @@ public sealed class AppModel : ViewModelBase
 	private MainWindowViewModel? m_mainWindow;
 	private DataLoadResult<GameInfo> m_gameInfoResult;
 	private DataLoadResult<GameData> m_gameDataResult;
+	private ImageSource? m_icon;
+	private IReadOnlyList<DataLoadError> m_iconErrors = [];
 	private Uri m_currentTheme;
 	private TaskGroup m_taskGroup;
 }

@@ -8,6 +8,7 @@
 	xmlns:operaEtDies="clr-namespace:OperaEtDies"
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows"
 	Title="{Binding Title}"
+	Icon="{Binding Icon, Source={x:Static operaEtDies:AppModel.Instance}}"
 	Width="800"
 	Height="450"
 	d:DataContext="{d:DesignInstance Type=local:StartUpWindowViewModel}"

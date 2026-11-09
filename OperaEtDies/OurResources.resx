@@ -69,11 +69,19 @@
 	<data name="DataFileEmpty" xml:space="preserve">
 		<value>The file is empty.</value>
 	</data>
+	<data name="DataFileInvalidImage" xml:space="preserve">
+		<value>The file is not a supported image. {0}</value>
+		<comment>{0} is the image decoder's error message.</comment>
+	</data>
 	<data name="GameInfoTitleMissing" xml:space="preserve">
 		<value>A game title is required.</value>
 	</data>
 	<data name="GameInfoDescriptionMissing" xml:space="preserve">
 		<value>A game description is required.</value>
+	</data>
+	<data name="GameInfoIconInvalid" xml:space="preserve">
+		<value>The icon "{0}" must be a file path relative to the data folder.</value>
+		<comment>{0} is the icon path found in the data file.</comment>
 	</data>
 	<data name="DataListEmpty" xml:space="preserve">
 		<value>The "{0}" list must have at least one item.</value>

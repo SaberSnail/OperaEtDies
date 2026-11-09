@@ -27,19 +27,9 @@ public static class JsonDataLoader
 	private static DataLoadResult<T> LoadCore<T>(string filePath)
 		where T : class
 	{
-		string json;
-		try
-		{
-			json = File.ReadAllText(filePath);
-		}
-		catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException)
-		{
-			return DataLoadResult<T>.Failure(new DataLoadError(filePath, OurResources.DataFileNotFound));
-		}
-		catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
-		{
-			return DataLoadResult<T>.Failure(new DataLoadError(filePath, OurResources.DataFileReadError.FormatCurrentCulture(e.Message)));
-		}
+		var readResult = DataFileReader.Read(filePath, File.ReadAllText);
+		if (readResult.Value is not { } json)
+			return DataLoadResult<T>.Failure(readResult.Errors);
 
 		T? value;
 		try
