@@ -1,5 +1,3 @@
-using GoldenAnvil.Utility;
-using OperaEtDies.Characters;
 using OperaEtDies.Data;
 using OperaEtDies.GameState;
 
@@ -47,7 +45,7 @@ public sealed class GameStateViewModelTests
 			foreach (var npc in gameState.Npcs)
 			{
 				Assert.That(npc.IsPlayer, Is.False);
-				Assert.That(npc.Age, Is.InRange(16, 70));
+				Assert.That(npc.Traits.GetInteger("age"), Is.InRange(16, 70));
 				Assert.That(npc.Location.People, Does.Contain(npc));
 				locations.Add(npc.Location.Id);
 			}
@@ -78,14 +76,14 @@ public sealed class GameStateViewModelTests
 	public void PersonDescribesThemselves()
 	{
 		var gameData = TestData.CreateGameData();
-		var traits = new CharacterTraits(Gender.Female, "Alice", "Miller", gameData.Professions.Get("miller"), gameData.Heights.Get("tall"), gameData.Weights.Get("heavy"), 34);
+		var traits = TestData.CreateTraits(gameData, "female", "Alice", "Miller", "miller", "tall", "heavy", 34);
 
-		var person = new PersonViewModel(traits, new LocationViewModel(gameData.StartingLocation), isPlayer: false);
+		var person = new PersonViewModel(gameData, traits, new LocationViewModel(gameData.StartingLocation), isPlayer: false);
 
 		Assert.That(person.FullName, Is.EqualTo("Alice Miller"));
-		Assert.That(person.Profession, Is.SameAs(gameData.Professions.Get("miller")));
-		Assert.That(person.Height.Id, Is.EqualTo("tall"));
-		Assert.That(person.Description, Is.EqualTo(OurResources.CharacterDescription.FormatCurrentCulture("Alice Miller", OurResources.GenderNounFemale, 34, OurResources.GenderPronounFemale, "tall", "heavy", "a miller")));
+		Assert.That(person.Traits.GetOption("profession").Id, Is.EqualTo("miller"));
+		Assert.That(person.Traits.GetOption("height").Id, Is.EqualTo("tall"));
+		Assert.That(person.Description, Is.EqualTo("Alice Miller is a woman of 34. She is tall and heavy, and works as a miller."));
 	}
 
 	[Test]
@@ -93,21 +91,18 @@ public sealed class GameStateViewModelTests
 	{
 		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
 
-		var gameState = GameStateViewModel.CreateNewGame(gameData, CreatePlayerTraits(gameData), new Random(0));
+		var gameState = GameStateViewModel.CreateNewGame(gameData, TestData.CreatePlayerTraits(gameData), new Random(0));
 
 		foreach (var npc in gameState.Npcs)
 		{
 			Assert.That(npc.Description, Does.StartWith(npc.FullName));
-			Assert.That(npc.Description, Does.Contain(npc.Profession.Description));
+			Assert.That(npc.Description, Does.Contain(npc.Traits.GetOption("profession").Text["description"]));
 		}
 	}
-
-	internal static CharacterTraits CreatePlayerTraits(GameData gameData) =>
-		new(Gender.Male, "John", "Smith", gameData.Professions[0], gameData.Heights[0], gameData.Weights[0], 40);
 
 	private static GameStateViewModel CreateGameState(int seed = 0)
 	{
 		var gameData = TestData.CreateGameData();
-		return GameStateViewModel.CreateNewGame(gameData, CreatePlayerTraits(gameData), new Random(seed));
+		return GameStateViewModel.CreateNewGame(gameData, TestData.CreatePlayerTraits(gameData), new Random(seed));
 	}
 }

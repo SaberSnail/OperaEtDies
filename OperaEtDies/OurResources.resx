@@ -107,30 +107,6 @@
 		<value>The item "{0}" in the "{1}" list has a frequency of {2}, but it must be from {3} to {4}.</value>
 		<comment>{0} is the item's id. {1} is the name of the list in the data file. {2} is the frequency found. {3} and {4} are the allowed minimum and maximum.</comment>
 	</data>
-	<data name="DataListItemDescriptionMissing" xml:space="preserve">
-		<value>The item "{0}" in the "{1}" list is missing a description.</value>
-		<comment>{0} is the item's id. {1} is the name of the list in the data file.</comment>
-	</data>
-	<data name="ProfessionDefaultLastNameMissing" xml:space="preserve">
-		<value>The profession "{0}" is missing a default last name.</value>
-		<comment>{0} is the profession's id.</comment>
-	</data>
-	<data name="NameMissing" xml:space="preserve">
-		<value>A name in the "{0}" list is blank.</value>
-		<comment>{0} is the name of the list in the data file.</comment>
-	</data>
-	<data name="NameFrequencyInvalid" xml:space="preserve">
-		<value>The name "{0}" in the "{1}" list has a frequency of {2}, but it must be from {3} to {4}.</value>
-		<comment>{0} is the name. {1} is the name of the list in the data file. {2} is the frequency found. {3} and {4} are the allowed minimum and maximum.</comment>
-	</data>
-	<data name="PlayerMinimumAgeInvalid" xml:space="preserve">
-		<value>The player minimum age is {0}, but it must be at least 1.</value>
-		<comment>{0} is the age found in the data file.</comment>
-	</data>
-	<data name="PlayerMaximumAgeInvalid" xml:space="preserve">
-		<value>The player maximum age is {0}, but it must be at least the player minimum age ({1}).</value>
-		<comment>{0} is the maximum age found in the data file. {1} is the minimum age found in the data file.</comment>
-	</data>
 	<data name="LocationDescriptionMissing" xml:space="preserve">
 		<value>The location "{0}" is missing its {1}.</value>
 		<comment>{0} is the location's id. {1} is the name of the missing description in the data file.</comment>
@@ -158,34 +134,8 @@
 		<value>The starting location is "{0}", but there is no location with that id.</value>
 		<comment>{0} is the starting location's id.</comment>
 	</data>
-	<data name="NpcMinimumAgeInvalid" xml:space="preserve">
-		<value>The NPC minimum age is {0}, but it must be at least 1.</value>
-		<comment>{0} is the age found in the data file.</comment>
-	</data>
-	<data name="NpcMaximumAgeInvalid" xml:space="preserve">
-		<value>The NPC maximum age is {0}, but it must be at least the NPC minimum age ({1}).</value>
-		<comment>{0} is the maximum age found in the data file. {1} is the minimum age found in the data file.</comment>
-	</data>
 	<data name="NewGameHeader" xml:space="preserve">
 		<value>New Game</value>
-	</data>
-	<data name="ProfessionLabel" xml:space="preserve">
-		<value>Profession</value>
-	</data>
-	<data name="FirstNameLabel" xml:space="preserve">
-		<value>First Name</value>
-	</data>
-	<data name="LastNameLabel" xml:space="preserve">
-		<value>Last Name</value>
-	</data>
-	<data name="HeightLabel" xml:space="preserve">
-		<value>Height</value>
-	</data>
-	<data name="WeightLabel" xml:space="preserve">
-		<value>Weight</value>
-	</data>
-	<data name="AgeLabel" xml:space="preserve">
-		<value>Age</value>
 	</data>
 	<data name="RandomizeField" xml:space="preserve">
 		<value>🎲</value>
@@ -218,22 +168,84 @@
 		<value>Examine</value>
 		<comment>Button that shows a description of a character.</comment>
 	</data>
-	<data name="CharacterDescription" xml:space="preserve">
-		<value>{0} is a {1} of {2}. {3} is {4} and {5}, and works as {6}.</value>
-		<comment>{0} is the character's full name. {1} is a noun for their gender (such as "man"). {2} is their age. {3} is a capitalized pronoun for their gender (such as "He"). {4} and {5} are descriptions of their height and weight from the data files (such as "tall" and "of average build"). {6} is a description of their profession from the data files (such as "a blacksmith").</comment>
+	<data name="WeightedValueMissing" xml:space="preserve">
+		<value>A value in the "{0}" list is blank.</value>
+		<comment>{0} is the name of the list in the data file.</comment>
 	</data>
-	<data name="GenderNounMale" xml:space="preserve">
-		<value>man</value>
+	<data name="WeightedValueFrequencyInvalid" xml:space="preserve">
+		<value>The value "{0}" in the "{1}" list has a frequency of {2}, but it must be from {3} to {4}.</value>
+		<comment>{0} is the value. {1} is the name of the list in the data file. {2} is the frequency found. {3} and {4} are the allowed minimum and maximum.</comment>
 	</data>
-	<data name="GenderNounFemale" xml:space="preserve">
-		<value>woman</value>
+	<data name="CharacterSettingMissing" xml:space="preserve">
+		<value>The property "{0}" needs a "{1}" setting.</value>
+		<comment>{0} is the property's id. {1} is the name of the missing setting in the data file.</comment>
 	</data>
-	<data name="GenderPronounMale" xml:space="preserve">
-		<value>He</value>
-		<comment>Capitalized, since it starts a sentence.</comment>
+	<data name="CharacterSettingNotAllowed" xml:space="preserve">
+		<value>The property "{0}" has a "{1}" setting, but its type can't use it.</value>
+		<comment>{0} is the property's id. {1} is the name of the setting in the data file.</comment>
 	</data>
-	<data name="GenderPronounFemale" xml:space="preserve">
-		<value>She</value>
-		<comment>Capitalized, since it starts a sentence.</comment>
+	<data name="CharacterOptionTextBlank" xml:space="preserve">
+		<value>The value "{0}" of the property "{1}" has blank "{2}" text.</value>
+		<comment>{0} is the value's id. {1} is the property's id. {2} is the name of the text.</comment>
+	</data>
+	<data name="IntegerRangeInvalid" xml:space="preserve">
+		<value>The "{0}" maximum is {1}, but it must be at least the minimum ({2}).</value>
+		<comment>{0} is the location of the range in the data file. {1} is the maximum found. {2} is the minimum found.</comment>
+	</data>
+	<data name="RoleValueUnknown" xml:space="preserve">
+		<value>The "{0}" list includes "{1}", but the property has no value with that id.</value>
+		<comment>{0} is the name of the list in the data file. {1} is the value id.</comment>
+	</data>
+	<data name="StringDefaultsFormInvalid" xml:space="preserve">
+		<value>The "{0}" setting must have either "values", or "keyedBy" and "valuesByKey".</value>
+		<comment>{0} is the location of the setting in the data file.</comment>
+	</data>
+	<data name="StringDefaultsKeyedByInvalid" xml:space="preserve">
+		<value>The "{0}" setting is keyed by "{1}", but that isn't a value list property defined before this one.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the property id it is keyed by.</comment>
+	</data>
+	<data name="StringDefaultsKeyUnknown" xml:space="preserve">
+		<value>The "{0}" setting has values for "{1}", but the property "{2}" has no value with that id.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the key. {2} is the id of the property it is keyed by.</comment>
+	</data>
+	<data name="StringDefaultsKeyMissing" xml:space="preserve">
+		<value>The "{0}" setting has no values for "{1}", which is a value of the property "{2}".</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the missing key. {2} is the id of the property it is keyed by.</comment>
+	</data>
+	<data name="TemplateRequired" xml:space="preserve">
+		<value>The "templates" list needs a template with the id "{0}".</value>
+		<comment>{0} is the template's id.</comment>
+	</data>
+	<data name="TemplateMalformed" xml:space="preserve">
+		<value>The "{0}" template has a brace that isn't part of a valid placeholder. Use "{{{{" and "}}}}" for literal braces.</value>
+		<comment>{0} is the template's id.</comment>
+	</data>
+	<data name="TemplatePropertyUnknown" xml:space="preserve">
+		<value>The "{0}" template uses "{1}", but there is no character property or template with that id.</value>
+		<comment>{0} is the template's id. {1} is the id used in the template.</comment>
+	</data>
+	<data name="TemplateFieldNotAllowed" xml:space="preserve">
+		<value>The "{0}" template uses "{1}.{2}", but only value list properties have text.</value>
+		<comment>{0} is the template's id. {1} is the property id. {2} is the name of the text.</comment>
+	</data>
+	<data name="TemplateFieldMissing" xml:space="preserve">
+		<value>The "{0}" template uses "{1}.{2}", but the value "{3}" has no "{2}" text.</value>
+		<comment>{0} is the template's id. {1} is the property id. {2} is the name of the text. {3} is the id of the value missing the text.</comment>
+	</data>
+	<data name="TemplateFormatUnknown" xml:space="preserve">
+		<value>The "{0}" template uses the format "{1}", but the only supported format is "first_upper".</value>
+		<comment>{0} is the template's id. {1} is the format used in the template.</comment>
+	</data>
+	<data name="TemplateBlank" xml:space="preserve">
+		<value>The template "{0}" is blank.</value>
+		<comment>{0} is the template's id.</comment>
+	</data>
+	<data name="TemplateIdIsProperty" xml:space="preserve">
+		<value>The template "{0}" has the same id as a character property.</value>
+		<comment>{0} is the template's id.</comment>
+	</data>
+	<data name="TemplateCycle" xml:space="preserve">
+		<value>The template "{0}" uses itself, either directly or through other templates.</value>
+		<comment>{0} is the template's id.</comment>
 	</data>
 </root>

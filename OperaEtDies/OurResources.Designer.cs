@@ -61,29 +61,11 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Age.
-        /// </summary>
-        public static string AgeLabel {
-            get {
-                return ResourceManager.GetString("AgeLabel", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Back.
         /// </summary>
         public static string Back {
             get {
                 return ResourceManager.GetString("Back", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to {0} is a {1} of {2}. {3} is {4} and {5}, and works as {6}..
-        /// </summary>
-        public static string CharacterDescription {
-            get {
-                return ResourceManager.GetString("CharacterDescription", resourceCulture);
             }
         }
         
@@ -147,15 +129,6 @@ namespace OperaEtDies {
         public static string DataListEmpty {
             get {
                 return ResourceManager.GetString("DataListEmpty", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The item &quot;{0}&quot; in the &quot;{1}&quot; list is missing a description..
-        /// </summary>
-        public static string DataListItemDescriptionMissing {
-            get {
-                return ResourceManager.GetString("DataListItemDescriptionMissing", resourceCulture);
             }
         }
         
@@ -250,15 +223,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to First Name.
-        /// </summary>
-        public static string FirstNameLabel {
-            get {
-                return ResourceManager.GetString("FirstNameLabel", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to A game description is required..
         /// </summary>
         public static string GameInfoDescriptionMissing {
@@ -285,60 +249,6 @@ namespace OperaEtDies {
             }
         }
 
-        /// <summary>
-        ///   Looks up a localized string similar to woman.
-        /// </summary>
-        public static string GenderNounFemale {
-            get {
-                return ResourceManager.GetString("GenderNounFemale", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to man.
-        /// </summary>
-        public static string GenderNounMale {
-            get {
-                return ResourceManager.GetString("GenderNounMale", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to She.
-        /// </summary>
-        public static string GenderPronounFemale {
-            get {
-                return ResourceManager.GetString("GenderPronounFemale", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to He.
-        /// </summary>
-        public static string GenderPronounMale {
-            get {
-                return ResourceManager.GetString("GenderPronounMale", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Height.
-        /// </summary>
-        public static string HeightLabel {
-            get {
-                return ResourceManager.GetString("HeightLabel", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Last Name.
-        /// </summary>
-        public static string LastNameLabel {
-            get {
-                return ResourceManager.GetString("LastNameLabel", resourceCulture);
-            }
-        }
-        
         /// <summary>
         ///   Looks up a localized string similar to Load Game.
         /// </summary>
@@ -394,24 +304,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The name &quot;{0}&quot; in the &quot;{1}&quot; list has a frequency of {2}, but it must be from {3} to {4}..
-        /// </summary>
-        public static string NameFrequencyInvalid {
-            get {
-                return ResourceManager.GetString("NameFrequencyInvalid", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to A name in the &quot;{0}&quot; list is blank..
-        /// </summary>
-        public static string NameMissing {
-            get {
-                return ResourceManager.GetString("NameMissing", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to New Game.
         /// </summary>
         public static string NewGameHeader {
@@ -421,65 +313,11 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The player minimum age is {0}, but it must be at least 1..
-        /// </summary>
-        public static string PlayerMinimumAgeInvalid {
-            get {
-                return ResourceManager.GetString("PlayerMinimumAgeInvalid", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to The NPC maximum age is {0}, but it must be at least the NPC minimum age ({1})..
-        /// </summary>
-        public static string NpcMaximumAgeInvalid {
-            get {
-                return ResourceManager.GetString("NpcMaximumAgeInvalid", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The NPC minimum age is {0}, but it must be at least 1..
-        /// </summary>
-        public static string NpcMinimumAgeInvalid {
-            get {
-                return ResourceManager.GetString("NpcMinimumAgeInvalid", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to People here:.
         /// </summary>
         public static string PeopleHeader {
             get {
                 return ResourceManager.GetString("PeopleHeader", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The player maximum age is {0}, but it must be at least the player minimum age ({1})..
-        /// </summary>
-        public static string PlayerMaximumAgeInvalid {
-            get {
-                return ResourceManager.GetString("PlayerMaximumAgeInvalid", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to The profession &quot;{0}&quot; is missing a default last name..
-        /// </summary>
-        public static string ProfessionDefaultLastNameMissing {
-            get {
-                return ResourceManager.GetString("ProfessionDefaultLastNameMissing", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Profession.
-        /// </summary>
-        public static string ProfessionLabel {
-            get {
-                return ResourceManager.GetString("ProfessionLabel", resourceCulture);
             }
         }
         
@@ -538,11 +376,182 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Weight.
+        ///   Looks up a localized string similar to A value in the &quot;{0}&quot; list is blank..
         /// </summary>
-        public static string WeightLabel {
+        public static string WeightedValueMissing {
             get {
-                return ResourceManager.GetString("WeightLabel", resourceCulture);
+                return ResourceManager.GetString("WeightedValueMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The value &quot;{0}&quot; in the &quot;{1}&quot; list has a frequency of {2}, but it must be from {3} to {4}..
+        /// </summary>
+        public static string WeightedValueFrequencyInvalid {
+            get {
+                return ResourceManager.GetString("WeightedValueFrequencyInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The property &quot;{0}&quot; needs a &quot;{1}&quot; setting..
+        /// </summary>
+        public static string CharacterSettingMissing {
+            get {
+                return ResourceManager.GetString("CharacterSettingMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The property &quot;{0}&quot; has a &quot;{1}&quot; setting, but its type can&apos;t use it..
+        /// </summary>
+        public static string CharacterSettingNotAllowed {
+            get {
+                return ResourceManager.GetString("CharacterSettingNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The value &quot;{0}&quot; of the property &quot;{1}&quot; has blank &quot;{2}&quot; text..
+        /// </summary>
+        public static string CharacterOptionTextBlank {
+            get {
+                return ResourceManager.GetString("CharacterOptionTextBlank", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; maximum is {1}, but it must be at least the minimum ({2})..
+        /// </summary>
+        public static string IntegerRangeInvalid {
+            get {
+                return ResourceManager.GetString("IntegerRangeInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; list includes &quot;{1}&quot;, but the property has no value with that id..
+        /// </summary>
+        public static string RoleValueUnknown {
+            get {
+                return ResourceManager.GetString("RoleValueUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; setting must have either &quot;values&quot;, or &quot;keyedBy&quot; and &quot;valuesByKey&quot;..
+        /// </summary>
+        public static string StringDefaultsFormInvalid {
+            get {
+                return ResourceManager.GetString("StringDefaultsFormInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; setting is keyed by &quot;{1}&quot;, but that isn&apos;t a value list property defined before this one..
+        /// </summary>
+        public static string StringDefaultsKeyedByInvalid {
+            get {
+                return ResourceManager.GetString("StringDefaultsKeyedByInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; setting has values for &quot;{1}&quot;, but the property &quot;{2}&quot; has no value with that id..
+        /// </summary>
+        public static string StringDefaultsKeyUnknown {
+            get {
+                return ResourceManager.GetString("StringDefaultsKeyUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; setting has no values for &quot;{1}&quot;, which is a value of the property &quot;{2}&quot;..
+        /// </summary>
+        public static string StringDefaultsKeyMissing {
+            get {
+                return ResourceManager.GetString("StringDefaultsKeyMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;templates&quot; list needs a template with the id &quot;{0}&quot;..
+        /// </summary>
+        public static string TemplateRequired {
+            get {
+                return ResourceManager.GetString("TemplateRequired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; template has a brace that isn&apos;t part of a valid placeholder. Use &quot;{{{{&quot; and &quot;}}}}&quot; for literal braces..
+        /// </summary>
+        public static string TemplateMalformed {
+            get {
+                return ResourceManager.GetString("TemplateMalformed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; template uses &quot;{1}&quot;, but there is no character property or template with that id..
+        /// </summary>
+        public static string TemplatePropertyUnknown {
+            get {
+                return ResourceManager.GetString("TemplatePropertyUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; template uses &quot;{1}.{2}&quot;, but only value list properties have text..
+        /// </summary>
+        public static string TemplateFieldNotAllowed {
+            get {
+                return ResourceManager.GetString("TemplateFieldNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; template uses &quot;{1}.{2}&quot;, but the value &quot;{3}&quot; has no &quot;{2}&quot; text..
+        /// </summary>
+        public static string TemplateFieldMissing {
+            get {
+                return ResourceManager.GetString("TemplateFieldMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; template uses the format &quot;{1}&quot;, but the only supported format is &quot;first_upper&quot;..
+        /// </summary>
+        public static string TemplateFormatUnknown {
+            get {
+                return ResourceManager.GetString("TemplateFormatUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The template &quot;{0}&quot; is blank..
+        /// </summary>
+        public static string TemplateBlank {
+            get {
+                return ResourceManager.GetString("TemplateBlank", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The template &quot;{0}&quot; has the same id as a character property..
+        /// </summary>
+        public static string TemplateIdIsProperty {
+            get {
+                return ResourceManager.GetString("TemplateIdIsProperty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The template &quot;{0}&quot; uses itself, either directly or through other templates..
+        /// </summary>
+        public static string TemplateCycle {
+            get {
+                return ResourceManager.GetString("TemplateCycle", resourceCulture);
             }
         }
     }

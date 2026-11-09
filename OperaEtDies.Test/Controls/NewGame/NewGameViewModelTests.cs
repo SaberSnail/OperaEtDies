@@ -1,4 +1,4 @@
-using OperaEtDies.Characters;
+using System.Globalization;
 using OperaEtDies.Controls.NewGame;
 using OperaEtDies.Data;
 
@@ -8,16 +8,35 @@ namespace OperaEtDies.Test.Controls.NewGame;
 public sealed class NewGameViewModelTests
 {
 	[Test]
+	public void ShowsEditableProperties()
+	{
+		var viewModel = CreateViewModel();
+
+		// Gender has only one value for the player, so it isn't shown.
+		Assert.That(viewModel.Properties.Select(x => x.Id), Is.EqualTo(new[] { "profession", "firstName", "lastName", "height", "weight", "age" }));
+		Assert.That(viewModel.Properties.Select(x => x.GetType()), Is.EqualTo(new[]
+		{
+			typeof(ValueListPropertyEditorViewModel),
+			typeof(StringPropertyEditorViewModel),
+			typeof(StringPropertyEditorViewModel),
+			typeof(ValueListPropertyEditorViewModel),
+			typeof(ValueListPropertyEditorViewModel),
+			typeof(IntegerPropertyEditorViewModel),
+		}));
+		Assert.That(viewModel.FindProperty("gender"), Is.Null);
+	}
+
+	[Test]
 	public void HasDefaults()
 	{
 		var viewModel = CreateViewModel();
 
-		Assert.That(viewModel.Profession.Id, Is.EqualTo("smith"));
-		Assert.That(viewModel.FirstName, Is.AnyOf("John", "Osric"));
-		Assert.That(viewModel.LastName, Is.EqualTo("Smith"));
-		Assert.That(viewModel.Height, Is.AnyOf(viewModel.Heights.ToArray()));
-		Assert.That(viewModel.Weight, Is.AnyOf(viewModel.Weights.ToArray()));
-		Assert.That(viewModel.Age, Is.InRange(36, 60));
+		Assert.That(FirstName(viewModel).Text, Is.AnyOf("John", "Osric"));
+		Assert.That(LastName(viewModel).Text, Is.EqualTo(Profession(viewModel).SelectedOption.Id == "smith" ? "Smith" : "Miller"));
+		Assert.That(Height(viewModel).SelectedOption, Is.AnyOf(Height(viewModel).Options.ToArray()));
+		Assert.That(Age(viewModel).Value, Is.InRange(36, 60));
+		Assert.That(Age(viewModel).Minimum, Is.EqualTo(36));
+		Assert.That(Age(viewModel).Maximum, Is.EqualTo(60));
 		Assert.That(viewModel.CanStartGame(), Is.True);
 	}
 
@@ -31,9 +50,9 @@ public sealed class NewGameViewModelTests
 		for (var seed = 0; seed < 100; seed++)
 		{
 			var viewModel = new NewGameViewModel(TestData.CreateGameData(), new Random(seed));
-			heights.Add(viewModel.Height.Id);
-			weights.Add(viewModel.Weight.Id);
-			ages.Add(viewModel.Age);
+			heights.Add(Height(viewModel).SelectedOption.Id);
+			weights.Add(((ValueListPropertyEditorViewModel) viewModel.FindProperty("weight")!).SelectedOption.Id);
+			ages.Add(Age(viewModel).Value);
 		}
 
 		Assert.That(heights, Has.Count.EqualTo(3));
@@ -46,13 +65,14 @@ public sealed class NewGameViewModelTests
 	public void BlankFirstNameIsRandomized(string firstName)
 	{
 		var viewModel = CreateViewModel();
+		var editor = FirstName(viewModel);
 		var changed = new List<string?>();
-		viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+		editor.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
-		viewModel.FirstName = firstName;
+		editor.Text = firstName;
 
-		Assert.That(viewModel.FirstName, Is.AnyOf("John", "Osric"));
-		Assert.That(changed, Does.Contain(nameof(NewGameViewModel.FirstName)));
+		Assert.That(editor.Text, Is.AnyOf("John", "Osric"));
+		Assert.That(changed, Does.Contain(nameof(StringPropertyEditorViewModel.Text)));
 		Assert.That(viewModel.CanStartGame(), Is.True);
 	}
 
@@ -60,45 +80,64 @@ public sealed class NewGameViewModelTests
 	[TestCase("  ")]
 	public void BlankAgeIsRandomized(string ageText)
 	{
-		var viewModel = CreateViewModel();
+		var editor = Age(CreateViewModel());
 		var changed = new List<string?>();
-		viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+		editor.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
-		viewModel.AgeText = ageText;
+		editor.Text = ageText;
 
-		Assert.That(viewModel.Age, Is.InRange(36, 60));
-		Assert.That(viewModel.AgeText, Is.EqualTo(viewModel.Age.ToString(System.Globalization.CultureInfo.CurrentCulture)));
-		Assert.That(changed, Does.Contain(nameof(NewGameViewModel.AgeText)));
+		Assert.That(editor.Value, Is.InRange(36, 60));
+		Assert.That(editor.Text, Is.EqualTo(editor.Value.ToString(CultureInfo.CurrentCulture)));
+		Assert.That(changed, Does.Contain(nameof(IntegerPropertyEditorViewModel.Text)));
 	}
 
 	[Test]
 	public void AgeTextSetsAge()
 	{
-		var viewModel = CreateViewModel();
-		viewModel.Age = 40;
+		var editor = Age(CreateViewModel());
+		editor.Value = 40;
 
-		viewModel.AgeText = "45";
-		Assert.That(viewModel.Age, Is.EqualTo(45));
+		editor.Text = "45";
+		Assert.That(editor.Value, Is.EqualTo(45));
 
-		viewModel.AgeText = "abc";
-		Assert.That(viewModel.Age, Is.EqualTo(45));
-		Assert.That(viewModel.AgeText, Is.EqualTo("45"));
+		editor.Text = "abc";
+		Assert.That(editor.Value, Is.EqualTo(45));
+		Assert.That(editor.Text, Is.EqualTo("45"));
 
-		viewModel.AgeText = "90";
-		Assert.That(viewModel.Age, Is.EqualTo(60));
+		editor.Text = "90";
+		Assert.That(editor.Value, Is.EqualTo(60));
+	}
+
+	[Test]
+	public void AgeStaysWithinRange()
+	{
+		var editor = Age(CreateViewModel());
+
+		editor.Value = 50;
+		Assert.That(editor.Value, Is.EqualTo(50));
+
+		editor.Value = 12;
+		Assert.That(editor.Value, Is.EqualTo(36));
+
+		editor.Value = 90;
+		Assert.That(editor.Value, Is.EqualTo(60));
 	}
 
 	[Test]
 	public void LastNameFollowsProfessionUntilCustomized()
 	{
 		var viewModel = CreateViewModel();
+		SetProfession(viewModel, "smith");
+		var changed = new List<string?>();
+		LastName(viewModel).PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
-		viewModel.Profession = viewModel.Professions[1];
-		Assert.That(viewModel.LastName, Is.EqualTo("Miller"));
+		SetProfession(viewModel, "miller");
+		Assert.That(LastName(viewModel).Text, Is.EqualTo("Miller"));
+		Assert.That(changed, Does.Contain(nameof(StringPropertyEditorViewModel.Text)));
 
-		viewModel.LastName = "Cooper";
-		viewModel.Profession = viewModel.Professions[0];
-		Assert.That(viewModel.LastName, Is.EqualTo("Cooper"));
+		LastName(viewModel).Text = "Cooper";
+		SetProfession(viewModel, "smith");
+		Assert.That(LastName(viewModel).Text, Is.EqualTo("Cooper"));
 	}
 
 	[TestCase("")]
@@ -107,100 +146,111 @@ public sealed class NewGameViewModelTests
 	public void ClearingOrResettingLastNameFollowsProfessionAgain(string lastName)
 	{
 		var viewModel = CreateViewModel();
+		SetProfession(viewModel, "smith");
 
-		viewModel.LastName = "Cooper";
-		viewModel.LastName = lastName;
-		Assert.That(viewModel.LastName, Is.EqualTo("Smith"));
+		LastName(viewModel).Text = "Cooper";
+		LastName(viewModel).Text = lastName;
+		Assert.That(LastName(viewModel).Text, Is.EqualTo("Smith"));
 
-		viewModel.Profession = viewModel.Professions[1];
+		SetProfession(viewModel, "miller");
 
-		Assert.That(viewModel.LastName, Is.EqualTo("Miller"));
+		Assert.That(LastName(viewModel).Text, Is.EqualTo("Miller"));
 	}
 
 	[Test]
 	public void ClearingDefaultLastNameRestoresIt()
 	{
 		var viewModel = CreateViewModel();
+		SetProfession(viewModel, "smith");
 		var changed = new List<string?>();
-		viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+		LastName(viewModel).PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
-		viewModel.LastName = "";
+		LastName(viewModel).Text = "";
 
 		// The value didn't change, but the view still needs to be told so it replaces its blank text.
-		Assert.That(viewModel.LastName, Is.EqualTo("Smith"));
-		Assert.That(changed, Does.Contain(nameof(NewGameViewModel.LastName)));
-	}
-
-	[Test]
-	public void AgeStaysWithinRange()
-	{
-		var viewModel = CreateViewModel();
-
-		viewModel.Age = 50;
-		Assert.That(viewModel.Age, Is.EqualTo(50));
-
-		viewModel.Age = 12;
-		Assert.That(viewModel.Age, Is.EqualTo(36));
-
-		viewModel.Age = 90;
-		Assert.That(viewModel.Age, Is.EqualTo(60));
+		Assert.That(LastName(viewModel).Text, Is.EqualTo("Smith"));
+		Assert.That(changed, Does.Contain(nameof(StringPropertyEditorViewModel.Text)));
 	}
 
 	[Test]
 	public void RandomizeFieldsCanSelectEveryValue()
 	{
 		var viewModel = CreateViewModel();
-		var professions = new HashSet<Profession>();
+		var professions = new HashSet<CharacterPropertyOption>();
 		var firstNames = new HashSet<string>();
-		var heights = new HashSet<CharacterOption>();
-		var weights = new HashSet<CharacterOption>();
+		var heights = new HashSet<CharacterPropertyOption>();
 
 		// Enough rolls that even the rarest test value is all but certain to come up.
 		for (var i = 0; i < 500; i++)
 		{
-			viewModel.RandomizeProfession();
-			viewModel.RandomizeFirstName();
-			viewModel.RandomizeHeight();
-			viewModel.RandomizeWeight();
-			viewModel.RandomizeAge();
+			foreach (var property in viewModel.Properties)
+				property.Randomize();
 
-			professions.Add(viewModel.Profession);
-			firstNames.Add(viewModel.FirstName);
-			heights.Add(viewModel.Height);
-			weights.Add(viewModel.Weight);
-			Assert.That(viewModel.Age, Is.InRange(viewModel.MinimumAge, viewModel.MaximumAge));
+			professions.Add(Profession(viewModel).SelectedOption);
+			firstNames.Add(FirstName(viewModel).Text);
+			heights.Add(Height(viewModel).SelectedOption);
+			Assert.That(Age(viewModel).Value, Is.InRange(36, 60));
+			Assert.That(LastName(viewModel).Text, Is.EqualTo(Profession(viewModel).SelectedOption.Id == "smith" ? "Smith" : "Miller"));
 		}
 
-		Assert.That(professions, Is.EquivalentTo(viewModel.Professions));
+		Assert.That(professions, Is.EquivalentTo(Profession(viewModel).Options));
 		Assert.That(firstNames, Is.EquivalentTo(new[] { "John", "Osric" }));
-		Assert.That(heights, Is.EquivalentTo(viewModel.Heights));
-		Assert.That(weights, Is.EquivalentTo(viewModel.Weights));
+		Assert.That(heights, Is.EquivalentTo(Height(viewModel).Options));
 	}
 
 	[Test]
-	public void RandomizeProfessionUpdatesDefaultLastName()
+	public void RandomizeAllKeepsCustomStrings()
 	{
 		var viewModel = CreateViewModel();
-
-		viewModel.RandomizeProfession();
-
-		Assert.That(viewModel.LastName, Is.EqualTo(viewModel.Profession.DefaultLastName));
-	}
-
-	[Test]
-	public void RandomizeAllKeepsCustomLastName()
-	{
-		var viewModel = CreateViewModel();
-		viewModel.LastName = "Atwood";
+		FirstName(viewModel).Text = "Bob";
+		LastName(viewModel).Text = "Atwood";
 
 		for (var i = 0; i < 20; i++)
 		{
 			viewModel.RandomizeAll();
 
-			Assert.That(viewModel.LastName, Is.EqualTo("Atwood"));
-			Assert.That(viewModel.Age, Is.InRange(viewModel.MinimumAge, viewModel.MaximumAge));
+			Assert.That(FirstName(viewModel).Text, Is.EqualTo("Bob"));
+			Assert.That(LastName(viewModel).Text, Is.EqualTo("Atwood"));
+			Assert.That(Age(viewModel).Value, Is.InRange(36, 60));
 			Assert.That(viewModel.CanStartGame(), Is.True);
 		}
+	}
+
+	[Test]
+	public void RandomizingAFieldReplacesACustomString()
+	{
+		var viewModel = CreateViewModel();
+		FirstName(viewModel).Text = "Bob";
+
+		FirstName(viewModel).Randomize();
+
+		Assert.That(FirstName(viewModel).Text, Is.AnyOf("John", "Osric"));
+	}
+
+	[Test]
+	public void StringWithoutDefaultsMustBeFilledIn()
+	{
+		var gameData = new GameData(
+			new CharacterData
+			{
+				Templates = TestData.CreateTemplates("{name}", "{name}"),
+				Properties = [new CharacterProperty { Id = "name", Title = "Name", Type = CharacterPropertyType.String }],
+			},
+			TestData.CreateLocationList());
+		var viewModel = new NewGameViewModel(gameData, new Random(0));
+		var editor = (StringPropertyEditorViewModel) viewModel.Properties.Single();
+
+		Assert.That(editor.HasDefaults, Is.False);
+		Assert.That(editor.CanRandomize(), Is.False);
+		Assert.That(editor.Text, Is.Empty);
+		Assert.That(viewModel.CanStartGame(), Is.False);
+
+		editor.Text = "Hugh";
+		Assert.That(viewModel.CanStartGame(), Is.True);
+
+		editor.Text = " ";
+		Assert.That(editor.Text, Is.Empty);
+		Assert.That(viewModel.CanStartGame(), Is.False);
 	}
 
 	[Test]
@@ -210,22 +260,37 @@ public sealed class NewGameViewModelTests
 		NewGameSettings? settings = null;
 		viewModel.StartGameRequested += (_, e) => settings = e.Value;
 
-		viewModel.Profession = viewModel.Professions[1];
-		viewModel.FirstName = " Hugh ";
-		viewModel.Height = viewModel.Heights[0];
-		viewModel.Weight = viewModel.Weights[2];
-		viewModel.Age = 40;
+		SetProfession(viewModel, "miller");
+		FirstName(viewModel).Text = " Hugh ";
+		Height(viewModel).SelectedOption = Height(viewModel).Options[0];
+		Age(viewModel).Value = 40;
 		viewModel.StartGame();
 
 		Assert.That(settings, Is.Not.Null);
-		Assert.That(settings!.Player.Profession.Id, Is.EqualTo("miller"));
-		Assert.That(settings.Player.FirstName, Is.EqualTo("Hugh"));
-		Assert.That(settings.Player.LastName, Is.EqualTo("Miller"));
-		Assert.That(settings.Player.Height.Id, Is.EqualTo("tall"));
-		Assert.That(settings.Player.Weight.Id, Is.EqualTo("heavy"));
-		Assert.That(settings.Player.Age, Is.EqualTo(40));
-		Assert.That(settings.Player.Gender, Is.EqualTo(Gender.Male));
+		var player = settings!.Player;
+		Assert.That(player.GetOption("profession").Id, Is.EqualTo("miller"));
+		Assert.That(player.GetString("firstName"), Is.EqualTo("Hugh"));
+		Assert.That(player.GetString("lastName"), Is.EqualTo("Miller"));
+		Assert.That(player.GetOption("height").Id, Is.EqualTo("tall"));
+		Assert.That(player.GetInteger("age"), Is.EqualTo(40));
+		Assert.That(player.GetOption("gender").Id, Is.EqualTo("male"));
 	}
+
+	private static void SetProfession(NewGameViewModel viewModel, string id)
+	{
+		var editor = Profession(viewModel);
+		editor.SelectedOption = editor.Options.Single(x => x.Id == id);
+	}
+
+	private static ValueListPropertyEditorViewModel Profession(NewGameViewModel viewModel) => (ValueListPropertyEditorViewModel) viewModel.FindProperty("profession")!;
+
+	private static StringPropertyEditorViewModel FirstName(NewGameViewModel viewModel) => (StringPropertyEditorViewModel) viewModel.FindProperty("firstName")!;
+
+	private static StringPropertyEditorViewModel LastName(NewGameViewModel viewModel) => (StringPropertyEditorViewModel) viewModel.FindProperty("lastName")!;
+
+	private static ValueListPropertyEditorViewModel Height(NewGameViewModel viewModel) => (ValueListPropertyEditorViewModel) viewModel.FindProperty("height")!;
+
+	private static IntegerPropertyEditorViewModel Age(NewGameViewModel viewModel) => (IntegerPropertyEditorViewModel) viewModel.FindProperty("age")!;
 
 	private static NewGameViewModel CreateViewModel() => new(TestData.CreateGameData(), new Random(0));
 }

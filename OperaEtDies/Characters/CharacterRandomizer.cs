@@ -4,82 +4,101 @@ using OperaEtDies.Utility.Random;
 namespace OperaEtDies.Characters;
 
 /// <summary>
-/// Picks random traits for a character. Any trait can be predefined by setting its value, and locked so that
-/// randomizing leaves it alone. First names follow gender, and last names follow profession, unless they're locked.
+/// Picks random values for every character property, using the settings for the given role. Any value can be
+/// predefined by setting it, and locked so that randomizing leaves it alone. A string property whose defaults are
+/// keyed by another property picks a new value when that property changes, unless it's locked.
 /// </summary>
 public sealed class CharacterRandomizer
 {
-	public CharacterRandomizer(GameData gameData, Random random, int minimumAge, int maximumAge)
+	public CharacterRandomizer(GameData gameData, Random random, CharacterRole role)
 	{
-		if (maximumAge < minimumAge)
-			throw new ArgumentOutOfRangeException(nameof(maximumAge), maximumAge, "The maximum age must be at least the minimum age.");
+		Role = role;
+		Properties = gameData.CharacterProperties;
+		m_random = random;
+		m_values = new Dictionary<string, RandomizedValue<object>>(StringComparer.Ordinal);
 
-		MinimumAge = minimumAge;
-		MaximumAge = maximumAge;
+		// Validation makes sure a property is only keyed by properties defined before it, so those values already
+		// exist when it picks its starting value.
+		foreach (var property in Properties)
+		{
+			var value = new RandomizedValue<object>(() => PickRandom(property));
+			m_values.Add(property.Id, value);
 
-		var firstNames = gameData.FirstNames;
-		var heights = gameData.Heights;
-		var weights = gameData.Weights;
-		var professions = gameData.Professions;
-
-		// Traits that depend on other traits are created after them, so their starting values match.
-		Gender = new RandomizedValue<Gender>(() => random.Next(2) == 0 ? Characters.Gender.Male : Characters.Gender.Female);
-		FirstName = new RandomizedValue<string>(() => random.NextWeighted(Gender.Value == Characters.Gender.Male ? firstNames.Male : firstNames.Female).Name);
-		Profession = new RandomizedValue<Profession>(() => random.NextWeighted(professions));
-		LastName = new RandomizedValue<string>(() => Profession.Value.DefaultLastName);
-		Height = new RandomizedValue<CharacterOption>(() => random.NextWeighted(heights));
-		Weight = new RandomizedValue<CharacterOption>(() => random.NextWeighted(weights));
-
-		// Taking the lower of two rolls makes younger ages the most common, with older ages increasingly rare.
-		Age = new RandomizedValue<int>(() => minimumAge + Math.Min(random.Next(maximumAge - minimumAge + 1), random.Next(maximumAge - minimumAge + 1)));
-
-		Gender.ValueChanged += (_, _) => FirstName.Randomize();
-		Profession.ValueChanged += (_, _) => LastName.Randomize();
+			if (property.Type == CharacterPropertyType.String && property.GetDefaults(role)?.KeyedBy is { } keyedBy)
+				m_values[keyedBy].ValueChanged += (_, _) => value.Randomize();
+		}
 	}
 
-	public int MinimumAge { get; }
+	public CharacterRole Role { get; }
 
-	public int MaximumAge { get; }
-
-	public RandomizedValue<Gender> Gender { get; }
+	public IReadOnlyList<CharacterProperty> Properties { get; }
 
 	/// <summary>
-	/// Picked from the first names for the character's gender, and picked again when the gender changes.
+	/// Gets the value of the property with the given id.
 	/// </summary>
-	public RandomizedValue<string> FirstName { get; }
-
-	public RandomizedValue<Profession> Profession { get; }
+	public RandomizedValue<object> this[string propertyId] => m_values[propertyId];
 
 	/// <summary>
-	/// The profession's default last name, which is updated when the profession changes.
+	/// Gets the values a value list property can have for this role.
 	/// </summary>
-	public RandomizedValue<string> LastName { get; }
-
-	public RandomizedValue<CharacterOption> Height { get; }
-
-	public RandomizedValue<CharacterOption> Weight { get; }
+	public IReadOnlyList<CharacterPropertyOption> GetOptions(CharacterProperty property) => property.GetOptions(Role);
 
 	/// <summary>
-	/// Picked from the minimum age to the maximum age.
+	/// Gets the range of an integer property for this role.
 	/// </summary>
-	public RandomizedValue<int> Age { get; }
+	public IntegerRange GetRange(CharacterProperty property) => property.GetRange(Role);
 
 	/// <summary>
-	/// Picks new random values for every trait that isn't locked.
+	/// Gets the default values a string property currently picks from, which may depend on the value of another
+	/// property. Returns null if there are none.
+	/// </summary>
+	public IReadOnlyList<WeightedString>? GetDefaultValues(CharacterProperty property)
+	{
+		var defaults = property.GetDefaults(Role);
+		var keyValue = defaults?.KeyedBy is { } keyedBy ? m_values[keyedBy].Value as CharacterPropertyOption : null;
+		return defaults?.GetValues(keyValue?.Id) is { Count: > 0 } values ? values : null;
+	}
+
+	/// <summary>
+	/// Picks new random values for every property that isn't locked.
 	/// </summary>
 	public void RandomizeAll()
 	{
-		Gender.Randomize();
-		FirstName.Randomize();
-		Profession.Randomize();
-		LastName.Randomize();
-		Height.Randomize();
-		Weight.Randomize();
-		Age.Randomize();
+		foreach (var property in Properties)
+			m_values[property.Id].Randomize();
 	}
 
 	/// <summary>
-	/// Gets the current values of every trait.
+	/// Gets the current values of every property.
 	/// </summary>
-	public CharacterTraits GetTraits() => new(Gender.Value, FirstName.Value, LastName.Value, Profession.Value, Height.Value, Weight.Value, Age.Value);
+	public CharacterTraits GetTraits() => new(m_values.ToDictionary(x => x.Key, x => x.Value.Value, StringComparer.Ordinal));
+
+	private object PickRandom(CharacterProperty property) => property.Type switch
+	{
+		CharacterPropertyType.String => GetDefaultValues(property) is { } values ? m_random.NextWeighted(values).Value : "",
+		CharacterPropertyType.Integer => PickInteger(GetRange(property)),
+		CharacterPropertyType.ValueList => m_random.NextWeighted(GetOptions(property)),
+		_ => throw new InvalidOperationException($"Unknown property type {property.Type}."),
+	};
+
+	/// <summary>
+	/// Combines two rolls so values at the favored part of the range are common and the rest grow increasingly rare.
+	/// </summary>
+	private int PickInteger(IntegerRange range)
+	{
+		var count = range.Maximum - range.Minimum + 1;
+		var first = m_random.Next(count);
+		var second = m_random.Next(count);
+		var offset = range.Shape switch
+		{
+			IntegerShape.Low => Math.Min(first, second),
+			IntegerShape.High => Math.Max(first, second),
+			IntegerShape.Middle => (first + second + m_random.Next(2)) / 2,
+			_ => throw new InvalidOperationException($"Unknown integer shape {range.Shape}."),
+		};
+		return range.Minimum + offset;
+	}
+
+	private readonly Random m_random;
+	private readonly Dictionary<string, RandomizedValue<object>> m_values;
 }

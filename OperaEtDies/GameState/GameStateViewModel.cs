@@ -20,11 +20,11 @@ public sealed class GameStateViewModel : ViewModelBase
 		foreach (var (location, viewModel) in gameData.Locations.Zip(locations))
 			viewModel.SetConnections(location.Connections.Select(x => locationsById.GetValueOrDefault(x)).OfType<LocationViewModel>().ToList());
 
-		var player = new PersonViewModel(playerTraits,locationsById[gameData.StartingLocation.Id], isPlayer: true);
+		var player = new PersonViewModel(gameData, playerTraits, locationsById[gameData.StartingLocation.Id], isPlayer: true);
 
 		// Until villagers are defined in data, a few random ones are generated, each in a random location.
 		var npcs = NpcGenerator.Generate(gameData, random, NpcCount, [player.FullName])
-			.Select(x => new PersonViewModel(x, locations[random.Next(locations.Count)], isPlayer: false))
+			.Select(x => new PersonViewModel(gameData, x, locations[random.Next(locations.Count)], isPlayer: false))
 			.ToList();
 
 		return new GameStateViewModel(locations, player, npcs);

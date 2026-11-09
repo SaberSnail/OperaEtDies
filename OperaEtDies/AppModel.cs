@@ -112,7 +112,7 @@ public sealed class AppModel : ViewModelBase
 			return;
 		}
 
-		Log.Info($"Starting new game as {settings.Player.FullName}, {settings.Player.Profession.Id}, age {settings.Player.Age}");
+		Log.Info($"Starting new game as {settings.Player.GetFullName(gameData.CharacterTemplates)}");
 
 		var gameState = GameStateViewModel.CreateNewGame(gameData, settings.Player, Random);
 

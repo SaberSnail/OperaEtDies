@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Logging;
 
@@ -62,6 +63,7 @@ public static class JsonDataLoader
 		ReadCommentHandling = JsonCommentHandling.Skip,
 		AllowTrailingCommas = true,
 		RespectNullableAnnotations = true,
+		Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false) },
 	};
 
 	private static ILogSource Log { get; } = LogManager.CreateLogSource(nameof(JsonDataLoader));

@@ -6,13 +6,13 @@ namespace OperaEtDies.Data;
 /// </summary>
 public sealed class GameData
 {
-	public GameData(ProfessionList professions, FirstNameList firstNames, CharacterOptions characterOptions, LocationList locations)
+	public GameData(CharacterData characters, LocationList locations)
 	{
-		Professions = new DataCatalog<Profession>(professions.Professions);
-		FirstNames = firstNames;
-		CharacterOptions = characterOptions;
-		Heights = new DataCatalog<CharacterOption>(characterOptions.Heights);
-		Weights = new DataCatalog<CharacterOption>(characterOptions.Weights);
+		CharacterProperties = new DataCatalog<CharacterProperty>(characters.Properties);
+
+		// The character file is validated on load, so the templates are always valid.
+		CharacterTemplates = new TextTemplateSet(characters.Templates.Select(x => KeyValuePair.Create(x.Id, TextTemplate.Parse(x.Template))));
+
 		Locations = new DataCatalog<Location>(locations.Locations);
 
 		// The locations file is validated on load, so the starting location always exists.
@@ -24,29 +24,24 @@ public sealed class GameData
 	/// </summary>
 	public static DataLoadResult<GameData> Load(string dataDirectory)
 	{
-		var professions = ProfessionList.Load(dataDirectory);
-		var firstNames = FirstNameList.Load(dataDirectory);
-		var characterOptions = CharacterOptions.Load(dataDirectory);
+		var characters = CharacterData.Load(dataDirectory);
 		var locations = LocationList.Load(dataDirectory);
 
-		if (professions.Value is null || firstNames.Value is null || characterOptions.Value is null || locations.Value is null)
-			return DataLoadResult<GameData>.Failure([.. professions.Errors, .. firstNames.Errors, .. characterOptions.Errors, .. locations.Errors]);
+		if (characters.Value is null || locations.Value is null)
+			return DataLoadResult<GameData>.Failure([.. characters.Errors, .. locations.Errors]);
 
-		return DataLoadResult<GameData>.Success(new GameData(professions.Value, firstNames.Value, characterOptions.Value, locations.Value));
+		return DataLoadResult<GameData>.Success(new GameData(characters.Value, locations.Value));
 	}
 
-	public DataCatalog<Profession> Professions { get; }
-
-	public FirstNameList FirstNames { get; }
+	/// <summary>
+	/// The properties that describe a character, in the order they were defined.
+	/// </summary>
+	public DataCatalog<CharacterProperty> CharacterProperties { get; }
 
 	/// <summary>
-	/// The age ranges for characters. The heights and weights are also available as catalogs on <see cref="Heights"/> and <see cref="Weights"/>.
+	/// The templates that create text about a character, such as their full name and description.
 	/// </summary>
-	public CharacterOptions CharacterOptions { get; }
-
-	public DataCatalog<CharacterOption> Heights { get; }
-
-	public DataCatalog<CharacterOption> Weights { get; }
+	public TextTemplateSet CharacterTemplates { get; }
 
 	public DataCatalog<Location> Locations { get; }
 

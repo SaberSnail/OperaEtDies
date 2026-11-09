@@ -60,10 +60,10 @@ public sealed class WeightedSelectionTests
 	[Test]
 	public void CommonItemsAreSelectedMoreOften()
 	{
-		var names = new[] { new WeightedName { Name = "rare", Frequency = 1 }, new WeightedName { Name = "common", Frequency = 3 } };
+		var names = new[] { new WeightedString { Value = "rare", Frequency = 1 }, new WeightedString { Value = "common", Frequency = 3 } };
 		var random = new System.Random(12345);
 
-		var commonCount = Enumerable.Range(0, 1700).Count(_ => random.NextWeighted(names).Name == "common");
+		var commonCount = Enumerable.Range(0, 1700).Count(_ => random.NextWeighted(names).Value == "common");
 
 		// Expected is 1600 of 1700 (16 / 17).
 		Assert.That(commonCount, Is.InRange(1500, 1680));

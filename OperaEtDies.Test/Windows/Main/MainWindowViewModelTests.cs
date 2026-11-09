@@ -78,7 +78,7 @@ public sealed class MainWindowViewModelTests
 	public void ExaminePersonShowsDescription()
 	{
 		var gameData = TestData.CreateGameData();
-		var person = new PersonViewModel(GameStateViewModelTests.CreatePlayerTraits(gameData), new LocationViewModel(gameData.StartingLocation), isPlayer: false);
+		var person = new PersonViewModel(gameData, TestData.CreatePlayerTraits(gameData), new LocationViewModel(gameData.StartingLocation), isPlayer: false);
 		var viewModel = new LocationPersonViewModel(person);
 
 		Assert.That(viewModel.Name, Is.EqualTo("John Smith"));
@@ -95,7 +95,7 @@ public sealed class MainWindowViewModelTests
 	private static MainWindowViewModel CreateViewModel(int seed = 0)
 	{
 		var gameData = TestData.CreateGameData();
-		var gameState = GameStateViewModel.CreateNewGame(gameData, GameStateViewModelTests.CreatePlayerTraits(gameData), new Random(seed));
+		var gameState = GameStateViewModel.CreateNewGame(gameData, TestData.CreatePlayerTraits(gameData), new Random(seed));
 		return new MainWindowViewModel(TestData.CreateGameInfo().Title, gameState);
 	}
 }

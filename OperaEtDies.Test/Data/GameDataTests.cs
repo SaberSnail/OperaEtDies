@@ -1,4 +1,5 @@
 using System.IO;
+using GoldenAnvil.Utility;
 using OperaEtDies.Data;
 using OperaEtDies.Utility.Random;
 
@@ -27,13 +28,10 @@ public sealed class GameDataTests
 
 		Assert.That(result.Errors, Is.Empty);
 		var gameData = result.Value!;
-		Assert.That(gameData.Professions.Select(x => x.Id), Is.EqualTo(new[] { "smith", "miller" }));
-		Assert.That(gameData.FirstNames.Male, Has.Count.EqualTo(24));
-		Assert.That(gameData.FirstNames.Female, Has.Count.EqualTo(24));
-		Assert.That(gameData.CharacterOptions.PlayerMinimumAge, Is.EqualTo(36));
-		Assert.That(gameData.CharacterOptions.PlayerMaximumAge, Is.EqualTo(60));
-		Assert.That(gameData.Heights.Select(x => x.Id), Is.EqualTo(new[] { "tall", "medium", "short" }));
-		Assert.That(gameData.Weights.Select(x => x.Id), Is.EqualTo(new[] { "slim", "medium", "heavy" }));
+		Assert.That(gameData.CharacterProperties.Select(x => x.Id), Is.EqualTo(new[] { "gender", "profession", "firstName", "lastName", "height", "weight", "age" }));
+		Assert.That(gameData.CharacterProperties.Get("profession").Values!.Select(x => x.Id), Is.EqualTo(new[] { "smith", "miller" }));
+		Assert.That(gameData.CharacterProperties.Get("age").GetRange(CharacterRole.Player).Minimum, Is.EqualTo(36));
+		Assert.That(gameData.CharacterProperties.Get("age").GetRange(CharacterRole.Npc).Minimum, Is.EqualTo(16));
 		Assert.That(gameData.StartingLocation.Id, Is.EqualTo("player-house"));
 		Assert.That(gameData.Locations.Select(x => x.Id), Is.EqualTo(new[] { "player-house", "well-lane", "thatched-cottage", "timber-house" }));
 	}
@@ -41,9 +39,10 @@ public sealed class GameDataTests
 	[Test]
 	public void ShippedNamesAreSplitEvenlyByFrequency()
 	{
-		var firstNames = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!.FirstNames;
+		var firstNames = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!.CharacterProperties.Get("firstName").Defaults!.ValuesByKey!;
 
-		foreach (var names in new[] { firstNames.Male, firstNames.Female })
+		Assert.That(firstNames.Keys, Is.EquivalentTo(new[] { "male", "female" }));
+		foreach (var names in firstNames.Values)
 		{
 			for (var frequency = FrequencyUtility.MinFrequency; frequency <= FrequencyUtility.MaxFrequency; frequency++)
 				Assert.That(names.Count(x => x.Frequency == frequency), Is.EqualTo(8));
@@ -53,102 +52,197 @@ public sealed class GameDataTests
 	[Test]
 	public void ReportsErrorsFromEveryFile()
 	{
-		File.WriteAllText(Path.Combine(m_directory, ProfessionList.FileName), """{ "professions": [] }""");
+		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """{ "templates": [], "properties": [] }""");
 
 		var result = GameData.Load(m_directory);
 
 		Assert.That(result.Succeeded, Is.False);
-		Assert.That(result.Errors.Select(x => Path.GetFileName(x.FilePath)), Is.EquivalentTo(new[] { ProfessionList.FileName, FirstNameList.FileName, CharacterOptions.FileName, LocationList.FileName }));
+		Assert.That(result.Errors.Select(x => Path.GetFileName(x.FilePath)).Distinct(), Is.EquivalentTo(new[] { CharacterData.FileName, LocationList.FileName }));
 	}
 
 	[Test]
-	public void InvalidProfessionsReportErrors()
+	public void InvalidCharacterPropertiesReportErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, ProfessionList.FileName), """
+		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
 			{
-				"professions": [
-					{ "id": "smith", "title": "Blacksmith", "description": "a blacksmith", "defaultLastName": "Smith", "frequency": 3 },
-					{ "id": "smith", "title": "", "description": "", "defaultLastName": " ", "frequency": 0 },
-					{ "id": "", "title": "Nobody", "description": "a nobody", "defaultLastName": "Nobody", "frequency": 3 },
-					null,
+				"templates": [ { "id": "fullName", "template": "{firstName}" }, { "id": "description", "template": "{age}" } ],
+				"properties": [
+					{
+						"id": "gender",
+						"title": "Gender",
+						"type": "valueList",
+						"values": [
+							{ "id": "male", "title": "Male", "frequency": 3, "text": { "pronoun": "He" } },
+							{ "id": "female", "title": "Female", "frequency": 5, "text": { "pronoun": " " } }
+						],
+						"range": { "minimum": 1, "maximum": 2, "shape": "low" },
+						"player": { "values": [ "male", "other", "male" ] }
+					},
+					{ "id": "age", "title": "Age", "type": "integer", "range": { "minimum": 10, "maximum": 5, "shape": "middle" }, "player": { "defaults": { "values": [] } } },
+					{ "id": "height", "title": "Height", "type": "integer", "npc": { "range": { "minimum": 1, "maximum": 5, "shape": "high" } } },
+					{
+						"id": "firstName",
+						"title": "First Name",
+						"type": "string",
+						"defaults": { "keyedBy": "gender", "valuesByKey": { "male": [ { "value": "John", "frequency": 3 } ], "other": [ { "value": "", "frequency": 3 } ] } }
+					},
+					{ "id": "lastName", "title": "Last Name", "type": "string", "defaults": { "keyedBy": "nickname", "valuesByKey": {} } },
+					{ "id": "nickname", "title": "Nickname", "type": "valueList" },
+					{ "id": "motto", "title": "Motto", "type": "string", "defaults": { "keyedBy": "gender", "values": [ { "value": "Hi", "frequency": 3 } ] } }
 				]
 			}
 			""");
 
-		var result = ProfessionList.Load(m_directory);
+		var result = CharacterData.Load(m_directory);
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
-			OurResources.DataListItemIdDuplicate.Replace("{0}", "smith", StringComparison.Ordinal).Replace("{1}", "professions", StringComparison.Ordinal),
-			OurResources.DataListItemTitleMissing.Replace("{0}", "smith", StringComparison.Ordinal).Replace("{1}", "professions", StringComparison.Ordinal),
-			OurResources.DataListItemIdMissing.Replace("{0}", "professions", StringComparison.Ordinal),
-			OurResources.DataListItemEmpty.Replace("{0}", "professions", StringComparison.Ordinal),
-			OurResources.DataListItemFrequencyInvalid.Replace("{0}", "smith", StringComparison.Ordinal).Replace("{1}", "professions", StringComparison.Ordinal).Replace("{2}", "0", StringComparison.Ordinal).Replace("{3}", "1", StringComparison.Ordinal).Replace("{4}", "3", StringComparison.Ordinal),
-			OurResources.DataListItemDescriptionMissing.Replace("{0}", "smith", StringComparison.Ordinal).Replace("{1}", "professions", StringComparison.Ordinal),
-			OurResources.ProfessionDefaultLastNameMissing.Replace("{0}", "smith", StringComparison.Ordinal),
+			OurResources.DataListItemFrequencyInvalid.FormatCurrentCulture("female", "gender.values", 5, 1, 3),
+			OurResources.CharacterOptionTextBlank.FormatCurrentCulture("female", "gender", "pronoun"),
+			OurResources.CharacterSettingNotAllowed.FormatCurrentCulture("gender", "range"),
+			OurResources.RoleValueUnknown.FormatCurrentCulture("gender.player.values", "other"),
+			OurResources.DataListItemIdDuplicate.FormatCurrentCulture("male", "gender.player.values"),
+			OurResources.IntegerRangeInvalid.FormatCurrentCulture("age.range", 5, 10),
+			OurResources.CharacterSettingNotAllowed.FormatCurrentCulture("age", "player.defaults"),
+			OurResources.CharacterSettingMissing.FormatCurrentCulture("height", "range"),
+			OurResources.StringDefaultsKeyUnknown.FormatCurrentCulture("firstName.defaults", "other", "gender"),
+			OurResources.WeightedValueMissing.FormatCurrentCulture("firstName.defaults.valuesByKey.other"),
+			OurResources.StringDefaultsKeyMissing.FormatCurrentCulture("firstName.defaults", "female", "gender"),
+			OurResources.StringDefaultsKeyedByInvalid.FormatCurrentCulture("lastName.defaults", "nickname"),
+			OurResources.CharacterSettingMissing.FormatCurrentCulture("nickname", "values"),
+			OurResources.StringDefaultsFormInvalid.FormatCurrentCulture("motto.defaults"),
 		}));
 	}
 
 	[Test]
-	public void InvalidFirstNamesReportErrors()
+	public void InvalidTemplatesReportErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, FirstNameList.FileName), """
+		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
 			{
-				"male": [ { "name": "John", "frequency": 4 }, { "name": "", "frequency": 1 } ],
-				"female": []
+				"templates": [
+					{ "id": "fullName", "template": "{nobody} {age.text} {gender.pronoun:shout} {description.x}" },
+					{ "id": "description", "template": "Broken }" },
+					{ "id": "age", "template": "Clash" },
+					{ "id": "loopA", "template": "{loopB}" },
+					{ "id": "loopB", "template": "{loopA} {fullName}" },
+					{ "id": "blank", "template": " " },
+					{ "id": "loopA", "template": "Duplicate" },
+					{ "id": "", "template": "No id" }
+				],
+				"properties": [
+					{ "id": "gender", "title": "Gender", "type": "valueList", "values": [ { "id": "male", "title": "Male", "frequency": 3, "text": { "pronoun": "he" } } ] },
+					{ "id": "age", "title": "Age", "type": "integer", "range": { "minimum": 1, "maximum": 5, "shape": "low" } }
+				]
 			}
 			""");
 
-		var result = FirstNameList.Load(m_directory);
-
-		Assert.That(result.Errors, Has.Count.EqualTo(3));
-	}
-
-	[Test]
-	public void InvalidCharacterOptionsReportErrors()
-	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterOptions.FileName), """
-			{
-				"playerMinimumAge": 0,
-				"playerMaximumAge": -1,
-				"npcMinimumAge": 0,
-				"npcMaximumAge": -1,
-				"heights": [],
-				"weights": [ { "id": "slim", "title": "Slim", "description": " ", "frequency": 5 } ]
-			}
-			""");
-
-		var result = CharacterOptions.Load(m_directory);
+		var result = CharacterData.Load(m_directory);
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
-			OurResources.PlayerMinimumAgeInvalid.Replace("{0}", "0", StringComparison.Ordinal),
-			OurResources.PlayerMaximumAgeInvalid.Replace("{0}", "-1", StringComparison.Ordinal).Replace("{1}", "0", StringComparison.Ordinal),
-			OurResources.NpcMinimumAgeInvalid.Replace("{0}", "0", StringComparison.Ordinal),
-			OurResources.NpcMaximumAgeInvalid.Replace("{0}", "-1", StringComparison.Ordinal).Replace("{1}", "0", StringComparison.Ordinal),
-			OurResources.DataListEmpty.Replace("{0}", "heights", StringComparison.Ordinal),
-			OurResources.DataListItemFrequencyInvalid.Replace("{0}", "slim", StringComparison.Ordinal).Replace("{1}", "weights", StringComparison.Ordinal).Replace("{2}", "5", StringComparison.Ordinal).Replace("{3}", "1", StringComparison.Ordinal).Replace("{4}", "3", StringComparison.Ordinal),
-			OurResources.DataListItemDescriptionMissing.Replace("{0}", "slim", StringComparison.Ordinal).Replace("{1}", "weights", StringComparison.Ordinal),
+			OurResources.TemplateIdIsProperty.FormatCurrentCulture("age"),
+			OurResources.DataListItemIdDuplicate.FormatCurrentCulture("loopA", "templates"),
+			OurResources.DataListItemIdMissing.FormatCurrentCulture("templates"),
+			OurResources.TemplateBlank.FormatCurrentCulture("blank"),
+			OurResources.TemplateMalformed.FormatCurrentCulture("description"),
+			OurResources.TemplatePropertyUnknown.FormatCurrentCulture("fullName", "nobody"),
+			OurResources.TemplateFieldNotAllowed.FormatCurrentCulture("fullName", "age", "text"),
+			OurResources.TemplateFormatUnknown.FormatCurrentCulture("fullName", "shout"),
+			OurResources.TemplateFieldNotAllowed.FormatCurrentCulture("fullName", "description", "x"),
+			OurResources.TemplateCycle.FormatCurrentCulture("loopA"),
+			OurResources.TemplateCycle.FormatCurrentCulture("loopB"),
 		}));
 	}
 
 	[Test]
-	public void MissingMaximumAgeReportsError()
+	public void RequiredTemplatesMustExist()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterOptions.FileName), """
+		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
 			{
-				"playerMinimumAge": 36,
-				"npcMinimumAge": 16,
-				"npcMaximumAge": 70,
-				"heights": [ { "id": "tall", "title": "Tall", "description": "tall", "frequency": 2 } ],
-				"weights": [ { "id": "slim", "title": "Slim", "description": "slim", "frequency": 2 } ]
+				"templates": [ { "id": "other", "template": "{age}" } ],
+				"properties": [ { "id": "age", "title": "Age", "type": "integer", "range": { "minimum": 1, "maximum": 5, "shape": "low" } } ]
 			}
 			""");
 
-		var result = CharacterOptions.Load(m_directory);
+		var result = CharacterData.Load(m_directory);
+
+		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
+		{
+			OurResources.TemplateRequired.FormatCurrentCulture(CharacterData.FullNameTemplateId),
+			OurResources.TemplateRequired.FormatCurrentCulture(CharacterData.DescriptionTemplateId),
+		}));
+	}
+
+	[Test]
+	public void TemplatesCanUseOtherTemplates()
+	{
+		var templates = new TextTemplateSet(new Dictionary<string, TextTemplate>
+		{
+			["greeting"] = TextTemplate.Parse("{name:first_upper} says hi."),
+			["name"] = TextTemplate.Parse("{title} {first}"),
+		});
+
+		Assert.That(templates.Format("greeting", x => x.Id == "title" ? "sir" : "Hugh"), Is.EqualTo("Sir Hugh says hi."));
+	}
+
+	[Test]
+	public void TemplateTextMustExistOnEveryValue()
+	{
+		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+			{
+				"templates": [ { "id": "fullName", "template": "{gender.pronoun} {gender.pronoun}" }, { "id": "description", "template": "{gender}" } ],
+				"properties": [
+					{
+						"id": "gender",
+						"title": "Gender",
+						"type": "valueList",
+						"values": [ { "id": "male", "title": "Male", "frequency": 3, "text": { "pronoun": "He" } }, { "id": "female", "title": "Female", "frequency": 3 } ]
+					}
+				]
+			}
+			""");
+
+		var result = CharacterData.Load(m_directory);
+
+		Assert.That(result.Errors.Select(x => x.Message), Is.EqualTo(new[] { OurResources.TemplateFieldMissing.FormatCurrentCulture("fullName", "gender", "pronoun", "female") }));
+	}
+
+	[Test]
+	public void UnknownPropertyTypeReportsError()
+	{
+		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+			{ "templates": [ { "id": "fullName", "template": "{a}" }, { "id": "description", "template": "{a}" } ], "properties": [ { "id": "a", "title": "A", "type": "boolean" } ] }
+			""");
+
+		var result = CharacterData.Load(m_directory);
 
 		Assert.That(result.Succeeded, Is.False);
 		Assert.That(result.Errors, Has.Count.EqualTo(1));
+	}
+
+	[TestCase("plain", "plain")]
+	[TestCase("{a} and {b.c}", "a and b.c")]
+	[TestCase("{{literal}} {a}", "{literal} a")]
+	[TestCase("{b.c:first_upper} {a}", "B.c a")]
+	[TestCase("{x:first_upper}", "X")]
+	public void TemplatesFillInPlaceholders(string text, string expected)
+	{
+		Assert.That(TextTemplate.TryParse(text, out var template), Is.True);
+		Assert.That(template!.Format(x => x.Id + (x.Field is null ? "" : "." + x.Field)), Is.EqualTo(expected));
+	}
+
+	[TestCase("{")]
+	[TestCase("}")]
+	[TestCase("{}")]
+	[TestCase("{a.}")]
+	[TestCase("{a.b.c}")]
+	[TestCase("{a{b}")]
+	[TestCase("{a:}")]
+	[TestCase("{:first_upper}")]
+	[TestCase("{a:b:c}")]
+	public void MalformedTemplatesFailToParse(string text)
+	{
+		Assert.That(TextTemplate.TryParse(text, out _), Is.False);
 	}
 
 	[Test]
@@ -168,8 +262,8 @@ public sealed class GameDataTests
 		Assert.That(gameData.Locations.Get("lane").Connections, Is.EqualTo(new[] { "home", "cottage" }));
 		Assert.That(gameData.Locations.Find("nowhere"), Is.Null);
 		Assert.That(() => gameData.Locations.Get("nowhere"), Throws.TypeOf<KeyNotFoundException>());
-		Assert.That(gameData.Professions.Get("miller").Title, Is.EqualTo("Miller"));
-		Assert.That(gameData.Heights.Get("short"), Is.SameAs(gameData.Heights[2]));
+		Assert.That(gameData.CharacterProperties.Get("profession").Title, Is.EqualTo("Profession"));
+		Assert.That(gameData.CharacterProperties.Get("height"), Is.SameAs(gameData.CharacterProperties[4]));
 		Assert.That(gameData.StartingLocation.Id, Is.EqualTo("home"));
 	}
 

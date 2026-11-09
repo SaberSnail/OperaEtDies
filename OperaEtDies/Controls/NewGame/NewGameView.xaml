@@ -20,140 +20,98 @@
 				FontSize="{DynamicResource TitleFontSize}"
 				Text="{x:Static operaEtDies:OurResources.NewGameHeader}" />
 
-			<Grid
+			<ScrollViewer
 				Grid.Row="1"
-				Width="360"
 				Margin="0,16,0,0"
-				HorizontalAlignment="Center"
-				VerticalAlignment="Center">
-				<Grid.Resources>
-					<Style x:Key="LabelStyle" TargetType="TextBlock">
-						<Setter Property="Margin" Value="0,0,12,0" />
-						<Setter Property="VerticalAlignment" Value="Center" />
-					</Style>
-					<Style x:Key="RandomizeButtonStyle" BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
-						<Setter Property="Margin" Value="8,0,0,0" />
-						<Setter Property="Padding" Value="8,0" />
-						<Setter Property="Content" Value="{x:Static operaEtDies:OurResources.RandomizeField}" />
-					</Style>
-				</Grid.Resources>
-				<Grid.ColumnDefinitions>
-					<ColumnDefinition Width="Auto" />
-					<ColumnDefinition Width="*" />
-					<ColumnDefinition Width="Auto" />
-				</Grid.ColumnDefinitions>
-				<Grid.RowDefinitions>
-					<RowDefinition Height="28" />
-					<RowDefinition Height="8" />
-					<RowDefinition Height="28" />
-					<RowDefinition Height="8" />
-					<RowDefinition Height="28" />
-					<RowDefinition Height="8" />
-					<RowDefinition Height="28" />
-					<RowDefinition Height="8" />
-					<RowDefinition Height="28" />
-					<RowDefinition Height="8" />
-					<RowDefinition Height="28" />
-				</Grid.RowDefinitions>
+				HorizontalScrollBarVisibility="Disabled"
+				VerticalScrollBarVisibility="Auto">
+				<ItemsControl
+					Width="360"
+					HorizontalAlignment="Center"
+					VerticalAlignment="Center"
+					Focusable="False"
+					Grid.IsSharedSizeScope="True"
+					ItemsSource="{Binding Properties}">
+					<ItemsControl.Resources>
+						<Style x:Key="NewGamePropertyLabelStyle" TargetType="TextBlock">
+							<Setter Property="Margin" Value="0,0,12,0" />
+							<Setter Property="VerticalAlignment" Value="Center" />
+							<Setter Property="Text" Value="{Binding Title}" />
+						</Style>
 
-				<TextBlock
-					Grid.Row="0"
-					Grid.Column="0"
-					Style="{StaticResource LabelStyle}"
-					Text="{x:Static operaEtDies:OurResources.ProfessionLabel}" />
-				<ComboBox
-					Grid.Row="0"
-					Grid.Column="1"
-					DisplayMemberPath="Title"
-					ItemsSource="{Binding Professions}"
-					SelectedItem="{Binding Profession}" />
-				<Button
-					Grid.Row="0"
-					Grid.Column="2"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RandomizeProfession}"
-					Style="{StaticResource RandomizeButtonStyle}" />
+						<Style x:Key="NewGameRandomizeButtonStyle" BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
+							<Setter Property="Margin" Value="8,0,0,0" />
+							<Setter Property="Padding" Value="8,0" />
+							<Setter Property="Content" Value="{x:Static operaEtDies:OurResources.RandomizeField}" />
+							<Setter Property="Command" Value="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Randomize}" />
+						</Style>
 
-				<TextBlock
-					Grid.Row="2"
-					Grid.Column="0"
-					Style="{StaticResource LabelStyle}"
-					Text="{x:Static operaEtDies:OurResources.FirstNameLabel}" />
-				<!--  First name updates when focus leaves, so a blank name can be replaced with a random one.  -->
-				<controls:CustomTextBox
-					Grid.Row="2"
-					Grid.Column="1"
-					VerticalContentAlignment="Center"
-					Text="{Binding FirstName}" />
-				<Button
-					Grid.Row="2"
-					Grid.Column="2"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RandomizeFirstName}"
-					Style="{StaticResource RandomizeButtonStyle}" />
+						<!--  Each property editor is a row with a label, an editor, and a randomize button. The columns line up across rows.  -->
+						<Style x:Key="NewGamePropertyRowStyle" TargetType="Grid">
+							<Setter Property="Height" Value="28" />
+							<Setter Property="Margin" Value="0,0,0,8" />
+						</Style>
 
-				<TextBlock
-					Grid.Row="4"
-					Grid.Column="0"
-					Style="{StaticResource LabelStyle}"
-					Text="{x:Static operaEtDies:OurResources.LastNameLabel}" />
-				<!--  Last name updates when focus leaves, so a blank name can be replaced with the profession's default.  -->
-				<controls:CustomTextBox
-					Grid.Row="4"
-					Grid.Column="1"
-					Grid.ColumnSpan="2"
-					VerticalContentAlignment="Center"
-					Text="{Binding LastName}" />
+						<DataTemplate DataType="{x:Type local:StringPropertyEditorViewModel}">
+							<Grid Style="{StaticResource NewGamePropertyRowStyle}">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+									<ColumnDefinition Width="*" />
+									<ColumnDefinition Width="Auto" SharedSizeGroup="Randomize" />
+								</Grid.ColumnDefinitions>
+								<TextBlock Grid.Column="0" Style="{StaticResource NewGamePropertyLabelStyle}" />
+								<!--  Text updates when focus leaves, so a blank value can be replaced with a default. Without defaults, the text box takes the randomize button's space.  -->
+								<controls:CustomTextBox Grid.Column="1" VerticalContentAlignment="Center" Text="{Binding Text}">
+									<controls:CustomTextBox.Style>
+										<Style BasedOn="{StaticResource {x:Type controls:CustomTextBox}}" TargetType="controls:CustomTextBox">
+											<Style.Triggers>
+												<DataTrigger Binding="{Binding HasDefaults}" Value="False">
+													<Setter Property="Grid.ColumnSpan" Value="2" />
+												</DataTrigger>
+											</Style.Triggers>
+										</Style>
+									</controls:CustomTextBox.Style>
+								</controls:CustomTextBox>
+								<Button
+									Grid.Column="2"
+									Style="{StaticResource NewGameRandomizeButtonStyle}"
+									Visibility="{Binding HasDefaults, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+							</Grid>
+						</DataTemplate>
 
-				<TextBlock
-					Grid.Row="6"
-					Grid.Column="0"
-					Style="{StaticResource LabelStyle}"
-					Text="{x:Static operaEtDies:OurResources.HeightLabel}" />
-				<ComboBox
-					Grid.Row="6"
-					Grid.Column="1"
-					DisplayMemberPath="Title"
-					ItemsSource="{Binding Heights}"
-					SelectedItem="{Binding Height}" />
-				<Button
-					Grid.Row="6"
-					Grid.Column="2"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RandomizeHeight}"
-					Style="{StaticResource RandomizeButtonStyle}" />
+						<DataTemplate DataType="{x:Type local:IntegerPropertyEditorViewModel}">
+							<Grid Style="{StaticResource NewGamePropertyRowStyle}">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+									<ColumnDefinition Width="*" />
+									<ColumnDefinition Width="Auto" SharedSizeGroup="Randomize" />
+								</Grid.ColumnDefinitions>
+								<TextBlock Grid.Column="0" Style="{StaticResource NewGamePropertyLabelStyle}" />
+								<!--  Text updates when focus leaves, so values outside the allowed range can be typed on the way to a valid value, and a blank value can be replaced with a random one.  -->
+								<controls:CustomTextBox Grid.Column="1" VerticalContentAlignment="Center" Text="{Binding Text}" />
+								<Button Grid.Column="2" Style="{StaticResource NewGameRandomizeButtonStyle}" />
+							</Grid>
+						</DataTemplate>
 
-				<TextBlock
-					Grid.Row="8"
-					Grid.Column="0"
-					Style="{StaticResource LabelStyle}"
-					Text="{x:Static operaEtDies:OurResources.WeightLabel}" />
-				<ComboBox
-					Grid.Row="8"
-					Grid.Column="1"
-					DisplayMemberPath="Title"
-					ItemsSource="{Binding Weights}"
-					SelectedItem="{Binding Weight}" />
-				<Button
-					Grid.Row="8"
-					Grid.Column="2"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RandomizeWeight}"
-					Style="{StaticResource RandomizeButtonStyle}" />
-
-				<TextBlock
-					Grid.Row="10"
-					Grid.Column="0"
-					Style="{StaticResource LabelStyle}"
-					Text="{x:Static operaEtDies:OurResources.AgeLabel}" />
-				<!--  Age updates when focus leaves, so values outside the allowed range can be typed on the way to a valid age, and a blank age can be replaced with a random one.  -->
-				<controls:CustomTextBox
-					Grid.Row="10"
-					Grid.Column="1"
-					VerticalContentAlignment="Center"
-					Text="{Binding AgeText}" />
-				<Button
-					Grid.Row="10"
-					Grid.Column="2"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RandomizeAge}"
-					Style="{StaticResource RandomizeButtonStyle}" />
-			</Grid>
+						<DataTemplate DataType="{x:Type local:ValueListPropertyEditorViewModel}">
+							<Grid Style="{StaticResource NewGamePropertyRowStyle}">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+									<ColumnDefinition Width="*" />
+									<ColumnDefinition Width="Auto" SharedSizeGroup="Randomize" />
+								</Grid.ColumnDefinitions>
+								<TextBlock Grid.Column="0" Style="{StaticResource NewGamePropertyLabelStyle}" />
+								<ComboBox
+									Grid.Column="1"
+									DisplayMemberPath="Title"
+									ItemsSource="{Binding Options}"
+									SelectedItem="{Binding SelectedOption}" />
+								<Button Grid.Column="2" Style="{StaticResource NewGameRandomizeButtonStyle}" />
+							</Grid>
+						</DataTemplate>
+					</ItemsControl.Resources>
+				</ItemsControl>
+			</ScrollViewer>
 
 			<Grid Grid.Row="2">
 				<Grid.Resources>

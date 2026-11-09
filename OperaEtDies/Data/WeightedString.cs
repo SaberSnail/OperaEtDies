@@ -4,11 +4,11 @@ using OperaEtDies.Utility.Random;
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// A name that can be randomly selected, where more frequent names are more likely to be chosen.
+/// A string that can be randomly selected, where more frequent strings are more likely to be chosen.
 /// </summary>
-public sealed class WeightedName : IWeighted
+public sealed class WeightedString : IWeighted
 {
-	public required string Name { get; init; }
+	public required string Value { get; init; }
 
 	public required int Frequency { get; init; }
 

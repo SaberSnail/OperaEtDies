@@ -62,40 +62,24 @@ public static class DataValidation
 	}
 
 	/// <summary>
-	/// Checks that each item in a list has a description. Items that are empty or missing an id are skipped, since ValidateIdentifiedItems reports them.
+	/// Checks that a list of weighted strings has items, and that each string is filled in and has a valid frequency.
 	/// </summary>
-	public static IEnumerable<string> ValidateItemDescriptions<T>(string listName, IReadOnlyList<T?> items, Func<T, string?> getId, Func<T, string?> getDescription)
-		where T : class
+	public static IEnumerable<string> ValidateWeightedStrings(string listName, IReadOnlyList<WeightedString?> values)
 	{
-		foreach (var item in items)
-		{
-			if (item is null || string.IsNullOrWhiteSpace(getId(item)))
-				continue;
-
-			if (string.IsNullOrWhiteSpace(getDescription(item)))
-				yield return OurResources.DataListItemDescriptionMissing.FormatCurrentCulture(getId(item), listName);
-		}
-	}
-
-	/// <summary>
-	/// Checks that a list of names has items, and that each name is filled in and has a valid frequency.
-	/// </summary>
-	public static IEnumerable<string> ValidateWeightedNames(string listName, IReadOnlyList<WeightedName?> names)
-	{
-		if (names.Count == 0)
+		if (values.Count == 0)
 		{
 			yield return OurResources.DataListEmpty.FormatCurrentCulture(listName);
 			yield break;
 		}
 
-		foreach (var name in names)
+		foreach (var value in values)
 		{
-			if (name is null)
+			if (value is null)
 				yield return OurResources.DataListItemEmpty.FormatCurrentCulture(listName);
-			else if (string.IsNullOrWhiteSpace(name.Name))
-				yield return OurResources.NameMissing.FormatCurrentCulture(listName);
-			else if (!FrequencyUtility.IsValid(name.Frequency))
-				yield return OurResources.NameFrequencyInvalid.FormatCurrentCulture(name.Name, listName, name.Frequency, FrequencyUtility.MinFrequency, FrequencyUtility.MaxFrequency);
+			else if (string.IsNullOrWhiteSpace(value.Value))
+				yield return OurResources.WeightedValueMissing.FormatCurrentCulture(listName);
+			else if (!FrequencyUtility.IsValid(value.Frequency))
+				yield return OurResources.WeightedValueFrequencyInvalid.FormatCurrentCulture(value.Value, listName, value.Frequency, FrequencyUtility.MinFrequency, FrequencyUtility.MaxFrequency);
 		}
 	}
 }
