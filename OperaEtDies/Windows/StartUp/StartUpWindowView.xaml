@@ -17,59 +17,64 @@
 	mc:Ignorable="d">
 
 	<Grid Margin="24">
-		<Grid.RowDefinitions>
-			<RowDefinition Height="Auto" />
-			<RowDefinition Height="*" />
-			<RowDefinition Height="Auto" />
-		</Grid.RowDefinitions>
+		<!--  The start up menu, which is replaced by the new game configuration once a new game is requested.  -->
+		<Grid Visibility="{Binding NewGame, Converter={x:Static utility:CommonConverters.IsNotNullToVisibility}}">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="*" />
+				<RowDefinition Height="Auto" />
+			</Grid.RowDefinitions>
 
-		<StackPanel Grid.Row="0" HorizontalAlignment="Center">
-			<TextBlock
+			<StackPanel Grid.Row="0" HorizontalAlignment="Center">
+				<TextBlock
+					HorizontalAlignment="Center"
+					FontSize="{DynamicResource TitleFontSize}"
+					Text="{Binding Title}" />
+				<TextBlock
+					Margin="0,8,0,0"
+					HorizontalAlignment="Center"
+					FontSize="{DynamicResource LargeFontSize}"
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{Binding Description}"
+					TextAlignment="Center"
+					TextWrapping="Wrap" />
+			</StackPanel>
+
+			<StackPanel
+				Grid.Row="1"
+				Width="200"
 				HorizontalAlignment="Center"
-				FontSize="{DynamicResource TitleFontSize}"
-				Text="{Binding Title}" />
-			<TextBlock
-				Margin="0,8,0,0"
-				HorizontalAlignment="Center"
-				FontSize="{DynamicResource LargeFontSize}"
-				Foreground="{DynamicResource FontLightBrush}"
-				Text="{Binding Description}"
-				TextAlignment="Center"
-				TextWrapping="Wrap" />
-		</StackPanel>
+				VerticalAlignment="Center">
+				<Button
+					Height="32"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowNewGame}"
+					Content="{x:Static operaEtDies:OurResources.StartNewGame}"
+					IsDefault="True" />
+				<Button
+					Height="32"
+					Margin="0,8,0,0"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=LoadGame}"
+					Content="{x:Static operaEtDies:OurResources.LoadGame}" />
+				<Button
+					Height="32"
+					Margin="0,8,0,0"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ExitGame}"
+					Content="{x:Static operaEtDies:OurResources.ExitGame}" />
+			</StackPanel>
 
-		<StackPanel
-			Grid.Row="1"
-			Width="200"
-			HorizontalAlignment="Center"
-			VerticalAlignment="Center">
-			<Button
-				Height="32"
-				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=StartNewGame}"
-				Content="{x:Static operaEtDies:OurResources.StartNewGame}"
-				IsDefault="True" />
-			<Button
-				Height="32"
-				Margin="0,8,0,0"
-				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=LoadGame}"
-				Content="{x:Static operaEtDies:OurResources.LoadGame}" />
-			<Button
-				Height="32"
-				Margin="0,8,0,0"
-				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ExitGame}"
-				Content="{x:Static operaEtDies:OurResources.ExitGame}" />
-		</StackPanel>
+			<StackPanel Grid.Row="2" Visibility="{Binding HasLoadErrors, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+				<TextBlock Text="{x:Static operaEtDies:OurResources.DataLoadErrorsHeader}" />
+				<ItemsControl Margin="12,4,0,0" ItemsSource="{Binding LoadErrors}">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate>
+							<TextBlock Text="{Binding}" TextWrapping="Wrap" />
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+			</StackPanel>
+		</Grid>
 
-		<StackPanel Grid.Row="2" Visibility="{Binding HasLoadErrors, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
-			<TextBlock Text="{x:Static operaEtDies:OurResources.DataLoadErrorsHeader}" />
-			<ItemsControl Margin="12,4,0,0" ItemsSource="{Binding LoadErrors}">
-				<ItemsControl.ItemTemplate>
-					<DataTemplate>
-						<TextBlock Text="{Binding}" TextWrapping="Wrap" />
-					</DataTemplate>
-				</ItemsControl.ItemTemplate>
-			</ItemsControl>
-		</StackPanel>
+		<ContentControl Content="{Binding NewGame}" Visibility="{Binding NewGame, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 	</Grid>
 
 </Window>

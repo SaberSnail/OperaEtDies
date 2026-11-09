@@ -75,4 +75,76 @@
 	<data name="GameInfoDescriptionMissing" xml:space="preserve">
 		<value>A game description is required.</value>
 	</data>
+	<data name="DataListEmpty" xml:space="preserve">
+		<value>The "{0}" list must have at least one item.</value>
+		<comment>{0} is the name of the list in the data file.</comment>
+	</data>
+	<data name="DataListItemEmpty" xml:space="preserve">
+		<value>The "{0}" list has an empty item.</value>
+		<comment>{0} is the name of the list in the data file.</comment>
+	</data>
+	<data name="DataListItemIdMissing" xml:space="preserve">
+		<value>An item in the "{0}" list is missing an id.</value>
+		<comment>{0} is the name of the list in the data file.</comment>
+	</data>
+	<data name="DataListItemIdDuplicate" xml:space="preserve">
+		<value>The id "{0}" is used more than once in the "{1}" list.</value>
+		<comment>{0} is the duplicated id. {1} is the name of the list in the data file.</comment>
+	</data>
+	<data name="DataListItemTitleMissing" xml:space="preserve">
+		<value>The item "{0}" in the "{1}" list is missing a title.</value>
+		<comment>{0} is the item's id. {1} is the name of the list in the data file.</comment>
+	</data>
+	<data name="DataDefaultIdNotFound" xml:space="preserve">
+		<value>The "{0}" value "{1}" doesn't match the id of any item in the "{2}" list.</value>
+		<comment>{0} is the name of the default setting. {1} is the id it contains. {2} is the name of the list it should match.</comment>
+	</data>
+	<data name="ProfessionDefaultLastNameMissing" xml:space="preserve">
+		<value>The profession "{0}" is missing a default last name.</value>
+		<comment>{0} is the profession's id.</comment>
+	</data>
+	<data name="NameMissing" xml:space="preserve">
+		<value>A name in the "{0}" list is blank.</value>
+		<comment>{0} is the name of the list in the data file.</comment>
+	</data>
+	<data name="NameFrequencyInvalid" xml:space="preserve">
+		<value>The name "{0}" in the "{1}" list has a frequency of {2}, but it must be from {3} to {4}.</value>
+		<comment>{0} is the name. {1} is the name of the list in the data file. {2} is the frequency found. {3} and {4} are the allowed minimum and maximum.</comment>
+	</data>
+	<data name="PlayerMinimumAgeInvalid" xml:space="preserve">
+		<value>The player minimum age is {0}, but it must be at least 1.</value>
+		<comment>{0} is the age found in the data file.</comment>
+	</data>
+	<data name="NewGameHeader" xml:space="preserve">
+		<value>New Game</value>
+	</data>
+	<data name="ProfessionLabel" xml:space="preserve">
+		<value>Profession</value>
+	</data>
+	<data name="FirstNameLabel" xml:space="preserve">
+		<value>First Name</value>
+	</data>
+	<data name="LastNameLabel" xml:space="preserve">
+		<value>Last Name</value>
+	</data>
+	<data name="HeightLabel" xml:space="preserve">
+		<value>Height</value>
+	</data>
+	<data name="WeightLabel" xml:space="preserve">
+		<value>Weight</value>
+	</data>
+	<data name="AgeLabel" xml:space="preserve">
+		<value>Age</value>
+	</data>
+	<data name="RandomFirstName" xml:space="preserve">
+		<value>Random</value>
+		<comment>Button that picks a new random first name.</comment>
+	</data>
+	<data name="StartGame" xml:space="preserve">
+		<value>Start Game</value>
+	</data>
+	<data name="Back" xml:space="preserve">
+		<value>Back</value>
+		<comment>Button that leaves the new game screen and returns to the start up menu.</comment>
+	</data>
 </root>

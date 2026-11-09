@@ -61,6 +61,33 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Age.
+        /// </summary>
+        public static string AgeLabel {
+            get {
+                return ResourceManager.GetString("AgeLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Back.
+        /// </summary>
+        public static string Back {
+            get {
+                return ResourceManager.GetString("Back", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; value &quot;{1}&quot; doesn&apos;t match the id of any item in the &quot;{2}&quot; list..
+        /// </summary>
+        public static string DataDefaultIdNotFound {
+            get {
+                return ResourceManager.GetString("DataDefaultIdNotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The file is empty..
         /// </summary>
         public static string DataFileEmpty {
@@ -97,6 +124,51 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; list must have at least one item..
+        /// </summary>
+        public static string DataListEmpty {
+            get {
+                return ResourceManager.GetString("DataListEmpty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; list has an empty item..
+        /// </summary>
+        public static string DataListItemEmpty {
+            get {
+                return ResourceManager.GetString("DataListItemEmpty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The id &quot;{0}&quot; is used more than once in the &quot;{1}&quot; list..
+        /// </summary>
+        public static string DataListItemIdDuplicate {
+            get {
+                return ResourceManager.GetString("DataListItemIdDuplicate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to An item in the &quot;{0}&quot; list is missing an id..
+        /// </summary>
+        public static string DataListItemIdMissing {
+            get {
+                return ResourceManager.GetString("DataListItemIdMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The item &quot;{0}&quot; in the &quot;{1}&quot; list is missing a title..
+        /// </summary>
+        public static string DataListItemTitleMissing {
+            get {
+                return ResourceManager.GetString("DataListItemTitleMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to There were problems loading the game data:.
         /// </summary>
         public static string DataLoadErrorsHeader {
@@ -124,6 +196,15 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to First Name.
+        /// </summary>
+        public static string FirstNameLabel {
+            get {
+                return ResourceManager.GetString("FirstNameLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to A game description is required..
         /// </summary>
         public static string GameInfoDescriptionMissing {
@@ -142,6 +223,24 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Height.
+        /// </summary>
+        public static string HeightLabel {
+            get {
+                return ResourceManager.GetString("HeightLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Last Name.
+        /// </summary>
+        public static string LastNameLabel {
+            get {
+                return ResourceManager.GetString("LastNameLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Load Game.
         /// </summary>
         public static string LoadGame {
@@ -151,11 +250,92 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The name &quot;{0}&quot; in the &quot;{1}&quot; list has a frequency of {2}, but it must be from {3} to {4}..
+        /// </summary>
+        public static string NameFrequencyInvalid {
+            get {
+                return ResourceManager.GetString("NameFrequencyInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A name in the &quot;{0}&quot; list is blank..
+        /// </summary>
+        public static string NameMissing {
+            get {
+                return ResourceManager.GetString("NameMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to New Game.
+        /// </summary>
+        public static string NewGameHeader {
+            get {
+                return ResourceManager.GetString("NewGameHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The player minimum age is {0}, but it must be at least 1..
+        /// </summary>
+        public static string PlayerMinimumAgeInvalid {
+            get {
+                return ResourceManager.GetString("PlayerMinimumAgeInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The profession &quot;{0}&quot; is missing a default last name..
+        /// </summary>
+        public static string ProfessionDefaultLastNameMissing {
+            get {
+                return ResourceManager.GetString("ProfessionDefaultLastNameMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Profession.
+        /// </summary>
+        public static string ProfessionLabel {
+            get {
+                return ResourceManager.GetString("ProfessionLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Random.
+        /// </summary>
+        public static string RandomFirstName {
+            get {
+                return ResourceManager.GetString("RandomFirstName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start Game.
+        /// </summary>
+        public static string StartGame {
+            get {
+                return ResourceManager.GetString("StartGame", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Start New Game.
         /// </summary>
         public static string StartNewGame {
             get {
                 return ResourceManager.GetString("StartNewGame", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Weight.
+        /// </summary>
+        public static string WeightLabel {
+            get {
+                return ResourceManager.GetString("WeightLabel", resourceCulture);
             }
         }
     }

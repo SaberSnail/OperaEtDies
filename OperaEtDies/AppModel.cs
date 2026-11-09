@@ -2,6 +2,7 @@
 using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
 using Microsoft.VisualStudio.Threading;
+using OperaEtDies.Controls.NewGame;
 using OperaEtDies.Data;
 using OperaEtDies.Windows.Main;
 using OperaEtDies.Windows.StartUp;
@@ -19,6 +20,7 @@ public sealed class AppModel : ViewModelBase
 		m_currentTheme = new Uri(@"/Themes/Default/Default.xaml", UriKind.Relative);
 		Random = new CryptoRandom();
 		m_gameInfoResult = DataLoadResult<GameInfo>.Failure([]);
+		m_gameDataResult = DataLoadResult<GameData>.Failure([]);
 	}
 
 	/// <summary>
@@ -39,6 +41,8 @@ public sealed class AppModel : ViewModelBase
 	}
 
 	public GameInfo? GameInfo => VerifyAccess(m_gameInfoResult.Value);
+
+	public GameData? GameData => VerifyAccess(m_gameDataResult.Value);
 
 	public TaskGroup TaskGroup => m_taskGroup;
 
@@ -63,11 +67,13 @@ public sealed class AppModel : ViewModelBase
 		await state.ToThreadPool();
 
 		var gameInfoResult = GameInfo.Load(JsonDataLoader.DefaultDataDirectory);
+		var gameDataResult = GameData.Load(JsonDataLoader.DefaultDataDirectory);
 
 		await state.ToSyncContext();
 
 		m_gameInfoResult = gameInfoResult;
-		RaisePropertyChanged(nameof(GameInfo));
+		m_gameDataResult = gameDataResult;
+		RaisePropertyChanged(nameof(GameInfo), nameof(GameData));
 
 		OpenStartUpWindow();
 	}
@@ -75,19 +81,22 @@ public sealed class AppModel : ViewModelBase
 	/// <summary>
 	/// Replaces the start up window with the main window.
 	/// </summary>
-	public void StartNewGame()
+	public void StartNewGame(NewGameSettings settings)
 	{
 		VerifyAccess();
 
 		var gameInfo = m_gameInfoResult.Value;
-		if (gameInfo is null)
+		var gameData = m_gameDataResult.Value;
+		if (gameInfo is null || gameData is null)
 		{
-			Log.Error("Can't start a new game because the game info failed to load");
+			Log.Error("Can't start a new game because the game data failed to load");
 			return;
 		}
 
+		Log.Info($"Starting new game as {settings.FirstName} {settings.LastName}, {settings.Profession.Id}, age {settings.Age}");
+
 		// Open the main window before closing the start up window, so there's always a window showing.
-		MainWindow = new MainWindowViewModel(gameInfo);
+		MainWindow = new MainWindowViewModel(gameInfo, gameData, settings);
 		CloseStartUpWindow();
 	}
 
@@ -122,7 +131,7 @@ public sealed class AppModel : ViewModelBase
 		if (m_startUpWindow is not null)
 			return;
 
-		var startUpWindow = new StartUpWindowViewModel(m_gameInfoResult.Value, m_gameInfoResult.Errors);
+		var startUpWindow = new StartUpWindowViewModel(m_gameInfoResult.Value, m_gameDataResult.Value, Random, [.. m_gameInfoResult.Errors, .. m_gameDataResult.Errors]);
 		startUpWindow.StartNewGameRequested += OnStartNewGameRequested;
 		startUpWindow.ExitGameRequested += OnExitGameRequested;
 		StartUpWindow = startUpWindow;
@@ -150,7 +159,7 @@ public sealed class AppModel : ViewModelBase
 		mainWindow.Dispose();
 	}
 
-	private void OnStartNewGameRequested(object? sender, EventArgs e) => StartNewGame();
+	private void OnStartNewGameRequested(object? sender, GenericEventArgs<NewGameSettings> e) => StartNewGame(e.Value);
 
 	private void OnExitGameRequested(object? sender, EventArgs e) => ExitGame();
 
@@ -160,6 +169,7 @@ public sealed class AppModel : ViewModelBase
 	private StartUpWindowViewModel? m_startUpWindow;
 	private MainWindowViewModel? m_mainWindow;
 	private DataLoadResult<GameInfo> m_gameInfoResult;
+	private DataLoadResult<GameData> m_gameDataResult;
 	private Uri m_currentTheme;
 	private TaskGroup m_taskGroup;
 }
