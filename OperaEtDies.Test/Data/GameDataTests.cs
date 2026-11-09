@@ -31,10 +31,9 @@ public sealed class GameDataTests
 		Assert.That(gameData.FirstNames.Male, Has.Count.EqualTo(24));
 		Assert.That(gameData.FirstNames.Female, Has.Count.EqualTo(24));
 		Assert.That(gameData.CharacterOptions.PlayerMinimumAge, Is.EqualTo(36));
+		Assert.That(gameData.CharacterOptions.PlayerMaximumAge, Is.EqualTo(60));
 		Assert.That(gameData.CharacterOptions.Heights.Select(x => x.Id), Is.EqualTo(new[] { "tall", "medium", "short" }));
 		Assert.That(gameData.CharacterOptions.Weights.Select(x => x.Id), Is.EqualTo(new[] { "slim", "medium", "heavy" }));
-		Assert.That(gameData.CharacterOptions.GetDefaultHeight().Id, Is.EqualTo("medium"));
-		Assert.That(gameData.CharacterOptions.GetDefaultWeight().Id, Is.EqualTo("medium"));
 	}
 
 	[Test]
@@ -66,9 +65,9 @@ public sealed class GameDataTests
 		File.WriteAllText(Path.Combine(m_directory, ProfessionList.FileName), """
 			{
 				"professions": [
-					{ "id": "smith", "title": "Blacksmith", "defaultLastName": "Smith" },
-					{ "id": "smith", "title": "", "defaultLastName": " " },
-					{ "id": "", "title": "Nobody", "defaultLastName": "Nobody" },
+					{ "id": "smith", "title": "Blacksmith", "defaultLastName": "Smith", "frequency": 3 },
+					{ "id": "smith", "title": "", "defaultLastName": " ", "frequency": 0 },
+					{ "id": "", "title": "Nobody", "defaultLastName": "Nobody", "frequency": 3 },
 					null,
 				]
 			}
@@ -82,6 +81,7 @@ public sealed class GameDataTests
 			OurResources.DataListItemTitleMissing.Replace("{0}", "smith", StringComparison.Ordinal).Replace("{1}", "professions", StringComparison.Ordinal),
 			OurResources.DataListItemIdMissing.Replace("{0}", "professions", StringComparison.Ordinal),
 			OurResources.DataListItemEmpty.Replace("{0}", "professions", StringComparison.Ordinal),
+			OurResources.DataListItemFrequencyInvalid.Replace("{0}", "smith", StringComparison.Ordinal).Replace("{1}", "professions", StringComparison.Ordinal).Replace("{2}", "0", StringComparison.Ordinal).Replace("{3}", "1", StringComparison.Ordinal).Replace("{4}", "3", StringComparison.Ordinal),
 			OurResources.ProfessionDefaultLastNameMissing.Replace("{0}", "smith", StringComparison.Ordinal),
 		}));
 	}
@@ -107,10 +107,9 @@ public sealed class GameDataTests
 		File.WriteAllText(Path.Combine(m_directory, CharacterOptions.FileName), """
 			{
 				"playerMinimumAge": 0,
+				"playerMaximumAge": -1,
 				"heights": [],
-				"defaultHeight": "medium",
-				"weights": [ { "id": "slim", "title": "Slim" } ],
-				"defaultWeight": "heavy"
+				"weights": [ { "id": "slim", "title": "Slim", "frequency": 5 } ]
 			}
 			""");
 
@@ -119,21 +118,20 @@ public sealed class GameDataTests
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
 			OurResources.PlayerMinimumAgeInvalid.Replace("{0}", "0", StringComparison.Ordinal),
+			OurResources.PlayerMaximumAgeInvalid.Replace("{0}", "-1", StringComparison.Ordinal).Replace("{1}", "0", StringComparison.Ordinal),
 			OurResources.DataListEmpty.Replace("{0}", "heights", StringComparison.Ordinal),
-			OurResources.DataDefaultIdNotFound.Replace("{0}", "defaultHeight", StringComparison.Ordinal).Replace("{1}", "medium", StringComparison.Ordinal).Replace("{2}", "heights", StringComparison.Ordinal),
-			OurResources.DataDefaultIdNotFound.Replace("{0}", "defaultWeight", StringComparison.Ordinal).Replace("{1}", "heavy", StringComparison.Ordinal).Replace("{2}", "weights", StringComparison.Ordinal),
+			OurResources.DataListItemFrequencyInvalid.Replace("{0}", "slim", StringComparison.Ordinal).Replace("{1}", "weights", StringComparison.Ordinal).Replace("{2}", "5", StringComparison.Ordinal).Replace("{3}", "1", StringComparison.Ordinal).Replace("{4}", "3", StringComparison.Ordinal),
 		}));
 	}
 
 	[Test]
-	public void MissingDefaultHeightReportsError()
+	public void MissingMaximumAgeReportsError()
 	{
 		File.WriteAllText(Path.Combine(m_directory, CharacterOptions.FileName), """
 			{
 				"playerMinimumAge": 36,
-				"heights": [ { "id": "tall", "title": "Tall" } ],
-				"weights": [ { "id": "slim", "title": "Slim" } ],
-				"defaultWeight": "slim"
+				"heights": [ { "id": "tall", "title": "Tall", "frequency": 2 } ],
+				"weights": [ { "id": "slim", "title": "Slim", "frequency": 2 } ]
 			}
 			""");
 

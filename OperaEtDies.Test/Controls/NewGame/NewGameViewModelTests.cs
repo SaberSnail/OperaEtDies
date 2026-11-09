@@ -14,10 +14,77 @@ public sealed class NewGameViewModelTests
 		Assert.That(viewModel.Profession.Id, Is.EqualTo("smith"));
 		Assert.That(viewModel.FirstName, Is.AnyOf("John", "Osric"));
 		Assert.That(viewModel.LastName, Is.EqualTo("Smith"));
-		Assert.That(viewModel.Height.Id, Is.EqualTo("tall"));
-		Assert.That(viewModel.Weight.Id, Is.EqualTo("heavy"));
-		Assert.That(viewModel.Age, Is.EqualTo(36));
+		Assert.That(viewModel.Height, Is.AnyOf(viewModel.Heights.ToArray()));
+		Assert.That(viewModel.Weight, Is.AnyOf(viewModel.Weights.ToArray()));
+		Assert.That(viewModel.Age, Is.InRange(36, 60));
 		Assert.That(viewModel.CanStartGame(), Is.True);
+	}
+
+	[Test]
+	public void StartingValuesAreRandom()
+	{
+		var heights = new HashSet<string>();
+		var weights = new HashSet<string>();
+		var ages = new HashSet<int>();
+
+		for (var seed = 0; seed < 100; seed++)
+		{
+			var viewModel = new NewGameViewModel(TestData.CreateGameData(), new Random(seed));
+			heights.Add(viewModel.Height.Id);
+			weights.Add(viewModel.Weight.Id);
+			ages.Add(viewModel.Age);
+		}
+
+		Assert.That(heights, Has.Count.EqualTo(3));
+		Assert.That(weights, Has.Count.EqualTo(3));
+		Assert.That(ages, Has.Count.GreaterThan(1));
+	}
+
+	[TestCase("")]
+	[TestCase("  ")]
+	public void BlankFirstNameIsRandomized(string firstName)
+	{
+		var viewModel = CreateViewModel();
+		var changed = new List<string?>();
+		viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+		viewModel.FirstName = firstName;
+
+		Assert.That(viewModel.FirstName, Is.AnyOf("John", "Osric"));
+		Assert.That(changed, Does.Contain(nameof(NewGameViewModel.FirstName)));
+		Assert.That(viewModel.CanStartGame(), Is.True);
+	}
+
+	[TestCase("")]
+	[TestCase("  ")]
+	public void BlankAgeIsRandomized(string ageText)
+	{
+		var viewModel = CreateViewModel();
+		var changed = new List<string?>();
+		viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+		viewModel.AgeText = ageText;
+
+		Assert.That(viewModel.Age, Is.InRange(36, 60));
+		Assert.That(viewModel.AgeText, Is.EqualTo(viewModel.Age.ToString(System.Globalization.CultureInfo.CurrentCulture)));
+		Assert.That(changed, Does.Contain(nameof(NewGameViewModel.AgeText)));
+	}
+
+	[Test]
+	public void AgeTextSetsAge()
+	{
+		var viewModel = CreateViewModel();
+		viewModel.Age = 40;
+
+		viewModel.AgeText = "45";
+		Assert.That(viewModel.Age, Is.EqualTo(45));
+
+		viewModel.AgeText = "abc";
+		Assert.That(viewModel.Age, Is.EqualTo(45));
+		Assert.That(viewModel.AgeText, Is.EqualTo("45"));
+
+		viewModel.AgeText = "90";
+		Assert.That(viewModel.Age, Is.EqualTo(60));
 	}
 
 	[Test]
@@ -64,7 +131,7 @@ public sealed class NewGameViewModelTests
 	}
 
 	[Test]
-	public void AgeCannotGoBelowMinimum()
+	public void AgeStaysWithinRange()
 	{
 		var viewModel = CreateViewModel();
 
@@ -73,30 +140,66 @@ public sealed class NewGameViewModelTests
 
 		viewModel.Age = 12;
 		Assert.That(viewModel.Age, Is.EqualTo(36));
+
+		viewModel.Age = 90;
+		Assert.That(viewModel.Age, Is.EqualTo(60));
 	}
 
 	[Test]
-	public void RandomizeFirstNameChangesName()
+	public void RandomizeFieldsCanSelectEveryValue()
 	{
 		var viewModel = CreateViewModel();
-		var original = viewModel.FirstName;
+		var professions = new HashSet<Profession>();
+		var firstNames = new HashSet<string>();
+		var heights = new HashSet<CharacterOption>();
+		var weights = new HashSet<CharacterOption>();
 
-		viewModel.RandomizeFirstName();
+		// Enough rolls that even the rarest test value is all but certain to come up.
+		for (var i = 0; i < 500; i++)
+		{
+			viewModel.RandomizeProfession();
+			viewModel.RandomizeFirstName();
+			viewModel.RandomizeHeight();
+			viewModel.RandomizeWeight();
+			viewModel.RandomizeAge();
 
-		Assert.That(viewModel.FirstName, Is.Not.EqualTo(original));
+			professions.Add(viewModel.Profession);
+			firstNames.Add(viewModel.FirstName);
+			heights.Add(viewModel.Height);
+			weights.Add(viewModel.Weight);
+			Assert.That(viewModel.Age, Is.InRange(viewModel.MinimumAge, viewModel.MaximumAge));
+		}
+
+		Assert.That(professions, Is.EquivalentTo(viewModel.Professions));
+		Assert.That(firstNames, Is.EquivalentTo(new[] { "John", "Osric" }));
+		Assert.That(heights, Is.EquivalentTo(viewModel.Heights));
+		Assert.That(weights, Is.EquivalentTo(viewModel.Weights));
 	}
 
 	[Test]
-	public void BlankNamesBlockStart()
+	public void RandomizeProfessionUpdatesDefaultLastName()
 	{
 		var viewModel = CreateViewModel();
-		var raised = false;
-		viewModel.StartGameRequested += (_, _) => raised = true;
 
-		viewModel.FirstName = " ";
-		Assert.That(viewModel.CanStartGame(), Is.False);
-		viewModel.StartGame();
-		Assert.That(raised, Is.False);
+		viewModel.RandomizeProfession();
+
+		Assert.That(viewModel.LastName, Is.EqualTo(viewModel.Profession.DefaultLastName));
+	}
+
+	[Test]
+	public void RandomizeAllKeepsCustomLastName()
+	{
+		var viewModel = CreateViewModel();
+		viewModel.LastName = "Atwood";
+
+		for (var i = 0; i < 20; i++)
+		{
+			viewModel.RandomizeAll();
+
+			Assert.That(viewModel.LastName, Is.EqualTo("Atwood"));
+			Assert.That(viewModel.Age, Is.InRange(viewModel.MinimumAge, viewModel.MaximumAge));
+			Assert.That(viewModel.CanStartGame(), Is.True);
+		}
 	}
 
 	[Test]

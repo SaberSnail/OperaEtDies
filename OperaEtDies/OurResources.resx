@@ -103,9 +103,9 @@
 		<value>The item "{0}" in the "{1}" list is missing a title.</value>
 		<comment>{0} is the item's id. {1} is the name of the list in the data file.</comment>
 	</data>
-	<data name="DataDefaultIdNotFound" xml:space="preserve">
-		<value>The "{0}" value "{1}" doesn't match the id of any item in the "{2}" list.</value>
-		<comment>{0} is the name of the default setting. {1} is the id it contains. {2} is the name of the list it should match.</comment>
+	<data name="DataListItemFrequencyInvalid" xml:space="preserve">
+		<value>The item "{0}" in the "{1}" list has a frequency of {2}, but it must be from {3} to {4}.</value>
+		<comment>{0} is the item's id. {1} is the name of the list in the data file. {2} is the frequency found. {3} and {4} are the allowed minimum and maximum.</comment>
 	</data>
 	<data name="ProfessionDefaultLastNameMissing" xml:space="preserve">
 		<value>The profession "{0}" is missing a default last name.</value>
@@ -122,6 +122,10 @@
 	<data name="PlayerMinimumAgeInvalid" xml:space="preserve">
 		<value>The player minimum age is {0}, but it must be at least 1.</value>
 		<comment>{0} is the age found in the data file.</comment>
+	</data>
+	<data name="PlayerMaximumAgeInvalid" xml:space="preserve">
+		<value>The player maximum age is {0}, but it must be at least the player minimum age ({1}).</value>
+		<comment>{0} is the maximum age found in the data file. {1} is the minimum age found in the data file.</comment>
 	</data>
 	<data name="NewGameHeader" xml:space="preserve">
 		<value>New Game</value>
@@ -144,9 +148,13 @@
 	<data name="AgeLabel" xml:space="preserve">
 		<value>Age</value>
 	</data>
-	<data name="RandomFirstName" xml:space="preserve">
-		<value>Random</value>
-		<comment>Button that picks a new random first name.</comment>
+	<data name="RandomizeField" xml:space="preserve">
+		<value>🎲</value>
+		<comment>Button next to a single field that picks a new random value for it.</comment>
+	</data>
+	<data name="RandomizeAll" xml:space="preserve">
+		<value>Randomize</value>
+		<comment>Button that picks new random values for every field that can be randomized.</comment>
 	</data>
 	<data name="StartGame" xml:space="preserve">
 		<value>Start Game</value>

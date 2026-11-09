@@ -45,13 +45,20 @@ public static class DataValidation
 	}
 
 	/// <summary>
-	/// Checks that a default id matches the id of an item in its list.
+	/// Checks that each item in a list has a valid frequency. Items that are empty or missing an id are skipped, since ValidateIdentifiedItems reports them.
 	/// </summary>
-	public static IEnumerable<string> ValidateDefaultId<T>(string propertyName, string defaultId, string listName, IReadOnlyList<T?> items, Func<T, string?> getId)
+	public static IEnumerable<string> ValidateItemFrequencies<T>(string listName, IReadOnlyList<T?> items, Func<T, string?> getId, Func<T, int> getFrequency)
 		where T : class
 	{
-		if (!items.Any(x => x is not null && getId(x) == defaultId))
-			yield return OurResources.DataDefaultIdNotFound.FormatCurrentCulture(propertyName, defaultId, listName);
+		foreach (var item in items)
+		{
+			if (item is null || string.IsNullOrWhiteSpace(getId(item)))
+				continue;
+
+			var frequency = getFrequency(item);
+			if (!FrequencyUtility.IsValid(frequency))
+				yield return OurResources.DataListItemFrequencyInvalid.FormatCurrentCulture(getId(item), listName, frequency, FrequencyUtility.MinFrequency, FrequencyUtility.MaxFrequency);
+		}
 	}
 
 	/// <summary>

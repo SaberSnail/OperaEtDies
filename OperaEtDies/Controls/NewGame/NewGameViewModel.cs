@@ -1,3 +1,4 @@
+using System.Globalization;
 using GoldenAnvil.Utility;
 using OperaEtDies.Data;
 using OperaEtDies.Utility.Random;
@@ -18,13 +19,19 @@ public sealed class NewGameViewModel : ViewModelBase
 		Heights = gameData.CharacterOptions.Heights;
 		Weights = gameData.CharacterOptions.Weights;
 		MinimumAge = gameData.CharacterOptions.PlayerMinimumAge;
+		MaximumAge = gameData.CharacterOptions.PlayerMaximumAge;
 
 		m_profession = Professions[0];
 		m_firstName = m_random.NextWeighted(m_maleFirstNames).Name;
 		m_lastName = m_profession.DefaultLastName;
-		m_height = gameData.CharacterOptions.GetDefaultHeight();
-		m_weight = gameData.CharacterOptions.GetDefaultWeight();
+		// Placeholders until the randomize calls below pick the starting values.
+		m_height = Heights[0];
+		m_weight = Weights[0];
 		m_age = MinimumAge;
+
+		RandomizeHeight();
+		RandomizeWeight();
+		RandomizeAge();
 	}
 
 	public event EventHandler<GenericEventArgs<NewGameSettings>>? StartGameRequested;
@@ -38,6 +45,8 @@ public sealed class NewGameViewModel : ViewModelBase
 	public IReadOnlyList<CharacterOption> Weights { get; }
 
 	public int MinimumAge { get; }
+
+	public int MaximumAge { get; }
 
 	public Profession Profession
 	{
@@ -57,7 +66,20 @@ public sealed class NewGameViewModel : ViewModelBase
 	public string FirstName
 	{
 		get => VerifyAccess(m_firstName);
-		set => SetPropertyField(value ?? "", ref m_firstName);
+		set
+		{
+			// A blank first name is replaced with a random one.
+			if (string.IsNullOrWhiteSpace(value))
+			{
+				RandomizeFirstName();
+
+				// The random name may be the one already set, so refresh the view to replace its blank text.
+				RaisePropertyChanged(nameof(FirstName));
+				return;
+			}
+
+			SetPropertyField(value, ref m_firstName);
+		}
 	}
 
 	public string LastName
@@ -104,22 +126,76 @@ public sealed class NewGameViewModel : ViewModelBase
 		get => VerifyAccess(m_age);
 		set
 		{
-			var age = Math.Max(value, MinimumAge);
-			if (!SetPropertyField(age, ref m_age) && age != value)
+			var age = Math.Clamp(value, MinimumAge, MaximumAge);
+			if (SetPropertyField(age, ref m_age))
+			{
+				RaisePropertyChanged(nameof(AgeText));
+			}
+			else if (age != value)
 			{
 				// The value was clamped back to what it already was, so refresh the view to undo the edit.
 				RaisePropertyChanged(nameof(Age));
+				RaisePropertyChanged(nameof(AgeText));
 			}
 		}
+	}
+
+	/// <summary>
+	/// The age as text, for editing. Blank text is replaced with a random age, and text that isn't a number is undone.
+	/// </summary>
+	public string AgeText
+	{
+		get => VerifyAccess(m_age).ToString(CultureInfo.CurrentCulture);
+		set
+		{
+			if (string.IsNullOrWhiteSpace(value))
+				RandomizeAge();
+			else if (int.TryParse(value, NumberStyles.Integer, CultureInfo.CurrentCulture, out var age))
+				Age = age;
+
+			// The view's text may not match the age (blank, not a number, or a random age that didn't change), so always refresh it.
+			RaisePropertyChanged(nameof(AgeText));
+		}
+	}
+
+	public void RandomizeProfession()
+	{
+		VerifyAccess();
+		Profession = m_random.NextWeighted(Professions);
 	}
 
 	public void RandomizeFirstName()
 	{
 		VerifyAccess();
+		FirstName = m_random.NextWeighted(m_maleFirstNames).Name;
+	}
 
-		// Leave out the current name, so the button always appears to do something.
-		var otherNames = m_maleFirstNames.Where(x => x.Name != m_firstName).ToList();
-		FirstName = m_random.NextWeighted(otherNames.Count != 0 ? otherNames : m_maleFirstNames).Name;
+	public void RandomizeHeight()
+	{
+		VerifyAccess();
+		Height = m_random.NextWeighted(Heights);
+	}
+
+	public void RandomizeWeight()
+	{
+		VerifyAccess();
+		Weight = m_random.NextWeighted(Weights);
+	}
+
+	public void RandomizeAge()
+	{
+		VerifyAccess();
+		Age = NextAge();
+	}
+
+	public void RandomizeAll()
+	{
+		VerifyAccess();
+		RandomizeProfession();
+		RandomizeFirstName();
+		RandomizeHeight();
+		RandomizeWeight();
+		RandomizeAge();
 	}
 
 	public bool CanStartGame() => !string.IsNullOrWhiteSpace(m_firstName) && !string.IsNullOrWhiteSpace(m_lastName);
@@ -139,6 +215,12 @@ public sealed class NewGameViewModel : ViewModelBase
 		VerifyAccess();
 		BackRequested.Raise(this);
 	}
+
+	/// <summary>
+	/// Picks a random age from the minimum to the maximum. Taking the lower of two rolls makes younger ages
+	/// the most common, with older ages increasingly rare.
+	/// </summary>
+	private int NextAge() => MinimumAge + Math.Min(m_random.Next(MaximumAge - MinimumAge + 1), m_random.Next(MaximumAge - MinimumAge + 1));
 
 	private readonly IReadOnlyList<WeightedName> m_maleFirstNames;
 	private readonly Random m_random;

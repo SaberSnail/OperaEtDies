@@ -15,43 +15,27 @@ public sealed class CharacterOptions : IValidatedData
 
 	public required int PlayerMinimumAge { get; init; }
 
+	public required int PlayerMaximumAge { get; init; }
+
 	public required IReadOnlyList<CharacterOption> Heights { get; init; }
 
-	/// <summary>
-	/// The id of the height selected by default.
-	/// </summary>
-	public required string DefaultHeight { get; init; }
-
 	public required IReadOnlyList<CharacterOption> Weights { get; init; }
-
-	/// <summary>
-	/// The id of the weight selected by default.
-	/// </summary>
-	public required string DefaultWeight { get; init; }
-
-	/// <summary>
-	/// The height whose id is DefaultHeight. Only valid once the data has passed validation.
-	/// </summary>
-	public CharacterOption GetDefaultHeight() => Heights.First(x => x.Id == DefaultHeight);
-
-	/// <summary>
-	/// The weight whose id is DefaultWeight. Only valid once the data has passed validation.
-	/// </summary>
-	public CharacterOption GetDefaultWeight() => Weights.First(x => x.Id == DefaultWeight);
 
 	public IEnumerable<string> Validate()
 	{
 		if (PlayerMinimumAge < 1)
 			yield return OurResources.PlayerMinimumAgeInvalid.FormatCurrentCulture(PlayerMinimumAge);
+		if (PlayerMaximumAge < PlayerMinimumAge)
+			yield return OurResources.PlayerMaximumAgeInvalid.FormatCurrentCulture(PlayerMaximumAge, PlayerMinimumAge);
 
 		foreach (var error in DataValidation.ValidateIdentifiedItems("heights", Heights, x => x.Id, x => x.Title))
 			yield return error;
-		foreach (var error in DataValidation.ValidateDefaultId("defaultHeight", DefaultHeight, "heights", Heights, x => x.Id))
+		foreach (var error in DataValidation.ValidateItemFrequencies("heights", Heights, x => x.Id, x => x.Frequency))
 			yield return error;
 
 		foreach (var error in DataValidation.ValidateIdentifiedItems("weights", Weights, x => x.Id, x => x.Title))
 			yield return error;
-		foreach (var error in DataValidation.ValidateDefaultId("defaultWeight", DefaultWeight, "weights", Weights, x => x.Id))
+		foreach (var error in DataValidation.ValidateItemFrequencies("weights", Weights, x => x.Id, x => x.Frequency))
 			yield return error;
 	}
 }

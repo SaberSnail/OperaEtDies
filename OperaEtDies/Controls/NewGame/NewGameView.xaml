@@ -31,6 +31,11 @@
 						<Setter Property="Margin" Value="0,0,12,0" />
 						<Setter Property="VerticalAlignment" Value="Center" />
 					</Style>
+					<Style x:Key="RandomizeButtonStyle" BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
+						<Setter Property="Margin" Value="8,0,0,0" />
+						<Setter Property="Padding" Value="8,0" />
+						<Setter Property="Content" Value="{x:Static operaEtDies:OurResources.RandomizeField}" />
+					</Style>
 				</Grid.Resources>
 				<Grid.ColumnDefinitions>
 					<ColumnDefinition Width="Auto" />
@@ -59,28 +64,31 @@
 				<ComboBox
 					Grid.Row="0"
 					Grid.Column="1"
-					Grid.ColumnSpan="2"
 					DisplayMemberPath="Title"
 					ItemsSource="{Binding Professions}"
 					SelectedItem="{Binding Profession}" />
+				<Button
+					Grid.Row="0"
+					Grid.Column="2"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RandomizeProfession}"
+					Style="{StaticResource RandomizeButtonStyle}" />
 
 				<TextBlock
 					Grid.Row="2"
 					Grid.Column="0"
 					Style="{StaticResource LabelStyle}"
 					Text="{x:Static operaEtDies:OurResources.FirstNameLabel}" />
+				<!--  First name updates when focus leaves, so a blank name can be replaced with a random one.  -->
 				<controls:CustomTextBox
 					Grid.Row="2"
 					Grid.Column="1"
 					VerticalContentAlignment="Center"
-					Text="{Binding FirstName, UpdateSourceTrigger=PropertyChanged}" />
+					Text="{Binding FirstName}" />
 				<Button
 					Grid.Row="2"
 					Grid.Column="2"
-					Margin="8,0,0,0"
-					Padding="8,0"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RandomizeFirstName}"
-					Content="{x:Static operaEtDies:OurResources.RandomFirstName}" />
+					Style="{StaticResource RandomizeButtonStyle}" />
 
 				<TextBlock
 					Grid.Row="4"
@@ -103,10 +111,14 @@
 				<ComboBox
 					Grid.Row="6"
 					Grid.Column="1"
-					Grid.ColumnSpan="2"
 					DisplayMemberPath="Title"
 					ItemsSource="{Binding Heights}"
 					SelectedItem="{Binding Height}" />
+				<Button
+					Grid.Row="6"
+					Grid.Column="2"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RandomizeHeight}"
+					Style="{StaticResource RandomizeButtonStyle}" />
 
 				<TextBlock
 					Grid.Row="8"
@@ -116,42 +128,56 @@
 				<ComboBox
 					Grid.Row="8"
 					Grid.Column="1"
-					Grid.ColumnSpan="2"
 					DisplayMemberPath="Title"
 					ItemsSource="{Binding Weights}"
 					SelectedItem="{Binding Weight}" />
+				<Button
+					Grid.Row="8"
+					Grid.Column="2"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RandomizeWeight}"
+					Style="{StaticResource RandomizeButtonStyle}" />
 
 				<TextBlock
 					Grid.Row="10"
 					Grid.Column="0"
 					Style="{StaticResource LabelStyle}"
 					Text="{x:Static operaEtDies:OurResources.AgeLabel}" />
-				<!--  Age updates when focus leaves, so values below the minimum can be typed on the way to a valid age.  -->
+				<!--  Age updates when focus leaves, so values outside the allowed range can be typed on the way to a valid age, and a blank age can be replaced with a random one.  -->
 				<controls:CustomTextBox
 					Grid.Row="10"
 					Grid.Column="1"
-					Grid.ColumnSpan="2"
 					VerticalContentAlignment="Center"
-					Text="{Binding Age}" />
+					Text="{Binding AgeText}" />
+				<Button
+					Grid.Row="10"
+					Grid.Column="2"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RandomizeAge}"
+					Style="{StaticResource RandomizeButtonStyle}" />
 			</Grid>
 
-			<StackPanel
-				Grid.Row="2"
-				HorizontalAlignment="Right"
-				Orientation="Horizontal">
+			<Grid Grid.Row="2">
+				<Grid.Resources>
+					<Style BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
+						<Setter Property="Width" Value="120" />
+						<Setter Property="Height" Value="32" />
+					</Style>
+				</Grid.Resources>
+
 				<Button
-					Width="120"
-					Height="32"
+					HorizontalAlignment="Left"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Back}"
 					Content="{x:Static operaEtDies:OurResources.Back}"
 					IsCancel="True" />
-				<Button
-					Width="120"
-					Height="32"
-					Margin="8,0,0,0"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=StartGame}"
-					Content="{x:Static operaEtDies:OurResources.StartGame}" />
-			</StackPanel>
+				<StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+					<Button
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RandomizeAll}"
+						Content="{x:Static operaEtDies:OurResources.RandomizeAll}" />
+					<Button
+						Margin="8,0,0,0"
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=StartGame}"
+						Content="{x:Static operaEtDies:OurResources.StartGame}" />
+				</StackPanel>
+			</Grid>
 		</Grid>
 	</DataTemplate>
 

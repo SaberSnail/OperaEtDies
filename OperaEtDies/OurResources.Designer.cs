@@ -79,15 +79,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The &quot;{0}&quot; value &quot;{1}&quot; doesn&apos;t match the id of any item in the &quot;{2}&quot; list..
-        /// </summary>
-        public static string DataDefaultIdNotFound {
-            get {
-                return ResourceManager.GetString("DataDefaultIdNotFound", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to The file is empty..
         /// </summary>
         public static string DataFileEmpty {
@@ -168,6 +159,15 @@ namespace OperaEtDies {
             }
         }
         
+        /// <summary>
+        ///   Looks up a localized string similar to The item &quot;{0}&quot; in the &quot;{1}&quot; list has a frequency of {2}, but it must be from {3} to {4}..
+        /// </summary>
+        public static string DataListItemFrequencyInvalid {
+            get {
+                return ResourceManager.GetString("DataListItemFrequencyInvalid", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to The item &quot;{0}&quot; in the &quot;{1}&quot; list is missing a title..
         /// </summary>
@@ -302,7 +302,16 @@ namespace OperaEtDies {
                 return ResourceManager.GetString("PlayerMinimumAgeInvalid", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to The player maximum age is {0}, but it must be at least the player minimum age ({1})..
+        /// </summary>
+        public static string PlayerMaximumAgeInvalid {
+            get {
+                return ResourceManager.GetString("PlayerMaximumAgeInvalid", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to The profession &quot;{0}&quot; is missing a default last name..
         /// </summary>
@@ -322,11 +331,20 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Random.
+        ///   Looks up a localized string similar to Randomize.
         /// </summary>
-        public static string RandomFirstName {
+        public static string RandomizeAll {
             get {
-                return ResourceManager.GetString("RandomFirstName", resourceCulture);
+                return ResourceManager.GetString("RandomizeAll", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to 🎲.
+        /// </summary>
+        public static string RandomizeField {
+            get {
+                return ResourceManager.GetString("RandomizeField", resourceCulture);
             }
         }
         

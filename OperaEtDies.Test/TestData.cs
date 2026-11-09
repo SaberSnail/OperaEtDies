@@ -14,8 +14,8 @@ internal static class TestData
 		{
 			Professions =
 			[
-				new Profession { Id = "smith", Title = "Blacksmith", DefaultLastName = "Smith" },
-				new Profession { Id = "miller", Title = "Miller", DefaultLastName = "Miller" },
+				new Profession { Id = "smith", Title = "Blacksmith", DefaultLastName = "Smith", Frequency = 3 },
+				new Profession { Id = "miller", Title = "Miller", DefaultLastName = "Miller", Frequency = 2 },
 			],
 		},
 		new FirstNameList
@@ -30,19 +30,18 @@ internal static class TestData
 		new CharacterOptions
 		{
 			PlayerMinimumAge = 36,
-			DefaultHeight = "tall",
-			DefaultWeight = "heavy",
+			PlayerMaximumAge = 60,
 			Heights =
 			[
-				new CharacterOption { Id = "tall", Title = "Tall" },
-				new CharacterOption { Id = "medium", Title = "Medium" },
-				new CharacterOption { Id = "short", Title = "Short" },
+				new CharacterOption { Id = "tall", Title = "Tall", Frequency = 2 },
+				new CharacterOption { Id = "medium", Title = "Medium", Frequency = 3 },
+				new CharacterOption { Id = "short", Title = "Short", Frequency = 2 },
 			],
 			Weights =
 			[
-				new CharacterOption { Id = "slim", Title = "Slim" },
-				new CharacterOption { Id = "medium", Title = "Medium" },
-				new CharacterOption { Id = "heavy", Title = "Heavy" },
+				new CharacterOption { Id = "slim", Title = "Slim", Frequency = 2 },
+				new CharacterOption { Id = "medium", Title = "Medium", Frequency = 3 },
+				new CharacterOption { Id = "heavy", Title = "Heavy", Frequency = 2 },
 			],
 		});
 }
