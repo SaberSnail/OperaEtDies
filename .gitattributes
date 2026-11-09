@@ -1,0 +1,15 @@
+# Normalize text files: stored as LF in the repository, checked out as CRLF.
+* text=auto eol=crlf
+
+# Shell scripts must stay LF so bash can run them.
+*.sh text eol=lf
+
+# Binary files: never convert.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.dll binary
+*.exe binary
+*.pdb binary

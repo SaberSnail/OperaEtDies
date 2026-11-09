@@ -1,5 +1,8 @@
 root = true
 
+[*]
+end_of_line = crlf
+
 [*.cs]
 # Namespaces must match the folder structure.
 dotnet_style_namespace_match_folder = true
