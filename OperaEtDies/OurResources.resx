@@ -107,6 +107,10 @@
 		<value>The item "{0}" in the "{1}" list has a frequency of {2}, but it must be from {3} to {4}.</value>
 		<comment>{0} is the item's id. {1} is the name of the list in the data file. {2} is the frequency found. {3} and {4} are the allowed minimum and maximum.</comment>
 	</data>
+	<data name="DataListItemDescriptionMissing" xml:space="preserve">
+		<value>The item "{0}" in the "{1}" list is missing a description.</value>
+		<comment>{0} is the item's id. {1} is the name of the list in the data file.</comment>
+	</data>
 	<data name="ProfessionDefaultLastNameMissing" xml:space="preserve">
 		<value>The profession "{0}" is missing a default last name.</value>
 		<comment>{0} is the profession's id.</comment>
@@ -154,6 +158,14 @@
 		<value>The starting location is "{0}", but there is no location with that id.</value>
 		<comment>{0} is the starting location's id.</comment>
 	</data>
+	<data name="NpcMinimumAgeInvalid" xml:space="preserve">
+		<value>The NPC minimum age is {0}, but it must be at least 1.</value>
+		<comment>{0} is the age found in the data file.</comment>
+	</data>
+	<data name="NpcMaximumAgeInvalid" xml:space="preserve">
+		<value>The NPC maximum age is {0}, but it must be at least the NPC minimum age ({1}).</value>
+		<comment>{0} is the maximum age found in the data file. {1} is the minimum age found in the data file.</comment>
+	</data>
 	<data name="NewGameHeader" xml:space="preserve">
 		<value>New Game</value>
 	</data>
@@ -197,5 +209,31 @@
 	<data name="ConnectionsHeader" xml:space="preserve">
 		<value>From here you can go to:</value>
 		<comment>Header above the list of locations the player can travel to.</comment>
+	</data>
+	<data name="PeopleHeader" xml:space="preserve">
+		<value>People here:</value>
+		<comment>Header above the list of characters in the current location.</comment>
+	</data>
+	<data name="ExamineCharacter" xml:space="preserve">
+		<value>Examine</value>
+		<comment>Button that shows a description of a character.</comment>
+	</data>
+	<data name="CharacterDescription" xml:space="preserve">
+		<value>{0} is a {1} of {2}. {3} is {4} and {5}, and works as {6}.</value>
+		<comment>{0} is the character's full name. {1} is a noun for their gender (such as "man"). {2} is their age. {3} is a capitalized pronoun for their gender (such as "He"). {4} and {5} are descriptions of their height and weight from the data files (such as "tall" and "of average build"). {6} is a description of their profession from the data files (such as "a blacksmith").</comment>
+	</data>
+	<data name="GenderNounMale" xml:space="preserve">
+		<value>man</value>
+	</data>
+	<data name="GenderNounFemale" xml:space="preserve">
+		<value>woman</value>
+	</data>
+	<data name="GenderPronounMale" xml:space="preserve">
+		<value>He</value>
+		<comment>Capitalized, since it starts a sentence.</comment>
+	</data>
+	<data name="GenderPronounFemale" xml:space="preserve">
+		<value>She</value>
+		<comment>Capitalized, since it starts a sentence.</comment>
 	</data>
 </root>

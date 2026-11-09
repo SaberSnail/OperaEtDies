@@ -1,0 +1,39 @@
+using OperaEtDies.Data;
+
+namespace OperaEtDies.Characters;
+
+/// <summary>
+/// Creates non-player characters with random traits.
+/// </summary>
+public static class NpcGenerator
+{
+	/// <summary>
+	/// Creates characters with random traits, each placed in a random location. No two characters share a full name,
+	/// and none use a name that's already taken (such as the player's).
+	/// </summary>
+	public static IReadOnlyList<Character> Generate(GameData gameData, Random random, int count, IEnumerable<string> takenNames)
+	{
+		var options = gameData.CharacterOptions;
+		var locations = gameData.Locations.Locations;
+		var randomizer = new CharacterRandomizer(gameData, random, options.NpcMinimumAge, options.NpcMaximumAge);
+		var names = new HashSet<string>(takenNames, StringComparer.Ordinal);
+
+		var characters = new List<Character>();
+		for (var index = 0; index < count; index++)
+		{
+			randomizer.RandomizeAll();
+
+			// Try a few other characters before allowing a repeated name, since the name lists might be small.
+			for (var attempt = 0; attempt < MaxNameAttempts && names.Contains(randomizer.GetTraits().FullName); attempt++)
+				randomizer.RandomizeAll();
+
+			var traits = randomizer.GetTraits();
+			names.Add(traits.FullName);
+			characters.Add(new Character(traits, locations[random.Next(locations.Count)]));
+		}
+
+		return characters;
+	}
+
+	private const int MaxNameAttempts = 20;
+}

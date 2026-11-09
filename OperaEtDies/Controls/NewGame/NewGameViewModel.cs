@@ -1,5 +1,6 @@
 using System.Globalization;
 using GoldenAnvil.Utility;
+using OperaEtDies.Characters;
 using OperaEtDies.Data;
 using OperaEtDies.Utility.Random;
 
@@ -12,26 +13,19 @@ public sealed class NewGameViewModel : ViewModelBase
 {
 	public NewGameViewModel(GameData gameData, Random random)
 	{
-		m_maleFirstNames = gameData.FirstNames.Male;
-		m_random = random;
-
 		Professions = gameData.Professions.Professions;
 		Heights = gameData.CharacterOptions.Heights;
 		Weights = gameData.CharacterOptions.Weights;
 		MinimumAge = gameData.CharacterOptions.PlayerMinimumAge;
 		MaximumAge = gameData.CharacterOptions.PlayerMaximumAge;
 
-		m_profession = Professions[0];
-		m_firstName = m_random.NextWeighted(m_maleFirstNames).Name;
-		m_lastName = m_profession.DefaultLastName;
-		// Placeholders until the randomize calls below pick the starting values.
-		m_height = Heights[0];
-		m_weight = Weights[0];
-		m_age = MinimumAge;
+		m_character = new CharacterRandomizer(gameData, random, MinimumAge, MaximumAge);
 
-		RandomizeHeight();
-		RandomizeWeight();
-		RandomizeAge();
+		// The player is always a man.
+		m_character.Gender.Lock(Gender.Male);
+
+		// The profession starts as the first one, but can still be randomized.
+		m_character.Profession.Value = Professions[0];
 	}
 
 	public event EventHandler<GenericEventArgs<NewGameSettings>>? StartGameRequested;
@@ -50,93 +44,84 @@ public sealed class NewGameViewModel : ViewModelBase
 
 	public Profession Profession
 	{
-		get => VerifyAccess(m_profession);
+		get => VerifyAccess(m_character.Profession.Value);
 		set
 		{
-			// The combo box can push null if its items change.
-			if (value is null || !SetPropertyField(value, ref m_profession))
-				return;
-
-			// The last name follows the profession until the player picks their own.
-			if (!m_isLastNameCustomized)
-				SetPropertyField(value.DefaultLastName, ref m_lastName, nameof(LastName));
+			// The combo box can push null if its items change. The last name follows the profession unless the player picked their own.
+			if (value is not null)
+				SetTrait(m_character.Profession, value, nameof(Profession), nameof(LastName));
 		}
 	}
 
 	public string FirstName
 	{
-		get => VerifyAccess(m_firstName);
+		get => VerifyAccess(m_character.FirstName.Value);
 		set
 		{
-			// A blank first name is replaced with a random one.
+			// A blank first name is replaced with a random one. Randomizing always notifies, which also refreshes the view's
+			// blank text when the random name is the one already set.
 			if (string.IsNullOrWhiteSpace(value))
-			{
 				RandomizeFirstName();
-
-				// The random name may be the one already set, so refresh the view to replace its blank text.
-				RaisePropertyChanged(nameof(FirstName));
-				return;
-			}
-
-			SetPropertyField(value, ref m_firstName);
+			else
+				SetTrait(m_character.FirstName, value, nameof(FirstName));
 		}
 	}
 
 	public string LastName
 	{
-		get => VerifyAccess(m_lastName);
+		get => VerifyAccess(m_character.LastName.Value);
 		set
 		{
 			// A blank last name goes back to the profession's default.
-			var lastName = string.IsNullOrWhiteSpace(value) ? m_profession.DefaultLastName : value;
+			var defaultLastName = m_character.Profession.Value.DefaultLastName;
+			var lastName = string.IsNullOrWhiteSpace(value) ? defaultLastName : value;
 
-			// Typing the profession's default also goes back to following the profession.
-			m_isLastNameCustomized = lastName != m_profession.DefaultLastName;
+			// A custom last name is locked so it's kept when the profession changes. Typing the profession's default
+			// unlocks it, so it goes back to following the profession.
+			var lastNameValue = m_character.LastName;
+			lastNameValue.IsLocked = lastName != defaultLastName;
 
-			if (!SetPropertyField(lastName, ref m_lastName) && lastName != value)
-			{
-				// The value was replaced with what it already was, so refresh the view to undo the edit.
-				RaisePropertyChanged(nameof(LastName));
-			}
+			// If the value was replaced with what it already was, the view still needs a refresh to undo the edit.
+			if (lastNameValue.Value == lastName && lastName == value)
+				return;
+
+			using (ScopedPropertyChange(nameof(LastName)))
+				lastNameValue.Value = lastName;
 		}
 	}
 
 	public CharacterOption Height
 	{
-		get => VerifyAccess(m_height);
+		get => VerifyAccess(m_character.Height.Value);
 		set
 		{
 			if (value is not null)
-				SetPropertyField(value, ref m_height);
+				SetTrait(m_character.Height, value, nameof(Height));
 		}
 	}
 
 	public CharacterOption Weight
 	{
-		get => VerifyAccess(m_weight);
+		get => VerifyAccess(m_character.Weight.Value);
 		set
 		{
 			if (value is not null)
-				SetPropertyField(value, ref m_weight);
+				SetTrait(m_character.Weight, value, nameof(Weight));
 		}
 	}
 
 	public int Age
 	{
-		get => VerifyAccess(m_age);
+		get => VerifyAccess(m_character.Age.Value);
 		set
 		{
+			// If the value was clamped back to what it already was, the view still needs a refresh to undo the edit.
 			var age = Math.Clamp(value, MinimumAge, MaximumAge);
-			if (SetPropertyField(age, ref m_age))
-			{
-				RaisePropertyChanged(nameof(AgeText));
-			}
-			else if (age != value)
-			{
-				// The value was clamped back to what it already was, so refresh the view to undo the edit.
-				RaisePropertyChanged(nameof(Age));
-				RaisePropertyChanged(nameof(AgeText));
-			}
+			if (m_character.Age.Value == age && age == value)
+				return;
+
+			using (ScopedPropertyChange(nameof(Age), nameof(AgeText)))
+				m_character.Age.Value = age;
 		}
 	}
 
@@ -145,60 +130,60 @@ public sealed class NewGameViewModel : ViewModelBase
 	/// </summary>
 	public string AgeText
 	{
-		get => VerifyAccess(m_age).ToString(CultureInfo.CurrentCulture);
+		get => VerifyAccess(m_character.Age.Value).ToString(CultureInfo.CurrentCulture);
 		set
 		{
-			if (string.IsNullOrWhiteSpace(value))
-				RandomizeAge();
-			else if (int.TryParse(value, NumberStyles.Integer, CultureInfo.CurrentCulture, out var age))
-				Age = age;
-
 			// The view's text may not match the age (blank, not a number, or a random age that didn't change), so always refresh it.
-			RaisePropertyChanged(nameof(AgeText));
+			using (ScopedPropertyChange(nameof(Age), nameof(AgeText)))
+			{
+				if (string.IsNullOrWhiteSpace(value))
+					m_character.Age.Randomize();
+				else if (int.TryParse(value, NumberStyles.Integer, CultureInfo.CurrentCulture, out var age))
+					m_character.Age.Value = Math.Clamp(age, MinimumAge, MaximumAge);
+			}
 		}
 	}
 
 	public void RandomizeProfession()
 	{
-		VerifyAccess();
-		Profession = m_random.NextWeighted(Professions);
+		using (ScopedPropertyChange(nameof(Profession), nameof(LastName)))
+			m_character.Profession.Randomize();
 	}
 
 	public void RandomizeFirstName()
 	{
-		VerifyAccess();
-		FirstName = m_random.NextWeighted(m_maleFirstNames).Name;
+		using (ScopedPropertyChange(nameof(FirstName)))
+			m_character.FirstName.Randomize();
 	}
 
 	public void RandomizeHeight()
 	{
-		VerifyAccess();
-		Height = m_random.NextWeighted(Heights);
+		using (ScopedPropertyChange(nameof(Height)))
+			m_character.Height.Randomize();
 	}
 
 	public void RandomizeWeight()
 	{
-		VerifyAccess();
-		Weight = m_random.NextWeighted(Weights);
+		using (ScopedPropertyChange(nameof(Weight)))
+			m_character.Weight.Randomize();
 	}
 
 	public void RandomizeAge()
 	{
-		VerifyAccess();
-		Age = NextAge();
+		using (ScopedPropertyChange(nameof(Age), nameof(AgeText)))
+			m_character.Age.Randomize();
 	}
 
+	/// <summary>
+	/// Randomizes everything except a custom last name.
+	/// </summary>
 	public void RandomizeAll()
 	{
-		VerifyAccess();
-		RandomizeProfession();
-		RandomizeFirstName();
-		RandomizeHeight();
-		RandomizeWeight();
-		RandomizeAge();
+		using (ScopedPropertyChange(nameof(Profession), nameof(FirstName), nameof(LastName), nameof(Height), nameof(Weight), nameof(Age), nameof(AgeText)))
+			m_character.RandomizeAll();
 	}
 
-	public bool CanStartGame() => !string.IsNullOrWhiteSpace(m_firstName) && !string.IsNullOrWhiteSpace(m_lastName);
+	public bool CanStartGame() => !string.IsNullOrWhiteSpace(m_character.FirstName.Value) && !string.IsNullOrWhiteSpace(m_character.LastName.Value);
 
 	public void StartGame()
 	{
@@ -206,8 +191,9 @@ public sealed class NewGameViewModel : ViewModelBase
 		if (!CanStartGame())
 			return;
 
-		var settings = new NewGameSettings(m_profession, m_firstName.Trim(), m_lastName.Trim(), m_height, m_weight, m_age);
-		StartGameRequested.Raise(this, new GenericEventArgs<NewGameSettings>(settings));
+		var traits = m_character.GetTraits();
+		var player = traits with { FirstName = traits.FirstName.Trim(), LastName = traits.LastName.Trim() };
+		StartGameRequested.Raise(this, new GenericEventArgs<NewGameSettings>(new NewGameSettings(player)));
 	}
 
 	public void Back()
@@ -217,18 +203,16 @@ public sealed class NewGameViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Picks a random age from the minimum to the maximum. Taking the lower of two rolls makes younger ages
-	/// the most common, with older ages increasingly rare.
+	/// Sets a trait, raising change notifications for the given properties if the value changes.
 	/// </summary>
-	private int NextAge() => MinimumAge + Math.Min(m_random.Next(MaximumAge - MinimumAge + 1), m_random.Next(MaximumAge - MinimumAge + 1));
+	private void SetTrait<T>(RandomizedValue<T> trait, T value, params string[] propertyNames)
+	{
+		if (EqualityComparer<T>.Default.Equals(trait.Value, value))
+			return;
 
-	private readonly IReadOnlyList<WeightedName> m_maleFirstNames;
-	private readonly Random m_random;
-	private Profession m_profession;
-	private string m_firstName;
-	private string m_lastName;
-	private bool m_isLastNameCustomized;
-	private CharacterOption m_height;
-	private CharacterOption m_weight;
-	private int m_age;
+		using (ScopedPropertyChange(propertyNames))
+			trait.Value = value;
+	}
+
+	private readonly CharacterRandomizer m_character;
 }

@@ -79,6 +79,15 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to {0} is a {1} of {2}. {3} is {4} and {5}, and works as {6}..
+        /// </summary>
+        public static string CharacterDescription {
+            get {
+                return ResourceManager.GetString("CharacterDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to From here you can go to:.
         /// </summary>
         public static string ConnectionsHeader {
@@ -138,6 +147,15 @@ namespace OperaEtDies {
         public static string DataListEmpty {
             get {
                 return ResourceManager.GetString("DataListEmpty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The item &quot;{0}&quot; in the &quot;{1}&quot; list is missing a description..
+        /// </summary>
+        public static string DataListItemDescriptionMissing {
+            get {
+                return ResourceManager.GetString("DataListItemDescriptionMissing", resourceCulture);
             }
         }
         
@@ -207,6 +225,15 @@ namespace OperaEtDies {
         /// <summary>
         ///   Looks up a localized string similar to Examine.
         /// </summary>
+        public static string ExamineCharacter {
+            get {
+                return ResourceManager.GetString("ExamineCharacter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Examine.
+        /// </summary>
         public static string ExamineLocation {
             get {
                 return ResourceManager.GetString("ExamineLocation", resourceCulture);
@@ -258,6 +285,42 @@ namespace OperaEtDies {
             }
         }
 
+        /// <summary>
+        ///   Looks up a localized string similar to woman.
+        /// </summary>
+        public static string GenderNounFemale {
+            get {
+                return ResourceManager.GetString("GenderNounFemale", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to man.
+        /// </summary>
+        public static string GenderNounMale {
+            get {
+                return ResourceManager.GetString("GenderNounMale", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to She.
+        /// </summary>
+        public static string GenderPronounFemale {
+            get {
+                return ResourceManager.GetString("GenderPronounFemale", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to He.
+        /// </summary>
+        public static string GenderPronounMale {
+            get {
+                return ResourceManager.GetString("GenderPronounMale", resourceCulture);
+            }
+        }
+        
         /// <summary>
         ///   Looks up a localized string similar to Height.
         /// </summary>
@@ -366,6 +429,33 @@ namespace OperaEtDies {
             }
         }
 
+        /// <summary>
+        ///   Looks up a localized string similar to The NPC maximum age is {0}, but it must be at least the NPC minimum age ({1})..
+        /// </summary>
+        public static string NpcMaximumAgeInvalid {
+            get {
+                return ResourceManager.GetString("NpcMaximumAgeInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The NPC minimum age is {0}, but it must be at least 1..
+        /// </summary>
+        public static string NpcMinimumAgeInvalid {
+            get {
+                return ResourceManager.GetString("NpcMinimumAgeInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to People here:.
+        /// </summary>
+        public static string PeopleHeader {
+            get {
+                return ResourceManager.GetString("PeopleHeader", resourceCulture);
+            }
+        }
+        
         /// <summary>
         ///   Looks up a localized string similar to The player maximum age is {0}, but it must be at least the player minimum age ({1})..
         /// </summary>

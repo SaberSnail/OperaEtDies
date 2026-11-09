@@ -21,6 +21,8 @@ public sealed class ProfessionList : IValidatedData
 			yield return error;
 		foreach (var error in DataValidation.ValidateItemFrequencies("professions", Professions, x => x.Id, x => x.Frequency))
 			yield return error;
+		foreach (var error in DataValidation.ValidateItemDescriptions("professions", Professions, x => x.Id, x => x.Description))
+			yield return error;
 
 		// Items with a missing id are already reported above.
 		foreach (var profession in Professions.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id) && string.IsNullOrWhiteSpace(x.DefaultLastName)))

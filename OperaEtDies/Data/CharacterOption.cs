@@ -12,6 +12,11 @@ public sealed class CharacterOption : IWeighted
 
 	public required string Title { get; init; }
 
+	/// <summary>
+	/// Finishes the sentence "He is ..." when describing a character.
+	/// </summary>
+	public required string Description { get; init; }
+
 	public required int Frequency { get; init; }
 
 	[JsonIgnore]

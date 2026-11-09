@@ -1,3 +1,4 @@
+using OperaEtDies.Characters;
 using OperaEtDies.Controls.NewGame;
 using OperaEtDies.Data;
 
@@ -217,12 +218,13 @@ public sealed class NewGameViewModelTests
 		viewModel.StartGame();
 
 		Assert.That(settings, Is.Not.Null);
-		Assert.That(settings!.Profession.Id, Is.EqualTo("miller"));
-		Assert.That(settings.FirstName, Is.EqualTo("Hugh"));
-		Assert.That(settings.LastName, Is.EqualTo("Miller"));
-		Assert.That(settings.Height.Id, Is.EqualTo("tall"));
-		Assert.That(settings.Weight.Id, Is.EqualTo("heavy"));
-		Assert.That(settings.Age, Is.EqualTo(40));
+		Assert.That(settings!.Player.Profession.Id, Is.EqualTo("miller"));
+		Assert.That(settings.Player.FirstName, Is.EqualTo("Hugh"));
+		Assert.That(settings.Player.LastName, Is.EqualTo("Miller"));
+		Assert.That(settings.Player.Height.Id, Is.EqualTo("tall"));
+		Assert.That(settings.Player.Weight.Id, Is.EqualTo("heavy"));
+		Assert.That(settings.Player.Age, Is.EqualTo(40));
+		Assert.That(settings.Player.Gender, Is.EqualTo(Gender.Male));
 	}
 
 	private static NewGameViewModel CreateViewModel() => new(TestData.CreateGameData(), new Random(0));

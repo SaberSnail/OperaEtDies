@@ -65,7 +65,7 @@ public sealed class StartUpWindowViewModelTests
 		viewModel.NewGame!.StartGame();
 
 		Assert.That(settings, Is.Not.Null);
-		Assert.That(settings!.LastName, Is.EqualTo("Smith"));
+		Assert.That(settings!.Player.LastName, Is.EqualTo("Smith"));
 	}
 
 	[Test]

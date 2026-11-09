@@ -67,9 +67,9 @@ public sealed class GameDataTests
 		File.WriteAllText(Path.Combine(m_directory, ProfessionList.FileName), """
 			{
 				"professions": [
-					{ "id": "smith", "title": "Blacksmith", "defaultLastName": "Smith", "frequency": 3 },
-					{ "id": "smith", "title": "", "defaultLastName": " ", "frequency": 0 },
-					{ "id": "", "title": "Nobody", "defaultLastName": "Nobody", "frequency": 3 },
+					{ "id": "smith", "title": "Blacksmith", "description": "a blacksmith", "defaultLastName": "Smith", "frequency": 3 },
+					{ "id": "smith", "title": "", "description": "", "defaultLastName": " ", "frequency": 0 },
+					{ "id": "", "title": "Nobody", "description": "a nobody", "defaultLastName": "Nobody", "frequency": 3 },
 					null,
 				]
 			}
@@ -84,6 +84,7 @@ public sealed class GameDataTests
 			OurResources.DataListItemIdMissing.Replace("{0}", "professions", StringComparison.Ordinal),
 			OurResources.DataListItemEmpty.Replace("{0}", "professions", StringComparison.Ordinal),
 			OurResources.DataListItemFrequencyInvalid.Replace("{0}", "smith", StringComparison.Ordinal).Replace("{1}", "professions", StringComparison.Ordinal).Replace("{2}", "0", StringComparison.Ordinal).Replace("{3}", "1", StringComparison.Ordinal).Replace("{4}", "3", StringComparison.Ordinal),
+			OurResources.DataListItemDescriptionMissing.Replace("{0}", "smith", StringComparison.Ordinal).Replace("{1}", "professions", StringComparison.Ordinal),
 			OurResources.ProfessionDefaultLastNameMissing.Replace("{0}", "smith", StringComparison.Ordinal),
 		}));
 	}
@@ -110,8 +111,10 @@ public sealed class GameDataTests
 			{
 				"playerMinimumAge": 0,
 				"playerMaximumAge": -1,
+				"npcMinimumAge": 0,
+				"npcMaximumAge": -1,
 				"heights": [],
-				"weights": [ { "id": "slim", "title": "Slim", "frequency": 5 } ]
+				"weights": [ { "id": "slim", "title": "Slim", "description": " ", "frequency": 5 } ]
 			}
 			""");
 
@@ -121,8 +124,11 @@ public sealed class GameDataTests
 		{
 			OurResources.PlayerMinimumAgeInvalid.Replace("{0}", "0", StringComparison.Ordinal),
 			OurResources.PlayerMaximumAgeInvalid.Replace("{0}", "-1", StringComparison.Ordinal).Replace("{1}", "0", StringComparison.Ordinal),
+			OurResources.NpcMinimumAgeInvalid.Replace("{0}", "0", StringComparison.Ordinal),
+			OurResources.NpcMaximumAgeInvalid.Replace("{0}", "-1", StringComparison.Ordinal).Replace("{1}", "0", StringComparison.Ordinal),
 			OurResources.DataListEmpty.Replace("{0}", "heights", StringComparison.Ordinal),
 			OurResources.DataListItemFrequencyInvalid.Replace("{0}", "slim", StringComparison.Ordinal).Replace("{1}", "weights", StringComparison.Ordinal).Replace("{2}", "5", StringComparison.Ordinal).Replace("{3}", "1", StringComparison.Ordinal).Replace("{4}", "3", StringComparison.Ordinal),
+			OurResources.DataListItemDescriptionMissing.Replace("{0}", "slim", StringComparison.Ordinal).Replace("{1}", "weights", StringComparison.Ordinal),
 		}));
 	}
 
@@ -132,8 +138,10 @@ public sealed class GameDataTests
 		File.WriteAllText(Path.Combine(m_directory, CharacterOptions.FileName), """
 			{
 				"playerMinimumAge": 36,
-				"heights": [ { "id": "tall", "title": "Tall", "frequency": 2 } ],
-				"weights": [ { "id": "slim", "title": "Slim", "frequency": 2 } ]
+				"npcMinimumAge": 16,
+				"npcMaximumAge": 70,
+				"heights": [ { "id": "tall", "title": "Tall", "description": "tall", "frequency": 2 } ],
+				"weights": [ { "id": "slim", "title": "Slim", "description": "slim", "frequency": 2 } ]
 			}
 			""");
 

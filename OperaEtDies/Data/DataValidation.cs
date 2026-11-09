@@ -62,6 +62,22 @@ public static class DataValidation
 	}
 
 	/// <summary>
+	/// Checks that each item in a list has a description. Items that are empty or missing an id are skipped, since ValidateIdentifiedItems reports them.
+	/// </summary>
+	public static IEnumerable<string> ValidateItemDescriptions<T>(string listName, IReadOnlyList<T?> items, Func<T, string?> getId, Func<T, string?> getDescription)
+		where T : class
+	{
+		foreach (var item in items)
+		{
+			if (item is null || string.IsNullOrWhiteSpace(getId(item)))
+				continue;
+
+			if (string.IsNullOrWhiteSpace(getDescription(item)))
+				yield return OurResources.DataListItemDescriptionMissing.FormatCurrentCulture(getId(item), listName);
+		}
+	}
+
+	/// <summary>
 	/// Checks that a list of names has items, and that each name is filled in and has a valid frequency.
 	/// </summary>
 	public static IEnumerable<string> ValidateWeightedNames(string listName, IReadOnlyList<WeightedName?> names)

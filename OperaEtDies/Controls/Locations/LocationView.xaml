@@ -43,6 +43,53 @@
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
 					Content="{x:Static operaEtDies:OurResources.ExamineLocation}" />
 
+				<StackPanel Visibility="{Binding HasCharacters, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+					<TextBlock Margin="0,24,0,8" Text="{x:Static operaEtDies:OurResources.PeopleHeader}" />
+					<ItemsControl ItemsSource="{Binding Characters}">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate DataType="{x:Type local:CharacterViewModel}">
+								<Grid Margin="0,0,0,8">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="160" />
+										<ColumnDefinition Width="*" />
+									</Grid.ColumnDefinitions>
+									<Grid.RowDefinitions>
+										<RowDefinition Height="Auto" />
+										<RowDefinition Height="Auto" />
+									</Grid.RowDefinitions>
+
+									<TextBlock
+										Grid.Row="0"
+										Grid.Column="0"
+										VerticalAlignment="Center"
+										Text="{Binding Name}"
+										TextTrimming="CharacterEllipsis" />
+									<Button
+										Grid.Row="0"
+										Grid.Column="1"
+										Width="120"
+										Height="32"
+										Margin="12,0,0,0"
+										HorizontalAlignment="Left"
+										Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
+										Content="{x:Static operaEtDies:OurResources.ExamineCharacter}" />
+
+									<!--  The description, shown once the character has been examined.  -->
+									<TextBlock
+										Grid.Row="1"
+										Grid.Column="0"
+										Grid.ColumnSpan="2"
+										Margin="0,8,0,0"
+										Foreground="{DynamicResource FontLightBrush}"
+										Text="{Binding Description}"
+										TextWrapping="Wrap"
+										Visibility="{Binding IsExamined, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+								</Grid>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+				</StackPanel>
+
 				<TextBlock Margin="0,24,0,8" Text="{x:Static operaEtDies:OurResources.ConnectionsHeader}" />
 				<ItemsControl ItemsSource="{Binding Connections}">
 					<ItemsControl.ItemTemplate>

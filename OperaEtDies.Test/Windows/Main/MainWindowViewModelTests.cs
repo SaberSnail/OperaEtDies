@@ -1,3 +1,6 @@
+using GoldenAnvil.Utility;
+using OperaEtDies.Characters;
+using OperaEtDies.Controls.Locations;
 using OperaEtDies.Controls.NewGame;
 using OperaEtDies.Windows.Main;
 
@@ -55,10 +58,63 @@ public sealed class MainWindowViewModelTests
 		Assert.That(viewModel.PlayerLocation.Id, Is.EqualTo("cottage"));
 	}
 
-	private static MainWindowViewModel CreateViewModel()
+	[Test]
+	public void GeneratesThreeNpcs()
+	{
+		var locations = new HashSet<string>();
+		for (var seed = 0; seed < 50; seed++)
+		{
+			using var viewModel = CreateViewModel(seed);
+
+			Assert.That(viewModel.Npcs, Has.Count.EqualTo(3));
+			foreach (var npc in viewModel.Npcs)
+			{
+				Assert.That(npc.Traits.Age, Is.InRange(16, 70));
+				locations.Add(npc.Location.Id);
+			}
+		}
+
+		Assert.That(locations, Is.EquivalentTo(new[] { "home", "lane", "cottage" }));
+	}
+
+	[Test]
+	public void LocationShowsCharactersInIt()
+	{
+		using var viewModel = CreateViewModel();
+
+		foreach (var id in new[] { "lane", "cottage", "lane", "home" })
+		{
+			viewModel.TravelTo(viewModel.GameData.Locations.GetLocation(id)!);
+
+			var expected = viewModel.Npcs.Where(x => x.Location.Id == id).Select(x => x.Traits.FullName);
+			Assert.That(viewModel.CurrentLocation.Characters.Select(x => x.Name), Is.EqualTo(expected));
+			Assert.That(viewModel.CurrentLocation.HasCharacters, Is.EqualTo(expected.Any()));
+		}
+	}
+
+	[Test]
+	public void ExamineCharacterShowsDescription()
 	{
 		var gameData = TestData.CreateGameData();
-		var settings = new NewGameSettings(gameData.Professions.Professions[0], "John", "Smith", gameData.CharacterOptions.Heights[0], gameData.CharacterOptions.Weights[0], 40);
-		return new MainWindowViewModel(TestData.CreateGameInfo(), gameData, settings);
+		var traits = new CharacterTraits(Gender.Female, "Alice", "Miller", gameData.Professions.Professions[1], gameData.CharacterOptions.Heights[0], gameData.CharacterOptions.Weights[2], 34);
+		var character = new CharacterViewModel(new Character(traits, gameData.Locations.Locations[0]));
+
+		Assert.That(character.Name, Is.EqualTo("Alice Miller"));
+		Assert.That(character.IsExamined, Is.False);
+		Assert.That(character.CanExamine(), Is.True);
+
+		character.Examine();
+
+		Assert.That(character.IsExamined, Is.True);
+		Assert.That(character.CanExamine(), Is.False);
+		Assert.That(character.Description, Is.EqualTo(OurResources.CharacterDescription.FormatCurrentCulture("Alice Miller", OurResources.GenderNounFemale, 34, OurResources.GenderPronounFemale, "tall", "heavy", "a miller")));
+	}
+
+	private static MainWindowViewModel CreateViewModel(int seed = 0)
+	{
+		var gameData = TestData.CreateGameData();
+		var player = new CharacterTraits(Gender.Male, "John", "Smith", gameData.Professions.Professions[0], gameData.CharacterOptions.Heights[0], gameData.CharacterOptions.Weights[0], 40);
+		var settings = new NewGameSettings(player);
+		return new MainWindowViewModel(TestData.CreateGameInfo(), gameData, settings, new Random(seed));
 	}
 }

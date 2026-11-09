@@ -85,11 +85,13 @@ public sealed class AppModel : ViewModelBase
 		// Images belong to the thread that decodes them, so the icon is decoded here rather than on the thread pool.
 		var iconResult = iconReadResult?.Value is { } iconContents ? ImageDataLoader.Decode(iconPath!, iconContents) : null;
 
-		m_gameInfoResult = gameInfoResult;
-		m_gameDataResult = gameDataResult;
-		m_icon = iconResult?.Value;
-		m_iconErrors = iconResult?.Errors ?? iconReadResult?.Errors ?? [];
-		RaisePropertyChanged(nameof(GameInfo), nameof(GameData), nameof(Icon));
+		using (ScopedPropertyChange(nameof(GameInfo), nameof(GameData), nameof(Icon)))
+		{
+			m_gameInfoResult = gameInfoResult;
+			m_gameDataResult = gameDataResult;
+			m_icon = iconResult?.Value;
+			m_iconErrors = iconResult?.Errors ?? iconReadResult?.Errors ?? [];
+		}
 
 		OpenStartUpWindow();
 	}
@@ -109,10 +111,10 @@ public sealed class AppModel : ViewModelBase
 			return;
 		}
 
-		Log.Info($"Starting new game as {settings.FirstName} {settings.LastName}, {settings.Profession.Id}, age {settings.Age}");
+		Log.Info($"Starting new game as {settings.Player.FullName}, {settings.Player.Profession.Id}, age {settings.Player.Age}");
 
 		// Open the main window before closing the start up window, so there's always a window showing.
-		MainWindow = new MainWindowViewModel(gameInfo, gameData, settings);
+		MainWindow = new MainWindowViewModel(gameInfo, gameData, settings, Random);
 		CloseStartUpWindow();
 	}
 
