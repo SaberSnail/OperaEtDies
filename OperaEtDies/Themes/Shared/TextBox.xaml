@@ -11,7 +11,8 @@
 		<Setter Property="FocusVisualStyle" Value="{x:Null}" />
 		<Setter Property="MinWidth" Value="120" />
 		<Setter Property="AllowDrop" Value="true" />
-		<Setter Property="Padding" Value="0" />
+		<!--  Together with the built-in 2px text margin, this matches the ComboBox's 6,0,5,0 padding.  -->
+		<Setter Property="Padding" Value="4,0,3,0" />
 		<Setter Property="BorderThickness" Value="1" />
 		<Setter Property="Template">
 			<Setter.Value>
