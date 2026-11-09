@@ -127,6 +127,33 @@
 		<value>The player maximum age is {0}, but it must be at least the player minimum age ({1}).</value>
 		<comment>{0} is the maximum age found in the data file. {1} is the minimum age found in the data file.</comment>
 	</data>
+	<data name="LocationDescriptionMissing" xml:space="preserve">
+		<value>The location "{0}" is missing its {1}.</value>
+		<comment>{0} is the location's id. {1} is the name of the missing description in the data file.</comment>
+	</data>
+	<data name="LocationDescriptionParagraphBlank" xml:space="preserve">
+		<value>The location "{0}" has a blank paragraph in its long description.</value>
+		<comment>{0} is the location's id.</comment>
+	</data>
+	<data name="LocationConnectionBlank" xml:space="preserve">
+		<value>The location "{0}" has a blank connection.</value>
+		<comment>{0} is the location's id.</comment>
+	</data>
+	<data name="LocationConnectionUnknown" xml:space="preserve">
+		<value>The location "{0}" connects to "{1}", but there is no location with that id.</value>
+		<comment>{0} is the location's id. {1} is the id of the connected location.</comment>
+	</data>
+	<data name="LocationConnectionToSelf" xml:space="preserve">
+		<value>The location "{0}" connects to itself.</value>
+		<comment>{0} is the location's id.</comment>
+	</data>
+	<data name="StartingLocationMissing" xml:space="preserve">
+		<value>The starting location is missing.</value>
+	</data>
+	<data name="StartingLocationUnknown" xml:space="preserve">
+		<value>The starting location is "{0}", but there is no location with that id.</value>
+		<comment>{0} is the starting location's id.</comment>
+	</data>
 	<data name="NewGameHeader" xml:space="preserve">
 		<value>New Game</value>
 	</data>
@@ -162,5 +189,13 @@
 	<data name="Back" xml:space="preserve">
 		<value>Back</value>
 		<comment>Button that leaves the new game screen and returns to the start up menu.</comment>
+	</data>
+	<data name="ExamineLocation" xml:space="preserve">
+		<value>Examine</value>
+		<comment>Button that shows a detailed description of the current location.</comment>
+	</data>
+	<data name="ConnectionsHeader" xml:space="preserve">
+		<value>From here you can go to:</value>
+		<comment>Header above the list of locations the player can travel to.</comment>
 	</data>
 </root>

@@ -79,6 +79,15 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to From here you can go to:.
+        /// </summary>
+        public static string ConnectionsHeader {
+            get {
+                return ResourceManager.GetString("ConnectionsHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The file is empty..
         /// </summary>
         public static string DataFileEmpty {
@@ -196,6 +205,15 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Examine.
+        /// </summary>
+        public static string ExamineLocation {
+            get {
+                return ResourceManager.GetString("ExamineLocation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Exit Game.
         /// </summary>
         public static string ExitGame {
@@ -264,6 +282,51 @@ namespace OperaEtDies {
         public static string LoadGame {
             get {
                 return ResourceManager.GetString("LoadGame", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The location &quot;{0}&quot; has a blank connection..
+        /// </summary>
+        public static string LocationConnectionBlank {
+            get {
+                return ResourceManager.GetString("LocationConnectionBlank", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The location &quot;{0}&quot; connects to itself..
+        /// </summary>
+        public static string LocationConnectionToSelf {
+            get {
+                return ResourceManager.GetString("LocationConnectionToSelf", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The location &quot;{0}&quot; connects to &quot;{1}&quot;, but there is no location with that id..
+        /// </summary>
+        public static string LocationConnectionUnknown {
+            get {
+                return ResourceManager.GetString("LocationConnectionUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The location &quot;{0}&quot; is missing its {1}..
+        /// </summary>
+        public static string LocationDescriptionMissing {
+            get {
+                return ResourceManager.GetString("LocationDescriptionMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The location &quot;{0}&quot; has a blank paragraph in its long description..
+        /// </summary>
+        public static string LocationDescriptionParagraphBlank {
+            get {
+                return ResourceManager.GetString("LocationDescriptionParagraphBlank", resourceCulture);
             }
         }
         
@@ -354,6 +417,24 @@ namespace OperaEtDies {
         public static string StartGame {
             get {
                 return ResourceManager.GetString("StartGame", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The starting location is missing..
+        /// </summary>
+        public static string StartingLocationMissing {
+            get {
+                return ResourceManager.GetString("StartingLocationMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The starting location is &quot;{0}&quot;, but there is no location with that id..
+        /// </summary>
+        public static string StartingLocationUnknown {
+            get {
+                return ResourceManager.GetString("StartingLocationUnknown", resourceCulture);
             }
         }
         

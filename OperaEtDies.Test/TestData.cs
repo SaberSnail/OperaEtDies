@@ -43,5 +43,25 @@ internal static class TestData
 				new CharacterOption { Id = "medium", Title = "Medium", Frequency = 3 },
 				new CharacterOption { Id = "heavy", Title = "Heavy", Frequency = 2 },
 			],
+		},
+		new LocationList
+		{
+			StartingLocation = "home",
+			Locations =
+			[
+				CreateLocation("home", "lane"),
+				CreateLocation("lane", "home", "cottage"),
+				CreateLocation("cottage", "lane"),
+			],
 		});
+
+	private static Location CreateLocation(string id, params string[] connections) => new()
+	{
+		Id = id,
+		Title = $"{id} title",
+		ShortDescription = $"{id} short",
+		MediumDescription = $"{id} medium",
+		LongDescription = [$"{id} long 1", $"{id} long 2", $"{id} long 3"],
+		Connections = connections,
+	};
 }

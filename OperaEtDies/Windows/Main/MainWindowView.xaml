@@ -15,6 +15,6 @@
 	DataContext="{Binding ViewModel, RelativeSource={RelativeSource Self}}"
 	mc:Ignorable="d">
 
-	<Grid />
+	<ContentControl Content="{Binding CurrentLocation}" Focusable="False" />
 
 </Window>

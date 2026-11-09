@@ -34,6 +34,8 @@ public sealed class GameDataTests
 		Assert.That(gameData.CharacterOptions.PlayerMaximumAge, Is.EqualTo(60));
 		Assert.That(gameData.CharacterOptions.Heights.Select(x => x.Id), Is.EqualTo(new[] { "tall", "medium", "short" }));
 		Assert.That(gameData.CharacterOptions.Weights.Select(x => x.Id), Is.EqualTo(new[] { "slim", "medium", "heavy" }));
+		Assert.That(gameData.Locations.StartingLocation, Is.EqualTo("player-house"));
+		Assert.That(gameData.Locations.Locations.Select(x => x.Id), Is.EqualTo(new[] { "player-house", "well-lane", "thatched-cottage", "timber-house" }));
 	}
 
 	[Test]
@@ -56,7 +58,7 @@ public sealed class GameDataTests
 		var result = GameData.Load(m_directory);
 
 		Assert.That(result.Succeeded, Is.False);
-		Assert.That(result.Errors.Select(x => Path.GetFileName(x.FilePath)), Is.EquivalentTo(new[] { ProfessionList.FileName, FirstNameList.FileName, CharacterOptions.FileName }));
+		Assert.That(result.Errors.Select(x => Path.GetFileName(x.FilePath)), Is.EquivalentTo(new[] { ProfessionList.FileName, FirstNameList.FileName, CharacterOptions.FileName, LocationList.FileName }));
 	}
 
 	[Test]
@@ -139,6 +141,67 @@ public sealed class GameDataTests
 
 		Assert.That(result.Succeeded, Is.False);
 		Assert.That(result.Errors, Has.Count.EqualTo(1));
+	}
+
+	[Test]
+	public void ShippedLocationsHaveThreeParagraphLongDescriptions()
+	{
+		var locations = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!.Locations;
+
+		foreach (var location in locations.Locations)
+			Assert.That(location.LongDescription, Has.Count.EqualTo(3), location.Id);
+	}
+
+	[Test]
+	public void ConnectionsAreLookedUp()
+	{
+		var locations = TestData.CreateGameData().Locations;
+
+		var lane = locations.GetLocation("lane")!;
+
+		Assert.That(locations.GetConnections(lane).Select(x => x.Id), Is.EqualTo(new[] { "home", "cottage" }));
+		Assert.That(locations.GetLocation("nowhere"), Is.Null);
+	}
+
+	[Test]
+	public void InvalidLocationsReportErrors()
+	{
+		File.WriteAllText(Path.Combine(m_directory, LocationList.FileName), """
+			{
+				"startingLocation": "nowhere",
+				"locations": [
+					{
+						"id": "home",
+						"title": "Home",
+						"shortDescription": "",
+						"mediumDescription": " ",
+						"longDescription": [],
+						"connections": [ "home", "nowhere", "" ]
+					},
+					{
+						"id": "lane",
+						"title": "Lane",
+						"shortDescription": "Short.",
+						"mediumDescription": "Medium.",
+						"longDescription": [ "One.", " " ]
+					}
+				]
+			}
+			""");
+
+		var result = LocationList.Load(m_directory);
+
+		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
+		{
+			OurResources.LocationDescriptionMissing.Replace("{0}", "home", StringComparison.Ordinal).Replace("{1}", "shortDescription", StringComparison.Ordinal),
+			OurResources.LocationDescriptionMissing.Replace("{0}", "home", StringComparison.Ordinal).Replace("{1}", "mediumDescription", StringComparison.Ordinal),
+			OurResources.LocationDescriptionMissing.Replace("{0}", "home", StringComparison.Ordinal).Replace("{1}", "longDescription", StringComparison.Ordinal),
+			OurResources.LocationConnectionToSelf.Replace("{0}", "home", StringComparison.Ordinal),
+			OurResources.LocationConnectionUnknown.Replace("{0}", "home", StringComparison.Ordinal).Replace("{1}", "nowhere", StringComparison.Ordinal),
+			OurResources.LocationConnectionBlank.Replace("{0}", "home", StringComparison.Ordinal),
+			OurResources.LocationDescriptionParagraphBlank.Replace("{0}", "lane", StringComparison.Ordinal),
+			OurResources.StartingLocationUnknown.Replace("{0}", "nowhere", StringComparison.Ordinal),
+		}));
 	}
 
 	private string m_directory = "";
