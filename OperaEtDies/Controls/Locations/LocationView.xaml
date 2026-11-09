@@ -5,7 +5,7 @@
 	xmlns:operaEtDies="clr-namespace:OperaEtDies"
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
 
-	<DataTemplate DataType="{x:Type local:LocationViewModel}">
+	<DataTemplate DataType="{x:Type local:LocationScreenViewModel}">
 		<ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
 			<StackPanel Margin="24">
 				<TextBlock
@@ -43,11 +43,11 @@
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
 					Content="{x:Static operaEtDies:OurResources.ExamineLocation}" />
 
-				<StackPanel Visibility="{Binding HasCharacters, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+				<StackPanel Visibility="{Binding HasPeople, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 					<TextBlock Margin="0,24,0,8" Text="{x:Static operaEtDies:OurResources.PeopleHeader}" />
-					<ItemsControl ItemsSource="{Binding Characters}">
+					<ItemsControl ItemsSource="{Binding People}">
 						<ItemsControl.ItemTemplate>
-							<DataTemplate DataType="{x:Type local:CharacterViewModel}">
+							<DataTemplate DataType="{x:Type local:LocationPersonViewModel}">
 								<Grid Margin="0,0,0,8">
 									<Grid.ColumnDefinitions>
 										<ColumnDefinition Width="160" />
@@ -93,7 +93,7 @@
 				<TextBlock Margin="0,24,0,8" Text="{x:Static operaEtDies:OurResources.ConnectionsHeader}" />
 				<ItemsControl ItemsSource="{Binding Connections}">
 					<ItemsControl.ItemTemplate>
-						<DataTemplate DataType="{x:Type local:ConnectionViewModel}">
+						<DataTemplate DataType="{x:Type local:LocationConnectionViewModel}">
 							<Grid Margin="0,0,0,8">
 								<Grid.ColumnDefinitions>
 									<ColumnDefinition Width="160" />

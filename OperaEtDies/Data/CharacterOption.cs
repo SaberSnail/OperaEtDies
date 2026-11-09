@@ -6,7 +6,7 @@ namespace OperaEtDies.Data;
 /// <summary>
 /// One of the values a character attribute (such as height) can have.
 /// </summary>
-public sealed class CharacterOption : IWeighted
+public sealed class CharacterOption : IIdentified, IWeighted
 {
 	public required string Id { get; init; }
 

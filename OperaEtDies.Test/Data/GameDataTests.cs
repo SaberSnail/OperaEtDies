@@ -27,15 +27,15 @@ public sealed class GameDataTests
 
 		Assert.That(result.Errors, Is.Empty);
 		var gameData = result.Value!;
-		Assert.That(gameData.Professions.Professions.Select(x => x.Id), Is.EqualTo(new[] { "smith", "miller" }));
+		Assert.That(gameData.Professions.Select(x => x.Id), Is.EqualTo(new[] { "smith", "miller" }));
 		Assert.That(gameData.FirstNames.Male, Has.Count.EqualTo(24));
 		Assert.That(gameData.FirstNames.Female, Has.Count.EqualTo(24));
 		Assert.That(gameData.CharacterOptions.PlayerMinimumAge, Is.EqualTo(36));
 		Assert.That(gameData.CharacterOptions.PlayerMaximumAge, Is.EqualTo(60));
-		Assert.That(gameData.CharacterOptions.Heights.Select(x => x.Id), Is.EqualTo(new[] { "tall", "medium", "short" }));
-		Assert.That(gameData.CharacterOptions.Weights.Select(x => x.Id), Is.EqualTo(new[] { "slim", "medium", "heavy" }));
-		Assert.That(gameData.Locations.StartingLocation, Is.EqualTo("player-house"));
-		Assert.That(gameData.Locations.Locations.Select(x => x.Id), Is.EqualTo(new[] { "player-house", "well-lane", "thatched-cottage", "timber-house" }));
+		Assert.That(gameData.Heights.Select(x => x.Id), Is.EqualTo(new[] { "tall", "medium", "short" }));
+		Assert.That(gameData.Weights.Select(x => x.Id), Is.EqualTo(new[] { "slim", "medium", "heavy" }));
+		Assert.That(gameData.StartingLocation.Id, Is.EqualTo("player-house"));
+		Assert.That(gameData.Locations.Select(x => x.Id), Is.EqualTo(new[] { "player-house", "well-lane", "thatched-cottage", "timber-house" }));
 	}
 
 	[Test]
@@ -156,19 +156,21 @@ public sealed class GameDataTests
 	{
 		var locations = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!.Locations;
 
-		foreach (var location in locations.Locations)
+		foreach (var location in locations)
 			Assert.That(location.LongDescription, Has.Count.EqualTo(3), location.Id);
 	}
 
 	[Test]
-	public void ConnectionsAreLookedUp()
+	public void CatalogsLookUpItemsById()
 	{
-		var locations = TestData.CreateGameData().Locations;
+		var gameData = TestData.CreateGameData();
 
-		var lane = locations.GetLocation("lane")!;
-
-		Assert.That(locations.GetConnections(lane).Select(x => x.Id), Is.EqualTo(new[] { "home", "cottage" }));
-		Assert.That(locations.GetLocation("nowhere"), Is.Null);
+		Assert.That(gameData.Locations.Get("lane").Connections, Is.EqualTo(new[] { "home", "cottage" }));
+		Assert.That(gameData.Locations.Find("nowhere"), Is.Null);
+		Assert.That(() => gameData.Locations.Get("nowhere"), Throws.TypeOf<KeyNotFoundException>());
+		Assert.That(gameData.Professions.Get("miller").Title, Is.EqualTo("Miller"));
+		Assert.That(gameData.Heights.Get("short"), Is.SameAs(gameData.Heights[2]));
+		Assert.That(gameData.StartingLocation.Id, Is.EqualTo("home"));
 	}
 
 	[Test]

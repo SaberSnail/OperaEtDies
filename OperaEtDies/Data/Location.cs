@@ -3,7 +3,7 @@ namespace OperaEtDies.Data;
 /// <summary>
 /// A place on the map that the player and other characters can be in.
 /// </summary>
-public sealed class Location
+public sealed class Location : IIdentified
 {
 	public required string Id { get; init; }
 

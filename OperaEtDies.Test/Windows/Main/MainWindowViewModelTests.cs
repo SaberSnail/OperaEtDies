@@ -1,7 +1,6 @@
-using GoldenAnvil.Utility;
-using OperaEtDies.Characters;
 using OperaEtDies.Controls.Locations;
-using OperaEtDies.Controls.NewGame;
+using OperaEtDies.GameState;
+using OperaEtDies.Test.GameState;
 using OperaEtDies.Windows.Main;
 
 namespace OperaEtDies.Test.Windows.Main;
@@ -14,7 +13,8 @@ public sealed class MainWindowViewModelTests
 	{
 		using var viewModel = CreateViewModel();
 
-		Assert.That(viewModel.PlayerLocation.Id, Is.EqualTo("home"));
+		Assert.That(viewModel.Title, Is.EqualTo("Title"));
+		Assert.That(viewModel.CurrentLocation.Location, Is.SameAs(viewModel.GameState.Player.Location));
 		Assert.That(viewModel.CurrentLocation.Title, Is.EqualTo("home title"));
 		Assert.That(viewModel.CurrentLocation.Description, Is.EqualTo("home medium"));
 		Assert.That(viewModel.CurrentLocation.Connections.Select(x => x.Title), Is.EqualTo(new[] { "lane title" }));
@@ -47,7 +47,7 @@ public sealed class MainWindowViewModelTests
 
 		viewModel.CurrentLocation.Connections[0].Travel();
 
-		Assert.That(viewModel.PlayerLocation.Id, Is.EqualTo("lane"));
+		Assert.That(viewModel.GameState.Player.Location.Id, Is.EqualTo("lane"));
 		Assert.That(viewModel.CurrentLocation.Title, Is.EqualTo("lane title"));
 		Assert.That(viewModel.CurrentLocation.IsExamined, Is.False);
 		Assert.That(viewModel.CurrentLocation.Connections.Select(x => x.Title), Is.EqualTo(new[] { "home title", "cottage title" }));
@@ -55,66 +55,47 @@ public sealed class MainWindowViewModelTests
 
 		viewModel.CurrentLocation.Connections[1].Travel();
 
-		Assert.That(viewModel.PlayerLocation.Id, Is.EqualTo("cottage"));
+		Assert.That(viewModel.GameState.Player.Location.Id, Is.EqualTo("cottage"));
 	}
 
 	[Test]
-	public void GeneratesThreeNpcs()
-	{
-		var locations = new HashSet<string>();
-		for (var seed = 0; seed < 50; seed++)
-		{
-			using var viewModel = CreateViewModel(seed);
-
-			Assert.That(viewModel.Npcs, Has.Count.EqualTo(3));
-			foreach (var npc in viewModel.Npcs)
-			{
-				Assert.That(npc.Traits.Age, Is.InRange(16, 70));
-				locations.Add(npc.Location.Id);
-			}
-		}
-
-		Assert.That(locations, Is.EquivalentTo(new[] { "home", "lane", "cottage" }));
-	}
-
-	[Test]
-	public void LocationShowsCharactersInIt()
+	public void LocationShowsPeopleInIt()
 	{
 		using var viewModel = CreateViewModel();
+		var gameState = viewModel.GameState;
 
 		foreach (var id in new[] { "lane", "cottage", "lane", "home" })
 		{
-			viewModel.TravelTo(viewModel.GameData.Locations.GetLocation(id)!);
+			viewModel.TravelTo(gameState.FindLocation(id)!);
 
-			var expected = viewModel.Npcs.Where(x => x.Location.Id == id).Select(x => x.Traits.FullName);
-			Assert.That(viewModel.CurrentLocation.Characters.Select(x => x.Name), Is.EqualTo(expected));
-			Assert.That(viewModel.CurrentLocation.HasCharacters, Is.EqualTo(expected.Any()));
+			var expected = gameState.Npcs.Where(x => x.Location.Id == id).Select(x => x.FullName);
+			Assert.That(viewModel.CurrentLocation.People.Select(x => x.Name), Is.EquivalentTo(expected));
+			Assert.That(viewModel.CurrentLocation.HasPeople, Is.EqualTo(expected.Any()));
 		}
 	}
 
 	[Test]
-	public void ExamineCharacterShowsDescription()
+	public void ExaminePersonShowsDescription()
 	{
 		var gameData = TestData.CreateGameData();
-		var traits = new CharacterTraits(Gender.Female, "Alice", "Miller", gameData.Professions.Professions[1], gameData.CharacterOptions.Heights[0], gameData.CharacterOptions.Weights[2], 34);
-		var character = new CharacterViewModel(new Character(traits, gameData.Locations.Locations[0]));
+		var person = new PersonViewModel(GameStateViewModelTests.CreatePlayerTraits(gameData), new LocationViewModel(gameData.StartingLocation), isPlayer: false);
+		var viewModel = new LocationPersonViewModel(person);
 
-		Assert.That(character.Name, Is.EqualTo("Alice Miller"));
-		Assert.That(character.IsExamined, Is.False);
-		Assert.That(character.CanExamine(), Is.True);
+		Assert.That(viewModel.Name, Is.EqualTo("John Smith"));
+		Assert.That(viewModel.Description, Is.EqualTo(person.Description));
+		Assert.That(viewModel.IsExamined, Is.False);
+		Assert.That(viewModel.CanExamine(), Is.True);
 
-		character.Examine();
+		viewModel.Examine();
 
-		Assert.That(character.IsExamined, Is.True);
-		Assert.That(character.CanExamine(), Is.False);
-		Assert.That(character.Description, Is.EqualTo(OurResources.CharacterDescription.FormatCurrentCulture("Alice Miller", OurResources.GenderNounFemale, 34, OurResources.GenderPronounFemale, "tall", "heavy", "a miller")));
+		Assert.That(viewModel.IsExamined, Is.True);
+		Assert.That(viewModel.CanExamine(), Is.False);
 	}
 
 	private static MainWindowViewModel CreateViewModel(int seed = 0)
 	{
 		var gameData = TestData.CreateGameData();
-		var player = new CharacterTraits(Gender.Male, "John", "Smith", gameData.Professions.Professions[0], gameData.CharacterOptions.Heights[0], gameData.CharacterOptions.Weights[0], 40);
-		var settings = new NewGameSettings(player);
-		return new MainWindowViewModel(TestData.CreateGameInfo(), gameData, settings, new Random(seed));
+		var gameState = GameStateViewModel.CreateNewGame(gameData, GameStateViewModelTests.CreatePlayerTraits(gameData), new Random(seed));
+		return new MainWindowViewModel(TestData.CreateGameInfo().Title, gameState);
 	}
 }

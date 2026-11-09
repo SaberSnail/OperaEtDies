@@ -6,7 +6,7 @@ namespace OperaEtDies.Data;
 /// <summary>
 /// A profession the player can choose when starting a new game.
 /// </summary>
-public sealed class Profession : IWeighted
+public sealed class Profession : IIdentified, IWeighted
 {
 	public required string Id { get; init; }
 

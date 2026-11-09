@@ -96,7 +96,7 @@ public sealed class CharacterRandomizerTests
 	public void LastNameFollowsProfessionUnlessLocked()
 	{
 		var randomizer = CreateRandomizer(0);
-		var professions = TestData.CreateGameData().Professions.Professions;
+		var professions = TestData.CreateGameData().Professions;
 
 		randomizer.Profession.Value = professions[1];
 		Assert.That(randomizer.LastName.Value, Is.EqualTo("Miller"));

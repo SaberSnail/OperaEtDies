@@ -1,48 +1,32 @@
 ﻿using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
-using OperaEtDies.Characters;
 using OperaEtDies.Controls.Locations;
-using OperaEtDies.Controls.NewGame;
-using OperaEtDies.Data;
+using OperaEtDies.GameState;
 
 namespace OperaEtDies.Windows.Main;
 
 public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 {
-	public MainWindowViewModel(GameInfo gameInfo, GameData gameData, NewGameSettings newGameSettings, Random random)
+	public MainWindowViewModel(string title, GameStateViewModel gameState)
 	{
 		m_taskGroup = new TaskGroup();
-		Title = gameInfo.Title;
-		GameData = gameData;
-		NewGameSettings = newGameSettings;
-		Npcs = NpcGenerator.Generate(gameData, random, NpcCount, [newGameSettings.Player.FullName]);
-
-		// The locations file is validated on load, so the starting location always exists.
-		m_playerLocation = gameData.Locations.GetLocation(gameData.Locations.StartingLocation)!;
-		m_currentLocation = CreateLocationViewModel(m_playerLocation);
+		Title = title;
+		GameState = gameState;
+		m_currentLocation = CreateLocationScreen(gameState.Player.Location);
 	}
 
 	public string Title { get; }
 
-	public GameData GameData { get; }
-
-	public NewGameSettings NewGameSettings { get; }
+	/// <summary>
+	/// The state of the game world.
+	/// </summary>
+	public GameStateViewModel GameState { get; }
 
 	/// <summary>
-	/// The characters in the game world, other than the player.
+	/// The screen showing the location the player is in.
 	/// </summary>
-	public IReadOnlyList<Character> Npcs { get; }
-
-	/// <summary>
-	/// The location the player is in.
-	/// </summary>
-	public Location PlayerLocation => VerifyAccess(m_playerLocation);
-
-	/// <summary>
-	/// The view of the location the player is in.
-	/// </summary>
-	public LocationViewModel CurrentLocation
+	public LocationScreenViewModel CurrentLocation
 	{
 		get => VerifyAccess(m_currentLocation);
 		private set => SetPropertyField(value, ref m_currentLocation);
@@ -51,14 +35,15 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	/// <summary>
 	/// Moves the player to the given location.
 	/// </summary>
-	public void TravelTo(Location location)
+	public void TravelTo(LocationViewModel location)
 	{
 		VerifyAccess();
-		Log.Info($"Traveling from {m_playerLocation.Id} to {location.Id}");
+		var player = GameState.Player;
+		Log.Info($"Traveling from {player.Location.Id} to {location.Id}");
 
+		player.Location = location;
 		m_currentLocation.TravelRequested -= OnTravelRequested;
-		SetPropertyField(nameof(PlayerLocation), location, ref m_playerLocation);
-		CurrentLocation = CreateLocationViewModel(location);
+		CurrentLocation = CreateLocationScreen(location);
 	}
 
 	public void Dispose()
@@ -67,21 +52,17 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		DisposableUtility.Dispose(ref m_taskGroup);
 	}
 
-	private LocationViewModel CreateLocationViewModel(Location location)
+	private LocationScreenViewModel CreateLocationScreen(LocationViewModel location)
 	{
-		var viewModel = new LocationViewModel(location, GameData.Locations.GetConnections(location), Npcs.Where(x => x.Location == location).ToList());
+		var viewModel = new LocationScreenViewModel(location);
 		viewModel.TravelRequested += OnTravelRequested;
 		return viewModel;
 	}
 
-	private void OnTravelRequested(object? sender, GenericEventArgs<Location> e) => TravelTo(e.Value);
-
-	// Until villagers are defined in data, a few random ones are generated.
-	private const int NpcCount = 3;
+	private void OnTravelRequested(object? sender, GenericEventArgs<LocationViewModel> e) => TravelTo(e.Value);
 
 	private static ILogSource Log { get; } = LogManager.CreateLogSource(nameof(MainWindowViewModel));
 
 	private TaskGroup m_taskGroup;
-	private Location m_playerLocation;
-	private LocationViewModel m_currentLocation;
+	private LocationScreenViewModel m_currentLocation;
 }

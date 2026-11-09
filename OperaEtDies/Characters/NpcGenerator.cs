@@ -3,22 +3,21 @@ using OperaEtDies.Data;
 namespace OperaEtDies.Characters;
 
 /// <summary>
-/// Creates non-player characters with random traits.
+/// Creates the traits for non-player characters at random.
 /// </summary>
 public static class NpcGenerator
 {
 	/// <summary>
-	/// Creates characters with random traits, each placed in a random location. No two characters share a full name,
-	/// and none use a name that's already taken (such as the player's).
+	/// Creates traits for characters at random. No two characters share a full name, and none use a name that's
+	/// already taken (such as the player's).
 	/// </summary>
-	public static IReadOnlyList<Character> Generate(GameData gameData, Random random, int count, IEnumerable<string> takenNames)
+	public static IReadOnlyList<CharacterTraits> Generate(GameData gameData, Random random, int count, IEnumerable<string> takenNames)
 	{
 		var options = gameData.CharacterOptions;
-		var locations = gameData.Locations.Locations;
 		var randomizer = new CharacterRandomizer(gameData, random, options.NpcMinimumAge, options.NpcMaximumAge);
 		var names = new HashSet<string>(takenNames, StringComparer.Ordinal);
 
-		var characters = new List<Character>();
+		var characters = new List<CharacterTraits>();
 		for (var index = 0; index < count; index++)
 		{
 			randomizer.RandomizeAll();
@@ -29,7 +28,7 @@ public static class NpcGenerator
 
 			var traits = randomizer.GetTraits();
 			names.Add(traits.FullName);
-			characters.Add(new Character(traits, locations[random.Next(locations.Count)]));
+			characters.Add(traits);
 		}
 
 		return characters;

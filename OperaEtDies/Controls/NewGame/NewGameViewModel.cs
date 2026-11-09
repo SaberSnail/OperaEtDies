@@ -13,9 +13,9 @@ public sealed class NewGameViewModel : ViewModelBase
 {
 	public NewGameViewModel(GameData gameData, Random random)
 	{
-		Professions = gameData.Professions.Professions;
-		Heights = gameData.CharacterOptions.Heights;
-		Weights = gameData.CharacterOptions.Weights;
+		Professions = gameData.Professions;
+		Heights = gameData.Heights;
+		Weights = gameData.Weights;
 		MinimumAge = gameData.CharacterOptions.PlayerMinimumAge;
 		MaximumAge = gameData.CharacterOptions.PlayerMaximumAge;
 
@@ -82,11 +82,11 @@ public sealed class NewGameViewModel : ViewModelBase
 			lastNameValue.IsLocked = lastName != defaultLastName;
 
 			// If the value was replaced with what it already was, the view still needs a refresh to undo the edit.
-			if (lastNameValue.Value == lastName && lastName == value)
-				return;
-
-			using (ScopedPropertyChange(nameof(LastName)))
-				lastNameValue.Value = lastName;
+			if (lastNameValue.Value != lastName || lastName != value)
+			{
+				using (ScopedPropertyChange(nameof(LastName)))
+					lastNameValue.Value = lastName;
+			}
 		}
 	}
 
@@ -117,11 +117,11 @@ public sealed class NewGameViewModel : ViewModelBase
 		{
 			// If the value was clamped back to what it already was, the view still needs a refresh to undo the edit.
 			var age = Math.Clamp(value, MinimumAge, MaximumAge);
-			if (m_character.Age.Value == age && age == value)
-				return;
-
-			using (ScopedPropertyChange(nameof(Age), nameof(AgeText)))
-				m_character.Age.Value = age;
+			if (m_character.Age.Value != age || age != value)
+			{
+				using (ScopedPropertyChange(nameof(Age), nameof(AgeText)))
+					m_character.Age.Value = age;
+			}
 		}
 	}
 

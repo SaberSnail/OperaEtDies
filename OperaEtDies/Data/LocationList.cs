@@ -20,16 +20,6 @@ public sealed class LocationList : IValidatedData
 
 	public required IReadOnlyList<Location> Locations { get; init; }
 
-	/// <summary>
-	/// Gets the location with the given id, or null if there isn't one.
-	/// </summary>
-	public Location? GetLocation(string id) => LocationsById.GetValueOrDefault(id);
-
-	/// <summary>
-	/// Gets the locations that can be reached from the given location.
-	/// </summary>
-	public IReadOnlyList<Location> GetConnections(Location location) => location.Connections.Select(GetLocation).OfType<Location>().ToList();
-
 	public IEnumerable<string> Validate()
 	{
 		foreach (var error in DataValidation.ValidateIdentifiedItems("locations", Locations, x => x.Id, x => x.Title))
@@ -66,11 +56,4 @@ public sealed class LocationList : IValidatedData
 		else if (!ids.Contains(StartingLocation))
 			yield return OurResources.StartingLocationUnknown.FormatCurrentCulture(StartingLocation);
 	}
-
-	private Dictionary<string, Location> LocationsById => m_locationsById ??= Locations
-		.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id))
-		.DistinctBy(x => x.Id, StringComparer.Ordinal)
-		.ToDictionary(x => x.Id, StringComparer.Ordinal);
-
-	private Dictionary<string, Location>? m_locationsById;
 }

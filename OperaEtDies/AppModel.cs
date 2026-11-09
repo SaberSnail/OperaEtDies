@@ -5,6 +5,7 @@ using GoldenAnvil.Utility.Windows.Async;
 using Microsoft.VisualStudio.Threading;
 using OperaEtDies.Controls.NewGame;
 using OperaEtDies.Data;
+using OperaEtDies.GameState;
 using OperaEtDies.Windows.Main;
 using OperaEtDies.Windows.StartUp;
 
@@ -113,8 +114,10 @@ public sealed class AppModel : ViewModelBase
 
 		Log.Info($"Starting new game as {settings.Player.FullName}, {settings.Player.Profession.Id}, age {settings.Player.Age}");
 
+		var gameState = GameStateViewModel.CreateNewGame(gameData, settings.Player, Random);
+
 		// Open the main window before closing the start up window, so there's always a window showing.
-		MainWindow = new MainWindowViewModel(gameInfo, gameData, settings, Random);
+		MainWindow = new MainWindowViewModel(gameInfo.Title, gameState);
 		CloseStartUpWindow();
 	}
 

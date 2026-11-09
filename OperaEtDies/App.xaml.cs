@@ -31,6 +31,7 @@ public partial class App : Application
 		try
 		{
 			await appModel.StartupAsync(state).ConfigureAwait(false);
+			Log.Info($"Finished starting up in {stopwatch.Elapsed}");
 		}
 #pragma warning disable CA1031 // Do not catch general exception types (any start up failure must shut the app down)
 		catch (Exception ex)
@@ -40,10 +41,7 @@ public partial class App : Application
 			await state.ToSyncContext();
 			Log.Error($"Failed to start up: {ex}");
 			Shutdown(1);
-			return;
 		}
-
-		Log.Info($"Finished starting up in {stopwatch.Elapsed}");
 	}
 
 	private void OnAppModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -94,23 +92,25 @@ public partial class App : Application
 	private void OnStartUpWindowViewClosed(object? sender, EventArgs e)
 	{
 		((Window) sender!).Closed -= OnStartUpWindowViewClosed;
-		if (sender != m_startUpWindowView)
-			return;
 
 		// The user closed the start up window, which exits the game.
-		m_startUpWindowView = null;
-		AppModel.Instance.ExitGame();
+		if (sender == m_startUpWindowView)
+		{
+			m_startUpWindowView = null;
+			AppModel.Instance.ExitGame();
+		}
 	}
 
 	private void OnMainWindowViewClosed(object? sender, EventArgs e)
 	{
 		((Window) sender!).Closed -= OnMainWindowViewClosed;
-		if (sender != m_mainWindowView)
-			return;
 
 		// The user closed the main window, which returns to the start up window.
-		m_mainWindowView = null;
-		AppModel.Instance.EndGame();
+		if (sender == m_mainWindowView)
+		{
+			m_mainWindowView = null;
+			AppModel.Instance.EndGame();
+		}
 	}
 
 	private void OnExitRequested(object? sender, EventArgs e)

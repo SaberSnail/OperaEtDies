@@ -18,16 +18,17 @@ public sealed class CharacterRandomizer
 		MaximumAge = maximumAge;
 
 		var firstNames = gameData.FirstNames;
-		var options = gameData.CharacterOptions;
-		var professions = gameData.Professions.Professions;
+		var heights = gameData.Heights;
+		var weights = gameData.Weights;
+		var professions = gameData.Professions;
 
 		// Traits that depend on other traits are created after them, so their starting values match.
 		Gender = new RandomizedValue<Gender>(() => random.Next(2) == 0 ? Characters.Gender.Male : Characters.Gender.Female);
 		FirstName = new RandomizedValue<string>(() => random.NextWeighted(Gender.Value == Characters.Gender.Male ? firstNames.Male : firstNames.Female).Name);
 		Profession = new RandomizedValue<Profession>(() => random.NextWeighted(professions));
 		LastName = new RandomizedValue<string>(() => Profession.Value.DefaultLastName);
-		Height = new RandomizedValue<CharacterOption>(() => random.NextWeighted(options.Heights));
-		Weight = new RandomizedValue<CharacterOption>(() => random.NextWeighted(options.Weights));
+		Height = new RandomizedValue<CharacterOption>(() => random.NextWeighted(heights));
+		Weight = new RandomizedValue<CharacterOption>(() => random.NextWeighted(weights));
 
 		// Taking the lower of two rolls makes younger ages the most common, with older ages increasingly rare.
 		Age = new RandomizedValue<int>(() => minimumAge + Math.Min(random.Next(maximumAge - minimumAge + 1), random.Next(maximumAge - minimumAge + 1)));

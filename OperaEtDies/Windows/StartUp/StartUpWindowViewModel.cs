@@ -11,7 +11,9 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 	public StartUpWindowViewModel(GameInfo? gameInfo, GameData? gameData, Random random, IReadOnlyList<DataLoadError> loadErrors)
 	{
 		m_taskGroup = new TaskGroup();
-		m_gameInfo = gameInfo;
+		Title = gameInfo?.Title ?? OurResources.EngineName;
+		Description = gameInfo?.Description ?? "";
+		m_hasGameInfo = gameInfo is not null;
 		m_gameData = gameData;
 		m_random = random;
 		LoadErrors = loadErrors.Select(x => x.ToString()).ToList();
@@ -21,9 +23,9 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 
 	public event EventHandler? ExitGameRequested;
 
-	public string Title => m_gameInfo?.Title ?? OurResources.EngineName;
+	public string Title { get; }
 
-	public string Description => m_gameInfo?.Description ?? "";
+	public string Description { get; }
 
 	public IReadOnlyList<string> LoadErrors { get; }
 
@@ -39,7 +41,7 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	// A new game can't be started without the game data.
-	public bool CanShowNewGame() => m_gameInfo is not null && m_gameData is not null;
+	public bool CanShowNewGame() => m_hasGameInfo && m_gameData is not null;
 
 	public void ShowNewGame()
 	{
@@ -97,7 +99,7 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 
 	private static ILogSource Log { get; } = LogManager.CreateLogSource(nameof(StartUpWindowViewModel));
 
-	private readonly GameInfo? m_gameInfo;
+	private readonly bool m_hasGameInfo;
 	private readonly GameData? m_gameData;
 	private readonly Random m_random;
 	private NewGameViewModel? m_newGame;
