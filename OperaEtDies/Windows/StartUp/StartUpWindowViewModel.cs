@@ -54,7 +54,10 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	// Saving and loading aren't implemented yet.
+	// MethodToCommandConverter only finds instance methods, so this can't be static.
+#pragma warning disable CA1822 // Mark members as static
 	public bool CanLoadGame() => false;
+#pragma warning restore CA1822 // Mark members as static
 
 	public void LoadGame()
 	{

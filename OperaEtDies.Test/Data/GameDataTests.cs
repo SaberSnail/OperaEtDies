@@ -78,11 +78,11 @@ public sealed class GameDataTests
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
-			OurResources.DataListItemIdDuplicate.Replace("{0}", "smith").Replace("{1}", "professions"),
-			OurResources.DataListItemTitleMissing.Replace("{0}", "smith").Replace("{1}", "professions"),
-			OurResources.DataListItemIdMissing.Replace("{0}", "professions"),
-			OurResources.DataListItemEmpty.Replace("{0}", "professions"),
-			OurResources.ProfessionDefaultLastNameMissing.Replace("{0}", "smith"),
+			OurResources.DataListItemIdDuplicate.Replace("{0}", "smith", StringComparison.Ordinal).Replace("{1}", "professions", StringComparison.Ordinal),
+			OurResources.DataListItemTitleMissing.Replace("{0}", "smith", StringComparison.Ordinal).Replace("{1}", "professions", StringComparison.Ordinal),
+			OurResources.DataListItemIdMissing.Replace("{0}", "professions", StringComparison.Ordinal),
+			OurResources.DataListItemEmpty.Replace("{0}", "professions", StringComparison.Ordinal),
+			OurResources.ProfessionDefaultLastNameMissing.Replace("{0}", "smith", StringComparison.Ordinal),
 		}));
 	}
 
@@ -118,10 +118,10 @@ public sealed class GameDataTests
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
-			OurResources.PlayerMinimumAgeInvalid.Replace("{0}", "0"),
-			OurResources.DataListEmpty.Replace("{0}", "heights"),
-			OurResources.DataDefaultIdNotFound.Replace("{0}", "defaultHeight").Replace("{1}", "medium").Replace("{2}", "heights"),
-			OurResources.DataDefaultIdNotFound.Replace("{0}", "defaultWeight").Replace("{1}", "heavy").Replace("{2}", "weights"),
+			OurResources.PlayerMinimumAgeInvalid.Replace("{0}", "0", StringComparison.Ordinal),
+			OurResources.DataListEmpty.Replace("{0}", "heights", StringComparison.Ordinal),
+			OurResources.DataDefaultIdNotFound.Replace("{0}", "defaultHeight", StringComparison.Ordinal).Replace("{1}", "medium", StringComparison.Ordinal).Replace("{2}", "heights", StringComparison.Ordinal),
+			OurResources.DataDefaultIdNotFound.Replace("{0}", "defaultWeight", StringComparison.Ordinal).Replace("{1}", "heavy", StringComparison.Ordinal).Replace("{2}", "weights", StringComparison.Ordinal),
 		}));
 	}
 

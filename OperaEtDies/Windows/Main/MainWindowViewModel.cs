@@ -1,5 +1,4 @@
 ﻿using GoldenAnvil.Utility;
-using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
 using OperaEtDies.Controls.NewGame;
 using OperaEtDies.Data;
@@ -26,8 +25,6 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	{
 		DisposableUtility.Dispose(ref m_taskGroup);
 	}
-
-	private static ILogSource Log { get; } = LogManager.CreateLogSource(nameof(MainWindowViewModel));
 
 	private TaskGroup m_taskGroup;
 }

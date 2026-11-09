@@ -9,7 +9,10 @@ using OperaEtDies.Windows.StartUp;
 
 namespace OperaEtDies;
 
+// The task group is disposed in ShutdownAsync rather than through IDisposable, since this is an app-lifetime singleton.
+#pragma warning disable CA1001 // Types that own disposable fields should be disposable
 public sealed class AppModel : ViewModelBase
+#pragma warning restore CA1001 // Types that own disposable fields should be disposable
 {
 	public static AppModel Instance => s_appModel.Value;
 

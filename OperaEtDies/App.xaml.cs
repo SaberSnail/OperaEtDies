@@ -32,7 +32,9 @@ public partial class App : Application
 		{
 			await appModel.StartupAsync(state).ConfigureAwait(false);
 		}
+#pragma warning disable CA1031 // Do not catch general exception types (any start up failure must shut the app down)
 		catch (Exception ex)
+#pragma warning restore CA1031 // Do not catch general exception types
 		{
 			// The app only shuts down explicitly, so make sure a failed start up doesn't leave it running with no windows.
 			await state.ToSyncContext();
