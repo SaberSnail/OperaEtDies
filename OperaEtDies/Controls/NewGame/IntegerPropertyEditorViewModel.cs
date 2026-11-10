@@ -21,20 +21,20 @@ public sealed class IntegerPropertyEditorViewModel : CharacterPropertyEditorView
 
 	public int Maximum { get; }
 
-	public override bool IsEditable => Minimum < Maximum;
+	protected override bool HasChoice => Minimum < Maximum;
 
 	public int Value
 	{
-		get => VerifyAccess((int) Trait.Value);
+		get => VerifyAccess(Trait.Value as int? ?? Minimum);
 		set => ChangeValue(() => Trait.Value = Math.Clamp(value, Minimum, Maximum));
 	}
 
 	/// <summary>
-	/// The value as text, for editing. Blank text is replaced with a random value, and text that isn't a number is undone.
+	/// The value as text, for editing, or empty if the property has no value. Blank text is replaced with a random value, and text that isn't a number is undone.
 	/// </summary>
 	public string Text
 	{
-		get => VerifyAccess((int) Trait.Value).ToString(CultureInfo.CurrentCulture);
+		get => VerifyAccess(Trait.Value is int number ? number.ToString(CultureInfo.CurrentCulture) : "");
 		set => ChangeValue(() =>
 		{
 			if (string.IsNullOrWhiteSpace(value))

@@ -77,7 +77,7 @@ public sealed class AppModel : ViewModelBase
 		await state.ToThreadPool();
 
 		var gameInfoResult = GameInfo.Load(JsonDataLoader.DefaultDataDirectory);
-		var gameDataResult = GameData.Load(JsonDataLoader.DefaultDataDirectory);
+		var gameDataResult = GameData.Load(JsonDataLoader.DefaultDataDirectory, gameInfoResult.Value?.FrequencyChances);
 		var iconPath = gameInfoResult.Value?.GetIconPath(JsonDataLoader.DefaultDataDirectory);
 		var iconReadResult = iconPath is null ? null : ImageDataLoader.Read(iconPath);
 

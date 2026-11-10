@@ -10,7 +10,7 @@ The game reads its data from the `Data` folder next to the executable. Every fil
 * Text values described as "filled in" can't be empty or only whitespace.
 * Ids are compared case-sensitively and must be unique within their list.
 * Lists of identified items must not be empty, and each item needs a filled-in `id` and `title`.
-* A **frequency** is how common an item is when chosen at random: `1` (rare), `2` (uncommon), or `3` (common). Each step is four times as likely as the one below it.
+* A **frequency** is how common an item is when chosen at random: `common`, `uncommon`, `rare`, or `veryRare`. It can be nudged up by adding `+` or `++`, or down by adding `-` or `--`, as in `common-` or `rare++`. Each step multiplies or divides the item's chance by the `stepMultiplier`, after the chances below are worked out, and then the chances are scaled to add up to 100. When an item is chosen from a list, the uncommon items share the uncommon chance (see `frequencyChances` in GameInfo.json) equally, the rare and very rare items share theirs, and the common items share the rest. If a list has no items of a frequency, its chance goes to the common items, or is shared by the other frequencies in proportion to their chances if the list has no common items.
 * Any problem stops the file from loading, and every problem found is reported.
 
 ## GameInfo.json
@@ -20,22 +20,69 @@ The game reads its data from the `Data` folder next to the executable. Every fil
 | `title` | string | Filled in. |
 | `description` | string | Filled in. |
 | `icon` | string | Optional. Path of the application icon image, relative to the `Data` folder. Must not be blank, rooted, or contain invalid path characters. |
+| `frequencyChances` | Frequency Chances | Optional (defaults to 20 uncommon, 5 rare, and 0.5 very rare, with steps of 1.5). |
+
+**Frequency Chances**
+
+The percentage chances used when choosing items by frequency. The uncommon, rare, and very rare chances together must be less than 100.
+
+| Property | Type | Notes |
+|---|---|---|
+| `uncommon` | number | Optional (defaults to 20). At least 0. |
+| `rare` | number | Optional (defaults to 5). At least 0. |
+| `veryRare` | number | Optional (defaults to 0.5). At least 0. |
+| `stepMultiplier` | number | Optional (defaults to 1.5). At least 1. How much each `+` multiplies an item's chance by, and each `-` divides it by. |
 
 ## Characters.json
 
 | Property | Type | Notes |
 |---|---|---|
 | `templates` | list of Character Template | Must include the ids `fullName` (a character's full name) and `description` (a description of a character). |
-| `properties` | list of Character Property | Identified items. In the order shown on the new game screen. |
+| `properties` | list of Character Property | Identified items. |
+| `obscurers` | list of Obscurer | Optional (defaults to empty). |
+| `lowChanceWarning` | number | Optional. A percentage chance, at least 0 and less than 100. When the game data loads, a warning is logged for every value with this chance or less of being chosen, for each role: value list values (using their lowest chance across the values their conditions depend on), integer values, and string defaults. |
 
 **Character Template**
+
+Has either `template` or `variants`.
 
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | Filled in. Unique within `templates`, and must not match a property id. |
-| `template` | string | Filled in. Template. |
+| `template` | string | Optional. Filled in. Template. |
+| `variants` | list of Template Variant | Optional. Must not be empty. The first variant whose `when` condition is met is used. |
 
-A **template** is text with placeholders. `{id}` is replaced with the value of the property with that id (the text of a string property, the number of an integer property, or the `title` of a value list property's value), or with the text of the template with that id. `{id.name}` is replaced with the `name` entry of the `text` of a value list property's value. Either form can end with a format after a colon, as in `{id.name:first_upper}`. The only format is `first_upper`, which capitalizes the first character. Literal braces are written `{{` and `}}`. Any other brace is an error. Every placeholder must name a property or a template, and a placeholder with a name must name a value list property whose values all have that `text` entry. A template must not use itself, directly or through other templates.
+**Template Variant**
+
+| Property | Type | Notes |
+|---|---|---|
+| `when` | Condition | Optional. Without it, the variant is always used if no earlier variant was. |
+| `template` | string | Template. Can be empty. |
+
+A **template** is text with placeholders. `{id}` is replaced with the visible value of the property with that id (the text of a string property, the number of an integer property, or the `title` of a value list property's value), or with the text of the template with that id. `{id.name}` is replaced with the `name` entry of the `text` of a value list property's value. Either form can end with a format after a colon, as in `{id.name:first_upper}`. The only format is `first_upper`, which capitalizes the first character. Literal braces are written `{{` and `}}`. Any other brace is an error. Every placeholder must name a property or a template, and a placeholder with a name must name a value list property whose values all have that `text` entry. A template must not use itself, directly or through other templates, in any of its variants. In the text a template creates, runs of spaces are collapsed to one, and spaces at the start and end, or before `.`, `,`, `;`, `:`, `!`, or `?`, are removed.
+
+**Condition**
+
+Has at least one of `values`, `notValues`, and `hidden`. It's met when every part it has is met. In templates, conditions only see visible values, so a property whose value is obscured counts as having no value.
+
+| Property | Type | Notes |
+|---|---|---|
+| `values` | map of string to list of string | Optional. Must not be empty. Each key is the id of a value list property, and each list holds ids of that property's values. Except in template conditions, a key can also be an integer property with `groups`, and its list holds group ids; the property's value is the group its number is in. Each list must not be empty, and each id must be filled in, unique, and match a value (or group). Met when every listed property has one of its listed values. A property with no value never meets it. |
+| `notValues` | map of string to list of string | Optional. The same as `values`, but met when every listed property has a value that isn't listed. A property with no value never meets it. |
+| `hidden` | list of string | Optional. Template conditions only. Ids of properties that must have no visible value. Must not be empty, and each id must be filled in, unique, and match a property. |
+
+**Visible values.** When a character is described, some obscurers may be in effect. A property has no visible value if the character has no value for it, or if an obscurer in effect hides it with a strength at least the value's prominence. String and integer values have a prominence of 3.
+
+**Condition checks.** For each role, conditions are checked in every combination of values they can depend on. Each check only combines the values of the properties it depends on (through conditions, and the properties those conditions depend on). Every value list property must have at least one value whose condition is met in every combination of the properties its conditions use where its own condition is met. Every template used is checked too: `fullName`, `description`, templates no other template uses, and templates used by the chosen variant of a template being checked. A template is checked in every combination of the properties its conditions use and the properties its placeholders and `hidden` lists name depend on, together with the values assumed by the template that uses it. Each property a template uses that the obscurers could hide (the strongest obscurer of it is at least the lowest prominence of its possible values) is checked both visible and hidden. In each case, the template must have a variant that's used, and every property that variant's placeholders name must have a visible value. Each check can have at most 10000 combinations, and a template can use at most 10 properties that the obscurers could hide.
+
+**Obscurer**
+
+Something that keeps some properties from being seen or heard. Which obscurers are in effect depends on the situation in the game.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | Filled in. Unique within `obscurers`. |
+| `hides` | map of string to integer | Must not be empty. Each key is a property id, or `*` for every property. Each number is a strength from 1 to 3. |
 
 **Character Property**
 
@@ -44,13 +91,18 @@ A **template** is text with placeholders. `{id}` is replaced with the value of t
 | `id` | string | |
 | `title` | string | Label on the new game screen. |
 | `type` | string | `string`, `integer`, or `valueList`. |
+| `when` | Condition | Optional. A character only has a value for the property when the condition is met. |
 | `values` | list of Character Value | Required for `valueList` properties, and not allowed for other types. Identified items. |
+| `shape` | Shape | Optional. Value list properties only. Weights the values by their order (leaving out values that aren't allowed) instead of by frequency. The values must then all be common and have no `frequencyWhen`. |
 | `range` | Integer Range | Integer properties only. Optional if both `player` and `npc` have a `range`; otherwise required. |
+| `groups` | list of Integer Group | Optional. Integer properties only. Must not be empty. Named parts of the numbers that conditions can use. |
 | `defaults` | String Defaults | Optional. String properties only. |
 | `player` | Role Settings | Optional. Replaces settings for the player. |
 | `npc` | Role Settings | Optional. Replaces settings for non-player characters. |
 
-Value list properties pick a random value by frequency. Integer properties pick a random number in their range. String properties pick a random default, or are blank if they have no defaults. On the new game screen, the player must fill in every string property. A property with only one possible value for the player isn't shown.
+Value list properties pick a random value, by frequency or by shape, from the values whose conditions are met, and pick a new one when their value's condition stops being met. Integer properties pick a random number in their range, by its shape. String properties pick a random default, or are blank if they have no defaults. On the new game screen, the player must fill in every string property that has a value. A property is hidden while it has no value or has only one possible value for the player.
+
+A property **depends on** the properties its conditions, its values' conditions, and its values' `frequencyWhen` conditions use, and on the properties its defaults (for any role) are keyed by. Values are chosen, and properties are shown on the new game screen, in an order where each property comes after the properties it depends on. Otherwise, properties keep the order they're listed in. A property must not depend on itself, directly or through other properties.
 
 **Character Value**
 
@@ -58,8 +110,28 @@ Value list properties pick a random value by frequency. Integer properties pick 
 |---|---|---|
 | `id` | string | |
 | `title` | string | |
-| `frequency` | integer | Frequency. |
+| `frequency` | string | Optional (defaults to `common`). Frequency. |
 | `text` | map of string to string | Optional (defaults to empty). Named text for templates. Names and text must be filled in. |
+| `when` | Condition | Optional. A character can only have this value when the condition is met. |
+| `prominence` | integer | Optional (defaults to 3). From 1 to 3: how hard the value is to hide. Obscurers hide it with a strength of at least this. |
+| `frequencyWhen` | list of Frequency Override | Optional. Must not be empty. Frequencies that replace `frequency` when their conditions are met. The first override whose condition is met is used. Chances are worked out from the usual frequencies of the values that are allowed. A value with an override then has the chance a value of its new frequency has there (values moved to a frequency no value usually has share that frequency's chance), and all the chances are scaled to add up to 100, so the other values keep their chances compared to each other. |
+
+**Frequency Override**
+
+| Property | Type | Notes |
+|---|---|---|
+| `when` | Condition | Can't use `hidden`. |
+| `frequency` | string | Frequency. |
+
+**Integer Group**
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | Filled in. Unique within `groups`. |
+| `minimum` | integer | Optional (no lower limit if left out). |
+| `maximum` | integer | Optional (no upper limit if left out). At least `minimum`. |
+
+Groups must not overlap. A number in no group counts as having no value in conditions.
 
 **Integer Range**
 
@@ -67,7 +139,16 @@ Value list properties pick a random value by frequency. Integer properties pick 
 |---|---|---|
 | `minimum` | integer | |
 | `maximum` | integer | At least `minimum`. |
-| `shape` | string | `low`, `middle`, or `high`: the part of the range random numbers favor. Numbers farther from it are increasingly rare. |
+| `shape` | Shape | Weights the numbers in the range by their order. |
+
+**Shape**
+
+Weights an ordered list of values by a bell curve. The value at the peak is the most likely, and values grow less likely the farther they are from it.
+
+| Property | Type | Notes |
+|---|---|---|
+| `peak` | string | `low`, `middle`, or `high`: whether the first, middle, or last value is the most likely. |
+| `mostWithin` | number | More than 0. About two-thirds of choices fall within this many steps of the peak (the curve's standard deviation). |
 
 **String Defaults**
 
@@ -76,7 +157,7 @@ Has either `values`, or both `keyedBy` and `valuesByKey`.
 | Property | Type | Notes |
 |---|---|---|
 | `values` | list of Weighted Value | Optional. Must not be empty. |
-| `keyedBy` | string | Optional. Id of a value list property defined earlier in `properties`. The defaults used depend on that property's value, and a new default is picked when it changes. |
+| `keyedBy` | string | Optional. Id of a value list property. The defaults used depend on that property's value, and a new default is picked when it changes. |
 | `valuesByKey` | map of string to list of Weighted Value | Optional. Each key must be a value id of the `keyedBy` property, and each list must not be empty. Every value the `keyedBy` property can have, for each role these defaults are used by, must have a list. |
 
 **Weighted Value**
@@ -84,7 +165,7 @@ Has either `values`, or both `keyedBy` and `valuesByKey`.
 | Property | Type | Notes |
 |---|---|---|
 | `value` | string | Filled in. |
-| `frequency` | integer | Frequency. |
+| `frequency` | string | Optional (defaults to `common`). Frequency. |
 
 **Role Settings**
 

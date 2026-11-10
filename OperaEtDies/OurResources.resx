@@ -103,10 +103,6 @@
 		<value>The item "{0}" in the "{1}" list is missing a title.</value>
 		<comment>{0} is the item's id. {1} is the name of the list in the data file.</comment>
 	</data>
-	<data name="DataListItemFrequencyInvalid" xml:space="preserve">
-		<value>The item "{0}" in the "{1}" list has a frequency of {2}, but it must be from {3} to {4}.</value>
-		<comment>{0} is the item's id. {1} is the name of the list in the data file. {2} is the frequency found. {3} and {4} are the allowed minimum and maximum.</comment>
-	</data>
 	<data name="LocationDescriptionMissing" xml:space="preserve">
 		<value>The location "{0}" is missing its {1}.</value>
 		<comment>{0} is the location's id. {1} is the name of the missing description in the data file.</comment>
@@ -172,10 +168,6 @@
 		<value>A value in the "{0}" list is blank.</value>
 		<comment>{0} is the name of the list in the data file.</comment>
 	</data>
-	<data name="WeightedValueFrequencyInvalid" xml:space="preserve">
-		<value>The value "{0}" in the "{1}" list has a frequency of {2}, but it must be from {3} to {4}.</value>
-		<comment>{0} is the value. {1} is the name of the list in the data file. {2} is the frequency found. {3} and {4} are the allowed minimum and maximum.</comment>
-	</data>
 	<data name="CharacterSettingMissing" xml:space="preserve">
 		<value>The property "{0}" needs a "{1}" setting.</value>
 		<comment>{0} is the property's id. {1} is the name of the missing setting in the data file.</comment>
@@ -201,7 +193,7 @@
 		<comment>{0} is the location of the setting in the data file.</comment>
 	</data>
 	<data name="StringDefaultsKeyedByInvalid" xml:space="preserve">
-		<value>The "{0}" setting is keyed by "{1}", but that isn't a value list property defined before this one.</value>
+		<value>The "{0}" setting is keyed by "{1}", but that isn't a value list property.</value>
 		<comment>{0} is the location of the setting in the data file. {1} is the property id it is keyed by.</comment>
 	</data>
 	<data name="StringDefaultsKeyUnknown" xml:space="preserve">
@@ -247,5 +239,129 @@
 	<data name="TemplateCycle" xml:space="preserve">
 		<value>The template "{0}" uses itself, either directly or through other templates.</value>
 		<comment>{0} is the template's id.</comment>
+	</data>
+	<data name="TemplateFormInvalid" xml:space="preserve">
+		<value>The template "{0}" must have either "template" or "variants".</value>
+		<comment>{0} is the template's id.</comment>
+	</data>
+	<data name="TemplateVariantMissing" xml:space="preserve">
+		<value>The template "{0}" has no variant whose condition is met for the "{1}" role when {2}.</value>
+		<comment>{0} is the template's id. {1} is the role ("player" or "npc"). {2} describes the values of the properties used by conditions.</comment>
+	</data>
+	<data name="TemplatePropertyMissing" xml:space="preserve">
+		<value>The "{0}" template uses "{1}", but that property has no value for the "{2}" role when {3}.</value>
+		<comment>{0} is the template's id. {1} is the property id. {2} is the role ("player" or "npc"). {3} describes the values of the properties used by conditions.</comment>
+	</data>
+	<data name="ConditionEmpty" xml:space="preserve">
+		<value>The "{0}" condition must use at least one property.</value>
+		<comment>{0} is the location of the condition in the data file.</comment>
+	</data>
+	<data name="ConditionHiddenNotAllowed" xml:space="preserve">
+		<value>The "{0}" condition uses "hidden", but only template conditions can.</value>
+		<comment>{0} is the location of the condition in the data file.</comment>
+	</data>
+	<data name="ConditionPropertyInvalid" xml:space="preserve">
+		<value>The "{0}" condition uses "{1}", but that isn't a value list property.</value>
+		<comment>{0} is the location of the condition in the data file. {1} is the property id it uses.</comment>
+	</data>
+	<data name="ConditionValueUnknown" xml:space="preserve">
+		<value>The "{0}" list includes "{1}", but the property "{2}" has no value with that id.</value>
+		<comment>{0} is the name of the list in the data file. {1} is the value id. {2} is the property id.</comment>
+	</data>
+	<data name="ConditionCombinationsTooMany" xml:space="preserve">
+		<value>The conditions allow more than {1} combinations of values for the "{0}" role, which is too many to check.</value>
+		<comment>{0} is the role ("player" or "npc"). {1} is the most combinations allowed.</comment>
+	</data>
+	<data name="ConditionPropertyNoValues" xml:space="preserve">
+		<value>The property "{0}" has no values whose conditions are met for the "{1}" role when {2}.</value>
+		<comment>{0} is the property id. {1} is the role ("player" or "npc"). {2} describes the values of the properties used by conditions.</comment>
+	</data>
+	<data name="ConditionCombinationValue" xml:space="preserve">
+		<value>{0} is "{1}"</value>
+		<comment>Describes the value of a property in a combination of condition values. {0} is the property id. {1} is the value id.</comment>
+	</data>
+	<data name="ConditionCombinationNoValue" xml:space="preserve">
+		<value>{0} has no value</value>
+		<comment>Describes a property with no value in a combination of condition values. {0} is the property id.</comment>
+	</data>
+	<data name="ConditionCombinationHidden" xml:space="preserve">
+		<value>{0} is hidden</value>
+		<comment>Describes a property whose value is obscured in a combination of condition values. {0} is the property id.</comment>
+	</data>
+	<data name="ProminenceInvalid" xml:space="preserve">
+		<value>The item "{0}" in the "{1}" list has a prominence of {2}, but it must be from {3} to {4}.</value>
+		<comment>{0} is the value's id. {1} is the name of the list in the data file. {2} is the prominence found. {3} and {4} are the allowed minimum and maximum.</comment>
+	</data>
+	<data name="ObscurerPropertyUnknown" xml:space="preserve">
+		<value>The obscurer "{0}" hides "{1}", but there is no character property with that id.</value>
+		<comment>{0} is the obscurer's id. {1} is the property id it hides.</comment>
+	</data>
+	<data name="ObscurerStrengthInvalid" xml:space="preserve">
+		<value>The obscurer "{0}" hides "{1}" with a strength of {2}, but it must be from {3} to {4}.</value>
+		<comment>{0} is the obscurer's id. {1} is the property id it hides. {2} is the strength found. {3} and {4} are the allowed minimum and maximum.</comment>
+	</data>
+	<data name="TemplateHiddenPropertyUnknown" xml:space="preserve">
+		<value>The "{0}" list includes "{1}", but there is no character property with that id.</value>
+		<comment>{0} is the name of the list in the data file. {1} is the id in the list.</comment>
+	</data>
+	<data name="TemplateHideableTooMany" xml:space="preserve">
+		<value>The template "{0}" uses more than {1} properties that obscurers can hide, which is too many to check.</value>
+		<comment>{0} is the template's id. {1} is the most properties allowed.</comment>
+	</data>
+	<data name="FrequencyChanceInvalid" xml:space="preserve">
+		<value>The "{0}" chance is {1}, but it must be at least 0.</value>
+		<comment>{0} is the location of the chance in the data file. {1} is the chance found.</comment>
+	</data>
+	<data name="FrequencyChancesTooHigh" xml:space="preserve">
+		<value>The "{0}" uncommon, rare, and very rare chances add up to {1}, but they must add up to less than 100.</value>
+		<comment>{0} is the location of the chances in the data file. {1} is their total.</comment>
+	</data>
+	<data name="ShapeMostWithinInvalid" xml:space="preserve">
+		<value>The "{0}" setting is {1}, but it must be more than 0.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the value found.</comment>
+	</data>
+	<data name="ShapeFrequencyNotAllowed" xml:space="preserve">
+		<value>The value "{0}" of the property "{1}" has a frequency, but the property uses a shape.</value>
+		<comment>{0} is the value's id. {1} is the property's id.</comment>
+	</data>
+	<data name="LowChanceWarningInvalid" xml:space="preserve">
+		<value>The "lowChanceWarning" setting is {0}, but it must be at least 0 and less than 100.</value>
+		<comment>{0} is the value found.</comment>
+	</data>
+	<data name="LowChanceValue" xml:space="preserve">
+		<value>The value "{0}" of the property "{1}" has a {2}% chance for the "{3}" role{4}, which is at or below the {5}% warning threshold.</value>
+		<comment>{0} is the value's id. {1} is the property's id. {2} is the chance. {3} is the role ("player" or "npc"). {4} is empty or a LowChanceCondition. {5} is the threshold.</comment>
+	</data>
+	<data name="LowChanceIntegers" xml:space="preserve">
+		<value>For the "{0}" role, {1} values of the property "{2}" have a chance at or below the {3}% warning threshold. The lowest is {4}, with a {5}% chance.</value>
+		<comment>{0} is the role ("player" or "npc"). {1} is how many values. {2} is the property's id. {3} is the threshold. {4} is the least likely value. {5} is its chance.</comment>
+	</data>
+	<data name="LowChanceDefault" xml:space="preserve">
+		<value>The default "{0}" of the property "{1}" has a {2}% chance for the "{3}" role{4}, which is at or below the {5}% warning threshold.</value>
+		<comment>{0} is the default value. {1} is the property's id. {2} is the chance. {3} is the role ("player" or "npc"). {4} is empty or a LowChanceCondition. {5} is the threshold.</comment>
+	</data>
+	<data name="LowChanceCondition" xml:space="preserve">
+		<value> when {0}</value>
+		<comment>Starts with a space. Added to a low chance warning. {0} describes the values of the properties used by conditions.</comment>
+	</data>
+	<data name="PropertyDependencyCycle" xml:space="preserve">
+		<value>The properties {0} depend on each other in a circle, through their conditions or keyed defaults, so their values can't be chosen in order.</value>
+		<comment>{0} is a list of the quoted property ids.</comment>
+	</data>
+	<data name="ConditionPropertyWithoutValues" xml:space="preserve">
+		<value>The "{0}" condition uses "{1}", but that isn't a value list property or an integer property with groups.</value>
+		<comment>{0} is the location of the condition in the data file. {1} is the property id it uses.</comment>
+	</data>
+	<data name="IntegerGroupsOverlap" xml:space="preserve">
+		<value>The groups "{0}" and "{1}" of the property "{2}" overlap.</value>
+		<comment>{0} and {1} are the group ids. {2} is the property id.</comment>
+	</data>
+	<data name="FrequencyLevelInvalid" xml:space="preserve">
+		<value>A frequency must be "common", "uncommon", "rare", or "veryRare", optionally followed by "+", "++", "-", or "--".</value>
+		<comment>Shown when a frequency in a data file can't be read.</comment>
+	</data>
+	<data name="FrequencyStepMultiplierInvalid" xml:space="preserve">
+		<value>The "{0}" setting is {1}, but it must be at least 1.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the value found.</comment>
 	</data>
 </root>

@@ -160,15 +160,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The item &quot;{0}&quot; in the &quot;{1}&quot; list has a frequency of {2}, but it must be from {3} to {4}..
-        /// </summary>
-        public static string DataListItemFrequencyInvalid {
-            get {
-                return ResourceManager.GetString("DataListItemFrequencyInvalid", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to The item &quot;{0}&quot; in the &quot;{1}&quot; list is missing a title..
         /// </summary>
         public static string DataListItemTitleMissing {
@@ -385,15 +376,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The value &quot;{0}&quot; in the &quot;{1}&quot; list has a frequency of {2}, but it must be from {3} to {4}..
-        /// </summary>
-        public static string WeightedValueFrequencyInvalid {
-            get {
-                return ResourceManager.GetString("WeightedValueFrequencyInvalid", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to The property &quot;{0}&quot; needs a &quot;{1}&quot; setting..
         /// </summary>
         public static string CharacterSettingMissing {
@@ -448,7 +430,7 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The &quot;{0}&quot; setting is keyed by &quot;{1}&quot;, but that isn&apos;t a value list property defined before this one..
+        ///   Looks up a localized string similar to The &quot;{0}&quot; setting is keyed by &quot;{1}&quot;, but that isn&apos;t a value list property..
         /// </summary>
         public static string StringDefaultsKeyedByInvalid {
             get {
@@ -552,6 +534,285 @@ namespace OperaEtDies {
         public static string TemplateCycle {
             get {
                 return ResourceManager.GetString("TemplateCycle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The template &quot;{0}&quot; must have either &quot;template&quot; or &quot;variants&quot;..
+        /// </summary>
+        public static string TemplateFormInvalid {
+            get {
+                return ResourceManager.GetString("TemplateFormInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The template &quot;{0}&quot; has no variant whose condition is met for the &quot;{1}&quot; role when {2}..
+        /// </summary>
+        public static string TemplateVariantMissing {
+            get {
+                return ResourceManager.GetString("TemplateVariantMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; template uses &quot;{1}&quot;, but that property has no value for the &quot;{2}&quot; role when {3}..
+        /// </summary>
+        public static string TemplatePropertyMissing {
+            get {
+                return ResourceManager.GetString("TemplatePropertyMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; condition must use at least one property..
+        /// </summary>
+        public static string ConditionEmpty {
+            get {
+                return ResourceManager.GetString("ConditionEmpty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; condition uses &quot;{1}&quot;, but that isn&apos;t a value list property..
+        /// </summary>
+        public static string ConditionPropertyInvalid {
+            get {
+                return ResourceManager.GetString("ConditionPropertyInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; list includes &quot;{1}&quot;, but the property &quot;{2}&quot; has no value with that id..
+        /// </summary>
+        public static string ConditionValueUnknown {
+            get {
+                return ResourceManager.GetString("ConditionValueUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The conditions allow more than {1} combinations of values for the &quot;{0}&quot; role, which is too many to check..
+        /// </summary>
+        public static string ConditionCombinationsTooMany {
+            get {
+                return ResourceManager.GetString("ConditionCombinationsTooMany", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The property &quot;{0}&quot; has no values whose conditions are met for the &quot;{1}&quot; role when {2}..
+        /// </summary>
+        public static string ConditionPropertyNoValues {
+            get {
+                return ResourceManager.GetString("ConditionPropertyNoValues", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} is &quot;{1}&quot;.
+        /// </summary>
+        public static string ConditionCombinationValue {
+            get {
+                return ResourceManager.GetString("ConditionCombinationValue", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} has no value.
+        /// </summary>
+        public static string ConditionCombinationNoValue {
+            get {
+                return ResourceManager.GetString("ConditionCombinationNoValue", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; condition uses &quot;hidden&quot;, but only template conditions can..
+        /// </summary>
+        public static string ConditionHiddenNotAllowed {
+            get {
+                return ResourceManager.GetString("ConditionHiddenNotAllowed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} is hidden.
+        /// </summary>
+        public static string ConditionCombinationHidden {
+            get {
+                return ResourceManager.GetString("ConditionCombinationHidden", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The item &quot;{0}&quot; in the &quot;{1}&quot; list has a prominence of {2}, but it must be from {3} to {4}..
+        /// </summary>
+        public static string ProminenceInvalid {
+            get {
+                return ResourceManager.GetString("ProminenceInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The obscurer &quot;{0}&quot; hides &quot;{1}&quot;, but there is no character property with that id..
+        /// </summary>
+        public static string ObscurerPropertyUnknown {
+            get {
+                return ResourceManager.GetString("ObscurerPropertyUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The obscurer &quot;{0}&quot; hides &quot;{1}&quot; with a strength of {2}, but it must be from {3} to {4}..
+        /// </summary>
+        public static string ObscurerStrengthInvalid {
+            get {
+                return ResourceManager.GetString("ObscurerStrengthInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; list includes &quot;{1}&quot;, but there is no character property with that id..
+        /// </summary>
+        public static string TemplateHiddenPropertyUnknown {
+            get {
+                return ResourceManager.GetString("TemplateHiddenPropertyUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The template &quot;{0}&quot; uses more than {1} properties that obscurers can hide, which is too many to check..
+        /// </summary>
+        public static string TemplateHideableTooMany {
+            get {
+                return ResourceManager.GetString("TemplateHideableTooMany", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; chance is {1}, but it must be at least 0..
+        /// </summary>
+        public static string FrequencyChanceInvalid {
+            get {
+                return ResourceManager.GetString("FrequencyChanceInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; uncommon, rare, and very rare chances add up to {1}, but they must add up to less than 100..
+        /// </summary>
+        public static string FrequencyChancesTooHigh {
+            get {
+                return ResourceManager.GetString("FrequencyChancesTooHigh", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; setting is {1}, but it must be more than 0..
+        /// </summary>
+        public static string ShapeMostWithinInvalid {
+            get {
+                return ResourceManager.GetString("ShapeMostWithinInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The value &quot;{0}&quot; of the property &quot;{1}&quot; has a frequency, but the property uses a shape..
+        /// </summary>
+        public static string ShapeFrequencyNotAllowed {
+            get {
+                return ResourceManager.GetString("ShapeFrequencyNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;lowChanceWarning&quot; setting is {0}, but it must be at least 0 and less than 100..
+        /// </summary>
+        public static string LowChanceWarningInvalid {
+            get {
+                return ResourceManager.GetString("LowChanceWarningInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The value &quot;{0}&quot; of the property &quot;{1}&quot; has a {2}% chance for the &quot;{3}&quot; role{4}, which is at or below the {5}% warning threshold..
+        /// </summary>
+        public static string LowChanceValue {
+            get {
+                return ResourceManager.GetString("LowChanceValue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to For the &quot;{0}&quot; role, {1} values of the property &quot;{2}&quot; have a chance at or below the {3}% warning threshold. The lowest is {4}, with a {5}% chance..
+        /// </summary>
+        public static string LowChanceIntegers {
+            get {
+                return ResourceManager.GetString("LowChanceIntegers", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The default &quot;{0}&quot; of the property &quot;{1}&quot; has a {2}% chance for the &quot;{3}&quot; role{4}, which is at or below the {5}% warning threshold..
+        /// </summary>
+        public static string LowChanceDefault {
+            get {
+                return ResourceManager.GetString("LowChanceDefault", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to  when {0}.
+        /// </summary>
+        public static string LowChanceCondition {
+            get {
+                return ResourceManager.GetString("LowChanceCondition", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The properties {0} depend on each other in a circle, through their conditions or keyed defaults, so their values can&apos;t be chosen in order..
+        /// </summary>
+        public static string PropertyDependencyCycle {
+            get {
+                return ResourceManager.GetString("PropertyDependencyCycle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; condition uses &quot;{1}&quot;, but that isn&apos;t a value list property or an integer property with groups..
+        /// </summary>
+        public static string ConditionPropertyWithoutValues {
+            get {
+                return ResourceManager.GetString("ConditionPropertyWithoutValues", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The groups &quot;{0}&quot; and &quot;{1}&quot; of the property &quot;{2}&quot; overlap..
+        /// </summary>
+        public static string IntegerGroupsOverlap {
+            get {
+                return ResourceManager.GetString("IntegerGroupsOverlap", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A frequency must be &quot;common&quot;, &quot;uncommon&quot;, &quot;rare&quot;, or &quot;veryRare&quot;, optionally followed by &quot;+&quot;, &quot;++&quot;, &quot;-&quot;, or &quot;--&quot;..
+        /// </summary>
+        public static string FrequencyLevelInvalid {
+            get {
+                return ResourceManager.GetString("FrequencyLevelInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; setting is {1}, but it must be at least 1..
+        /// </summary>
+        public static string FrequencyStepMultiplierInvalid {
+            get {
+                return ResourceManager.GetString("FrequencyStepMultiplierInvalid", resourceCulture);
             }
         }
     }

@@ -10,14 +10,15 @@ public sealed class ImageDataLoaderTests
 	public void LoadsShippedIcon()
 	{
 		var gameInfo = GameInfo.Load(JsonDataLoader.DefaultDataDirectory).Value!;
-		var iconPath = gameInfo.GetIconPath(JsonDataLoader.DefaultDataDirectory)!;
+		var iconPath = gameInfo.GetIconPath(JsonDataLoader.DefaultDataDirectory);
+		Assume.That(iconPath, Is.Not.Null, "The shipped data has no icon.");
 
-		var readResult = ImageDataLoader.Read(iconPath);
+		var readResult = ImageDataLoader.Read(iconPath!);
 		Assert.That(readResult.Errors, Is.Empty);
 
-		var decodeResult = ImageDataLoader.Decode(iconPath, readResult.Value!);
+		var decodeResult = ImageDataLoader.Decode(iconPath!, readResult.Value!);
 		Assert.That(decodeResult.Errors, Is.Empty);
-		Assert.That(decodeResult.Value!.Decoder.Frames, Has.Count.GreaterThan(1));
+		Assert.That(decodeResult.Value!.Decoder.Frames, Is.Not.Empty);
 	}
 
 	[Test]

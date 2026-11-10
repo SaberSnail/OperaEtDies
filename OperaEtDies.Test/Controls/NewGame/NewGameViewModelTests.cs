@@ -8,14 +8,14 @@ namespace OperaEtDies.Test.Controls.NewGame;
 public sealed class NewGameViewModelTests
 {
 	[Test]
-	public void ShowsEditableProperties()
+	public void ShowsEveryProperty()
 	{
 		var viewModel = CreateViewModel();
 
-		// Gender has only one value for the player, so it isn't shown.
-		Assert.That(viewModel.Properties.Select(x => x.Id), Is.EqualTo(new[] { "profession", "firstName", "lastName", "height", "weight", "age" }));
+		Assert.That(viewModel.Properties.Select(x => x.Id), Is.EqualTo(new[] { "gender", "profession", "firstName", "lastName", "height", "weight", "age" }));
 		Assert.That(viewModel.Properties.Select(x => x.GetType()), Is.EqualTo(new[]
 		{
+			typeof(ValueListPropertyEditorViewModel),
 			typeof(ValueListPropertyEditorViewModel),
 			typeof(StringPropertyEditorViewModel),
 			typeof(StringPropertyEditorViewModel),
@@ -23,7 +23,83 @@ public sealed class NewGameViewModelTests
 			typeof(ValueListPropertyEditorViewModel),
 			typeof(IntegerPropertyEditorViewModel),
 		}));
-		Assert.That(viewModel.FindProperty("gender"), Is.Null);
+	}
+
+	[Test]
+	public void PropertiesComeAfterTheirDependencies()
+	{
+		CharacterProperty Property(string id, CharacterCondition? when = null) => new()
+		{
+			Id = id,
+			Title = id,
+			Type = CharacterPropertyType.ValueList,
+			When = when,
+			Values = [new CharacterPropertyOption { Id = "x", Title = "X" }, new CharacterPropertyOption { Id = "y", Title = "Y" }],
+		};
+		var gameData = new GameData(
+			new CharacterData
+			{
+				Templates = TestData.CreateTemplates("{a}", "{a}"),
+				Properties = [Property("style", TestData.Condition("length", "x")), Property("a"), Property("length"), Property("b")],
+			},
+			TestData.CreateLocationList());
+
+		var viewModel = new NewGameViewModel(gameData, new Random(0));
+
+		// "length" moves up so it comes before "style", which depends on it. The rest keep their order.
+		Assert.That(viewModel.Properties.Select(x => x.Id), Is.EqualTo(new[] { "a", "length", "style", "b" }));
+	}
+
+	[Test]
+	public void PropertiesThePlayerCanNeverHaveAreLeftOut()
+	{
+		CharacterPropertyOption Option(string id, CharacterCondition? when = null) => new() { Id = id, Title = id, When = when };
+		var gameData = new GameData(
+			new CharacterData
+			{
+				Templates = TestData.CreateTemplates("{gender}", "{gender}"),
+				Properties =
+				[
+					new CharacterProperty
+					{
+						Id = "gender",
+						Title = "Gender",
+						Type = CharacterPropertyType.ValueList,
+						Values = [Option("male"), Option("female")],
+						Player = new CharacterRoleSettings { Values = ["male"] },
+					},
+					new CharacterProperty { Id = "beard", Title = "Beard", Type = CharacterPropertyType.ValueList, When = TestData.Condition("gender", "male"), Values = [Option("full"), Option("none")] },
+					new CharacterProperty { Id = "bosom", Title = "Bosom", Type = CharacterPropertyType.ValueList, When = TestData.Condition("gender", "female"), Values = [Option("small"), Option("full")] },
+					new CharacterProperty
+					{
+						Id = "build",
+						Title = "Build",
+						Type = CharacterPropertyType.ValueList,
+						Values = [Option("curvy", TestData.Condition("gender", "female")), Option("average")],
+					},
+				],
+			},
+			TestData.CreateLocationList());
+
+		var viewModel = new NewGameViewModel(gameData, new Random(0));
+
+		// The player is always male, so the bosom never applies. Build still applies, with one value the player can have.
+		Assert.That(viewModel.Properties.Select(x => x.Id), Is.EqualTo(new[] { "gender", "beard", "build" }));
+		Assert.That(viewModel.FindProperty("build")!.IsFixed, Is.True);
+	}
+
+	[Test]
+	public void PropertiesWithOneValueAreFixed()
+	{
+		var viewModel = CreateViewModel();
+		var gender = viewModel.FindProperty("gender")!;
+
+		// Gender has only one value for the player.
+		Assert.That(gender.IsFixed, Is.True);
+		Assert.That(gender.IsAvailable, Is.True);
+		Assert.That(gender.ValueText, Is.EqualTo("male title"));
+		Assert.That(gender.CanRandomize(), Is.False);
+		Assert.That(viewModel.Properties.Where(x => x.Id != "gender"), Has.All.Property(nameof(CharacterPropertyEditorViewModel.IsFixed)).False);
 	}
 
 	[Test]
@@ -32,7 +108,7 @@ public sealed class NewGameViewModelTests
 		var viewModel = CreateViewModel();
 
 		Assert.That(FirstName(viewModel).Text, Is.AnyOf("John", "Osric"));
-		Assert.That(LastName(viewModel).Text, Is.EqualTo(Profession(viewModel).SelectedOption.Id == "smith" ? "Smith" : "Miller"));
+		Assert.That(LastName(viewModel).Text, Is.EqualTo(Profession(viewModel).SelectedOption!.Id == "smith" ? "Smith" : "Miller"));
 		Assert.That(Height(viewModel).SelectedOption, Is.AnyOf(Height(viewModel).Options.ToArray()));
 		Assert.That(Age(viewModel).Value, Is.InRange(36, 60));
 		Assert.That(Age(viewModel).Minimum, Is.EqualTo(36));
@@ -50,8 +126,8 @@ public sealed class NewGameViewModelTests
 		for (var seed = 0; seed < 100; seed++)
 		{
 			var viewModel = new NewGameViewModel(TestData.CreateGameData(), new Random(seed));
-			heights.Add(Height(viewModel).SelectedOption.Id);
-			weights.Add(((ValueListPropertyEditorViewModel) viewModel.FindProperty("weight")!).SelectedOption.Id);
+			heights.Add(Height(viewModel).SelectedOption!.Id);
+			weights.Add(((ValueListPropertyEditorViewModel) viewModel.FindProperty("weight")!).SelectedOption!.Id);
 			ages.Add(Age(viewModel).Value);
 		}
 
@@ -186,11 +262,11 @@ public sealed class NewGameViewModelTests
 			foreach (var property in viewModel.Properties)
 				property.Randomize();
 
-			professions.Add(Profession(viewModel).SelectedOption);
+			professions.Add(Profession(viewModel).SelectedOption!);
 			firstNames.Add(FirstName(viewModel).Text);
-			heights.Add(Height(viewModel).SelectedOption);
+			heights.Add(Height(viewModel).SelectedOption!);
 			Assert.That(Age(viewModel).Value, Is.InRange(36, 60));
-			Assert.That(LastName(viewModel).Text, Is.EqualTo(Profession(viewModel).SelectedOption.Id == "smith" ? "Smith" : "Miller"));
+			Assert.That(LastName(viewModel).Text, Is.EqualTo(Profession(viewModel).SelectedOption!.Id == "smith" ? "Smith" : "Miller"));
 		}
 
 		Assert.That(professions, Is.EquivalentTo(Profession(viewModel).Options));
@@ -274,6 +350,43 @@ public sealed class NewGameViewModelTests
 		Assert.That(player.GetOption("height").Id, Is.EqualTo("tall"));
 		Assert.That(player.GetInteger("age"), Is.EqualTo(40));
 		Assert.That(player.GetOption("gender").Id, Is.EqualTo("male"));
+	}
+
+	[Test]
+	public void ConditionalPropertiesAreAvailableWhenTheyApply()
+	{
+		var viewModel = new NewGameViewModel(TestData.CreateConditionalGameData(), new Random(0));
+		var gender = (ValueListPropertyEditorViewModel) viewModel.FindProperty("gender")!;
+		var build = (ValueListPropertyEditorViewModel) viewModel.FindProperty("build")!;
+		var beard = viewModel.FindProperty("beard")!;
+		var buildChanges = new List<string?>();
+		var beardChanges = new List<string?>();
+		build.PropertyChanged += (_, e) => buildChanges.Add(e.PropertyName);
+		beard.PropertyChanged += (_, e) => beardChanges.Add(e.PropertyName);
+
+		gender.SelectedOption = gender.Options.Single(x => x.Id == "male");
+		Assert.That(beard.IsAvailable, Is.True);
+		Assert.That(beard.CanRandomize(), Is.True);
+		Assert.That(build.Options.Select(x => x.Id), Is.EqualTo(new[] { "brawny", "wiry" }));
+
+		buildChanges.Clear();
+		beardChanges.Clear();
+		gender.SelectedOption = gender.Options.Single(x => x.Id == "female");
+		Assert.That(beard.IsAvailable, Is.False);
+		Assert.That(beard.IsFixed, Is.False);
+		Assert.That(beard.ValueText, Is.Empty);
+		Assert.That(beard.CanRandomize(), Is.False);
+		Assert.That(((ValueListPropertyEditorViewModel) beard).SelectedOption, Is.Null);
+		Assert.That(beardChanges, Does.Contain(nameof(CharacterPropertyEditorViewModel.IsAvailable)));
+		Assert.That(build.Options.Select(x => x.Id), Is.EqualTo(new[] { "slender", "wiry" }));
+		Assert.That(build.SelectedOption, Is.AnyOf(build.Options.ToArray()));
+		Assert.That(buildChanges, Does.Contain(nameof(ValueListPropertyEditorViewModel.Options)));
+
+		NewGameSettings? settings = null;
+		viewModel.StartGameRequested += (_, e) => settings = e.Value;
+		viewModel.StartGame();
+		Assert.That(settings!.Player.HasValue("beard"), Is.False);
+		Assert.That(settings.Player.GetOption("build").Id, Is.AnyOf("slender", "wiry"));
 	}
 
 	private static void SetProfession(NewGameViewModel viewModel, string id)

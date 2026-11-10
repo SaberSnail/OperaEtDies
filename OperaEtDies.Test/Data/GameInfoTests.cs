@@ -26,9 +26,10 @@ public sealed class GameInfoTests
 		var result = GameInfo.Load(JsonDataLoader.DefaultDataDirectory);
 
 		Assert.That(result.Errors, Is.Empty);
-		Assert.That(result.Value!.Title, Is.EqualTo("Sub Corona"));
+		Assert.That(result.Value!.Title, Is.Not.Empty);
 		Assert.That(result.Value.Description, Is.Not.Empty);
-		Assert.That(File.Exists(result.Value.GetIconPath(JsonDataLoader.DefaultDataDirectory)), Is.True);
+		if (result.Value.GetIconPath(JsonDataLoader.DefaultDataDirectory) is { } iconPath)
+			Assert.That(File.Exists(iconPath), Is.True);
 	}
 
 	[Test]

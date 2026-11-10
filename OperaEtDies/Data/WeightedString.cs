@@ -1,17 +1,16 @@
-using System.Text.Json.Serialization;
 using OperaEtDies.Utility.Random;
 
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// A string that can be randomly selected, where more frequent strings are more likely to be chosen.
+/// A string that can be chosen at random, where more frequent strings are more likely to be chosen.
 /// </summary>
-public sealed class WeightedString : IWeighted
+public sealed class WeightedString : IHasFrequency
 {
 	public required string Value { get; init; }
 
-	public required int Frequency { get; init; }
-
-	[JsonIgnore]
-	public int Weight => FrequencyUtility.GetWeight(Frequency);
+	/// <summary>
+	/// How common the string is when chosen at random.
+	/// </summary>
+	public FrequencyLevel Frequency { get; init; } = new(Utility.Random.Frequency.Common);
 }

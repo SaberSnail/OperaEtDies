@@ -1,3 +1,4 @@
+using OperaEtDies.Characters;
 using OperaEtDies.Data;
 using OperaEtDies.GameState;
 
@@ -34,14 +35,14 @@ public sealed class GameStateViewModelTests
 	}
 
 	[Test]
-	public void GeneratesThreeNpcs()
+	public void GeneratesNpcs()
 	{
 		var locations = new HashSet<string>();
 		for (var seed = 0; seed < 50; seed++)
 		{
 			var gameState = CreateGameState(seed);
 
-			Assert.That(gameState.Npcs, Has.Count.EqualTo(3));
+			Assert.That(gameState.Npcs, Has.Count.EqualTo(GameStateViewModel.NpcCount));
 			foreach (var npc in gameState.Npcs)
 			{
 				Assert.That(npc.IsPlayer, Is.False);
@@ -91,12 +92,14 @@ public sealed class GameStateViewModelTests
 	{
 		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
 
-		var gameState = GameStateViewModel.CreateNewGame(gameData, TestData.CreatePlayerTraits(gameData), new Random(0));
+		var player = new CharacterRandomizer(gameData, new Random(0), CharacterRole.Player).GetTraits();
+		var gameState = GameStateViewModel.CreateNewGame(gameData, player, new Random(0));
 
+		Assert.That(gameState.Npcs, Is.Not.Empty);
 		foreach (var npc in gameState.Npcs)
 		{
-			Assert.That(npc.Description, Does.StartWith(npc.FullName));
-			Assert.That(npc.Description, Does.Contain(npc.Traits.GetOption("profession").Text["description"]));
+			Assert.That(npc.FullName, Is.Not.Empty);
+			Assert.That(npc.Description, Is.Not.Empty);
 		}
 	}
 

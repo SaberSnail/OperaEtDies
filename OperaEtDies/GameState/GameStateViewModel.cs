@@ -52,7 +52,10 @@ public sealed class GameStateViewModel : ViewModelBase
 	/// </summary>
 	public LocationViewModel? FindLocation(string id) => m_locationsById.GetValueOrDefault(id);
 
-	private const int NpcCount = 3;
+	/// <summary>
+	/// How many random villagers a new game has, until villagers are defined in data.
+	/// </summary>
+	public const int NpcCount = 24;
 
 	private readonly Dictionary<string, LocationViewModel> m_locationsById;
 }

@@ -14,13 +14,13 @@ public sealed class StringPropertyEditorViewModel : CharacterPropertyEditorViewM
 	{
 	}
 
-	public override bool IsEditable => true;
+	protected override bool HasChoice => true;
 
 	public bool HasDefaults => Character.GetDefaultValues(Property) is not null;
 
 	public string Text
 	{
-		get => VerifyAccess((string) Trait.Value);
+		get => VerifyAccess(Trait.Value as string ?? "");
 		set => ChangeValue(() =>
 		{
 			if (string.IsNullOrWhiteSpace(value))
@@ -37,7 +37,7 @@ public sealed class StringPropertyEditorViewModel : CharacterPropertyEditorViewM
 		});
 	}
 
-	public override bool CanRandomize() => HasDefaults;
+	public override bool CanRandomize() => base.CanRandomize() && HasDefaults;
 
 	protected override void RaiseValueChanged() => RaisePropertyChanged(nameof(Text));
 

@@ -44,6 +44,16 @@
 							<Setter Property="Padding" Value="8,0" />
 							<Setter Property="Content" Value="{x:Static operaEtDies:OurResources.RandomizeField}" />
 							<Setter Property="Command" Value="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Randomize}" />
+							<!--  A fixed value has nothing to randomize, but keeps the space so the columns line up.  -->
+							<Setter Property="Visibility" Value="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibilityWithHidden}}" />
+						</Style>
+
+						<!--  A fixed value is shown as text instead of an editor.  -->
+						<Style x:Key="NewGameFixedValueStyle" TargetType="TextBlock">
+							<Setter Property="Grid.Column" Value="1" />
+							<Setter Property="VerticalAlignment" Value="Center" />
+							<Setter Property="Text" Value="{Binding ValueText}" />
+							<Setter Property="Visibility" Value="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
 						</Style>
 
 						<!--  Each property editor is a row with a label, an editor, and a randomize button. The columns line up across rows.  -->
@@ -61,7 +71,11 @@
 								</Grid.ColumnDefinitions>
 								<TextBlock Grid.Column="0" Style="{StaticResource NewGamePropertyLabelStyle}" />
 								<!--  Text updates when focus leaves, so a blank value can be replaced with a default. Without defaults, the text box takes the randomize button's space.  -->
-								<controls:CustomTextBox Grid.Column="1" VerticalContentAlignment="Center" Text="{Binding Text}">
+								<controls:CustomTextBox
+									Grid.Column="1"
+									VerticalContentAlignment="Center"
+									IsEnabled="{Binding IsAvailable}"
+									Text="{Binding Text}">
 									<controls:CustomTextBox.Style>
 										<Style BasedOn="{StaticResource {x:Type controls:CustomTextBox}}" TargetType="controls:CustomTextBox">
 											<Style.Triggers>
@@ -88,7 +102,13 @@
 								</Grid.ColumnDefinitions>
 								<TextBlock Grid.Column="0" Style="{StaticResource NewGamePropertyLabelStyle}" />
 								<!--  Text updates when focus leaves, so values outside the allowed range can be typed on the way to a valid value, and a blank value can be replaced with a random one.  -->
-								<controls:CustomTextBox Grid.Column="1" VerticalContentAlignment="Center" Text="{Binding Text}" />
+								<controls:CustomTextBox
+									Grid.Column="1"
+									VerticalContentAlignment="Center"
+									IsEnabled="{Binding IsAvailable}"
+									Text="{Binding Text}"
+									Visibility="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
+								<TextBlock Style="{StaticResource NewGameFixedValueStyle}" />
 								<Button Grid.Column="2" Style="{StaticResource NewGameRandomizeButtonStyle}" />
 							</Grid>
 						</DataTemplate>
@@ -104,8 +124,11 @@
 								<ComboBox
 									Grid.Column="1"
 									DisplayMemberPath="Title"
+									IsEnabled="{Binding IsAvailable}"
 									ItemsSource="{Binding Options}"
-									SelectedItem="{Binding SelectedOption}" />
+									SelectedItem="{Binding SelectedOption}"
+									Visibility="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
+								<TextBlock Style="{StaticResource NewGameFixedValueStyle}" />
 								<Button Grid.Column="2" Style="{StaticResource NewGameRandomizeButtonStyle}" />
 							</Grid>
 						</DataTemplate>

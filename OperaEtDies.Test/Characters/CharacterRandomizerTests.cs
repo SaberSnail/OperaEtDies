@@ -57,17 +57,17 @@ public sealed class CharacterRandomizerTests
 		}
 	}
 
-	[TestCase(IntegerShape.Low)]
-	[TestCase(IntegerShape.Middle)]
-	[TestCase(IntegerShape.High)]
-	public void IntegerShapesFavorTheirPartOfTheRange(IntegerShape shape)
+	[TestCase(ShapePeak.Low, 3)]
+	[TestCase(ShapePeak.Middle, 2)]
+	[TestCase(ShapePeak.High, 3)]
+	public void IntegerShapesFavorTheirPartOfTheRange(ShapePeak shape, double mostWithin)
 	{
 		var gameData = CreateGameData(new CharacterProperty
 		{
 			Id = "number",
 			Title = "Number",
 			Type = CharacterPropertyType.Integer,
-			Range = new IntegerRange { Minimum = 1, Maximum = 9, Shape = shape },
+			Range = new IntegerRange { Minimum = 1, Maximum = 9, Shape = new WeightShape { Peak = shape, MostWithin = mostWithin } },
 		});
 		var randomizer = new CharacterRandomizer(gameData, new Random(0), CharacterRole.Npc);
 
@@ -82,8 +82,8 @@ public sealed class CharacterRandomizerTests
 		Assert.That(counts.Skip(1), Has.All.GreaterThan(0));
 		var (favored, rare) = shape switch
 		{
-			IntegerShape.Low => (counts[1], counts[9]),
-			IntegerShape.High => (counts[9], counts[1]),
+			ShapePeak.Low => (counts[1], counts[9]),
+			ShapePeak.High => (counts[9], counts[1]),
 			_ => (counts[5], Math.Max(counts[1], counts[9])),
 		};
 		Assert.That(favored, Is.GreaterThan(rare * 3));
@@ -98,7 +98,7 @@ public sealed class CharacterRandomizerTests
 				Id = "nickname",
 				Title = "Nickname",
 				Type = CharacterPropertyType.String,
-				Defaults = new StringDefaults { Values = [new WeightedString { Value = "Red", Frequency = 3 }] },
+				Defaults = new StringDefaults { Values = [new WeightedString { Value = "Red" }] },
 			},
 			new CharacterProperty { Id = "motto", Title = "Motto", Type = CharacterPropertyType.String });
 
@@ -116,8 +116,8 @@ public sealed class CharacterRandomizerTests
 			Id = "nickname",
 			Title = "Nickname",
 			Type = CharacterPropertyType.String,
-			Defaults = new StringDefaults { Values = [new WeightedString { Value = "Red", Frequency = 3 }] },
-			Player = new CharacterRoleSettings { Defaults = new StringDefaults { Values = [new WeightedString { Value = "Boss", Frequency = 3 }] } },
+			Defaults = new StringDefaults { Values = [new WeightedString { Value = "Red" }] },
+			Player = new CharacterRoleSettings { Defaults = new StringDefaults { Values = [new WeightedString { Value = "Boss" }] } },
 		});
 
 		Assert.That(new CharacterRandomizer(gameData, new Random(0), CharacterRole.Player).GetTraits().GetString("nickname"), Is.EqualTo("Boss"));
@@ -198,6 +198,110 @@ public sealed class CharacterRandomizerTests
 		var traits = TestData.CreateTraits(gameData, "female", "Alice", "Miller", "miller", "tall", "heavy", 34);
 
 		Assert.That(traits.Format(TextTemplate.Parse("{firstName} ({age}) {{{profession}}} {gender.pronoun} {gender.pronoun:first_upper}")), Is.EqualTo("Alice (34) {miller title} she She"));
+	}
+
+	[Test]
+	public void ConditionalPropertiesAndValuesFollowConditions()
+	{
+		var gameData = TestData.CreateConditionalGameData();
+		var randomizer = new CharacterRandomizer(gameData, new Random(0), CharacterRole.Npc);
+		var builds = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal) { ["male"] = [], ["female"] = [] };
+
+		for (var i = 0; i < 500; i++)
+		{
+			randomizer.RandomizeAll();
+			var traits = randomizer.GetTraits();
+			var gender = traits.GetOption("gender").Id;
+
+			Assert.That(traits.HasValue("beard"), Is.EqualTo(gender == "male"));
+			builds[gender].Add(traits.GetOption("build").Id);
+		}
+
+		Assert.That(builds["male"], Is.EquivalentTo(new[] { "brawny", "wiry" }));
+		Assert.That(builds["female"], Is.EquivalentTo(new[] { "slender", "wiry" }));
+	}
+
+	[Test]
+	public void ChangingAConditionUpdatesOnlyValuesThatNoLongerFit()
+	{
+		var gameData = TestData.CreateConditionalGameData();
+		var randomizer = new CharacterRandomizer(gameData, new Random(0), CharacterRole.Npc);
+		CharacterPropertyOption Option(string propertyId, string valueId) => gameData.CharacterProperties.Get(propertyId).Values!.Single(x => x.Id == valueId);
+
+		randomizer["gender"].Value = Option("gender", "male");
+		randomizer["build"].Value = Option("build", "brawny");
+		Assert.That(randomizer["beard"].Value, Is.Not.Null);
+
+		randomizer["gender"].Value = Option("gender", "female");
+		Assert.That(randomizer["build"].Value, Is.AnyOf(Option("build", "slender"), Option("build", "wiry")));
+		Assert.That(randomizer["beard"].Value, Is.Null);
+		Assert.That(randomizer.HasValue(gameData.CharacterProperties.Get("beard")), Is.False);
+
+		randomizer["build"].Value = Option("build", "wiry");
+		randomizer["gender"].Value = Option("gender", "male");
+		Assert.That(randomizer["build"].Value, Is.SameAs(Option("build", "wiry")));
+		Assert.That(randomizer["beard"].Value, Is.Not.Null);
+	}
+
+	[Test]
+	public void TraitsFormatTemplateVariants()
+	{
+		var gameData = TestData.CreateConditionalGameData();
+		var randomizer = new CharacterRandomizer(gameData, new Random(0), CharacterRole.Npc);
+		CharacterPropertyOption Option(string propertyId, string valueId) => gameData.CharacterProperties.Get(propertyId).Values!.Single(x => x.Id == valueId);
+
+		randomizer["gender"].Value = Option("gender", "male");
+		randomizer["build"].Value = Option("build", "brawny");
+		randomizer["beard"].Value = Option("beard", "full");
+		Assert.That(randomizer.GetTraits().GetDescription(gameData.CharacterTemplates), Is.EqualTo("brawny with a full beard"));
+
+		randomizer["gender"].Value = Option("gender", "female");
+		randomizer["build"].Value = Option("build", "slender");
+		Assert.That(randomizer.GetTraits().GetDescription(gameData.CharacterTemplates), Is.EqualTo("slender"));
+	}
+
+	[Test]
+	public void ObscurersHideValuesUpToTheirStrength()
+	{
+		CharacterPropertyOption CreateOption(string id, int prominence) =>
+			new() { Id = id, Title = id, Prominence = prominence, Text = new Dictionary<string, string> { ["description"] = $"a {id} beard" } };
+		var gameData = new GameData(
+			new CharacterData
+			{
+				Templates =
+				[
+					new CharacterTemplate { Id = CharacterData.FullNameTemplateId, Template = "Hugh" },
+					new CharacterTemplate
+					{
+						Id = CharacterData.DescriptionTemplateId,
+						Variants =
+						[
+							new CharacterTemplateVariant { When = new CharacterCondition { Hidden = ["beard"] }, Template = "Hugh stands here." },
+							new CharacterTemplateVariant { Template = "Hugh has {beard.description}." },
+						],
+					},
+				],
+				Properties =
+				[
+					new CharacterProperty { Id = "beard", Title = "Beard", Type = CharacterPropertyType.ValueList, Values = [CreateOption("short", 1), CreateOption("long", 3)] },
+				],
+				Obscurers =
+				[
+					new CharacterObscurer { Id = "mask", Hides = new Dictionary<string, int> { ["beard"] = 2 } },
+					new CharacterObscurer { Id = "darkness", Hides = new Dictionary<string, int> { [CharacterObscurer.AllProperties] = 3 } },
+				],
+			},
+			TestData.CreateLocationList());
+		var randomizer = new CharacterRandomizer(gameData, new Random(0), CharacterRole.Npc);
+		string Describe(params string[] obscurerIds) => randomizer.GetTraits().GetDescription(gameData.CharacterTemplates, gameData.GetObscuring(obscurerIds));
+
+		randomizer["beard"].Value = gameData.CharacterProperties.Get("beard").Values![0];
+		Assert.That(Describe(), Is.EqualTo("Hugh has a short beard."));
+		Assert.That(Describe("mask"), Is.EqualTo("Hugh stands here."));
+
+		randomizer["beard"].Value = gameData.CharacterProperties.Get("beard").Values![1];
+		Assert.That(Describe("mask"), Is.EqualTo("Hugh has a long beard."));
+		Assert.That(Describe("mask", "darkness"), Is.EqualTo("Hugh stands here."));
 	}
 
 	private static CharacterRandomizer CreateRandomizer(int seed) => new(s_gameData, new Random(seed), CharacterRole.Npc);

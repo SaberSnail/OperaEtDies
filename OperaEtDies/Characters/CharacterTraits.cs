@@ -6,7 +6,7 @@ namespace OperaEtDies.Characters;
 /// <summary>
 /// The values of the properties that describe who a character is, used to create a person in the game world.
 /// Values are keyed by property id: a string for string properties, an int for integer properties, and a
-/// <see cref="CharacterPropertyOption"/> for value list properties.
+/// <see cref="CharacterPropertyOption"/> for value list properties. Properties whose conditions aren't met have no value.
 /// </summary>
 public sealed class CharacterTraits
 {
@@ -23,6 +23,13 @@ public sealed class CharacterTraits
 
 	public CharacterPropertyOption GetOption(string propertyId) => (CharacterPropertyOption) m_values[propertyId];
 
+	public bool HasValue(string propertyId) => m_values.ContainsKey(propertyId);
+
+	/// <summary>
+	/// Gets the value id of a value list property, or null if it has no value.
+	/// </summary>
+	public string? GetValueId(string propertyId) => (m_values.GetValueOrDefault(propertyId) as CharacterPropertyOption)?.Id;
+
 	/// <summary>
 	/// Creates text from a template, filling in each placeholder with a property's value. A value list property
 	/// shows its value's title, or the named text of its value when the placeholder has a field.
@@ -30,15 +37,25 @@ public sealed class CharacterTraits
 	public string Format(TextTemplate template) => template.Format(GetText);
 
 	/// <summary>
-	/// Creates text from the template in the set with the given id. Placeholders can also name other templates in the set.
+	/// Creates text from the template in the set with the given id, using the variant whose conditions this
+	/// character meets. Placeholders can also name other templates in the set. Values hidden by the obscuring are
+	/// treated as if the character didn't have them.
 	/// </summary>
-	public string Format(TextTemplateSet templates, string templateId) => templates.Format(templateId, GetText);
+	public string Format(TextTemplateSet templates, string templateId, CharacterObscuring? obscuring = null)
+	{
+		object? GetVisibleValue(string propertyId) =>
+			m_values.GetValueOrDefault(propertyId) is { } value && !(obscuring?.Hides(propertyId, value) ?? false) ? value : null;
 
-	public string GetFullName(TextTemplateSet templates) => Format(templates, CharacterData.FullNameTemplateId);
+		return templates.Format(templateId, x => GetText(GetVisibleValue(x.Id), x.Field), GetVisibleValue);
+	}
 
-	public string GetDescription(TextTemplateSet templates) => Format(templates, CharacterData.DescriptionTemplateId);
+	public string GetFullName(TextTemplateSet templates, CharacterObscuring? obscuring = null) => Format(templates, CharacterData.FullNameTemplateId, obscuring);
 
-	private string GetText(TextTemplatePlaceholder placeholder) => (m_values.GetValueOrDefault(placeholder.Id), placeholder.Field) switch
+	public string GetDescription(TextTemplateSet templates, CharacterObscuring? obscuring = null) => Format(templates, CharacterData.DescriptionTemplateId, obscuring);
+
+	private string GetText(TextTemplatePlaceholder placeholder) => GetText(m_values.GetValueOrDefault(placeholder.Id), placeholder.Field);
+
+	private static string GetText(object? value, string? fieldName) => (value, fieldName) switch
 	{
 		(CharacterPropertyOption option, { } field) => option.Text.GetValueOrDefault(field) ?? "",
 		(_, not null) => "",

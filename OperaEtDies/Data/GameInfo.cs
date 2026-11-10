@@ -23,6 +23,11 @@ public sealed class GameInfo : IValidatedData
 	public string? Icon { get; init; }
 
 	/// <summary>
+	/// The chances that items chosen at random are uncommon or rare.
+	/// </summary>
+	public FrequencyChances FrequencyChances { get; init; } = new();
+
+	/// <summary>
 	/// Gets the full path of the icon file, or null if there is no icon.
 	/// </summary>
 	public string? GetIconPath(string dataDirectory) => Icon is null ? null : Path.GetFullPath(Path.Combine(dataDirectory, Icon));
@@ -35,5 +40,7 @@ public sealed class GameInfo : IValidatedData
 			yield return OurResources.GameInfoDescriptionMissing;
 		if (Icon is not null && (string.IsNullOrWhiteSpace(Icon) || Icon.IndexOfAny(Path.GetInvalidPathChars()) != -1 || Path.IsPathRooted(Icon)))
 			yield return OurResources.GameInfoIconInvalid.FormatCurrentCulture(Icon);
+		foreach (var error in FrequencyChances.Validate("frequencyChances"))
+			yield return error;
 	}
 }

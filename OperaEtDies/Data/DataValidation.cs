@@ -1,5 +1,4 @@
 using GoldenAnvil.Utility;
-using OperaEtDies.Utility.Random;
 
 namespace OperaEtDies.Data;
 
@@ -45,24 +44,7 @@ public static class DataValidation
 	}
 
 	/// <summary>
-	/// Checks that each item in a list has a valid frequency. Items that are empty or missing an id are skipped, since ValidateIdentifiedItems reports them.
-	/// </summary>
-	public static IEnumerable<string> ValidateItemFrequencies<T>(string listName, IReadOnlyList<T?> items, Func<T, string?> getId, Func<T, int> getFrequency)
-		where T : class
-	{
-		foreach (var item in items)
-		{
-			if (item is null || string.IsNullOrWhiteSpace(getId(item)))
-				continue;
-
-			var frequency = getFrequency(item);
-			if (!FrequencyUtility.IsValid(frequency))
-				yield return OurResources.DataListItemFrequencyInvalid.FormatCurrentCulture(getId(item), listName, frequency, FrequencyUtility.MinFrequency, FrequencyUtility.MaxFrequency);
-		}
-	}
-
-	/// <summary>
-	/// Checks that a list of weighted strings has items, and that each string is filled in and has a valid frequency.
+	/// Checks that a list of weighted strings has items, and that each string is filled in.
 	/// </summary>
 	public static IEnumerable<string> ValidateWeightedStrings(string listName, IReadOnlyList<WeightedString?> values)
 	{
@@ -78,8 +60,6 @@ public static class DataValidation
 				yield return OurResources.DataListItemEmpty.FormatCurrentCulture(listName);
 			else if (string.IsNullOrWhiteSpace(value.Value))
 				yield return OurResources.WeightedValueMissing.FormatCurrentCulture(listName);
-			else if (!FrequencyUtility.IsValid(value.Frequency))
-				yield return OurResources.WeightedValueFrequencyInvalid.FormatCurrentCulture(value.Value, listName, value.Frequency, FrequencyUtility.MinFrequency, FrequencyUtility.MaxFrequency);
 		}
 	}
 }
