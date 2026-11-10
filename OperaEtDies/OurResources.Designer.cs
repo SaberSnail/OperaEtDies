@@ -815,5 +815,329 @@ namespace OperaEtDies {
                 return ResourceManager.GetString("FrequencyStepMultiplierInvalid", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The path is empty..
+        /// </summary>
+        public static string ModPathEmpty {
+            get {
+                return ResourceManager.GetString("ModPathEmpty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The path isn't valid at character {0}..
+        /// </summary>
+        public static string ModPathMalformed {
+            get {
+                return ResourceManager.GetString("ModPathMalformed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The file must contain a list of operations..
+        /// </summary>
+        public static string ModFileNotList {
+            get {
+                return ResourceManager.GetString("ModFileNotList", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Operation {0} isn't an object..
+        /// </summary>
+        public static string ModOperationNotObject {
+            get {
+                return ResourceManager.GetString("ModOperationNotObject", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Operation {0} needs an &quot;op&quot;..
+        /// </summary>
+        public static string ModOperationTypeMissing {
+            get {
+                return ResourceManager.GetString("ModOperationTypeMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Operation {0} has the op &quot;{1}&quot;, but it must be &quot;insert&quot;, &quot;replace&quot;, &quot;set&quot;, &quot;remove&quot;, or &quot;move&quot;..
+        /// </summary>
+        public static string ModOperationTypeInvalid {
+            get {
+                return ResourceManager.GetString("ModOperationTypeInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Operation {0} needs a &quot;path&quot;..
+        /// </summary>
+        public static string ModOperationPathMissing {
+            get {
+                return ResourceManager.GetString("ModOperationPathMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Operation {0} ({1} &quot;{2}&quot;): {3}.
+        /// </summary>
+        public static string ModOperationFailed {
+            get {
+                return ResourceManager.GetString("ModOperationFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Mods can't change &quot;{0}&quot;..
+        /// </summary>
+        public static string ModPathProtected {
+            get {
+                return ResourceManager.GetString("ModPathProtected", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The operation needs a &quot;value&quot;..
+        /// </summary>
+        public static string ModValueMissing {
+            get {
+                return ResourceManager.GetString("ModValueMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; doesn't exist..
+        /// </summary>
+        public static string ModPathNotFound {
+            get {
+                return ResourceManager.GetString("ModPathNotFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; isn't a list..
+        /// </summary>
+        public static string ModTargetNotList {
+            get {
+                return ResourceManager.GetString("ModTargetNotList", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Only properties of objects can be set. Use &quot;replace&quot; or &quot;insert&quot; for list items..
+        /// </summary>
+        public static string ModSetNotProperty {
+            get {
+                return ResourceManager.GetString("ModSetNotProperty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; isn't an item in a list..
+        /// </summary>
+        public static string ModMoveNotListItem {
+            get {
+                return ResourceManager.GetString("ModMoveNotListItem", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to An item can't be moved before or after itself..
+        /// </summary>
+        public static string ModMoveRelativeToSelf {
+            get {
+                return ResourceManager.GetString("ModMoveRelativeToSelf", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The operation needs an &quot;index&quot;, &quot;before&quot;, or &quot;after&quot;..
+        /// </summary>
+        public static string ModPositionMissing {
+            get {
+                return ResourceManager.GetString("ModPositionMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Only one of &quot;index&quot;, &quot;before&quot;, and &quot;after&quot; can be given..
+        /// </summary>
+        public static string ModPositionConflict {
+            get {
+                return ResourceManager.GetString("ModPositionConflict", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The index must be a whole number from 0 to {0}..
+        /// </summary>
+        public static string ModIndexInvalid {
+            get {
+                return ResourceManager.GetString("ModIndexInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; must be a filled-in id..
+        /// </summary>
+        public static string ModPositionIdInvalid {
+            get {
+                return ResourceManager.GetString("ModPositionIdInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The list has no item with the id &quot;{0}&quot;..
+        /// </summary>
+        public static string ModPositionIdUnknown {
+            get {
+                return ResourceManager.GetString("ModPositionIdUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is a list, so it must be followed by [id] or [index]..
+        /// </summary>
+        public static string ModPathNameOnList {
+            get {
+                return ResourceManager.GetString("ModPathNameOnList", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; isn't an object or a list..
+        /// </summary>
+        public static string ModPathNotContainer {
+            get {
+                return ResourceManager.GetString("ModPathNotContainer", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The mod folder &quot;{0}&quot; could not be found..
+        /// </summary>
+        public static string ModFolderNotFound {
+            get {
+                return ResourceManager.GetString("ModFolderNotFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to mod &quot;{0}&quot;.
+        /// </summary>
+        public static string DataLoadErrorModSource {
+            get {
+                return ResourceManager.GetString("DataLoadErrorModSource", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to with mods.
+        /// </summary>
+        public static string DataLoadErrorWithMods {
+            get {
+                return ResourceManager.GetString("DataLoadErrorWithMods", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Manage Mods.
+        /// </summary>
+        public static string ManageMods {
+            get {
+                return ResourceManager.GetString("ManageMods", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Mods.
+        /// </summary>
+        public static string ManageModsHeader {
+            get {
+                return ResourceManager.GetString("ManageModsHeader", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The mod files in these folders are loaded in order, on top of the game data..
+        /// </summary>
+        public static string ManageModsDescription {
+            get {
+                return ResourceManager.GetString("ManageModsDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No mods have been added..
+        /// </summary>
+        public static string ManageModsEmpty {
+            get {
+                return ResourceManager.GetString("ManageModsEmpty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Mods are turned off by the --no-mods command line argument, so these folders won't be loaded..
+        /// </summary>
+        public static string ModsDisabled {
+            get {
+                return ResourceManager.GetString("ModsDisabled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Add….
+        /// </summary>
+        public static string AddMod {
+            get {
+                return ResourceManager.GetString("AddMod", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Remove.
+        /// </summary>
+        public static string RemoveMod {
+            get {
+                return ResourceManager.GetString("RemoveMod", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Move Up.
+        /// </summary>
+        public static string MoveModUp {
+            get {
+                return ResourceManager.GetString("MoveModUp", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Move Down.
+        /// </summary>
+        public static string MoveModDown {
+            get {
+                return ResourceManager.GetString("MoveModDown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Choose a Mod Folder.
+        /// </summary>
+        public static string SelectModFolder {
+            get {
+                return ResourceManager.GetString("SelectModFolder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Loading….
+        /// </summary>
+        public static string LoadingGameData {
+            get {
+                return ResourceManager.GetString("LoadingGameData", resourceCulture);
+            }
+        }
     }
 }

@@ -30,10 +30,16 @@ public sealed class GameData
 	/// chances come from the game info, and default to the standard chances if not given. Values that are too unlikely
 	/// to be chosen are logged as warnings.
 	/// </summary>
-	public static DataLoadResult<GameData> Load(string dataDirectory, FrequencyChances? frequencyChances = null)
+	public static DataLoadResult<GameData> Load(string dataDirectory, FrequencyChances? frequencyChances = null) =>
+		Load(dataDirectory, [], frequencyChances);
+
+	/// <summary>
+	/// Loads all of the game content, with the changes from the mod folders applied in order.
+	/// </summary>
+	public static DataLoadResult<GameData> Load(string dataDirectory, IReadOnlyList<string> modDirectories, FrequencyChances? frequencyChances = null)
 	{
-		var characters = CharacterData.Load(dataDirectory);
-		var locations = LocationList.Load(dataDirectory);
+		var characters = CharacterData.Load(dataDirectory, modDirectories);
+		var locations = LocationList.Load(dataDirectory, modDirectories);
 
 		if (characters.Value is null || locations.Value is null)
 			return DataLoadResult<GameData>.Failure([.. characters.Errors, .. locations.Errors]);

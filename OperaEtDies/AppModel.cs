@@ -6,6 +6,7 @@ using Microsoft.VisualStudio.Threading;
 using OperaEtDies.Controls.NewGame;
 using OperaEtDies.Data;
 using OperaEtDies.GameState;
+using OperaEtDies.Mods;
 using OperaEtDies.Windows.Main;
 using OperaEtDies.Windows.StartUp;
 
@@ -17,6 +18,11 @@ public sealed class AppModel : ViewModelBase
 #pragma warning restore CA1001 // Types that own disposable fields should be disposable
 {
 	public static AppModel Instance => s_appModel.Value;
+
+	/// <summary>
+	/// The command line argument that stops mods from being loaded.
+	/// </summary>
+	public const string NoModsArgument = "--no-mods";
 
 	private AppModel()
 	{
@@ -72,28 +78,16 @@ public sealed class AppModel : ViewModelBase
 		}
 	}
 
-	public async Task StartupAsync(TaskStateController state)
+	/// <summary>
+	/// Loads the game data and opens the start up window. Mods aren't loaded if they're turned off.
+	/// </summary>
+	public async Task StartupAsync(TaskStateController state, bool areModsEnabled)
 	{
-		await state.ToThreadPool();
+		m_areModsEnabled = areModsEnabled;
+		if (!areModsEnabled)
+			Log.Info("Mods are turned off");
 
-		var gameInfoResult = GameInfo.Load(JsonDataLoader.DefaultDataDirectory);
-		var gameDataResult = GameData.Load(JsonDataLoader.DefaultDataDirectory, gameInfoResult.Value?.FrequencyChances);
-		var iconPath = gameInfoResult.Value?.GetIconPath(JsonDataLoader.DefaultDataDirectory);
-		var iconReadResult = iconPath is null ? null : ImageDataLoader.Read(iconPath);
-
-		await state.ToSyncContext();
-
-		// Images belong to the thread that decodes them, so the icon is decoded here rather than on the thread pool.
-		var iconResult = iconReadResult?.Value is { } iconContents ? ImageDataLoader.Decode(iconPath!, iconContents) : null;
-
-		using (ScopedPropertyChange(nameof(GameInfo), nameof(GameData), nameof(Icon)))
-		{
-			m_gameInfoResult = gameInfoResult;
-			m_gameDataResult = gameDataResult;
-			m_icon = iconResult?.Value;
-			m_iconErrors = iconResult?.Errors ?? iconReadResult?.Errors ?? [];
-		}
-
+		await LoadDataAsync(state);
 		OpenStartUpWindow();
 	}
 
@@ -147,14 +141,64 @@ public sealed class AppModel : ViewModelBase
 		DisposableUtility.Dispose(ref m_taskGroup);
 	}
 
+	/// <summary>
+	/// Loads the game data from the data folder, with the files from each mod folder applied in order. The mod list is
+	/// kept under the game's title, so it's found using the game info without mods (mods can't change the title).
+	/// </summary>
+	private async Task LoadDataAsync(TaskStateController state)
+	{
+		await state.ToThreadPool();
+
+		var dataDirectory = JsonDataLoader.DefaultDataDirectory;
+		var baseGameInfoResult = GameInfo.Load(dataDirectory);
+		var modListStore = baseGameInfoResult.Value is { } baseGameInfo ? new RegistryModListStore(baseGameInfo.Title) : null;
+		var modDirectories = m_areModsEnabled && modListStore is not null ? modListStore.Load() : [];
+		if (modDirectories.Count != 0)
+			Log.Info($"Loading mods from {string.Join(", ", modDirectories.Select(x => $"\"{x}\""))}");
+
+		// Every mod must load for the game data to load.
+		var modFolderErrors = ModFolders.Check(modDirectories);
+		var gameInfoResult = modDirectories.Count == 0 || modFolderErrors.Count != 0 ? baseGameInfoResult : GameInfo.Load(dataDirectory, modDirectories);
+		var gameDataResult = modFolderErrors.Count != 0
+			? DataLoadResult<GameData>.Failure(modFolderErrors)
+			: GameData.Load(dataDirectory, modDirectories, gameInfoResult.Value?.FrequencyChances);
+
+		var iconPath = baseGameInfoResult.Value?.GetIconPath(dataDirectory);
+		var iconReadResult = iconPath is null ? null : ImageDataLoader.Read(iconPath);
+
+		await state.ToSyncContext();
+
+		// Images belong to the thread that decodes them, so the icon is decoded here rather than on the thread pool.
+		var iconResult = iconReadResult?.Value is { } iconContents ? ImageDataLoader.Decode(iconPath!, iconContents) : null;
+
+		using (ScopedPropertyChange(nameof(GameInfo), nameof(GameData), nameof(Icon)))
+		{
+			m_gameInfoResult = gameInfoResult;
+			m_gameDataResult = gameDataResult;
+			m_icon = iconResult?.Value;
+			m_iconErrors = iconResult?.Errors ?? iconReadResult?.Errors ?? [];
+		}
+
+		m_modListStore = modListStore;
+	}
+
+	private IReadOnlyList<DataLoadError> GetLoadErrors() => [.. m_gameInfoResult.Errors, .. m_iconErrors, .. m_gameDataResult.Errors];
+
+	private async Task ReloadDataAsync(TaskStateController state)
+	{
+		await LoadDataAsync(state);
+		m_startUpWindow?.SetData(m_gameInfoResult.Value, m_gameDataResult.Value, GetLoadErrors(), m_modListStore);
+	}
+
 	private void OpenStartUpWindow()
 	{
 		if (m_startUpWindow is not null)
 			return;
 
-		var startUpWindow = new StartUpWindowViewModel(m_gameInfoResult.Value, m_gameDataResult.Value, Random, [.. m_gameInfoResult.Errors, .. m_iconErrors, .. m_gameDataResult.Errors]);
+		var startUpWindow = new StartUpWindowViewModel(m_gameInfoResult.Value, m_gameDataResult.Value, Random, GetLoadErrors(), m_modListStore, new FolderPicker(), m_areModsEnabled);
 		startUpWindow.StartNewGameRequested += OnStartNewGameRequested;
 		startUpWindow.ExitGameRequested += OnExitGameRequested;
+		startUpWindow.ReloadDataRequested += OnReloadDataRequested;
 		StartUpWindow = startUpWindow;
 	}
 
@@ -167,6 +211,7 @@ public sealed class AppModel : ViewModelBase
 		StartUpWindow = null;
 		startUpWindow.StartNewGameRequested -= OnStartNewGameRequested;
 		startUpWindow.ExitGameRequested -= OnExitGameRequested;
+		startUpWindow.ReloadDataRequested -= OnReloadDataRequested;
 		startUpWindow.Dispose();
 	}
 
@@ -184,6 +229,8 @@ public sealed class AppModel : ViewModelBase
 
 	private void OnExitGameRequested(object? sender, EventArgs e) => ExitGame();
 
+	private void OnReloadDataRequested(object? sender, EventArgs e) => TaskWatcher.Execute(ReloadDataAsync, m_taskGroup);
+
 	private static ILogSource Log { get; } = LogManager.CreateLogSource(nameof(AppModel));
 	private static readonly Lazy<AppModel> s_appModel = new(() => new AppModel());
 
@@ -193,6 +240,8 @@ public sealed class AppModel : ViewModelBase
 	private DataLoadResult<GameData> m_gameDataResult;
 	private ImageSource? m_icon;
 	private IReadOnlyList<DataLoadError> m_iconErrors = [];
+	private IModListStore? m_modListStore;
+	private bool m_areModsEnabled = true;
 	private Uri m_currentTheme;
 	private TaskGroup m_taskGroup;
 }

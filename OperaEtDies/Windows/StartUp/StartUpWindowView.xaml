@@ -18,8 +18,8 @@
 	mc:Ignorable="d">
 
 	<Grid Margin="24">
-		<!--  The start up menu, which is replaced by the new game configuration once a new game is requested.  -->
-		<Grid Visibility="{Binding NewGame, Converter={x:Static utility:CommonConverters.IsNotNullToVisibility}}">
+		<!--  The start up menu, which is replaced by the new game configuration or the mod list when they're requested.  -->
+		<Grid Visibility="{Binding IsMenuVisible, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 			<Grid.RowDefinitions>
 				<RowDefinition Height="Auto" />
 				<RowDefinition Height="*" />
@@ -59,9 +59,20 @@
 				<Button
 					Height="32"
 					Margin="0,8,0,0"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowManageMods}"
+					Content="{x:Static operaEtDies:OurResources.ManageMods}" />
+				<Button
+					Height="32"
+					Margin="0,8,0,0"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ExitGame}"
 					Content="{x:Static operaEtDies:OurResources.ExitGame}" />
 			</StackPanel>
+
+			<TextBlock
+				Grid.Row="2"
+				Foreground="{DynamicResource FontLightBrush}"
+				Text="{x:Static operaEtDies:OurResources.LoadingGameData}"
+				Visibility="{Binding IsLoading, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
 
 			<StackPanel Grid.Row="2" Visibility="{Binding HasLoadErrors, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 				<TextBlock Text="{x:Static operaEtDies:OurResources.DataLoadErrorsHeader}" />
@@ -76,6 +87,7 @@
 		</Grid>
 
 		<ContentControl Content="{Binding NewGame}" Visibility="{Binding NewGame, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+		<ContentControl Content="{Binding ManageMods}" Visibility="{Binding ManageMods, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 	</Grid>
 
 </Window>

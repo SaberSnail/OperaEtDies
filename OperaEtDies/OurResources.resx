@@ -364,4 +364,130 @@
 		<value>The "{0}" setting is {1}, but it must be at least 1.</value>
 		<comment>{0} is the location of the setting in the data file. {1} is the value found.</comment>
 	</data>
+	<data name="ModPathEmpty" xml:space="preserve">
+		<value>The path is empty.</value>
+	</data>
+	<data name="ModPathMalformed" xml:space="preserve">
+		<value>The path isn't valid at character {0}.</value>
+		<comment>{0} is the position in the path.</comment>
+	</data>
+	<data name="ModFileNotList" xml:space="preserve">
+		<value>The file must contain a list of operations.</value>
+	</data>
+	<data name="ModOperationNotObject" xml:space="preserve">
+		<value>Operation {0} isn't an object.</value>
+		<comment>{0} is the operation's number.</comment>
+	</data>
+	<data name="ModOperationTypeMissing" xml:space="preserve">
+		<value>Operation {0} needs an "op".</value>
+		<comment>{0} is the operation's number.</comment>
+	</data>
+	<data name="ModOperationTypeInvalid" xml:space="preserve">
+		<value>Operation {0} has the op "{1}", but it must be "insert", "replace", "set", "remove", or "move".</value>
+		<comment>{0} is the operation's number. {1} is its op.</comment>
+	</data>
+	<data name="ModOperationPathMissing" xml:space="preserve">
+		<value>Operation {0} needs a "path".</value>
+		<comment>{0} is the operation's number.</comment>
+	</data>
+	<data name="ModOperationFailed" xml:space="preserve">
+		<value>Operation {0} ({1} "{2}"): {3}</value>
+		<comment>{0} is the operation's number, {1} its op, {2} its path, and {3} the problem.</comment>
+	</data>
+	<data name="ModPathProtected" xml:space="preserve">
+		<value>Mods can't change "{0}".</value>
+		<comment>{0} is a property name.</comment>
+	</data>
+	<data name="ModValueMissing" xml:space="preserve">
+		<value>The operation needs a "value".</value>
+	</data>
+	<data name="ModPathNotFound" xml:space="preserve">
+		<value>"{0}" doesn't exist.</value>
+		<comment>{0} is a path.</comment>
+	</data>
+	<data name="ModTargetNotList" xml:space="preserve">
+		<value>"{0}" isn't a list.</value>
+		<comment>{0} is a path.</comment>
+	</data>
+	<data name="ModSetNotProperty" xml:space="preserve">
+		<value>Only properties of objects can be set. Use "replace" or "insert" for list items.</value>
+	</data>
+	<data name="ModMoveNotListItem" xml:space="preserve">
+		<value>"{0}" isn't an item in a list.</value>
+		<comment>{0} is a path.</comment>
+	</data>
+	<data name="ModMoveRelativeToSelf" xml:space="preserve">
+		<value>An item can't be moved before or after itself.</value>
+	</data>
+	<data name="ModPositionMissing" xml:space="preserve">
+		<value>The operation needs an "index", "before", or "after".</value>
+	</data>
+	<data name="ModPositionConflict" xml:space="preserve">
+		<value>Only one of "index", "before", and "after" can be given.</value>
+	</data>
+	<data name="ModIndexInvalid" xml:space="preserve">
+		<value>The index must be a whole number from 0 to {0}.</value>
+		<comment>{0} is the largest allowed index.</comment>
+	</data>
+	<data name="ModPositionIdInvalid" xml:space="preserve">
+		<value>"{0}" must be a filled-in id.</value>
+		<comment>{0} is "before" or "after".</comment>
+	</data>
+	<data name="ModPositionIdUnknown" xml:space="preserve">
+		<value>The list has no item with the id "{0}".</value>
+		<comment>{0} is an id.</comment>
+	</data>
+	<data name="ModPathNameOnList" xml:space="preserve">
+		<value>"{0}" is a list, so it must be followed by [id] or [index].</value>
+		<comment>{0} is a path.</comment>
+	</data>
+	<data name="ModPathNotContainer" xml:space="preserve">
+		<value>"{0}" isn't an object or a list.</value>
+		<comment>{0} is a path.</comment>
+	</data>
+	<data name="ModFolderNotFound" xml:space="preserve">
+		<value>The mod folder "{0}" could not be found.</value>
+		<comment>{0} is the folder's path.</comment>
+	</data>
+	<data name="DataLoadErrorModSource" xml:space="preserve">
+		<value>mod "{0}"</value>
+		<comment>{0} is the mod folder's name. Shown after a file name.</comment>
+	</data>
+	<data name="DataLoadErrorWithMods" xml:space="preserve">
+		<value>with mods</value>
+		<comment>Shown after a file name, for problems found after mods were applied.</comment>
+	</data>
+	<data name="ManageMods" xml:space="preserve">
+		<value>Manage Mods</value>
+	</data>
+	<data name="ManageModsHeader" xml:space="preserve">
+		<value>Mods</value>
+	</data>
+	<data name="ManageModsDescription" xml:space="preserve">
+		<value>The mod files in these folders are loaded in order, on top of the game data.</value>
+	</data>
+	<data name="ManageModsEmpty" xml:space="preserve">
+		<value>No mods have been added.</value>
+	</data>
+	<data name="ModsDisabled" xml:space="preserve">
+		<value>Mods are turned off by the --no-mods command line argument, so these folders won't be loaded.</value>
+	</data>
+	<data name="AddMod" xml:space="preserve">
+		<value>Add…</value>
+	</data>
+	<data name="RemoveMod" xml:space="preserve">
+		<value>Remove</value>
+	</data>
+	<data name="MoveModUp" xml:space="preserve">
+		<value>Move Up</value>
+	</data>
+	<data name="MoveModDown" xml:space="preserve">
+		<value>Move Down</value>
+	</data>
+	<data name="SelectModFolder" xml:space="preserve">
+		<value>Choose a Mod Folder</value>
+	</data>
+	<data name="LoadingGameData" xml:space="preserve">
+		<value>Loading…</value>
+	</data>
 </root>

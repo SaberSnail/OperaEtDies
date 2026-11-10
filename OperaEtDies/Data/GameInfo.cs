@@ -10,8 +10,14 @@ public sealed class GameInfo : IValidatedData
 {
 	public const string FileName = "GameInfo.json";
 
-	public static DataLoadResult<GameInfo> Load(string dataDirectory) =>
-		JsonDataLoader.Load<GameInfo>(Path.Combine(dataDirectory, FileName));
+	public static DataLoadResult<GameInfo> Load(string dataDirectory) => Load(dataDirectory, []);
+
+	/// <summary>
+	/// Loads the file from the data folder, with the changes from the mod folders applied in order. Mods can't change
+	/// the title or the icon.
+	/// </summary>
+	public static DataLoadResult<GameInfo> Load(string dataDirectory, IReadOnlyList<string> modDirectories) =>
+		JsonDataLoader.Load<GameInfo>(Path.Combine(dataDirectory, FileName), modDirectories, s_protectedProperties);
 
 	public required string Title { get; init; }
 
@@ -43,4 +49,6 @@ public sealed class GameInfo : IValidatedData
 		foreach (var error in FrequencyChances.Validate("frequencyChances"))
 			yield return error;
 	}
+
+	private static readonly string[] s_protectedProperties = ["title", "icon"];
 }

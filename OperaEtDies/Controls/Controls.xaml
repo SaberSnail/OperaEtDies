@@ -3,6 +3,7 @@
 	<!--  Data templates for view models that are shown inside windows.  -->
 	<ResourceDictionary.MergedDictionaries>
 		<ResourceDictionary Source="Locations/LocationView.xaml" />
+		<ResourceDictionary Source="ManageMods/ManageModsView.xaml" />
 		<ResourceDictionary Source="NewGame/NewGameView.xaml" />
 	</ResourceDictionary.MergedDictionaries>
 

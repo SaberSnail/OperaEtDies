@@ -10,8 +10,13 @@ public sealed class LocationList : IValidatedData
 {
 	public const string FileName = "Locations.json";
 
-	public static DataLoadResult<LocationList> Load(string dataDirectory) =>
-		JsonDataLoader.Load<LocationList>(Path.Combine(dataDirectory, FileName));
+	public static DataLoadResult<LocationList> Load(string dataDirectory) => Load(dataDirectory, []);
+
+	/// <summary>
+	/// Loads the file from the data folder, with the changes from the mod folders applied in order.
+	/// </summary>
+	public static DataLoadResult<LocationList> Load(string dataDirectory, IReadOnlyList<string> modDirectories) =>
+		JsonDataLoader.Load<LocationList>(Path.Combine(dataDirectory, FileName), modDirectories, []);
 
 	/// <summary>
 	/// The id of the location the player starts the game in.

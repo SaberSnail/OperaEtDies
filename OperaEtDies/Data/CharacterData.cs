@@ -11,8 +11,13 @@ public sealed class CharacterData : IValidatedData
 {
 	public const string FileName = "Characters.json";
 
-	public static DataLoadResult<CharacterData> Load(string dataDirectory) =>
-		JsonDataLoader.Load<CharacterData>(Path.Combine(dataDirectory, FileName));
+	public static DataLoadResult<CharacterData> Load(string dataDirectory) => Load(dataDirectory, []);
+
+	/// <summary>
+	/// Loads the file from the data folder, with the changes from the mod folders applied in order.
+	/// </summary>
+	public static DataLoadResult<CharacterData> Load(string dataDirectory, IReadOnlyList<string> modDirectories) =>
+		JsonDataLoader.Load<CharacterData>(Path.Combine(dataDirectory, FileName), modDirectories, []);
 
 	/// <summary>
 	/// The id of the template that creates a character's full name.

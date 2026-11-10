@@ -1,0 +1,103 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:local="clr-namespace:OperaEtDies.Controls.ManageMods"
+	xmlns:operaEtDies="clr-namespace:OperaEtDies"
+	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
+
+	<DataTemplate DataType="{x:Type local:ManageModsViewModel}">
+		<Grid>
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="*" />
+				<RowDefinition Height="Auto" />
+			</Grid.RowDefinitions>
+
+			<TextBlock
+				Grid.Row="0"
+				HorizontalAlignment="Center"
+				FontSize="{DynamicResource TitleFontSize}"
+				Text="{x:Static operaEtDies:OurResources.ManageModsHeader}" />
+
+			<StackPanel Grid.Row="1" Margin="0,16,0,0">
+				<TextBlock Text="{x:Static operaEtDies:OurResources.ManageModsDescription}" TextWrapping="Wrap" />
+				<TextBlock
+					Margin="0,4,0,0"
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{x:Static operaEtDies:OurResources.ModsDisabled}"
+					TextWrapping="Wrap"
+					Visibility="{Binding AreModsEnabled, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
+			</StackPanel>
+
+			<Grid Grid.Row="2" Margin="0,12,0,16">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="*" />
+					<ColumnDefinition Width="Auto" />
+				</Grid.ColumnDefinitions>
+
+				<!--  The folders, in the order their mod files are applied.  -->
+				<ListBox
+					Grid.Column="0"
+					Background="{DynamicResource ContentBackgroundBrush}"
+					BorderBrush="{DynamicResource ControlBorderBaseBrush}"
+					Foreground="{DynamicResource FontBrush}"
+					ItemsSource="{Binding Mods}"
+					ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+					SelectedItem="{Binding SelectedMod}">
+					<ListBox.ItemTemplate>
+						<DataTemplate>
+							<TextBlock
+								Margin="2"
+								Text="{Binding}"
+								TextTrimming="CharacterEllipsis"
+								ToolTip="{Binding}" />
+						</DataTemplate>
+					</ListBox.ItemTemplate>
+				</ListBox>
+				<TextBlock
+					Grid.Column="0"
+					Margin="8"
+					HorizontalAlignment="Left"
+					VerticalAlignment="Top"
+					Foreground="{DynamicResource FontLightBrush}"
+					IsHitTestVisible="False"
+					Text="{x:Static operaEtDies:OurResources.ManageModsEmpty}">
+					<TextBlock.Style>
+						<Style TargetType="TextBlock">
+							<Setter Property="Visibility" Value="Collapsed" />
+							<Style.Triggers>
+								<DataTrigger Binding="{Binding Mods.Count}" Value="0">
+									<Setter Property="Visibility" Value="Visible" />
+								</DataTrigger>
+							</Style.Triggers>
+						</Style>
+					</TextBlock.Style>
+				</TextBlock>
+
+				<StackPanel Grid.Column="1" Width="120" Margin="8,0,0,0">
+					<StackPanel.Resources>
+						<Style BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
+							<Setter Property="Height" Value="32" />
+							<Setter Property="Margin" Value="0,0,0,8" />
+						</Style>
+					</StackPanel.Resources>
+					<Button Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AddMod}" Content="{x:Static operaEtDies:OurResources.AddMod}" />
+					<Button Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RemoveMod}" Content="{x:Static operaEtDies:OurResources.RemoveMod}" />
+					<Button Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=MoveModUp}" Content="{x:Static operaEtDies:OurResources.MoveModUp}" />
+					<Button Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=MoveModDown}" Content="{x:Static operaEtDies:OurResources.MoveModDown}" />
+				</StackPanel>
+			</Grid>
+
+			<Button
+				Grid.Row="3"
+				Width="120"
+				Height="32"
+				HorizontalAlignment="Left"
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Back}"
+				Content="{x:Static operaEtDies:OurResources.Back}"
+				IsCancel="True" />
+		</Grid>
+	</DataTemplate>
+
+</ResourceDictionary>

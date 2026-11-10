@@ -30,7 +30,8 @@ public partial class App : Application
 
 		try
 		{
-			await appModel.StartupAsync(state).ConfigureAwait(false);
+			var areModsEnabled = !e.Args.Contains(AppModel.NoModsArgument, StringComparer.OrdinalIgnoreCase);
+			await appModel.StartupAsync(state, areModsEnabled).ConfigureAwait(false);
 			Log.Info($"Finished starting up in {stopwatch.Elapsed}");
 		}
 #pragma warning disable CA1031 // Do not catch general exception types (any start up failure must shut the app down)

@@ -1,6 +1,7 @@
 using GoldenAnvil.Utility;
 using OperaEtDies.Controls.NewGame;
 using OperaEtDies.Data;
+using OperaEtDies.Test.Controls.ManageMods;
 using OperaEtDies.Windows.StartUp;
 
 namespace OperaEtDies.Test.Windows.StartUp;
@@ -78,6 +79,41 @@ public sealed class StartUpWindowViewModelTests
 		viewModel.ExitGame();
 
 		Assert.That(exitCount, Is.EqualTo(1));
+	}
+
+	[Test]
+	public void ManageModsNeedsModListStore()
+	{
+		using var viewModel = CreateViewModel();
+
+		Assert.That(viewModel.CanShowManageMods(), Is.False);
+		viewModel.ShowManageMods();
+		Assert.That(viewModel.ManageMods, Is.Null);
+	}
+
+	[Test]
+	public void ReturningFromManageModsReloadsData()
+	{
+		var store = new ManageModsViewModelTests.FakeModListStore();
+		using var viewModel = new StartUpWindowViewModel(TestData.CreateGameInfo(), TestData.CreateGameData(), new Random(0), [], store, new ManageModsViewModelTests.FakeFolderPicker());
+		var reloadCount = 0;
+		viewModel.ReloadDataRequested += (_, _) => reloadCount++;
+
+		viewModel.ShowManageMods();
+		Assert.That(viewModel.ManageMods, Is.Not.Null);
+		Assert.That(viewModel.IsMenuVisible, Is.False);
+
+		viewModel.ManageMods!.Back();
+		Assert.That(viewModel.ManageMods, Is.Null);
+		Assert.That(reloadCount, Is.EqualTo(1));
+		Assert.That(viewModel.IsLoading, Is.True);
+		Assert.That(viewModel.CanShowNewGame(), Is.False);
+
+		viewModel.SetData(TestData.CreateGameInfo(), null, [new DataLoadError(@"C:\Data\Characters.json", "Broken", "with mods")], store);
+		Assert.That(viewModel.IsLoading, Is.False);
+		Assert.That(viewModel.LoadErrors, Is.EqualTo(new[] { "Characters.json (with mods): Broken" }));
+		Assert.That(viewModel.CanShowNewGame(), Is.False);
+		Assert.That(viewModel.CanShowManageMods(), Is.True);
 	}
 
 	private static StartUpWindowViewModel CreateViewModel() =>
