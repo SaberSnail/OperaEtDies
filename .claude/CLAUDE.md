@@ -6,14 +6,14 @@ Do not run the application for testing unless specifically requested. It is suff
 
 ## Todo List
 
-`Todo.md` at the repository root has two sections:
+`ToDo.md` at the repository root has two sections:
 
-* **Long Term** comes first: unchecked items to address in the future.
-* **Current Work** comes second: the project being worked on now. Its first line is a brief description of the project, followed by a checklist.
+* **Long Term** comes first: a bulleted list (not checkboxes) of items to address in the future.
+* **Current Work** comes second: the project being worked on now. Its first line is a brief description of the project, followed by a checklist of items with checkboxes.
 
 "Work" and "project" mean the same thing here (current work, current project). Manage the list like this:
 
-* Clear Current Work when starting new work from Long Term, or when told the current work is complete. To clear it, move every unchecked item in it to Long Term, then remove the rest of it, including its description.
+* Clear Current Work when starting new work from Long Term, or when told the current work is complete. To clear it, move every unchecked item in it to Long Term (as a bullet point), then remove the rest of it, including its description.
 * When starting work on an item from Long Term, clear Current Work first, then remove the item from Long Term and put its brief description at the top of Current Work.
 * As things that need to be addressed come up during the current project, add them to the Current Work checklist.
 * When a Current Work item is addressed, check it off and leave it in place. Don't delete it.
