@@ -5,6 +5,77 @@
 	xmlns:operaEtDies="clr-namespace:OperaEtDies"
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
 
+	<!--  A person who can be examined. Also used by the list of villagers.  -->
+	<DataTemplate DataType="{x:Type local:LocationPersonViewModel}">
+		<Grid Margin="0,0,0,8">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="160" />
+				<ColumnDefinition Width="*" />
+			</Grid.ColumnDefinitions>
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="Auto" />
+			</Grid.RowDefinitions>
+
+			<TextBlock
+				Grid.Row="0"
+				Grid.Column="0"
+				VerticalAlignment="Center"
+				Text="{Binding Name}"
+				TextTrimming="CharacterEllipsis" />
+			<Button
+				Grid.Row="0"
+				Grid.Column="1"
+				Width="120"
+				Height="32"
+				Margin="12,0,0,0"
+				HorizontalAlignment="Left"
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
+				Content="{x:Static operaEtDies:OurResources.ExamineCharacter}" />
+
+			<!--  The description, shown once the character has been examined.  -->
+			<TextBlock
+				Grid.Row="1"
+				Grid.Column="0"
+				Grid.ColumnSpan="2"
+				Margin="0,8,0,0"
+				Foreground="{DynamicResource FontLightBrush}"
+				Text="{Binding Description}"
+				TextWrapping="Wrap"
+				Visibility="{Binding IsExamined, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+		</Grid>
+	</DataTemplate>
+
+	<!--  A place the player can go to. A path to another quarter shows which way it goes above the description.  -->
+	<DataTemplate x:Key="LocationConnectionTemplate" DataType="{x:Type local:LocationConnectionViewModel}">
+		<Grid Margin="0,0,0,8">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="160" />
+				<ColumnDefinition Width="*" />
+			</Grid.ColumnDefinitions>
+
+			<Button
+				Grid.Column="0"
+				Height="32"
+				VerticalAlignment="Top"
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Travel}"
+				Content="{Binding Title}" />
+			<StackPanel
+				Grid.Column="1"
+				Margin="12,0,0,0"
+				VerticalAlignment="Center">
+				<TextBlock
+					Text="{Binding Route}"
+					TextWrapping="Wrap"
+					Visibility="{Binding HasRoute, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+				<TextBlock
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{Binding Description}"
+					TextWrapping="Wrap" />
+			</StackPanel>
+		</Grid>
+	</DataTemplate>
+
 	<DataTemplate DataType="{x:Type local:LocationScreenViewModel}">
 		<ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
 			<StackPanel Margin="24">
@@ -45,77 +116,20 @@
 
 				<StackPanel Visibility="{Binding HasPeople, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 					<TextBlock Margin="0,24,0,8" Text="{x:Static operaEtDies:OurResources.PeopleHeader}" />
-					<ItemsControl ItemsSource="{Binding People}">
-						<ItemsControl.ItemTemplate>
-							<DataTemplate DataType="{x:Type local:LocationPersonViewModel}">
-								<Grid Margin="0,0,0,8">
-									<Grid.ColumnDefinitions>
-										<ColumnDefinition Width="160" />
-										<ColumnDefinition Width="*" />
-									</Grid.ColumnDefinitions>
-									<Grid.RowDefinitions>
-										<RowDefinition Height="Auto" />
-										<RowDefinition Height="Auto" />
-									</Grid.RowDefinitions>
-
-									<TextBlock
-										Grid.Row="0"
-										Grid.Column="0"
-										VerticalAlignment="Center"
-										Text="{Binding Name}"
-										TextTrimming="CharacterEllipsis" />
-									<Button
-										Grid.Row="0"
-										Grid.Column="1"
-										Width="120"
-										Height="32"
-										Margin="12,0,0,0"
-										HorizontalAlignment="Left"
-										Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
-										Content="{x:Static operaEtDies:OurResources.ExamineCharacter}" />
-
-									<!--  The description, shown once the character has been examined.  -->
-									<TextBlock
-										Grid.Row="1"
-										Grid.Column="0"
-										Grid.ColumnSpan="2"
-										Margin="0,8,0,0"
-										Foreground="{DynamicResource FontLightBrush}"
-										Text="{Binding Description}"
-										TextWrapping="Wrap"
-										Visibility="{Binding IsExamined, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
-								</Grid>
-							</DataTemplate>
-						</ItemsControl.ItemTemplate>
-					</ItemsControl>
+					<ItemsControl ItemsSource="{Binding People}" />
 				</StackPanel>
 
-				<TextBlock Margin="0,24,0,8" Text="{x:Static operaEtDies:OurResources.ConnectionsHeader}" />
-				<ItemsControl ItemsSource="{Binding Connections}">
-					<ItemsControl.ItemTemplate>
-						<DataTemplate DataType="{x:Type local:LocationConnectionViewModel}">
-							<Grid Margin="0,0,0,8">
-								<Grid.ColumnDefinitions>
-									<ColumnDefinition Width="160" />
-									<ColumnDefinition Width="*" />
-								</Grid.ColumnDefinitions>
+				<!--  Paths to other quarters, in compass order, each with its direction and what it's called.  -->
+				<StackPanel Visibility="{Binding HasPaths, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+					<TextBlock Margin="0,24,0,8" Text="{x:Static operaEtDies:OurResources.PathsHeader}" />
+					<ItemsControl ItemTemplate="{StaticResource LocationConnectionTemplate}" ItemsSource="{Binding Paths}" />
+				</StackPanel>
 
-								<Button
-									Grid.Column="0"
-									Height="32"
-									VerticalAlignment="Top"
-									Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Travel}"
-									Content="{Binding Title}" />
-								<TextBlock
-									Grid.Column="1"
-									Margin="12,0,0,0"
-									VerticalAlignment="Center"
-									Text="{Binding Description}"
-									TextWrapping="Wrap" />
-							</Grid>
-						</DataTemplate>
-					</ItemsControl.ItemTemplate>
-				</ItemsControl>
+				<!--  The houses and businesses in a quarter, or the quarter a house or business is in.  -->
+				<StackPanel Visibility="{Binding HasPlaces, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+					<TextBlock Margin="0,24,0,8" Text="{Binding PlacesHeader}" />
+					<ItemsControl ItemTemplate="{StaticResource LocationConnectionTemplate}" ItemsSource="{Binding Places}" />
+				</StackPanel>
 			</StackPanel>
 		</ScrollViewer>
 	</DataTemplate>

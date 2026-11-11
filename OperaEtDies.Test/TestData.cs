@@ -11,7 +11,8 @@ internal static class TestData
 {
 	public static GameInfo CreateGameInfo() => new() { Title = "Title", Description = "Description" };
 
-	public static GameData CreateGameData() => new(CreateCharacterData(), CreateLocationList());
+	public static GameData CreateGameData(LayoutShape shape = LayoutShape.Radial, bool withFeatures = false) =>
+		new(CreateCharacterData(), CreateLocationList(shape, withFeatures), CreateProfessionList(), CreateFamilySettings());
 
 	/// <summary>
 	/// Creates the templates the engine requires.
@@ -46,11 +47,25 @@ internal static class TestData
 				Id = "profession",
 				Title = "Profession",
 				Type = CharacterPropertyType.ValueList,
-				Values =
-				[
-					CreateOption("smith", Frequency.Common, ("description", "a blacksmith")),
-					CreateOption("miller", Frequency.Uncommon, ("description", "a miller")),
-				],
+				Values = CreateProfessionList().Professions.Select(x => x.ToOption()).ToList(),
+				ValuesFrom = CharacterProperty.ProfessionsSource,
+				Player = new CharacterRoleSettings { Values = ["smith", "miller"] },
+			},
+			new CharacterProperty
+			{
+				Id = "workRole",
+				Title = "Work Role",
+				Type = CharacterPropertyType.ValueList,
+				Values = [CreateOption("independent", Frequency.Common), CreateOption("helper", Frequency.Common)],
+				SetByGame = true,
+			},
+			new CharacterProperty
+			{
+				Id = "householdRole",
+				Title = "Household Role",
+				Type = CharacterPropertyType.ValueList,
+				Values = [CreateOption("head", Frequency.Common), CreateOption("member", Frequency.Common)],
+				SetByGame = true,
 			},
 			new CharacterProperty
 			{
@@ -79,7 +94,10 @@ internal static class TestData
 					{
 						["smith"] = [CreateValue("Smith", Frequency.Common)],
 						["miller"] = [CreateValue("Miller", Frequency.Common)],
+						["homemaker"] = [CreateValue("Hall", Frequency.Common)],
+						["infirm"] = [CreateValue("Hall", Frequency.Common)],
 					},
+					OtherValues = [CreateValue("Green", Frequency.Common), CreateValue("Hill", Frequency.Common), CreateValue("Wood", Frequency.Uncommon), CreateValue("Brook", Frequency.Common), CreateValue("Field", Frequency.Rare), CreateValue("Stone", Frequency.Common), CreateValue("Marsh", Frequency.Common), CreateValue("Reed", Frequency.Common), CreateValue("Ford", Frequency.Uncommon), CreateValue("Lane", Frequency.Common)],
 				},
 			},
 			new CharacterProperty
@@ -111,8 +129,8 @@ internal static class TestData
 				Id = "age",
 				Title = "Age",
 				Type = CharacterPropertyType.Integer,
-				Range = new IntegerRange { Minimum = 16, Maximum = 70, Shape = new WeightShape { Peak = ShapePeak.Low, MostWithin = 25 } },
-				Player = new CharacterRoleSettings { Range = new IntegerRange { Minimum = 36, Maximum = 60, Shape = new WeightShape { Peak = ShapePeak.Low, MostWithin = 15 } } },
+				Range = new IntegerRange { Minimum = 16, Maximum = 80, Shape = new WeightShape { Peak = ShapePeak.Low, MostWithin = 25 } },
+				Groups = [new IntegerGroup { Id = "young", Maximum = 29 }, new IntegerGroup { Id = "adult", Minimum = 30, Maximum = 49 }, new IntegerGroup { Id = "old", Minimum = 50, Maximum = 69 }, new IntegerGroup { Id = "veryOld", Minimum = 70 }],
 			},
 		],
 	};
@@ -187,7 +205,9 @@ internal static class TestData
 				},
 			],
 		},
-		CreateLocationList());
+		CreateLocationList(),
+		CreateProfessionList(),
+		CreateFamilySettings());
 
 	/// <summary>
 	/// Creates a condition that one property has one of the given values.
@@ -197,15 +217,142 @@ internal static class TestData
 
 	public static CharacterTraits CreatePlayerTraits(GameData gameData) => CreateTraits(gameData, "male", "John", "Smith", "smith", "tall", "slim", 40);
 
-	public static LocationList CreateLocationList() => new()
+	/// <summary>
+	/// Creates a quarter template for each wealth level with room for a few houses, a square with room for
+	/// businesses, landmarks in the village and outside it, and two houses for each wealth level. Towns are laid out in
+	/// the given shape, and have a river and woods if asked. The bank and the clearing are only used with them.
+	/// </summary>
+	public static LocationList CreateLocationList(LayoutShape shape = LayoutShape.Radial, bool withFeatures = false) => new()
 	{
-		StartingLocation = "home",
-		Locations =
+		Features = withFeatures
+			?
+			[
+				new MapFeature { Id = "river", Title = "River", Type = MapFeatureType.River, Crossings = ["bridge"], Text = ["The river is {direction}."] },
+				new MapFeature { Id = "woods", Title = "Woods", Type = MapFeatureType.Area, Size = new QuarterSize { Length = 2, Width = 2 }, Text = ["The woods are {direction}."] },
+			]
+			: [],
+		FeatureCount = withFeatures ? new IntegerRange { Minimum = 2, Maximum = 2, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } } : null,
+		QuarterKinds =
 		[
-			CreateLocation("home", "lane"),
-			CreateLocation("lane", "home", "cottage"),
-			CreateLocation("cottage", "lane"),
+			new QuarterKind { Id = "square", Area = MapArea.Village, Unique = true, Path = "street" },
+			new QuarterKind { Id = "lane", Area = MapArea.Village, Path = "lane" },
+			new QuarterKind { Id = "landmark", Area = MapArea.Village, Path = "alley" },
+			new QuarterKind { Id = "fields", Area = MapArea.Outskirts, Path = "track" },
+			new QuarterKind { Id = "riverbank", Area = MapArea.Outskirts, Path = "towpath", Borders = "river" },
 		],
+		LandmarkCount = new IntegerRange { Minimum = 1, Maximum = 3, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } },
+		Layouts = [new TownLayoutChoice { Shape = shape, Center = "square" }],
+		HouseTitle = "The {lastName} Home",
+		Quarters =
+		[
+			CreateQuarter("lane-low", "lane", WealthLevel.Low, 2, 4, 0),
+			CreateQuarter("lane-medium", "lane", WealthLevel.Medium, 2, 3, 1),
+			CreateQuarter("lane-high", "lane", WealthLevel.High, 1, 2, 0),
+			CreateQuarter("square", "square", null, 0, 0, 3),
+			CreateQuarter("pond", "landmark", null, 0, 0, 0),
+			CreateQuarter("shrine", "landmark", null, 0, 0, 0),
+			CreateQuarter("common", "fields", null, 0, 0, 0),
+			CreateQuarter("bank", "riverbank", null, 0, 0, 0),
+			new QuarterTemplate { Id = "clearing", Title = "Clearing", ShortDescription = "Short.", MediumDescription = "Medium.", LongDescription = ["Long."], Kind = "fields", Borders = "woods", FeatureText = new Dictionary<string, string> { ["woods"] = "The trees stand {direction}." } },
+		],
+		Houses =
+		[
+			CreateHouse("cottage", WealthLevel.Low),
+			CreateHouse("hovel", WealthLevel.Low),
+			CreateHouse("house", WealthLevel.Medium),
+			CreateHouse("townhouse", WealthLevel.Medium),
+			CreateHouse("hall", WealthLevel.High),
+			CreateHouse("manor", WealthLevel.High),
+		],
+		Businesses = [CreateBusiness("forge", "smith", "square"), CreateBusiness("smithy", "smith", "square", "lane")],
+	};
+
+	/// <summary>
+	/// Creates professions for the test character data. Only one smithy is allowed, with one helper, and millers work
+	/// from home with two helpers.
+	/// </summary>
+	public static ProfessionList CreateProfessionList() => new()
+	{
+		Professions =
+		[
+			new Profession
+			{
+				Id = "smith",
+				Title = "Smith",
+				Text = new Dictionary<string, string> { ["description"] = "a blacksmith" },
+				Wealth = WealthLevel.High,
+				MaxBusinesses = 1,
+				Helpers = 1,
+			},
+			new Profession
+			{
+				Id = "miller",
+				Title = "Miller",
+				Frequency = new FrequencyLevel(Frequency.Uncommon),
+				Text = new Dictionary<string, string> { ["description"] = "a miller" },
+				Wealth = WealthLevel.Low,
+				Helpers = 2,
+				HelperWhen = Condition("gender", "male", "female"),
+				WorksFromHome = true,
+				ForHouseholdElders = true,
+			},
+			new Profession
+			{
+				Id = "homemaker",
+				Title = "Homemaker",
+				Frequency = new FrequencyLevel(Frequency.VeryRare),
+				When = Condition("gender", "female"),
+				Text = new Dictionary<string, string> { ["description"] = "a homemaker" },
+			},
+			new Profession
+			{
+				Id = "infirm",
+				Title = "Infirm",
+				Frequency = new FrequencyLevel(Frequency.VeryRare),
+				Text = new Dictionary<string, string> { ["description"] = "infirm" },
+			},
+		],
+	};
+
+	public static FamilySettings CreateFamilySettings() => new()
+	{
+		Properties = new FamilyProperties { Gender = "gender", Age = "age", Profession = "profession", LastName = "lastName", WorkRole = "workRole", HouseholdRole = "householdRole" },
+		Male = "male",
+		Female = "female",
+		Homemaker = "homemaker",
+		Infirm = "infirm",
+		Independent = "independent",
+		Helper = "helper",
+		Head = "head",
+		Member = "member",
+		FamilyCount = new IntegerRange { Minimum = 3, Maximum = 5, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } },
+		FemaleHeadChance = 10,
+		FemaleHeadMinWealth = WealthLevel.Low,
+		HeadAge = new IntegerRange { Minimum = 25, Maximum = 60, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 6 } },
+		WifeChance = 80,
+		WifeAgeDifference = new IntegerRange { Minimum = -10, Maximum = 4, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 3 } },
+		HouseholdElderChance = 40,
+		FemaleHouseholdElderChance = 70,
+		HouseholdElderAgeGap = new WeightShape { Peak = ShapePeak.Low, MostWithin = 8 },
+		HouseholdElderMinAge = new GenderAges { Male = 65, Female = 45 },
+		InfirmChance = new Dictionary<string, double> { ["old"] = 20, ["veryOld"] = 60 },
+		HouseholdElderHomemakerChance = 50,
+		MinParentAge = 16,
+		MaxMotherAge = 42,
+		MaxFatherAge = 55,
+		ChildCount = new IntegerRange { Minimum = 0, Maximum = 2, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } },
+		ChildAge = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 5 },
+		SiblingAgeSpread = 2,
+		SonChance = 5,
+		ChildHomemakerChance = 50,
+		HelperChance = 80,
+		HelperWealth = 0.5,
+		HelperWealthFalloff = 0.7,
+		HomemakerWealth = 0.5,
+		InfirmWealth = -0.5,
+		HouseholdFortune = new IntegerRange { Minimum = 80, Maximum = 120, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 10 } },
+		HeadAgeWealth = new Dictionary<string, double> { ["young"] = 90, ["adult"] = 110 },
+		WealthThresholds = new WealthThresholds { Medium = 5, High = 10 },
 	};
 
 	private static CharacterPropertyOption CreateOption(string id, Frequency frequency, params (string Name, string Text)[] text) =>
@@ -222,13 +369,36 @@ internal static class TestData
 
 	private static WeightedString CreateValue(string value, Frequency frequency) => new() { Value = value, Frequency = frequency };
 
-	private static Location CreateLocation(string id, params string[] connections) => new()
+	private static QuarterTemplate CreateQuarter(string id, string kind, WealthLevel? wealth, int minHouses, int maxHouses, int businesses) => new()
 	{
 		Id = id,
 		Title = $"{id} title",
 		ShortDescription = $"{id} short",
 		MediumDescription = $"{id} medium",
 		LongDescription = [$"{id} long 1", $"{id} long 2", $"{id} long 3"],
-		Connections = connections,
+		Kind = kind,
+		Wealth = wealth,
+		Houses = maxHouses > 0 ? new CountRange { Minimum = minHouses, Maximum = maxHouses } : null,
+		Businesses = businesses,
+	};
+
+	private static HouseTemplate CreateHouse(string id, WealthLevel wealth) => new()
+	{
+		Id = id,
+		ShortDescription = $"{id} short",
+		MediumDescription = $"{id} medium",
+		LongDescription = [$"{id} long"],
+		Wealth = wealth,
+	};
+
+	private static BusinessTemplate CreateBusiness(string id, string profession, params string[] quarterKinds) => new()
+	{
+		Id = id,
+		Profession = profession,
+		Title = $"{id} title",
+		ShortDescription = $"{id} short",
+		MediumDescription = $"{id} medium",
+		LongDescription = [$"{id} long"],
+		QuarterKinds = quarterKinds,
 	};
 }

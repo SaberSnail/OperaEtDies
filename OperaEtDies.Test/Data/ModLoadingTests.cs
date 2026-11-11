@@ -12,12 +12,11 @@ public sealed class ModLoadingTests
 		m_directory = Path.Combine(Path.GetTempPath(), $"OperaEtDiesTest_{Guid.NewGuid():N}");
 		m_dataDirectory = Path.Combine(m_directory, "Data");
 		Directory.CreateDirectory(m_dataDirectory);
-		File.WriteAllText(Path.Combine(m_dataDirectory, LocationList.FileName), """
+		File.WriteAllText(Path.Combine(m_dataDirectory, ProfessionList.FileName), """
 			{
 				// Comments are allowed.
-				"startingLocation": "square",
-				"locations": [
-					{ "id": "square", "title": "Square", "shortDescription": "A square.", "mediumDescription": "A square.", "longDescription": [ "A square." ] },
+				"professions": [
+					{ "id": "smith", "title": "Smith", "wealth": "high", "worksFromHome": true },
 				],
 			}
 			""");
@@ -33,18 +32,18 @@ public sealed class ModLoadingTests
 	[Test]
 	public void AppliesModsInOrder()
 	{
-		var first = WriteMod("First", LocationList.FileName, """
+		var first = WriteMod("First", ProfessionList.FileName, """
 			[
-				{ "op": "insert", "path": "locations", "value": { "id": "inn", "title": "Inn", "shortDescription": "An inn.", "mediumDescription": "An inn.", "longDescription": [ "An inn." ] } },
+				{ "op": "insert", "path": "professions", "value": { "id": "baker", "title": "Baker", "wealth": "low", "worksFromHome": true } },
 			]
 			""");
-		var second = WriteMod("Second", LocationList.FileName, """[ { "op": "set", "path": "startingLocation", "value": "inn" } ]""");
+		var second = WriteMod("Second", ProfessionList.FileName, """[ { "op": "set", "path": "professions[baker].wealth", "value": "medium" } ]""");
 
-		var result = LocationList.Load(m_dataDirectory, [first, second]);
+		var result = ProfessionList.Load(m_dataDirectory, [first, second]);
 
 		Assert.That(result.Errors, Is.Empty);
-		Assert.That(result.Value!.Locations.Select(x => x.Id), Is.EqualTo(new[] { "square", "inn" }));
-		Assert.That(result.Value.StartingLocation, Is.EqualTo("inn"));
+		Assert.That(result.Value!.Professions.Select(x => x.Id), Is.EqualTo(new[] { "smith", "baker" }));
+		Assert.That(result.Value.Professions[1].Wealth!.Value.Level, Is.EqualTo(WealthLevel.Medium));
 	}
 
 	[Test]
@@ -52,7 +51,7 @@ public sealed class ModLoadingTests
 	{
 		var mod = WriteMod("Mod", CharacterData.FileName, "[]");
 
-		var result = LocationList.Load(m_dataDirectory, [mod]);
+		var result = ProfessionList.Load(m_dataDirectory, [mod]);
 
 		Assert.That(result.Succeeded, Is.True);
 	}
@@ -60,20 +59,20 @@ public sealed class ModLoadingTests
 	[Test]
 	public void OperationErrorsNameTheMod()
 	{
-		var mod = WriteMod("Broken", LocationList.FileName, """[ { "op": "remove", "path": "locations[missing]" } ]""");
+		var mod = WriteMod("Broken", ProfessionList.FileName, """[ { "op": "remove", "path": "professions[missing]" } ]""");
 
-		var result = LocationList.Load(m_dataDirectory, [mod]);
+		var result = ProfessionList.Load(m_dataDirectory, [mod]);
 
 		Assert.That(result.Succeeded, Is.False);
-		Assert.That(result.Errors.Single().ToString(), Does.StartWith("Locations.json (mod \"Broken\"): "));
+		Assert.That(result.Errors.Single().ToString(), Does.StartWith("Professions.json (mod \"Broken\"): "));
 	}
 
 	[Test]
 	public void InvalidModJsonIsReported()
 	{
-		var mod = WriteMod("Broken", LocationList.FileName, "[ {");
+		var mod = WriteMod("Broken", ProfessionList.FileName, "[ {");
 
-		var result = LocationList.Load(m_dataDirectory, [mod]);
+		var result = ProfessionList.Load(m_dataDirectory, [mod]);
 
 		Assert.That(result.Errors.Single().Source, Is.EqualTo("mod \"Broken\""));
 	}
@@ -81,9 +80,9 @@ public sealed class ModLoadingTests
 	[Test]
 	public void ValidationErrorsAfterModsAreMarked()
 	{
-		var mod = WriteMod("Mod", LocationList.FileName, """[ { "op": "remove", "path": "locations[square]" } ]""");
+		var mod = WriteMod("Mod", ProfessionList.FileName, """[ { "op": "remove", "path": "professions[smith]" } ]""");
 
-		var result = LocationList.Load(m_dataDirectory, [mod]);
+		var result = ProfessionList.Load(m_dataDirectory, [mod]);
 
 		Assert.That(result.Succeeded, Is.False);
 		Assert.That(result.Errors.Select(x => x.Source), Is.All.EqualTo(OurResources.DataLoadErrorWithMods));

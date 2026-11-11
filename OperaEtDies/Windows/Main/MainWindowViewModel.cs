@@ -1,22 +1,31 @@
-﻿using GoldenAnvil.Utility;
+using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
 using OperaEtDies.Controls.Locations;
+using OperaEtDies.Controls.Map;
+using OperaEtDies.Controls.Villagers;
 using OperaEtDies.GameState;
 
 namespace OperaEtDies.Windows.Main;
 
 public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 {
-	public MainWindowViewModel(string title, GameStateViewModel gameState)
+	public MainWindowViewModel(string title, GameStateViewModel gameState, bool isDeveloper = false)
 	{
 		m_taskGroup = new TaskGroup();
 		Title = title;
+		IsDeveloper = isDeveloper;
 		GameState = gameState;
 		m_currentLocation = CreateLocationScreen(gameState.Player.Location);
+		m_miniMap = CreateMiniMap(gameState.Player.Location);
 	}
 
 	public string Title { get; }
+
+	/// <summary>
+	/// Whether to show extra information and controls for developing the game.
+	/// </summary>
+	public bool IsDeveloper { get; }
 
 	/// <summary>
 	/// The state of the game world.
@@ -29,7 +38,100 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	public LocationScreenViewModel CurrentLocation
 	{
 		get => VerifyAccess(m_currentLocation);
-		private set => SetPropertyField(value, ref m_currentLocation);
+		private set => SetPropertyField([nameof(CurrentLocation), nameof(CurrentView)], value, ref m_currentLocation);
+	}
+
+	/// <summary>
+	/// The list of villagers, while it's open.
+	/// </summary>
+	public VillagersViewModel? Villagers
+	{
+		get => VerifyAccess(m_villagers);
+		private set => SetPropertyField([nameof(Villagers), nameof(CurrentView)], value, ref m_villagers);
+	}
+
+	/// <summary>
+	/// The mini-map on the main screen, showing the player's quarter and the quarters connected to it.
+	/// </summary>
+	public TownMapViewModel MiniMap
+	{
+		get => VerifyAccess(m_miniMap);
+		private set => SetPropertyField(value, ref m_miniMap);
+	}
+
+	/// <summary>
+	/// The map of the town, while it's open.
+	/// </summary>
+	public TownMapViewModel? Map
+	{
+		get => VerifyAccess(m_map);
+		private set => SetPropertyField([nameof(Map), nameof(CurrentView)], value, ref m_map);
+	}
+
+	/// <summary>
+	/// The view shown in the main part of the window: the list of villagers or the map while one is open, or else the
+	/// player's location.
+	/// </summary>
+	public ViewModelBase CurrentView => VerifyAccess((ViewModelBase?) m_villagers ?? (ViewModelBase?) m_map ?? m_currentLocation);
+
+	/// <summary>
+	/// Opens the list of villagers, grouped by family, in place of the player's location.
+	/// </summary>
+	public void ShowVillagers()
+	{
+		VerifyAccess();
+		CloseMap();
+		if (m_villagers is null)
+		{
+			var villagers = new VillagersViewModel(GameState.Families, IsDeveloper);
+			villagers.CloseRequested += OnVillagersCloseRequested;
+			villagers.TravelRequested += OnVillagersTravelRequested;
+			Villagers = villagers;
+		}
+	}
+
+	/// <summary>
+	/// Closes the list of villagers, returning to the player's location.
+	/// </summary>
+	public void CloseVillagers()
+	{
+		VerifyAccess();
+		if (m_villagers is { } villagers)
+		{
+			villagers.CloseRequested -= OnVillagersCloseRequested;
+			villagers.TravelRequested -= OnVillagersTravelRequested;
+			Villagers = null;
+		}
+	}
+
+	/// <summary>
+	/// Opens the map of the town in place of the player's location. Developers can travel by choosing a quarter on it.
+	/// </summary>
+	public void ShowMap()
+	{
+		VerifyAccess();
+		if (m_map is null)
+		{
+			CloseVillagers();
+			var map = new TownMapViewModel(GameState.Locations, GameState.Player.Location, GameState.Town.Features, canTravel: IsDeveloper);
+			map.CloseRequested += OnMapCloseRequested;
+			map.TravelRequested += OnMapTravelRequested;
+			Map = map;
+		}
+	}
+
+	/// <summary>
+	/// Closes the map, returning to the player's location.
+	/// </summary>
+	public void CloseMap()
+	{
+		VerifyAccess();
+		if (m_map is { } map)
+		{
+			map.CloseRequested -= OnMapCloseRequested;
+			map.TravelRequested -= OnMapTravelRequested;
+			Map = null;
+		}
 	}
 
 	/// <summary>
@@ -44,11 +146,22 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		player.Location = location;
 		m_currentLocation.TravelRequested -= OnTravelRequested;
 		CurrentLocation = CreateLocationScreen(location);
+		MiniMap = CreateMiniMap(location);
 	}
 
 	public void Dispose()
 	{
 		m_currentLocation.TravelRequested -= OnTravelRequested;
+		if (m_villagers is not null)
+		{
+			m_villagers.CloseRequested -= OnVillagersCloseRequested;
+			m_villagers.TravelRequested -= OnVillagersTravelRequested;
+		}
+		if (m_map is not null)
+		{
+			m_map.CloseRequested -= OnMapCloseRequested;
+			m_map.TravelRequested -= OnMapTravelRequested;
+		}
 		DisposableUtility.Dispose(ref m_taskGroup);
 	}
 
@@ -59,10 +172,36 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		return viewModel;
 	}
 
+	private TownMapViewModel CreateMiniMap(LocationViewModel location) => TownMapViewModel.CreateMiniMap(location, GameState.Town.Features, MiniMapSize);
+
 	private void OnTravelRequested(object? sender, GenericEventArgs<LocationViewModel> e) => TravelTo(e.Value);
+
+	private void OnVillagersCloseRequested(object? sender, EventArgs e) => CloseVillagers();
+
+	private void OnVillagersTravelRequested(object? sender, GenericEventArgs<LocationViewModel> e)
+	{
+		CloseVillagers();
+		TravelTo(e.Value);
+	}
+
+	private void OnMapCloseRequested(object? sender, EventArgs e) => CloseMap();
+
+	private void OnMapTravelRequested(object? sender, GenericEventArgs<LocationViewModel> e)
+	{
+		CloseMap();
+		TravelTo(e.Value);
+	}
+
+	/// <summary>
+	/// The most room the mini-map takes, in each direction, in device-independent pixels.
+	/// </summary>
+	private const double MiniMapSize = 196;
 
 	private static ILogSource Log { get; } = LogManager.CreateLogSource(nameof(MainWindowViewModel));
 
 	private TaskGroup m_taskGroup;
 	private LocationScreenViewModel m_currentLocation;
+	private VillagersViewModel? m_villagers;
+	private TownMapViewModel? m_map;
+	private TownMapViewModel m_miniMap;
 }

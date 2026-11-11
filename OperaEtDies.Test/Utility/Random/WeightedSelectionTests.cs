@@ -122,6 +122,19 @@ public sealed class WeightedSelectionTests
 	}
 
 	[Test]
+	public void LeftOutItemsDontGiveTheirShareToTheirFrequency()
+	{
+		// In the whole list, the common items share 95% and each rare item has 1%.
+		var all = new[] { Common("c1"), Common("c2"), Rare("r1"), Rare("r2"), Rare("r3"), Rare("r4"), Rare("r5") };
+		var items = new[] { all[0], all[1], all[2] };
+
+		var chances = new FrequencyChances().GetChances(items, x => x.Frequency, x => x.Frequency, all);
+
+		// Without the whole list, r1 would have the whole 5%.
+		Assert.That(chances, Is.EqualTo(new[] { 47.5, 47.5, 1 }.Select(x => x / 96 * 100)).Within(0.0001));
+	}
+
+	[Test]
 	public void InvalidChancesReportErrors()
 	{
 		Assert.That(new FrequencyChances().Validate("chances"), Is.Empty);

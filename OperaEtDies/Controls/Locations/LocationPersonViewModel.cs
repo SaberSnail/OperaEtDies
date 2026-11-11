@@ -3,7 +3,7 @@ using OperaEtDies.GameState;
 namespace OperaEtDies.Controls.Locations;
 
 /// <summary>
-/// A person in the player's location, who can be examined to see a description of them.
+/// A person who can be examined to see a description of them, such as someone in the player's location.
 /// </summary>
 public sealed class LocationPersonViewModel : ViewModelBase
 {

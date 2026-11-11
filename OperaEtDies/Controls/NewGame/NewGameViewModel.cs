@@ -13,7 +13,7 @@ public sealed class NewGameViewModel : ViewModelBase
 	{
 		m_character = new CharacterRandomizer(gameData, random, CharacterRole.Player);
 		Properties = CharacterDependencies.GetOrder(m_character.Properties)
-			.Where(x => CharacterData.CanHaveValue(m_character.Properties, x, CharacterRole.Player))
+			.Where(x => !x.SetByGame && CharacterData.CanHaveValue(m_character.Properties, x, CharacterRole.Player))
 			.Select(CreateEditor)
 			.ToList();
 	}
@@ -25,8 +25,8 @@ public sealed class NewGameViewModel : ViewModelBase
 	/// <summary>
 	/// Editors for every property the player could have, in dependency order, so the player chooses a property's
 	/// value before the values that depend on it. Properties that don't depend on each other keep the order they were
-	/// defined in. Properties that never apply to the player aren't included. Properties without a value right now are
-	/// unavailable, and properties with only one possible value are fixed.
+	/// defined in. Properties that never apply to the player, or that the game sets itself, aren't included. Properties
+	/// without a value right now are unavailable, and properties with only one possible value are fixed.
 	/// </summary>
 	public IReadOnlyList<CharacterPropertyEditorViewModel> Properties { get; }
 

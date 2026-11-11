@@ -17,9 +17,37 @@ public sealed class CharacterProperty : IIdentified
 	public CharacterCondition? When { get; init; }
 
 	/// <summary>
+	/// The id of the property this one comes right after when properties are listed, such as a last name right after
+	/// a first name. The other property is held back until this one can be placed too, so they stay together.
+	/// </summary>
+	public string? Follows { get; init; }
+
+	/// <summary>
+	/// Whether the game sets the property's value itself, such as the family generator setting who heads a household.
+	/// It isn't shown on the new game screen.
+	/// </summary>
+	public bool SetByGame { get; init; }
+
+	/// <summary>
 	/// For value list properties, the values the property can have.
 	/// </summary>
 	public IReadOnlyList<CharacterPropertyOption>? Values { get; init; }
+
+	/// <summary>
+	/// For value list properties, where the values come from instead of <see cref="Values"/>. The only source is
+	/// <see cref="ProfessionsSource"/>, the professions in Professions.json. The values are filled in when the data loads.
+	/// </summary>
+	public string? ValuesFrom { get; init; }
+
+	/// <summary>
+	/// The <see cref="ValuesFrom"/> source for the professions in Professions.json.
+	/// </summary>
+	public const string ProfessionsSource = "professions";
+
+	/// <summary>
+	/// Whether <see cref="Values"/> were filled in from <see cref="ValuesFrom"/> rather than read from the file.
+	/// </summary>
+	internal bool HasSourceValues { get; private init; }
 
 	/// <summary>
 	/// For value list properties, weights the values by their order instead of by their frequencies.
@@ -51,6 +79,53 @@ public sealed class CharacterProperty : IIdentified
 	/// </summary>
 	public CharacterRoleSettings? Npc { get; init; }
 
+	/// <summary>
+	/// Creates a copy of the property with the given values.
+	/// </summary>
+	internal CharacterProperty WithValues(IReadOnlyList<CharacterPropertyOption> values) => Copy(values, true, Defaults, Player, Npc);
+
+	/// <summary>
+	/// Creates a copy of a string property whose defaults are keyed by one of the given properties, with the values for
+	/// each key taken from the professions' defaults for this property. Only defaults without their own values for each
+	/// key are filled in. Returns the property itself if nothing changes.
+	/// </summary>
+	internal CharacterProperty WithProfessionDefaults(IReadOnlySet<string> professionPropertyIds, IReadOnlyList<Profession> professions)
+	{
+		StringDefaults? Fill(StringDefaults? defaults) =>
+			defaults is { KeyedBy: { } keyedBy, ValuesByKey: null } && professionPropertyIds.Contains(keyedBy)
+				? defaults.WithValuesByKey(professions
+					.Where(x => x.Defaults?.ContainsKey(Id) ?? false)
+					.GroupBy(x => x.Id, StringComparer.Ordinal)
+					.ToDictionary(x => x.Key, x => x.First().Defaults![Id], StringComparer.Ordinal))
+				: defaults;
+
+		var defaults = Fill(Defaults);
+		var playerDefaults = Fill(Player?.Defaults);
+		var npcDefaults = Fill(Npc?.Defaults);
+		return Type != CharacterPropertyType.String || (defaults == Defaults && playerDefaults == Player?.Defaults && npcDefaults == Npc?.Defaults)
+			? this
+			: Copy(Values, HasSourceValues, defaults, Player?.WithDefaults(playerDefaults), Npc?.WithDefaults(npcDefaults));
+	}
+
+	private CharacterProperty Copy(IReadOnlyList<CharacterPropertyOption>? values, bool hasSourceValues, StringDefaults? defaults, CharacterRoleSettings? player, CharacterRoleSettings? npc) => new()
+	{
+		Id = Id,
+		Title = Title,
+		Type = Type,
+		When = When,
+		Follows = Follows,
+		SetByGame = SetByGame,
+		Values = values,
+		ValuesFrom = ValuesFrom,
+		HasSourceValues = hasSourceValues,
+		Shape = Shape,
+		Range = Range,
+		Groups = Groups,
+		Defaults = defaults,
+		Player = player,
+		Npc = npc,
+	};
+
 	public CharacterRoleSettings? GetRoleSettings(CharacterRole role) => role switch
 	{
 		CharacterRole.Player => Player,
@@ -81,10 +156,11 @@ public sealed class CharacterProperty : IIdentified
 	/// <summary>
 	/// Gets the percentage chance of choosing each of the given values of a value list property: by the property's
 	/// shape and the values' order if it has one, or else by the values' frequencies, which can depend on the values of
-	/// other properties.
+	/// other properties. Frequencies are shared as they would be among all of the property's values, so leaving some
+	/// values out doesn't make the others of the same frequency more likely compared to the rest.
 	/// </summary>
 	public IReadOnlyList<double> GetChances(IReadOnlyList<CharacterPropertyOption> options, FrequencyChances frequencyChances, Func<string, string?> getValueId) =>
-		Shape?.GetChances(options.Count) ?? frequencyChances.GetChances(options, x => x.Frequency, x => x.GetFrequency(getValueId));
+		Shape?.GetChances(options.Count) ?? frequencyChances.GetChances(options, x => x.Frequency, x => x.GetFrequency(getValueId), Values);
 
 	/// <summary>
 	/// Gets the id that conditions see for one of this property's values: the value's id for a value list property, or the

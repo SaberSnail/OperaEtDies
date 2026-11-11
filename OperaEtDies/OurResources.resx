@@ -111,25 +111,6 @@
 		<value>The location "{0}" has a blank paragraph in its long description.</value>
 		<comment>{0} is the location's id.</comment>
 	</data>
-	<data name="LocationConnectionBlank" xml:space="preserve">
-		<value>The location "{0}" has a blank connection.</value>
-		<comment>{0} is the location's id.</comment>
-	</data>
-	<data name="LocationConnectionUnknown" xml:space="preserve">
-		<value>The location "{0}" connects to "{1}", but there is no location with that id.</value>
-		<comment>{0} is the location's id. {1} is the id of the connected location.</comment>
-	</data>
-	<data name="LocationConnectionToSelf" xml:space="preserve">
-		<value>The location "{0}" connects to itself.</value>
-		<comment>{0} is the location's id.</comment>
-	</data>
-	<data name="StartingLocationMissing" xml:space="preserve">
-		<value>The starting location is missing.</value>
-	</data>
-	<data name="StartingLocationUnknown" xml:space="preserve">
-		<value>The starting location is "{0}", but there is no location with that id.</value>
-		<comment>{0} is the starting location's id.</comment>
-	</data>
 	<data name="NewGameHeader" xml:space="preserve">
 		<value>New Game</value>
 	</data>
@@ -189,7 +170,7 @@
 		<comment>{0} is the name of the list in the data file. {1} is the value id.</comment>
 	</data>
 	<data name="StringDefaultsFormInvalid" xml:space="preserve">
-		<value>The "{0}" setting must have either "values", or "keyedBy" and "valuesByKey".</value>
+		<value>The "{0}" setting must have either "values", or "keyedBy" with "valuesByKey" (which comes from the professions when keyed by a property whose values do) and optional "otherValues".</value>
 		<comment>{0} is the location of the setting in the data file.</comment>
 	</data>
 	<data name="StringDefaultsKeyedByInvalid" xml:space="preserve">
@@ -489,5 +470,308 @@
 	</data>
 	<data name="LoadingGameData" xml:space="preserve">
 		<value>Loading…</value>
+	</data>
+	<data name="DataListItemBlank" xml:space="preserve">
+		<value>The &quot;{0}&quot; list has an item that isn&apos;t filled in.</value>
+		<comment>{0} is the name of the list in the data file.</comment>
+	</data>
+	<data name="DataListValueDuplicate" xml:space="preserve">
+		<value>&quot;{0}&quot; is listed more than once in the &quot;{1}&quot; list.</value>
+		<comment>{0} is the repeated value. {1} is the name of the list in the data file.</comment>
+	</data>
+	<data name="DataValueMissing" xml:space="preserve">
+		<value>&quot;{0}&quot; must be filled in.</value>
+		<comment>{0} is the location of the setting in the data file.</comment>
+	</data>
+	<data name="DataChanceInvalid" xml:space="preserve">
+		<value>&quot;{0}&quot; is {1}, but it must be a percentage from 0 to 100.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the value found.</comment>
+	</data>
+	<data name="DataNumberTooSmall" xml:space="preserve">
+		<value>&quot;{0}&quot; is {1}, but it must be at least {2}.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the value found. {2} is the smallest allowed value.</comment>
+	</data>
+	<data name="DataNumberNotPositive" xml:space="preserve">
+		<value>&quot;{0}&quot; is {1}, but it must be more than 0.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the value found.</comment>
+	</data>
+	<data name="DataFractionInvalid" xml:space="preserve">
+		<value>&quot;{0}&quot; is {1}, but it must be from 0 to 1.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the value found.</comment>
+	</data>
+	<data name="WealthLevelNotAllowed" xml:space="preserve">
+		<value>&quot;{0}&quot; is &quot;{1}&quot;, but it must be &quot;low&quot;, &quot;medium&quot;, or &quot;high&quot;.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the wealth level found.</comment>
+	</data>
+	<data name="LocationIdDuplicate" xml:space="preserve">
+		<value>The location id &quot;{0}&quot; is used more than once.</value>
+		<comment>{0} is the duplicated id.</comment>
+	</data>
+	<data name="QuarterKindUnknown" xml:space="preserve">
+		<value>The location &quot;{0}&quot; uses the quarter kind &quot;{1}&quot;, but it isn&apos;t in the &quot;quarterKinds&quot; list.</value>
+		<comment>{0} is the location&apos;s id. {1} is the quarter kind.</comment>
+	</data>
+	<data name="QuarterHousesWithoutWealth" xml:space="preserve">
+		<value>The quarter &quot;{0}&quot; has houses, so it must have a &quot;wealth&quot;.</value>
+		<comment>{0} is the quarter&apos;s id.</comment>
+	</data>
+	<data name="QuarterWealthWithoutHouses" xml:space="preserve">
+		<value>The quarter &quot;{0}&quot; has a &quot;wealth&quot;, but it has no houses.</value>
+		<comment>{0} is the quarter&apos;s id.</comment>
+	</data>
+	<data name="HouseWealthMissing" xml:space="preserve">
+		<value>There must be at least one house with a &quot;wealth&quot; of &quot;{0}&quot;.</value>
+		<comment>{0} is the wealth level.</comment>
+	</data>
+	<data name="QuarterWealthMissing" xml:space="preserve">
+		<value>There must be at least one quarter with houses and a &quot;wealth&quot; of &quot;{0}&quot;.</value>
+		<comment>{0} is the wealth level.</comment>
+	</data>
+	<data name="BusinessQuarterMissing" xml:space="preserve">
+		<value>The location &quot;{0}&quot; can&apos;t be placed, because no quarter of its kinds has room for businesses.</value>
+		<comment>{0} is the location&apos;s id.</comment>
+	</data>
+	<data name="BusinessProfessionWorksFromHome" xml:space="preserve">
+		<value>The location &quot;{0}&quot; is for the profession &quot;{1}&quot;, which works from home, so it can&apos;t have business locations.</value>
+		<comment>{0} is the location&apos;s id. {1} is the profession&apos;s id.</comment>
+	</data>
+	<data name="BusinessProfessionUnknown" xml:space="preserve">
+		<value>The location &quot;{0}&quot; is for the profession &quot;{1}&quot;, which isn&apos;t in Professions.json.</value>
+		<comment>{0} is the location&apos;s id. {1} is the profession&apos;s id.</comment>
+	</data>
+	<data name="ProfessionLocationsMissing" xml:space="preserve">
+		<value>The profession &quot;{0}&quot; must have at least one location in &quot;businesses&quot; in Locations.json, unless it works from home.</value>
+		<comment>{0} is the profession&apos;s id.</comment>
+	</data>
+	<data name="FamilyPropertyInvalid" xml:space="preserve">
+		<value>&quot;{0}&quot; is &quot;{1}&quot;, but there is no {2} character property with that id.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the property id found. {2} is the type the property must have, as written in the data file.</comment>
+	</data>
+	<data name="FamilyValueUnknown" xml:space="preserve">
+		<value>&quot;{0}&quot; is &quot;{1}&quot;, but the character property &quot;{2}&quot; has no value with that id.</value>
+		<comment>{0} is the setting in the data file. {1} is the value id found. {2} is the id of the property the value should belong to.</comment>
+	</data>
+	<data name="ViewVillagers" xml:space="preserve">
+		<value>Villagers</value>
+		<comment>Sidebar button that shows everyone in the village, grouped by family.</comment>
+	</data>
+	<data name="VillagersHeader" xml:space="preserve">
+		<value>Villagers</value>
+		<comment>Title of the screen that lists everyone in the village.</comment>
+	</data>
+	<data name="FamilyTitle" xml:space="preserve">
+		<value>The {0} Family</value>
+		<comment>Header above the members of one family in the list of villagers. {0} is the last name of the head of the family.</comment>
+	</data>
+	<data name="CloseView" xml:space="preserve">
+		<value>Close</value>
+		<comment>Button that closes a screen and returns to the player&apos;s location.</comment>
+	</data>
+	<data name="FamilyAgeGroupUnknown" xml:space="preserve">
+		<value>&quot;{0}&quot; has the key &quot;{1}&quot;, but the character property &quot;{2}&quot; has no group with that id.</value>
+		<comment>{0} is the setting in the data file. {1} is the key found. {2} is the age property&apos;s id.</comment>
+	</data>
+	<data name="FamilyHeadAgeOutOfRange" xml:space="preserve">
+		<value>&quot;headAge&quot; goes from {0} to {1}, which isn&apos;t within the range of the character property &quot;{2}&quot; for non-player characters ({3} to {4}).</value>
+		<comment>{0} and {1} are the head age range. {2} is the age property&apos;s id. {3} and {4} are that property&apos;s range for non-player characters.</comment>
+	</data>
+	<data name="ProfessionNotBusiness" xml:space="preserve">
+		<value>The profession &quot;{0}&quot; is the &quot;{1}&quot; value in Families.json, which isn&apos;t a business, so it can&apos;t have business settings.</value>
+		<comment>{0} is the profession&apos;s id. {1} is the name of the setting in Families.json.</comment>
+	</data>
+	<data name="ShapePeakInvalid" xml:space="preserve">
+		<value>A shape&apos;s peak must be &quot;low&quot;, &quot;middle&quot;, or &quot;high&quot;, optionally followed by &quot;+&quot;, &quot;++&quot;, &quot;-&quot;, or &quot;--&quot;.</value>
+		<comment>Shown when a shape&apos;s peak in a data file can&apos;t be read.</comment>
+	</data>
+	<data name="ShapePeakOutOfRange" xml:space="preserve">
+		<value>&quot;{0}&quot; is &quot;{1}&quot;, which moves the peak outside the list.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the peak, such as &quot;low-&quot;.</comment>
+	</data>
+	<data name="FamilyAgePlayerRangeNotAllowed" xml:space="preserve">
+		<value>The character property &quot;{0}&quot; can&apos;t have a player range, since the player&apos;s age comes from &quot;headAge&quot; in Families.json.</value>
+		<comment>{0} is the age property&apos;s id.</comment>
+	</data>
+	<data name="FamilyHeadAgeTooYoung" xml:space="preserve">
+		<value>&quot;headAge&quot; must go up to at least {0}, so the player can be old enough to have an adult child.</value>
+		<comment>{0} is the youngest age at which the player can have an adult child.</comment>
+	</data>
+	<data name="ProfessionElderTradeNotFromHome" xml:space="preserve">
+		<value>The profession &quot;{0}&quot; is for household elders, so it must work from home.</value>
+		<comment>{0} is the profession&apos;s id.</comment>
+	</data>
+	<data name="ProfessionWealthInvalid" xml:space="preserve">
+		<value>A profession&apos;s wealth must be &quot;veryLow&quot;, &quot;low&quot;, &quot;medium&quot;, or &quot;high&quot;, optionally followed by &quot;+&quot;, &quot;++&quot;, &quot;-&quot;, or &quot;--&quot;.</value>
+		<comment>Shown when a profession&apos;s wealth in a data file can&apos;t be read.</comment>
+	</data>
+	<data name="CommandLineOptionsHeader" xml:space="preserve">
+		<value>Options:</value>
+		<comment>The first line of the list of command line options.</comment>
+	</data>
+	<data name="CommandLineHelp" xml:space="preserve">
+		<value>Show this list of options and exit.</value>
+		<comment>Explains the --help command line option.</comment>
+	</data>
+	<data name="CommandLineNoMods" xml:space="preserve">
+		<value>Start without loading mods.</value>
+		<comment>Explains the --no-mods command line option.</comment>
+	</data>
+	<data name="CommandLineDeveloper" xml:space="preserve">
+		<value>Show extra information and controls for developing the game.</value>
+		<comment>Explains the --developer command line option.</comment>
+	</data>
+	<data name="CommandLineGenerateVillages" xml:space="preserve">
+		<value>Generate villages, write them to standard output, and exit.</value>
+		<comment>Explains the --generate-villages command line option.</comment>
+	</data>
+	<data name="CommandLineSeed" xml:space="preserve">
+		<value>The random seed for the first generated village.</value>
+		<comment>Explains the --seed command line option.</comment>
+	</data>
+	<data name="CommandLineHelpTitle" xml:space="preserve">
+		<value>Command Line Options</value>
+		<comment>The title of the window that lists the command line options.</comment>
+	</data>
+	<data name="VillagerFamilyWealth" xml:space="preserve">
+		<value>Wealth: {0}</value>
+		<comment>Shows a family&apos;s wealth level to developers. {0} is the wealth level, such as &quot;medium&quot;.</comment>
+	</data>
+	<data name="DeveloperMode" xml:space="preserve">
+		<value>Developer Mode</value>
+		<comment>Labels the main menu when the game is started with the --developer command line option.</comment>
+	</data>
+	<data name="PropertyFollowsItself" xml:space="preserve">
+		<value>The property &quot;{0}&quot; can&apos;t follow itself.</value>
+		<comment>{0} is the property id.</comment>
+	</data>
+	<data name="PropertyFollowsUnknown" xml:space="preserve">
+		<value>The property &quot;{0}&quot; follows &quot;{1}&quot;, but there is no property with that id.</value>
+		<comment>{0} is the property id, {1} is the id it follows.</comment>
+	</data>
+	<data name="PropertyFollowedTwice" xml:space="preserve">
+		<value>More than one property follows &quot;{0}&quot;: {1}.</value>
+		<comment>{0} is the followed property id, {1} is the quoted ids of the properties that follow it.</comment>
+	</data>
+	<data name="FamilyLastNameOtherValuesMissing" xml:space="preserve">
+		<value>The last name property &quot;{0}&quot; must have &quot;otherValues&quot; in its non-player defaults.</value>
+		<comment>{0} is the property id.</comment>
+	</data>
+	<data name="HouseTitleNotAllowed" xml:space="preserve">
+		<value>The house &quot;{0}&quot; can&apos;t have a title. Houses are named by &quot;houseTitle&quot;.</value>
+		<comment>{0} is the house id.</comment>
+	</data>
+	<data name="FamilyPropertyNotSetByGame" xml:space="preserve">
+		<value>The property &quot;{0}&quot; must have &quot;setByGame&quot;, since the family generator sets it.</value>
+		<comment>{0} is the property id.</comment>
+	</data>
+	<data name="ValuesFromUnknown" xml:space="preserve">
+		<value>The property &quot;{0}&quot; takes its values from &quot;{1}&quot;, but the only source is &quot;{2}&quot;.</value>
+		<comment>{0} is the property id, {1} is the source given, {2} is the only allowed source.</comment>
+	</data>
+	<data name="ValuesAndValuesFrom" xml:space="preserve">
+		<value>The property &quot;{0}&quot; can&apos;t have both &quot;values&quot; and &quot;valuesFrom&quot;.</value>
+		<comment>{0} is the property id.</comment>
+	</data>
+	<data name="ValuesFromNotLoaded" xml:space="preserve">
+		<value>The property &quot;{0}&quot; takes its values from &quot;{1}&quot;, which didn&apos;t load.</value>
+		<comment>{0} is the property id, {1} is the source.</comment>
+	</data>
+	<data name="FamilyProfessionValuesNotFromProfessions" xml:space="preserve">
+		<value>The profession property &quot;{0}&quot; must have &quot;valuesFrom&quot;: &quot;{1}&quot;.</value>
+		<comment>{0} is the property id, {1} is the professions source.</comment>
+	</data>
+	<data name="ProfessionWealthMissing" xml:space="preserve">
+		<value>The profession &quot;{0}&quot; is a business, so it needs a &quot;wealth&quot;.</value>
+		<comment>{0} is the profession id.</comment>
+	</data>
+	<data name="ProfessionDefaultsPropertyInvalid" xml:space="preserve">
+		<value>The profession &quot;{0}&quot; has defaults for &quot;{1}&quot;, but that isn&apos;t a string property whose defaults are keyed by &quot;{2}&quot; without their own &quot;valuesByKey&quot;.</value>
+		<comment>{0} is the profession id, {1} is the property id, {2} is the profession property id.</comment>
+	</data>
+	<data name="LayoutCenterInvalid" xml:space="preserve">
+		<value>The &quot;{0}&quot; layout is built around &quot;{1}&quot;, but that isn&apos;t a unique quarter kind in the village.</value>
+		<comment>{0} is the layout shape, {1} is the center kind id.</comment>
+	</data>
+	<data name="QuarterKindUniqueMissing" xml:space="preserve">
+		<value>The quarter kind &quot;{0}&quot; is unique, so at least one quarter must be of that kind.</value>
+		<comment>{0} is the quarter kind id.</comment>
+	</data>
+	<data name="LandmarkQuartersMissing" xml:space="preserve">
+		<value>There must be at least one landmark quarter (a quarter with no houses or businesses), since &quot;landmarkCount&quot; can be more than 0.</value>
+	</data>
+	<data name="ExitRoute" xml:space="preserve">
+		<value>{0} along the {1}</value>
+		<comment>{0} is a compass direction such as &quot;North-east&quot;, {1} is the name of the path, such as &quot;lane&quot;.</comment>
+	</data>
+	<data name="CompassNorth" xml:space="preserve">
+		<value>North</value>
+	</data>
+	<data name="CompassNorthEast" xml:space="preserve">
+		<value>North-east</value>
+	</data>
+	<data name="CompassEast" xml:space="preserve">
+		<value>East</value>
+	</data>
+	<data name="CompassSouthEast" xml:space="preserve">
+		<value>South-east</value>
+	</data>
+	<data name="CompassSouth" xml:space="preserve">
+		<value>South</value>
+	</data>
+	<data name="CompassSouthWest" xml:space="preserve">
+		<value>South-west</value>
+	</data>
+	<data name="CompassWest" xml:space="preserve">
+		<value>West</value>
+	</data>
+	<data name="CompassNorthWest" xml:space="preserve">
+		<value>North-west</value>
+	</data>
+	<data name="PathsHeader" xml:space="preserve">
+		<value>Paths from here:</value>
+		<comment>Heads the list of paths to other quarters.</comment>
+	</data>
+	<data name="PlacesHeader" xml:space="preserve">
+		<value>Places here:</value>
+		<comment>Heads the list of houses and businesses in a quarter.</comment>
+	</data>
+	<data name="ViewMap" xml:space="preserve">
+		<value>Map</value>
+		<comment>The button that opens the map of the town.</comment>
+	</data>
+	<data name="MapHeader" xml:space="preserve">
+		<value>Town Map</value>
+		<comment>The title of the map of the town.</comment>
+	</data>
+	<data name="FeatureSettingMissing" xml:space="preserve">
+		<value>The map feature &quot;{0}&quot; needs &quot;{1}&quot;, since it&apos;s a {2}.</value>
+		<comment>{0} is the feature id, {1} is the setting name, {2} is the feature type.</comment>
+	</data>
+	<data name="FeatureSettingNotAllowed" xml:space="preserve">
+		<value>The map feature &quot;{0}&quot; can&apos;t have &quot;{1}&quot;, since it&apos;s a {2}.</value>
+		<comment>{0} is the feature id, {1} is the setting name, {2} is the feature type.</comment>
+	</data>
+	<data name="FeatureTextInvalid" xml:space="preserve">
+		<value>&quot;{0}&quot; has the text &quot;{1}&quot;, but it must be filled in, and its only placeholder can be {{direction}}.</value>
+		<comment>{0} is the path, {1} is the text.</comment>
+	</data>
+	<data name="FeatureUnknown" xml:space="preserve">
+		<value>&quot;{0}&quot; is &quot;{1}&quot;, but there is no map feature with that id.</value>
+		<comment>{0} is the path, {1} is the feature id.</comment>
+	</data>
+	<data name="QuarterKindUniqueBorders" xml:space="preserve">
+		<value>The quarter kind &quot;{0}&quot; is unique, so its quarters can&apos;t border a map feature.</value>
+		<comment>{0} is the quarter kind id.</comment>
+	</data>
+	<data name="ExitCrossingRoute" xml:space="preserve">
+		<value>{0} across the {1}</value>
+		<comment>{0} is a compass direction such as &quot;North-east&quot;, {1} is what the crossing is called, such as &quot;bridge&quot;.</comment>
+	</data>
+	<data name="MapNorth" xml:space="preserve">
+		<value>↑ N</value>
+		<comment>Marks north on the map.</comment>
+	</data>
+	<data name="MiniMapHeader" xml:space="preserve">
+		<value>Nearby</value>
+		<comment>The heading of the mini-map on the main screen.</comment>
 	</data>
 </root>

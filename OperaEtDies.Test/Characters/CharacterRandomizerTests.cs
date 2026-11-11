@@ -15,7 +15,7 @@ public sealed class CharacterRandomizerTests
 
 			Assert.That(traits.GetString("firstName"), traits.GetOption("gender").Id == "male" ? Is.AnyOf("John", "Osric") : Is.EqualTo("Alice"));
 			Assert.That(traits.GetString("lastName"), Is.EqualTo(traits.GetOption("profession").Id == "smith" ? "Smith" : "Miller"));
-			Assert.That(traits.GetInteger("age"), Is.InRange(16, 70));
+			Assert.That(traits.GetInteger("age"), Is.InRange(16, 80));
 		}
 	}
 
@@ -34,11 +34,13 @@ public sealed class CharacterRandomizerTests
 			genders.Add(traits.GetOption("gender").Id);
 			professions.Add(traits.GetOption("profession").Id);
 			heights.Add(traits.GetOption("height").Id);
-			Assert.That(traits.GetInteger("age"), Is.InRange(16, 70));
+			Assert.That(traits.GetInteger("age"), Is.InRange(16, 80));
 		}
 
 		Assert.That(genders, Is.EquivalentTo(new[] { "male", "female" }));
-		Assert.That(professions, Is.EquivalentTo(new[] { "smith", "miller" }));
+
+		// Homemaker and infirm are very rare, so they may not come up.
+		Assert.That(professions, Is.SupersetOf(new[] { "smith", "miller" }).And.SubsetOf(new[] { "smith", "miller", "homemaker", "infirm" }));
 		Assert.That(heights, Is.EquivalentTo(new[] { "tall", "medium", "short" }));
 	}
 
@@ -53,7 +55,9 @@ public sealed class CharacterRandomizerTests
 			var traits = randomizer.GetTraits();
 
 			Assert.That(traits.GetOption("gender").Id, Is.EqualTo("male"));
-			Assert.That(traits.GetInteger("age"), Is.InRange(36, 60));
+
+			// The player's age comes from the head ages, from the youngest age that allows an adult child (16 + 16).
+			Assert.That(traits.GetInteger("age"), Is.InRange(32, 60));
 		}
 	}
 
@@ -197,7 +201,7 @@ public sealed class CharacterRandomizerTests
 		var gameData = TestData.CreateGameData();
 		var traits = TestData.CreateTraits(gameData, "female", "Alice", "Miller", "miller", "tall", "heavy", 34);
 
-		Assert.That(traits.Format(TextTemplate.Parse("{firstName} ({age}) {{{profession}}} {gender.pronoun} {gender.pronoun:first_upper}")), Is.EqualTo("Alice (34) {miller title} she She"));
+		Assert.That(traits.Format(TextTemplate.Parse("{firstName} ({age}) {{{profession}}} {gender.pronoun} {gender.pronoun:first_upper}")), Is.EqualTo("Alice (34) {Miller} she She"));
 	}
 
 	[Test]
@@ -291,7 +295,7 @@ public sealed class CharacterRandomizerTests
 					new CharacterObscurer { Id = "darkness", Hides = new Dictionary<string, int> { [CharacterObscurer.AllProperties] = 3 } },
 				],
 			},
-			TestData.CreateLocationList());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
 		var randomizer = new CharacterRandomizer(gameData, new Random(0), CharacterRole.Npc);
 		string Describe(params string[] obscurerIds) => randomizer.GetTraits().GetDescription(gameData.CharacterTemplates, gameData.GetObscuring(obscurerIds));
 
@@ -311,7 +315,7 @@ public sealed class CharacterRandomizerTests
 
 	private static GameData CreateGameData(params CharacterProperty[] properties) => new(
 		new CharacterData { Templates = TestData.CreateTemplates("name", "description"), Properties = properties },
-		TestData.CreateLocationList());
+		TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
 
 	private static readonly GameData s_gameData = TestData.CreateGameData();
 }

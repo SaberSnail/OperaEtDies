@@ -15,8 +15,9 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 	/// Creates the start up window. The mod list can only be managed if a store for it is given, which needs the game
 	/// info. Mods that are turned off are still listed, but aren't loaded.
 	/// </summary>
-	public StartUpWindowViewModel(GameInfo? gameInfo, GameData? gameData, Random random, IReadOnlyList<DataLoadError> loadErrors, IModListStore? modListStore = null, IFolderPicker? folderPicker = null, bool areModsEnabled = true)
+	public StartUpWindowViewModel(GameInfo? gameInfo, GameData? gameData, Random random, IReadOnlyList<DataLoadError> loadErrors, IModListStore? modListStore = null, IFolderPicker? folderPicker = null, bool areModsEnabled = true, bool isDeveloper = false)
 	{
+		IsDeveloper = isDeveloper;
 		m_taskGroup = new TaskGroup();
 		m_random = random;
 		m_folderPicker = folderPicker ?? new FolderPicker();
@@ -26,6 +27,11 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 		m_loadErrors = [];
 		ApplyData(gameInfo, gameData, loadErrors, modListStore);
 	}
+
+	/// <summary>
+	/// Whether the game was started in developer mode, which shows extra information and controls.
+	/// </summary>
+	public bool IsDeveloper { get; }
 
 	public event EventHandler<GenericEventArgs<NewGameSettings>>? StartNewGameRequested;
 

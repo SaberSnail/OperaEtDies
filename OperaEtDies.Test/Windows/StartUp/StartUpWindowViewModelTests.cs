@@ -22,6 +22,16 @@ public sealed class StartUpWindowViewModelTests
 	}
 
 	[Test]
+	public void DeveloperModeIsShownOnlyWhenTurnedOn()
+	{
+		using var player = new StartUpWindowViewModel(TestData.CreateGameInfo(), TestData.CreateGameData(), new Random(0), []);
+		using var developer = new StartUpWindowViewModel(TestData.CreateGameInfo(), TestData.CreateGameData(), new Random(0), [], isDeveloper: true);
+
+		Assert.That(player.IsDeveloper, Is.False);
+		Assert.That(developer.IsDeveloper, Is.True);
+	}
+
+	[Test]
 	public void MissingGameInfoShowsErrorsAndBlocksNewGame()
 	{
 		using var viewModel = new StartUpWindowViewModel(null, TestData.CreateGameData(), new Random(0), [new DataLoadError(@"C:\Data\GameInfo.json", "Broken")]);

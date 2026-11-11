@@ -42,7 +42,7 @@ public sealed class NewGameViewModelTests
 				Templates = TestData.CreateTemplates("{a}", "{a}"),
 				Properties = [Property("style", TestData.Condition("length", "x")), Property("a"), Property("length"), Property("b")],
 			},
-			TestData.CreateLocationList());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
 
 		var viewModel = new NewGameViewModel(gameData, new Random(0));
 
@@ -79,7 +79,7 @@ public sealed class NewGameViewModelTests
 					},
 				],
 			},
-			TestData.CreateLocationList());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
 
 		var viewModel = new NewGameViewModel(gameData, new Random(0));
 
@@ -110,8 +110,8 @@ public sealed class NewGameViewModelTests
 		Assert.That(FirstName(viewModel).Text, Is.AnyOf("John", "Osric"));
 		Assert.That(LastName(viewModel).Text, Is.EqualTo(Profession(viewModel).SelectedOption!.Id == "smith" ? "Smith" : "Miller"));
 		Assert.That(Height(viewModel).SelectedOption, Is.AnyOf(Height(viewModel).Options.ToArray()));
-		Assert.That(Age(viewModel).Value, Is.InRange(36, 60));
-		Assert.That(Age(viewModel).Minimum, Is.EqualTo(36));
+		Assert.That(Age(viewModel).Value, Is.InRange(32, 60));
+		Assert.That(Age(viewModel).Minimum, Is.EqualTo(32));
 		Assert.That(Age(viewModel).Maximum, Is.EqualTo(60));
 		Assert.That(viewModel.CanStartGame(), Is.True);
 	}
@@ -162,7 +162,7 @@ public sealed class NewGameViewModelTests
 
 		editor.Text = ageText;
 
-		Assert.That(editor.Value, Is.InRange(36, 60));
+		Assert.That(editor.Value, Is.InRange(32, 60));
 		Assert.That(editor.Text, Is.EqualTo(editor.Value.ToString(CultureInfo.CurrentCulture)));
 		Assert.That(changed, Does.Contain(nameof(IntegerPropertyEditorViewModel.Text)));
 	}
@@ -193,7 +193,7 @@ public sealed class NewGameViewModelTests
 		Assert.That(editor.Value, Is.EqualTo(50));
 
 		editor.Value = 12;
-		Assert.That(editor.Value, Is.EqualTo(36));
+		Assert.That(editor.Value, Is.EqualTo(32));
 
 		editor.Value = 90;
 		Assert.That(editor.Value, Is.EqualTo(60));
@@ -254,6 +254,7 @@ public sealed class NewGameViewModelTests
 		var viewModel = CreateViewModel();
 		var professions = new HashSet<CharacterPropertyOption>();
 		var firstNames = new HashSet<string>();
+		var lastNames = new HashSet<string>();
 		var heights = new HashSet<CharacterPropertyOption>();
 
 		// Enough rolls that even the rarest test value is all but certain to come up.
@@ -265,13 +266,33 @@ public sealed class NewGameViewModelTests
 			professions.Add(Profession(viewModel).SelectedOption!);
 			firstNames.Add(FirstName(viewModel).Text);
 			heights.Add(Height(viewModel).SelectedOption!);
-			Assert.That(Age(viewModel).Value, Is.InRange(36, 60));
-			Assert.That(LastName(viewModel).Text, Is.EqualTo(Profession(viewModel).SelectedOption!.Id == "smith" ? "Smith" : "Miller"));
+			Assert.That(Age(viewModel).Value, Is.InRange(32, 60));
+			lastNames.Add(LastName(viewModel).Text);
 		}
 
 		Assert.That(professions, Is.EquivalentTo(Profession(viewModel).Options));
 		Assert.That(firstNames, Is.EquivalentTo(new[] { "John", "Osric" }));
+		Assert.That(lastNames, Is.EquivalentTo(new[] { "Green", "Hill", "Wood", "Brook", "Field", "Stone", "Marsh", "Reed", "Ford", "Lane" }));
 		Assert.That(heights, Is.EquivalentTo(Height(viewModel).Options));
+	}
+
+	[Test]
+	public void RandomizingTheLastNamePicksAnOtherName()
+	{
+		var viewModel = CreateViewModel();
+		var usual = LastName(viewModel).Text;
+		Assert.That(usual, Is.EqualTo(Profession(viewModel).SelectedOption!.Id == "smith" ? "Smith" : "Miller"));
+
+		for (var i = 0; i < 20; i++)
+		{
+			LastName(viewModel).Randomize();
+
+			Assert.That(LastName(viewModel).Text, Is.AnyOf("Green", "Hill", "Wood", "Brook", "Field", "Stone", "Marsh", "Reed", "Ford", "Lane"));
+		}
+
+		// A randomized name isn't a custom one, so randomizing everything goes back to the usual name.
+		viewModel.RandomizeAll();
+		Assert.That(LastName(viewModel).Text, Is.EqualTo(Profession(viewModel).SelectedOption!.Id == "smith" ? "Smith" : "Miller"));
 	}
 
 	[Test]
@@ -287,7 +308,7 @@ public sealed class NewGameViewModelTests
 
 			Assert.That(FirstName(viewModel).Text, Is.EqualTo("Bob"));
 			Assert.That(LastName(viewModel).Text, Is.EqualTo("Atwood"));
-			Assert.That(Age(viewModel).Value, Is.InRange(36, 60));
+			Assert.That(Age(viewModel).Value, Is.InRange(32, 60));
 			Assert.That(viewModel.CanStartGame(), Is.True);
 		}
 	}
@@ -312,7 +333,7 @@ public sealed class NewGameViewModelTests
 				Templates = TestData.CreateTemplates("{name}", "{name}"),
 				Properties = [new CharacterProperty { Id = "name", Title = "Name", Type = CharacterPropertyType.String }],
 			},
-			TestData.CreateLocationList());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
 		var viewModel = new NewGameViewModel(gameData, new Random(0));
 		var editor = (StringPropertyEditorViewModel) viewModel.Properties.Single();
 

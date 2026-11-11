@@ -250,33 +250,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The location &quot;{0}&quot; has a blank connection..
-        /// </summary>
-        public static string LocationConnectionBlank {
-            get {
-                return ResourceManager.GetString("LocationConnectionBlank", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The location &quot;{0}&quot; connects to itself..
-        /// </summary>
-        public static string LocationConnectionToSelf {
-            get {
-                return ResourceManager.GetString("LocationConnectionToSelf", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The location &quot;{0}&quot; connects to &quot;{1}&quot;, but there is no location with that id..
-        /// </summary>
-        public static string LocationConnectionUnknown {
-            get {
-                return ResourceManager.GetString("LocationConnectionUnknown", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to The location &quot;{0}&quot; is missing its {1}..
         /// </summary>
         public static string LocationDescriptionMissing {
@@ -336,24 +309,6 @@ namespace OperaEtDies {
         public static string StartGame {
             get {
                 return ResourceManager.GetString("StartGame", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The starting location is missing..
-        /// </summary>
-        public static string StartingLocationMissing {
-            get {
-                return ResourceManager.GetString("StartingLocationMissing", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The starting location is &quot;{0}&quot;, but there is no location with that id..
-        /// </summary>
-        public static string StartingLocationUnknown {
-            get {
-                return ResourceManager.GetString("StartingLocationUnknown", resourceCulture);
             }
         }
         
@@ -421,7 +376,7 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The &quot;{0}&quot; setting must have either &quot;values&quot;, or &quot;keyedBy&quot; and &quot;valuesByKey&quot;..
+        ///   Looks up a localized string similar to The &quot;{0}&quot; setting must have either &quot;values&quot;, or &quot;keyedBy&quot; with &quot;valuesByKey&quot; (which comes from the professions when keyed by a property whose values do) and optional &quot;otherValues&quot;..
         /// </summary>
         public static string StringDefaultsFormInvalid {
             get {
@@ -1137,6 +1092,708 @@ namespace OperaEtDies {
         public static string LoadingGameData {
             get {
                 return ResourceManager.GetString("LoadingGameData", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; list has an item that isn't filled in..
+        /// </summary>
+        public static string DataListItemBlank {
+            get {
+                return ResourceManager.GetString("DataListItemBlank", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is listed more than once in the &quot;{1}&quot; list..
+        /// </summary>
+        public static string DataListValueDuplicate {
+            get {
+                return ResourceManager.GetString("DataListValueDuplicate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; must be filled in..
+        /// </summary>
+        public static string DataValueMissing {
+            get {
+                return ResourceManager.GetString("DataValueMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is {1}, but it must be a percentage from 0 to 100..
+        /// </summary>
+        public static string DataChanceInvalid {
+            get {
+                return ResourceManager.GetString("DataChanceInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is {1}, but it must be at least {2}..
+        /// </summary>
+        public static string DataNumberTooSmall {
+            get {
+                return ResourceManager.GetString("DataNumberTooSmall", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is {1}, but it must be more than 0..
+        /// </summary>
+        public static string DataNumberNotPositive {
+            get {
+                return ResourceManager.GetString("DataNumberNotPositive", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is {1}, but it must be from 0 to 1..
+        /// </summary>
+        public static string DataFractionInvalid {
+            get {
+                return ResourceManager.GetString("DataFractionInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is &quot;{1}&quot;, but it must be &quot;low&quot;, &quot;medium&quot;, or &quot;high&quot;..
+        /// </summary>
+        public static string WealthLevelNotAllowed {
+            get {
+                return ResourceManager.GetString("WealthLevelNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The location id &quot;{0}&quot; is used more than once..
+        /// </summary>
+        public static string LocationIdDuplicate {
+            get {
+                return ResourceManager.GetString("LocationIdDuplicate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The location &quot;{0}&quot; uses the quarter kind &quot;{1}&quot;, but it isn't in the &quot;quarterKinds&quot; list..
+        /// </summary>
+        public static string QuarterKindUnknown {
+            get {
+                return ResourceManager.GetString("QuarterKindUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The quarter &quot;{0}&quot; has houses, so it must have a &quot;wealth&quot;..
+        /// </summary>
+        public static string QuarterHousesWithoutWealth {
+            get {
+                return ResourceManager.GetString("QuarterHousesWithoutWealth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The quarter &quot;{0}&quot; has a &quot;wealth&quot;, but it has no houses..
+        /// </summary>
+        public static string QuarterWealthWithoutHouses {
+            get {
+                return ResourceManager.GetString("QuarterWealthWithoutHouses", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to There must be at least one house with a &quot;wealth&quot; of &quot;{0}&quot;..
+        /// </summary>
+        public static string HouseWealthMissing {
+            get {
+                return ResourceManager.GetString("HouseWealthMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to There must be at least one quarter with houses and a &quot;wealth&quot; of &quot;{0}&quot;..
+        /// </summary>
+        public static string QuarterWealthMissing {
+            get {
+                return ResourceManager.GetString("QuarterWealthMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The location &quot;{0}&quot; can't be placed, because no quarter of its kinds has room for businesses..
+        /// </summary>
+        public static string BusinessQuarterMissing {
+            get {
+                return ResourceManager.GetString("BusinessQuarterMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The location &quot;{0}&quot; is for the profession &quot;{1}&quot;, which works from home, so it can't have business locations..
+        /// </summary>
+        public static string BusinessProfessionWorksFromHome {
+            get {
+                return ResourceManager.GetString("BusinessProfessionWorksFromHome", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The location &quot;{0}&quot; is for the profession &quot;{1}&quot;, which isn't in Professions.json..
+        /// </summary>
+        public static string BusinessProfessionUnknown {
+            get {
+                return ResourceManager.GetString("BusinessProfessionUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The profession &quot;{0}&quot; must have at least one location in &quot;businesses&quot; in Locations.json, unless it works from home..
+        /// </summary>
+        public static string ProfessionLocationsMissing {
+            get {
+                return ResourceManager.GetString("ProfessionLocationsMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is &quot;{1}&quot;, but there is no {2} character property with that id..
+        /// </summary>
+        public static string FamilyPropertyInvalid {
+            get {
+                return ResourceManager.GetString("FamilyPropertyInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is &quot;{1}&quot;, but the character property &quot;{2}&quot; has no value with that id..
+        /// </summary>
+        public static string FamilyValueUnknown {
+            get {
+                return ResourceManager.GetString("FamilyValueUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Villagers.
+        /// </summary>
+        public static string ViewVillagers {
+            get {
+                return ResourceManager.GetString("ViewVillagers", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Villagers.
+        /// </summary>
+        public static string VillagersHeader {
+            get {
+                return ResourceManager.GetString("VillagersHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The {0} Family.
+        /// </summary>
+        public static string FamilyTitle {
+            get {
+                return ResourceManager.GetString("FamilyTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Close.
+        /// </summary>
+        public static string CloseView {
+            get {
+                return ResourceManager.GetString("CloseView", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; has the key &quot;{1}&quot;, but the character property &quot;{2}&quot; has no group with that id..
+        /// </summary>
+        public static string FamilyAgeGroupUnknown {
+            get {
+                return ResourceManager.GetString("FamilyAgeGroupUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;headAge&quot; goes from {0} to {1}, which isn't within the range of the character property &quot;{2}&quot; for non-player characters ({3} to {4})..
+        /// </summary>
+        public static string FamilyHeadAgeOutOfRange {
+            get {
+                return ResourceManager.GetString("FamilyHeadAgeOutOfRange", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The profession &quot;{0}&quot; is the &quot;{1}&quot; value in Families.json, which isn't a business, so it can't have business settings..
+        /// </summary>
+        public static string ProfessionNotBusiness {
+            get {
+                return ResourceManager.GetString("ProfessionNotBusiness", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A shape's peak must be &quot;low&quot;, &quot;middle&quot;, or &quot;high&quot;, optionally followed by &quot;+&quot;, &quot;++&quot;, &quot;-&quot;, or &quot;--&quot;..
+        /// </summary>
+        public static string ShapePeakInvalid {
+            get {
+                return ResourceManager.GetString("ShapePeakInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is &quot;{1}&quot;, which moves the peak outside the list..
+        /// </summary>
+        public static string ShapePeakOutOfRange {
+            get {
+                return ResourceManager.GetString("ShapePeakOutOfRange", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The character property &quot;{0}&quot; can't have a player range, since the player's age comes from &quot;headAge&quot; in Families.json..
+        /// </summary>
+        public static string FamilyAgePlayerRangeNotAllowed {
+            get {
+                return ResourceManager.GetString("FamilyAgePlayerRangeNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;headAge&quot; must go up to at least {0}, so the player can be old enough to have an adult child..
+        /// </summary>
+        public static string FamilyHeadAgeTooYoung {
+            get {
+                return ResourceManager.GetString("FamilyHeadAgeTooYoung", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The profession &quot;{0}&quot; is for household elders, so it must work from home..
+        /// </summary>
+        public static string ProfessionElderTradeNotFromHome {
+            get {
+                return ResourceManager.GetString("ProfessionElderTradeNotFromHome", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A profession's wealth must be &quot;veryLow&quot;, &quot;low&quot;, &quot;medium&quot;, or &quot;high&quot;, optionally followed by &quot;+&quot;, &quot;++&quot;, &quot;-&quot;, or &quot;--&quot;..
+        /// </summary>
+        public static string ProfessionWealthInvalid {
+            get {
+                return ResourceManager.GetString("ProfessionWealthInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Options:.
+        /// </summary>
+        public static string CommandLineOptionsHeader {
+            get {
+                return ResourceManager.GetString("CommandLineOptionsHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show this list of options and exit..
+        /// </summary>
+        public static string CommandLineHelp {
+            get {
+                return ResourceManager.GetString("CommandLineHelp", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start without loading mods..
+        /// </summary>
+        public static string CommandLineNoMods {
+            get {
+                return ResourceManager.GetString("CommandLineNoMods", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show extra information and controls for developing the game..
+        /// </summary>
+        public static string CommandLineDeveloper {
+            get {
+                return ResourceManager.GetString("CommandLineDeveloper", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Generate villages, write them to standard output, and exit..
+        /// </summary>
+        public static string CommandLineGenerateVillages {
+            get {
+                return ResourceManager.GetString("CommandLineGenerateVillages", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The random seed for the first generated village..
+        /// </summary>
+        public static string CommandLineSeed {
+            get {
+                return ResourceManager.GetString("CommandLineSeed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Command Line Options.
+        /// </summary>
+        public static string CommandLineHelpTitle {
+            get {
+                return ResourceManager.GetString("CommandLineHelpTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Wealth: {0}.
+        /// </summary>
+        public static string VillagerFamilyWealth {
+            get {
+                return ResourceManager.GetString("VillagerFamilyWealth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Developer Mode.
+        /// </summary>
+        public static string DeveloperMode {
+            get {
+                return ResourceManager.GetString("DeveloperMode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The property &quot;{0}&quot; can't follow itself..
+        /// </summary>
+        public static string PropertyFollowsItself {
+            get {
+                return ResourceManager.GetString("PropertyFollowsItself", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The property &quot;{0}&quot; follows &quot;{1}&quot;, but there is no property with that id..
+        /// </summary>
+        public static string PropertyFollowsUnknown {
+            get {
+                return ResourceManager.GetString("PropertyFollowsUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to More than one property follows &quot;{0}&quot;: {1}..
+        /// </summary>
+        public static string PropertyFollowedTwice {
+            get {
+                return ResourceManager.GetString("PropertyFollowedTwice", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The last name property &quot;{0}&quot; must have &quot;otherValues&quot; in its non-player defaults..
+        /// </summary>
+        public static string FamilyLastNameOtherValuesMissing {
+            get {
+                return ResourceManager.GetString("FamilyLastNameOtherValuesMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The house &quot;{0}&quot; can't have a title. Houses are named by &quot;houseTitle&quot;..
+        /// </summary>
+        public static string HouseTitleNotAllowed {
+            get {
+                return ResourceManager.GetString("HouseTitleNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The property &quot;{0}&quot; must have &quot;setByGame&quot;, since the family generator sets it..
+        /// </summary>
+        public static string FamilyPropertyNotSetByGame {
+            get {
+                return ResourceManager.GetString("FamilyPropertyNotSetByGame", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The property &quot;{0}&quot; takes its values from &quot;{1}&quot;, but the only source is &quot;{2}&quot;..
+        /// </summary>
+        public static string ValuesFromUnknown {
+            get {
+                return ResourceManager.GetString("ValuesFromUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The property &quot;{0}&quot; can't have both &quot;values&quot; and &quot;valuesFrom&quot;..
+        /// </summary>
+        public static string ValuesAndValuesFrom {
+            get {
+                return ResourceManager.GetString("ValuesAndValuesFrom", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The property &quot;{0}&quot; takes its values from &quot;{1}&quot;, which didn't load..
+        /// </summary>
+        public static string ValuesFromNotLoaded {
+            get {
+                return ResourceManager.GetString("ValuesFromNotLoaded", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The profession property &quot;{0}&quot; must have &quot;valuesFrom&quot;: &quot;{1}&quot;..
+        /// </summary>
+        public static string FamilyProfessionValuesNotFromProfessions {
+            get {
+                return ResourceManager.GetString("FamilyProfessionValuesNotFromProfessions", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The profession &quot;{0}&quot; is a business, so it needs a &quot;wealth&quot;..
+        /// </summary>
+        public static string ProfessionWealthMissing {
+            get {
+                return ResourceManager.GetString("ProfessionWealthMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The profession &quot;{0}&quot; has defaults for &quot;{1}&quot;, but that isn't a string property whose defaults are keyed by &quot;{2}&quot; without their own &quot;valuesByKey&quot;..
+        /// </summary>
+        public static string ProfessionDefaultsPropertyInvalid {
+            get {
+                return ResourceManager.GetString("ProfessionDefaultsPropertyInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The &quot;{0}&quot; layout is built around &quot;{1}&quot;, but that isn't a unique quarter kind in the village..
+        /// </summary>
+        public static string LayoutCenterInvalid {
+            get {
+                return ResourceManager.GetString("LayoutCenterInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The quarter kind &quot;{0}&quot; is unique, so at least one quarter must be of that kind..
+        /// </summary>
+        public static string QuarterKindUniqueMissing {
+            get {
+                return ResourceManager.GetString("QuarterKindUniqueMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to There must be at least one landmark quarter (a quarter with no houses or businesses), since &quot;landmarkCount&quot; can be more than 0..
+        /// </summary>
+        public static string LandmarkQuartersMissing {
+            get {
+                return ResourceManager.GetString("LandmarkQuartersMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} along the {1}.
+        /// </summary>
+        public static string ExitRoute {
+            get {
+                return ResourceManager.GetString("ExitRoute", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to North.
+        /// </summary>
+        public static string CompassNorth {
+            get {
+                return ResourceManager.GetString("CompassNorth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to North-east.
+        /// </summary>
+        public static string CompassNorthEast {
+            get {
+                return ResourceManager.GetString("CompassNorthEast", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to East.
+        /// </summary>
+        public static string CompassEast {
+            get {
+                return ResourceManager.GetString("CompassEast", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to South-east.
+        /// </summary>
+        public static string CompassSouthEast {
+            get {
+                return ResourceManager.GetString("CompassSouthEast", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to South.
+        /// </summary>
+        public static string CompassSouth {
+            get {
+                return ResourceManager.GetString("CompassSouth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to South-west.
+        /// </summary>
+        public static string CompassSouthWest {
+            get {
+                return ResourceManager.GetString("CompassSouthWest", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to West.
+        /// </summary>
+        public static string CompassWest {
+            get {
+                return ResourceManager.GetString("CompassWest", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to North-west.
+        /// </summary>
+        public static string CompassNorthWest {
+            get {
+                return ResourceManager.GetString("CompassNorthWest", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Paths from here:.
+        /// </summary>
+        public static string PathsHeader {
+            get {
+                return ResourceManager.GetString("PathsHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Places here:.
+        /// </summary>
+        public static string PlacesHeader {
+            get {
+                return ResourceManager.GetString("PlacesHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Map.
+        /// </summary>
+        public static string ViewMap {
+            get {
+                return ResourceManager.GetString("ViewMap", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Town Map.
+        /// </summary>
+        public static string MapHeader {
+            get {
+                return ResourceManager.GetString("MapHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The map feature &quot;{0}&quot; needs &quot;{1}&quot;, since it's a {2}..
+        /// </summary>
+        public static string FeatureSettingMissing {
+            get {
+                return ResourceManager.GetString("FeatureSettingMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The map feature &quot;{0}&quot; can't have &quot;{1}&quot;, since it's a {2}..
+        /// </summary>
+        public static string FeatureSettingNotAllowed {
+            get {
+                return ResourceManager.GetString("FeatureSettingNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; has the text &quot;{1}&quot;, but it must be filled in, and its only placeholder can be {{direction}}..
+        /// </summary>
+        public static string FeatureTextInvalid {
+            get {
+                return ResourceManager.GetString("FeatureTextInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is &quot;{1}&quot;, but there is no map feature with that id..
+        /// </summary>
+        public static string FeatureUnknown {
+            get {
+                return ResourceManager.GetString("FeatureUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The quarter kind &quot;{0}&quot; is unique, so its quarters can't border a map feature..
+        /// </summary>
+        public static string QuarterKindUniqueBorders {
+            get {
+                return ResourceManager.GetString("QuarterKindUniqueBorders", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} across the {1}.
+        /// </summary>
+        public static string ExitCrossingRoute {
+            get {
+                return ResourceManager.GetString("ExitCrossingRoute", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to ↑ N.
+        /// </summary>
+        public static string MapNorth {
+            get {
+                return ResourceManager.GetString("MapNorth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Nearby.
+        /// </summary>
+        public static string MiniMapHeader {
+            get {
+                return ResourceManager.GetString("MiniMapHeader", resourceCulture);
             }
         }
     }

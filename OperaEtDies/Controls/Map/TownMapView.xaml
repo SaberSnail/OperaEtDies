@@ -1,0 +1,177 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:local="clr-namespace:OperaEtDies.Controls.Map"
+	xmlns:operaEtDies="clr-namespace:OperaEtDies"
+	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
+
+	<!--  The drawing of a map, used by both the full map and the mini-map. Features are drawn under the quarters, and paths  -->
+	<!--  over them. Quarters can be clicked to go there when the map allows travel.  -->
+	<DataTemplate x:Key="TownMapCanvasTemplate" DataType="{x:Type local:TownMapViewModel}">
+		<Grid Width="{Binding Width}" Height="{Binding Height}">
+			<ItemsControl IsHitTestVisible="False" ItemsSource="{Binding Features}">
+				<ItemsControl.ItemsPanel>
+					<ItemsPanelTemplate>
+						<Canvas />
+					</ItemsPanelTemplate>
+				</ItemsControl.ItemsPanel>
+				<ItemsControl.ItemContainerStyle>
+					<Style TargetType="ContentPresenter">
+						<Setter Property="Canvas.Left" Value="{Binding Left}" />
+						<Setter Property="Canvas.Top" Value="{Binding Top}" />
+					</Style>
+				</ItemsControl.ItemContainerStyle>
+				<ItemsControl.ItemTemplate>
+					<DataTemplate DataType="{x:Type local:TownMapFeatureViewModel}">
+						<Border
+							x:Name="FeatureBorder"
+							Width="{Binding Width}"
+							Height="{Binding Height}"
+							Background="{DynamicResource MapAreaBrush}">
+							<TextBlock
+								HorizontalAlignment="Center"
+								VerticalAlignment="Center"
+								FontSize="{DynamicResource SmallFontSize}"
+								FontStyle="Italic"
+								Text="{Binding Title}"
+								TextTrimming="CharacterEllipsis" />
+						</Border>
+						<DataTemplate.Triggers>
+							<DataTrigger Binding="{Binding IsRiver}" Value="True">
+								<Setter TargetName="FeatureBorder" Property="Background" Value="{DynamicResource MapRiverBrush}" />
+							</DataTrigger>
+						</DataTemplate.Triggers>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+
+			<ItemsControl ItemsSource="{Binding Quarters}">
+				<ItemsControl.ItemsPanel>
+					<ItemsPanelTemplate>
+						<Canvas />
+					</ItemsPanelTemplate>
+				</ItemsControl.ItemsPanel>
+				<ItemsControl.ItemContainerStyle>
+					<Style TargetType="ContentPresenter">
+						<Setter Property="Canvas.Left" Value="{Binding Left}" />
+						<Setter Property="Canvas.Top" Value="{Binding Top}" />
+					</Style>
+				</ItemsControl.ItemContainerStyle>
+				<ItemsControl.ItemTemplate>
+					<DataTemplate DataType="{x:Type local:TownMapQuarterViewModel}">
+						<Border
+							x:Name="QuarterBorder"
+							Width="{Binding Width}"
+							Height="{Binding Height}"
+							Background="{DynamicResource MapVillageBrush}"
+							BorderBrush="{DynamicResource MapBorderBrush}"
+							BorderThickness="1">
+							<Border.ToolTip>
+								<StackPanel MaxWidth="280">
+									<TextBlock FontWeight="Bold" Text="{Binding Title}" />
+									<TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+								</StackPanel>
+							</Border.ToolTip>
+							<Border.InputBindings>
+								<MouseBinding Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Visit}" Gesture="LeftClick" />
+							</Border.InputBindings>
+							<TextBlock
+								Margin="2"
+								HorizontalAlignment="Center"
+								VerticalAlignment="Center"
+								FontSize="{DynamicResource SmallFontSize}"
+								Text="{Binding Title}"
+								TextAlignment="Center"
+								TextTrimming="CharacterEllipsis"
+								TextWrapping="Wrap" />
+						</Border>
+						<DataTemplate.Triggers>
+							<DataTrigger Binding="{Binding Category}" Value="{x:Static local:TownMapCategory.Outskirts}">
+								<Setter TargetName="QuarterBorder" Property="Background" Value="{DynamicResource MapOutskirtsBrush}" />
+							</DataTrigger>
+							<DataTrigger Binding="{Binding Category}" Value="{x:Static local:TownMapCategory.Landmark}">
+								<Setter TargetName="QuarterBorder" Property="Background" Value="{DynamicResource MapLandmarkBrush}" />
+							</DataTrigger>
+							<DataTrigger Binding="{Binding IsCurrent}" Value="True">
+								<Setter TargetName="QuarterBorder" Property="BorderBrush" Value="{DynamicResource MapCurrentBrush}" />
+								<Setter TargetName="QuarterBorder" Property="BorderThickness" Value="3" />
+							</DataTrigger>
+							<DataTrigger Binding="{Binding CanTravel}" Value="True">
+								<Setter TargetName="QuarterBorder" Property="Cursor" Value="Hand" />
+							</DataTrigger>
+						</DataTemplate.Triggers>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+
+			<ItemsControl IsHitTestVisible="False" ItemsSource="{Binding Paths}">
+				<ItemsControl.ItemsPanel>
+					<ItemsPanelTemplate>
+						<Canvas />
+					</ItemsPanelTemplate>
+				</ItemsControl.ItemsPanel>
+				<ItemsControl.ItemTemplate>
+					<DataTemplate DataType="{x:Type local:TownMapSegment}">
+						<Line
+							Stroke="{DynamicResource MapPathBrush}"
+							StrokeThickness="2"
+							X1="{Binding X1}"
+							X2="{Binding X2}"
+							Y1="{Binding Y1}"
+							Y2="{Binding Y2}" />
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+
+			<!--  Which way is north, so the map matches the directions of the paths.  -->
+			<TextBlock
+				Margin="0,0,2,0"
+				HorizontalAlignment="Right"
+				VerticalAlignment="Top"
+				FontSize="{DynamicResource SmallFontSize}"
+				FontWeight="Bold"
+				Foreground="{DynamicResource FontLightBrush}"
+				IsHitTestVisible="False"
+				Text="{x:Static operaEtDies:OurResources.MapNorth}" />
+		</Grid>
+	</DataTemplate>
+
+	<!--  The full map of the town, shown in place of the player's location.  -->
+	<DataTemplate DataType="{x:Type local:TownMapViewModel}">
+		<Grid Margin="24">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="*" />
+			</Grid.RowDefinitions>
+
+			<DockPanel Grid.Row="0" LastChildFill="True">
+				<Button
+					Width="120"
+					Height="32"
+					VerticalAlignment="Center"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Close}"
+					Content="{x:Static operaEtDies:OurResources.CloseView}"
+					DockPanel.Dock="Right" />
+				<TextBlock
+					FontSize="{DynamicResource TitleFontSize}"
+					Text="{x:Static operaEtDies:OurResources.MapHeader}"
+					TextWrapping="Wrap" />
+			</DockPanel>
+
+			<Border
+				Grid.Row="1"
+				Margin="0,12,0,0"
+				BorderBrush="{DynamicResource ControlBorderBaseBrush}"
+				BorderThickness="1">
+				<ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+					<ContentControl
+						Margin="12"
+						Content="{Binding}"
+						ContentTemplate="{StaticResource TownMapCanvasTemplate}"
+						Focusable="False" />
+				</ScrollViewer>
+			</Border>
+		</Grid>
+	</DataTemplate>
+
+</ResourceDictionary>

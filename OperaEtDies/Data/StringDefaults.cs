@@ -22,14 +22,39 @@ public sealed class StringDefaults
 	public IReadOnlyDictionary<string, IReadOnlyList<WeightedString>>? ValuesByKey { get; init; }
 
 	/// <summary>
+	/// For keyed values, other values to pick from when the player wants something other than the usual value, such as
+	/// general last names for a property whose usual value comes from the profession. They're also used for a key that
+	/// has no values of its own.
+	/// </summary>
+	public IReadOnlyList<WeightedString>? OtherValues { get; init; }
+
+	/// <summary>
+	/// Whether <see cref="ValuesByKey"/> was filled in from the professions rather than read from the file.
+	/// </summary>
+	internal bool HasProfessionValuesByKey { get; private init; }
+
+	/// <summary>
 	/// Gets the values to pick from, given the value id of the <see cref="KeyedBy"/> property (ignored if the values
-	/// aren't keyed). Returns null if there are no values for the key.
+	/// aren't keyed). A key with no values of its own uses the other values. Returns null if there are no values for the
+	/// key.
 	/// </summary>
 	public IReadOnlyList<WeightedString>? GetValues(string? keyValueId)
 	{
 		if (KeyedBy is null)
 			return Values;
 
-		return keyValueId is not null && ValuesByKey is not null ? ValuesByKey.GetValueOrDefault(keyValueId) : null;
+		return (keyValueId is not null && ValuesByKey is not null ? ValuesByKey.GetValueOrDefault(keyValueId) : null) ?? OtherValues;
 	}
+
+	/// <summary>
+	/// Creates a copy with the given values for each key, taken from the professions.
+	/// </summary>
+	internal StringDefaults WithValuesByKey(IReadOnlyDictionary<string, IReadOnlyList<WeightedString>> valuesByKey) => new()
+	{
+		KeyedBy = KeyedBy,
+		Values = Values,
+		ValuesByKey = valuesByKey,
+		OtherValues = OtherValues,
+		HasProfessionValuesByKey = true,
+	};
 }

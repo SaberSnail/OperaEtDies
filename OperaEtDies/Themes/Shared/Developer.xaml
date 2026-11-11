@@ -1,0 +1,11 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+	<!--  Surrounds UI that's only shown to developers, so it's clear it isn't part of the game.  -->
+	<Style x:Key="DeveloperBorderStyle" TargetType="Border">
+		<Setter Property="BorderBrush" Value="{DynamicResource DeveloperBorderBrush}" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="CornerRadius" Value="3" />
+		<Setter Property="Padding" Value="6,4" />
+	</Style>
+
+</ResourceDictionary>

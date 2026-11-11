@@ -11,9 +11,10 @@ public static class CharacterChances
 	/// <summary>
 	/// Gets a warning for each value that has the given percentage chance or less of being chosen, for each role. A
 	/// value list value is checked in every combination of the values its conditions use, and is reported with its
-	/// lowest chance. An integer property's values are reported together.
+	/// lowest chance. An integer property's values are reported together. The range of an integer property for a role comes
+	/// from <paramref name="getRange"/> if given.
 	/// </summary>
-	public static IReadOnlyList<string> GetLowChanceWarnings(IReadOnlyList<CharacterProperty> properties, FrequencyChances frequencyChances, double threshold)
+	public static IReadOnlyList<string> GetLowChanceWarnings(IReadOnlyList<CharacterProperty> properties, FrequencyChances frequencyChances, double threshold, Func<CharacterProperty, CharacterRole, IntegerRange>? getRange = null)
 	{
 		var warnings = new List<string>();
 		var propertiesById = properties.ToDictionary(x => x.Id, StringComparer.Ordinal);
@@ -49,7 +50,7 @@ public static class CharacterChances
 
 			foreach (var property in properties.Where(x => x.Type == CharacterPropertyType.Integer))
 			{
-				var range = property.GetRange(role);
+				var range = getRange?.Invoke(property, role) ?? property.GetRange(role);
 				var chances = range.Shape.GetChances(range.Maximum - range.Minimum + 1);
 				var lowIndexes = Enumerable.Range(0, chances.Count).Where(x => chances[x] <= threshold).ToList();
 				if (lowIndexes.Count != 0)

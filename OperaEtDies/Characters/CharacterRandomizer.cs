@@ -18,6 +18,7 @@ public sealed class CharacterRandomizer
 		Properties = gameData.CharacterProperties;
 		m_random = random;
 		m_frequencyChances = gameData.FrequencyChances;
+		m_gameData = gameData;
 		m_propertiesById = gameData.CharacterProperties.ToDictionary(x => x.Id, StringComparer.Ordinal);
 		m_values = new Dictionary<string, RandomizedValue<object?>>(StringComparer.Ordinal);
 		m_propertiesInDependencyOrder = CharacterDependencies.GetOrder(Properties);
@@ -60,7 +61,7 @@ public sealed class CharacterRandomizer
 	/// <summary>
 	/// Gets the range of an integer property for this role.
 	/// </summary>
-	public IntegerRange GetRange(CharacterProperty property) => property.GetRange(Role);
+	public IntegerRange GetRange(CharacterProperty property) => m_gameData.GetRange(property, Role);
 
 	/// <summary>
 	/// Gets the default values a string property currently picks from, which may depend on the value of another
@@ -71,6 +72,24 @@ public sealed class CharacterRandomizer
 		var defaults = property.GetDefaults(Role);
 		var keyValueId = defaults?.KeyedBy is { } keyedBy ? GetValueId(keyedBy) : null;
 		return defaults?.GetValues(keyValueId) is { Count: > 0 } values ? values : null;
+	}
+
+	/// <summary>
+	/// Picks a new value for a property by itself, unlocking it first. A string property with other values (see
+	/// <see cref="StringDefaults.OtherValues"/>) picks one of those instead of a usual value.
+	/// </summary>
+	public void RandomizeAlone(CharacterProperty property)
+	{
+		var value = m_values[property.Id];
+		value.IsLocked = false;
+		if (property.Type == CharacterPropertyType.String && HasValue(property) && property.GetDefaults(Role)?.OtherValues is { Count: > 0 } otherValues)
+		{
+			value.Value = m_frequencyChances.Choose(m_random, otherValues).Value;
+		}
+		else
+		{
+			value.Randomize();
+		}
 	}
 
 	/// <summary>
@@ -85,11 +104,20 @@ public sealed class CharacterRandomizer
 	/// <summary>
 	/// Gets the current values of every property that has one.
 	/// </summary>
+	/// <summary>
+	/// Creates a player character with every value chosen at random, as the new game screen starts out.
+	/// </summary>
+	public static CharacterTraits CreateRandomPlayer(GameData gameData, Random random) =>
+		new CharacterRandomizer(gameData, random, CharacterRole.Player).GetTraits();
+
 	public CharacterTraits GetTraits() => new(m_values
 		.Where(x => x.Value.Value is not null)
 		.ToDictionary(x => x.Key, x => x.Value.Value!, StringComparer.Ordinal));
 
-	private string? GetValueId(string propertyId) => m_propertiesById[propertyId].GetConditionValueId(m_values[propertyId].Value);
+	/// <summary>
+	/// Gets the id conditions see for the current value of a property, or null if it has none.
+	/// </summary>
+	public string? GetValueId(string propertyId) => m_propertiesById[propertyId].GetConditionValueId(m_values[propertyId].Value);
 
 	/// <summary>
 	/// Makes the value fit the current values of the properties the conditions use: no value if the property no
@@ -140,6 +168,7 @@ public sealed class CharacterRandomizer
 		return range.Minimum + m_random.NextWeighted(Enumerable.Range(0, chances.Count).ToList(), x => chances[x]);
 	}
 
+	private readonly GameData m_gameData;
 	private readonly Random m_random;
 	private readonly FrequencyChances m_frequencyChances;
 	private readonly Dictionary<string, CharacterProperty> m_propertiesById;

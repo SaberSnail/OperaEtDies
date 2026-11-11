@@ -1,9 +1,11 @@
-﻿using GoldenAnvil.Utility.Logging;
+using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using Microsoft.VisualStudio.Threading;
+using OperaEtDies.Reports;
 using OperaEtDies.Windows.Main;
 using OperaEtDies.Windows.StartUp;
 
@@ -11,9 +13,37 @@ namespace OperaEtDies;
 
 public partial class App : Application
 {
-	protected override void OnStartup(StartupEventArgs e) => TaskWatcher.Execute(c => OnStartupAsync(e, c), AppModel.Instance.TaskGroup);
+	protected override void OnStartup(StartupEventArgs e)
+	{
+		var options = CommandLineOptions.Parse(e.Args);
+		if (options.ShowHelp)
+		{
+			// The game is a windowed app, so the list only appears on the console when its output is redirected.
+			m_isRunningWithoutGame = true;
+			base.OnStartup(e);
+			var help = CommandLineOptions.GetHelpText();
+			using (var output = new StreamWriter(Console.OpenStandardOutput()))
+				output.Write(help);
+			if (!Console.IsOutputRedirected)
+				MessageBox.Show(help, OurResources.CommandLineHelpTitle);
+			Shutdown(0);
+		}
+		else if (options.IsVillageReport)
+		{
+			// The report runs instead of the game, and writes to standard output and error without showing any UI.
+			m_isRunningWithoutGame = true;
+			base.OnStartup(e);
+			using var output = new StreamWriter(Console.OpenStandardOutput());
+			using var error = new StreamWriter(Console.OpenStandardError());
+			Shutdown(VillageReport.Run(e.Args, options.AreModsEnabled, output, error));
+		}
+		else
+		{
+			TaskWatcher.Execute(c => OnStartupAsync(e, options, c), AppModel.Instance.TaskGroup);
+		}
+	}
 
-	private async Task OnStartupAsync(StartupEventArgs e, TaskStateController state)
+	private async Task OnStartupAsync(StartupEventArgs e, CommandLineOptions options, TaskStateController state)
 	{
 		var stopwatch = Stopwatch.StartNew();
 
@@ -30,8 +60,7 @@ public partial class App : Application
 
 		try
 		{
-			var areModsEnabled = !e.Args.Contains(AppModel.NoModsArgument, StringComparer.OrdinalIgnoreCase);
-			await appModel.StartupAsync(state, areModsEnabled).ConfigureAwait(false);
+			await appModel.StartupAsync(state, options.AreModsEnabled, options.IsDeveloper).ConfigureAwait(false);
 			Log.Info($"Finished starting up in {stopwatch.Elapsed}");
 		}
 #pragma warning disable CA1031 // Do not catch general exception types (any start up failure must shut the app down)
@@ -129,6 +158,13 @@ public partial class App : Application
 
 	private async Task OnShutdownAsync(ExitEventArgs e)
 	{
+		// The report and the list of options never create the app model, so there's nothing to shut down.
+		if (m_isRunningWithoutGame)
+		{
+			base.OnExit(e);
+			return;
+		}
+
 		using var logScope = Log.TimedInfo("Shutting down");
 
 		m_isShuttingDown = true;
@@ -146,4 +182,5 @@ public partial class App : Application
 	private StartUpWindowView? m_startUpWindowView;
 	private MainWindowView? m_mainWindowView;
 	private bool m_isShuttingDown;
+	private bool m_isRunningWithoutGame;
 }

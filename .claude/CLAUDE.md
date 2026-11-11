@@ -2,7 +2,41 @@ See @../Docs/Design.md for general design principles and conventions.
 
 Since this is a single-developer project, there is no need to use PRs. Do not create commits or push any changes. I will commit and push them myself.
 
-Do not run the application for testing unless specifically requested. It is sufficient to verify that the application builds successfully.
+Do not run the application for testing unless specifically requested. It is sufficient to verify that the application builds successfully. The village report below is the exception: run it whenever generation statistics would help.
+
+## Todo List
+
+`Todo.md` at the repository root has two sections:
+
+* **Long Term** comes first: unchecked items to address in the future.
+* **Current Work** comes second: the project being worked on now. Its first line is a brief description of the project, followed by a checklist.
+
+"Work" and "project" mean the same thing here (current work, current project). Manage the list like this:
+
+* Clear Current Work when starting new work from Long Term, or when told the current work is complete. To clear it, move every unchecked item in it to Long Term, then remove the rest of it, including its description.
+* When starting work on an item from Long Term, clear Current Work first, then remove the item from Long Term and put its brief description at the top of Current Work.
+* As things that need to be addressed come up during the current project, add them to the Current Work checklist.
+* When a Current Work item is addressed, check it off and leave it in place. Don't delete it.
+
+## Village Report
+
+To analyze village generation (people, families, professions, wealth, locations, template reuse), run the game with `--no-mods --generate-villages <count>` instead of writing a one-off test or script. It loads the data, generates that many villages exactly as a new game does (each with a random player), writes tab-separated records to standard output, and exits without showing any UI. Build first, then run the exe directly, redirecting the output to a file in the scratchpad directory (it's a GUI app, so output only appears when redirected or piped):
+
+```bash
+dotnet build -v q -nologo
+OperaEtDies/bin/Debug/net9.0-windows/OperaEtDies.exe --no-mods --generate-villages 500 --seed 0 > <scratchpad>/villages.tsv
+```
+
+* `--seed <n>` is optional. Village `i` uses seed `n + i`, so `--generate-villages 1 --seed <seed>` reproduces any village from its `seed` column. Without it, the first seed is random.
+* Exit code 0 is success, 1 means the data failed to load (errors go to standard error), and 2 means invalid arguments.
+* About 500 villages take 5 seconds.
+* The first field of each line is the record type. The output starts with one header line per type (the type prefixed with `#`) naming its columns, so check the headers rather than assuming column positions. The types are `village`, `household`, `person` (with one column per character property, holding the value id), `business`, `location` (with each quarter's position and size on the map), `exit` (one per direction of each path between quarters), `feature` (map features such as the river), and `log` (warnings and errors logged while loading or generating, such as reused templates). To see a village's layout, draw each quarter's rectangle from its `location` record as a grid of letters with awk.
+* Analyze the file with `awk -F'\t'`, `sort`, and `uniq -c` (Python and jq aren't available). For example, the owners of each profession: `awk -F'\t' '$1=="business"{print $4}' villages.tsv | sort | uniq -c | sort -rn`.
+* The code is in `OperaEtDies/Reports/VillageReport.cs`. When generation changes in a way the records don't capture, add columns there.
+
+## Command Line Options
+
+The game's command line options are defined in `OperaEtDies/CommandLineOptions.cs`, and `--help` lists them. They're explained in more detail, with examples, in `Docs/CommandLine.md`. When adding or changing an option, update the help text there and that document too. `--developer` turns on developer UI, which is always surrounded by the `DeveloperBorderStyle` border so it's clearly not part of the game.
 
 ## Mods
 

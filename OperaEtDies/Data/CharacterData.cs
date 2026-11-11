@@ -16,8 +16,14 @@ public sealed class CharacterData : IValidatedData
 	/// <summary>
 	/// Loads the file from the data folder, with the changes from the mod folders applied in order.
 	/// </summary>
-	public static DataLoadResult<CharacterData> Load(string dataDirectory, IReadOnlyList<string> modDirectories) =>
-		JsonDataLoader.Load<CharacterData>(Path.Combine(dataDirectory, FileName), modDirectories, []);
+	public static DataLoadResult<CharacterData> Load(string dataDirectory, IReadOnlyList<string> modDirectories) => Load(dataDirectory, modDirectories, null);
+
+	/// <summary>
+	/// Loads the file from the data folder, with the changes from the mod folders applied in order. A property whose
+	/// values come from the professions gets their values, if they loaded.
+	/// </summary>
+	public static DataLoadResult<CharacterData> Load(string dataDirectory, IReadOnlyList<string> modDirectories, IReadOnlyList<Profession>? professions) =>
+		JsonDataLoader.Load<CharacterData>(Path.Combine(dataDirectory, FileName), modDirectories, [], x => x.WithProfessions(professions));
 
 	/// <summary>
 	/// The id of the template that creates a character's full name.
@@ -53,6 +59,37 @@ public sealed class CharacterData : IValidatedData
 	public IReadOnlyList<CharacterObscurer> Obscurers { get; init; } = [];
 
 	/// <summary>
+	/// Fills in the values of the properties whose values come from the professions, and the defaults of string
+	/// properties keyed by them. Without professions, those properties are left without values.
+	/// </summary>
+	private CharacterData WithProfessions(IReadOnlyList<Profession>? professions)
+	{
+		var data = this;
+		if (professions is not null && Properties.Any(TakesProfessions))
+		{
+			var items = professions.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)).ToList();
+			var values = items.Select(x => x.ToOption()).ToList();
+			var professionPropertyIds = Properties.Where(TakesProfessions).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+			data = new CharacterData
+			{
+				Templates = Templates,
+				Properties = Properties.Select(x => x is null ? x! : TakesProfessions(x) ? x.WithValues(values) : x.WithProfessionDefaults(professionPropertyIds, items)).ToList(),
+				Obscurers = Obscurers,
+				LowChanceWarning = LowChanceWarning,
+			};
+		}
+
+		return data;
+	}
+
+	/// <summary>
+	/// Whether a property should get the professions as its values: a value list property with no values of its own
+	/// that takes its values from the professions. Anything else is reported when the data is checked.
+	/// </summary>
+	private static bool TakesProfessions(CharacterProperty? property) =>
+		property is { Type: CharacterPropertyType.ValueList, Values: null, ValuesFrom: CharacterProperty.ProfessionsSource };
+
+	/// <summary>
 	/// A percentage chance. Any value that has this chance or less of being chosen is reported as a warning when the
 	/// data is loaded. Optional.
 	/// </summary>
@@ -72,6 +109,10 @@ public sealed class CharacterData : IValidatedData
 
 		foreach (var property in properties)
 			errors.AddRange(ValidateProperty(property, allProperties).Distinct(StringComparer.Ordinal));
+
+		// Only one property can come right after another.
+		foreach (var group in properties.Where(x => x.Follows is not null).GroupBy(x => x.Follows!, StringComparer.Ordinal).Where(x => x.Count() > 1))
+			errors.Add(OurResources.PropertyFollowedTwice.FormatCurrentCulture(group.Key, string.Join(", ", group.Select(x => $"\"{x.Id}\""))));
 
 		// Properties that depend on each other can't be chosen in any order.
 		var cycle = CharacterDependencies.FindCycle(properties);
@@ -101,11 +142,32 @@ public sealed class CharacterData : IValidatedData
 				yield return error;
 		}
 
+		if (property.Follows is { } follows)
+		{
+			if (follows == id)
+				yield return OurResources.PropertyFollowsItself.FormatCurrentCulture(id);
+			else if (!allProperties.ContainsKey(follows))
+				yield return OurResources.PropertyFollowsUnknown.FormatCurrentCulture(id, follows);
+		}
+
+		if (property.ValuesFrom is { } valuesFrom)
+		{
+			if (type != CharacterPropertyType.ValueList)
+				yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, "valuesFrom");
+			else if (valuesFrom != CharacterProperty.ProfessionsSource)
+				yield return OurResources.ValuesFromUnknown.FormatCurrentCulture(id, valuesFrom, CharacterProperty.ProfessionsSource);
+			else if (property.Values is not null && !property.HasSourceValues)
+				yield return OurResources.ValuesAndValuesFrom.FormatCurrentCulture(id);
+			else if (property.Values is null)
+				yield return OurResources.ValuesFromNotLoaded.FormatCurrentCulture(id, valuesFrom);
+		}
+
 		if (type == CharacterPropertyType.ValueList)
 		{
 			if (property.Values is null)
 			{
-				yield return OurResources.CharacterSettingMissing.FormatCurrentCulture(id, "values");
+				if (property.ValuesFrom is null)
+					yield return OurResources.CharacterSettingMissing.FormatCurrentCulture(id, "values");
 			}
 			else
 			{
@@ -312,7 +374,7 @@ public sealed class CharacterData : IValidatedData
 	/// Checks that a condition's values use value list properties and their values, and that its hidden properties
 	/// exist. Only template conditions can use hidden properties.
 	/// </summary>
-	private static IEnumerable<string> ValidateCondition(string path, CharacterCondition condition, IReadOnlyDictionary<string, CharacterProperty> properties, bool isTemplate)
+	internal static IEnumerable<string> ValidateCondition(string path, CharacterCondition condition, IReadOnlyDictionary<string, CharacterProperty> properties, bool isTemplate)
 	{
 		if (condition.Values is null && condition.NotValues is null && condition.Hidden is null)
 			yield return OurResources.ConditionEmpty.FormatCurrentCulture(path);
@@ -372,7 +434,7 @@ public sealed class CharacterData : IValidatedData
 		}
 	}
 
-	private static IEnumerable<string> ValidateRange(string path, IntegerRange range)
+	internal static IEnumerable<string> ValidateRange(string path, IntegerRange range)
 	{
 		if (range.Maximum < range.Minimum)
 			yield return OurResources.IntegerRangeInvalid.FormatCurrentCulture(path, range.Maximum, range.Minimum);
@@ -431,8 +493,9 @@ public sealed class CharacterData : IValidatedData
 			}
 			else
 			{
+				// An empty list means characters of this role never have the property.
 				var listName = $"{path}.values";
-				foreach (var error in ValidateIds(listName, settings.Values, GetValueIds(property), x => OurResources.RoleValueUnknown.FormatCurrentCulture(listName, x)))
+				foreach (var error in settings.Values.Count == 0 ? Enumerable.Empty<string>() : ValidateIds(listName, settings.Values, GetValueIds(property), x => OurResources.RoleValueUnknown.FormatCurrentCulture(listName, x)))
 					yield return error;
 			}
 		}
@@ -495,7 +558,7 @@ public sealed class CharacterData : IValidatedData
 	private static IEnumerable<string> ValidateDefaults(string path, StringDefaults defaults, IReadOnlyDictionary<string, CharacterProperty> allProperties)
 	{
 		var isKeyed = defaults.KeyedBy is not null;
-		if (isKeyed ? defaults.ValuesByKey is null || defaults.Values is not null : defaults.Values is null || defaults.ValuesByKey is not null)
+		if (isKeyed ? defaults.ValuesByKey is null || defaults.Values is not null : defaults.Values is null || defaults.ValuesByKey is not null || defaults.OtherValues is not null)
 		{
 			yield return OurResources.StringDefaultsFormInvalid.FormatCurrentCulture(path);
 		}
@@ -518,18 +581,25 @@ public sealed class CharacterData : IValidatedData
 				foreach (var error in DataValidation.ValidateWeightedStrings($"{path}.valuesByKey.{key}", values))
 					yield return error;
 			}
+
+			if (defaults.OtherValues is not null)
+			{
+				foreach (var error in DataValidation.ValidateWeightedStrings($"{path}.otherValues", defaults.OtherValues))
+					yield return error;
+			}
 		}
 	}
 
 	/// <summary>
-	/// Checks that keyed defaults have values for every value the key property can have, for each role.
+	/// Checks that keyed defaults have values for every value the key property can have, for each role, unless they have
+	/// other values to fall back on.
 	/// </summary>
 	private static IEnumerable<string> ValidateDefaultsCoverKeys(CharacterProperty property, IReadOnlyDictionary<string, CharacterProperty> allProperties)
 	{
 		foreach (var role in s_roles)
 		{
 			var defaults = property.GetDefaults(role);
-			if (defaults?.KeyedBy is { } keyedBy && defaults.ValuesByKey is { } valuesByKey && GetValueListProperty(keyedBy, allProperties) is { } keyProperty)
+			if (defaults?.KeyedBy is { } keyedBy && defaults.ValuesByKey is { } valuesByKey && defaults.OtherValues is null && GetValueListProperty(keyedBy, allProperties) is { } keyProperty)
 			{
 				var path = property.GetRoleSettings(role)?.Defaults is not null ? $"{property.Id}.{GetRoleName(role)}.defaults" : $"{property.Id}.defaults";
 				foreach (var option in keyProperty.GetOptions(role).Where(x => x is not null && !valuesByKey.ContainsKey(x.Id)))
@@ -634,7 +704,7 @@ public sealed class CharacterData : IValidatedData
 					else
 					{
 						references.UnionWith(parsed.Placeholders.Select(x => x.Id));
-						foreach (var error in ValidatePlaceholders(name, parsed, properties, templateIds).Distinct(StringComparer.Ordinal))
+						foreach (var error in ValidatePlaceholders(name, parsed, variant.When, properties, templateIds).Distinct(StringComparer.Ordinal))
 							yield return error;
 					}
 				}
@@ -674,7 +744,11 @@ public sealed class CharacterData : IValidatedData
 		return found;
 	}
 
-	private static IEnumerable<string> ValidatePlaceholders(string templateName, TextTemplate template, IReadOnlyDictionary<string, CharacterProperty> properties, IReadOnlySet<string> templateIds)
+	/// <summary>
+	/// Checks the placeholders of a template. A placeholder with a field needs that text on every value the template's
+	/// condition allows for its property.
+	/// </summary>
+	internal static IEnumerable<string> ValidatePlaceholders(string templateName, TextTemplate template, CharacterCondition? when, IReadOnlyDictionary<string, CharacterProperty> properties, IReadOnlySet<string> templateIds)
 	{
 		foreach (var placeholder in template.Placeholders)
 		{
@@ -697,7 +771,9 @@ public sealed class CharacterData : IValidatedData
 				}
 				else
 				{
-					foreach (var option in (property.Values ?? []).Where(x => x is not null && !x.Text.ContainsKey(field)))
+					var allowedIds = when?.Values?.GetValueOrDefault(property.Id);
+					var notAllowedIds = when?.NotValues?.GetValueOrDefault(property.Id) ?? [];
+					foreach (var option in (property.Values ?? []).Where(x => x is not null && (allowedIds?.Contains(x.Id) ?? true) && !notAllowedIds.Contains(x.Id) && !x.Text.ContainsKey(field)))
 						yield return OurResources.TemplateFieldMissing.FormatCurrentCulture(templateName, placeholder.Id, field, option.Id);
 				}
 			}
@@ -756,7 +832,7 @@ public sealed class CharacterData : IValidatedData
 					foreach (var combination in combinations)
 					{
 						string? GetValueId(string id) => combination.GetValueOrDefault(id);
-						if (CharacterCondition.IsMet(property.When, GetValueId) && property.GetOptions(role, GetValueId).Count == 0)
+						if (CharacterCondition.IsMet(property.When, GetValueId) && property.GetOptions(role, GetValueId).Count == 0 && property.GetRoleSettings(role)?.Values is not { Count: 0 })
 							errors.Add(OurResources.ConditionPropertyNoValues.FormatCurrentCulture(property.Id, roleName, DescribeCombination(conditionProperties, combination, [])));
 					}
 				}

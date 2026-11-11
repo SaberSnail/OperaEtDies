@@ -240,7 +240,7 @@ public sealed class FrequencyOverrideTests
 					},
 				],
 			},
-			TestData.CreateLocationList());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
 	}
 
 	private string m_directory = "";

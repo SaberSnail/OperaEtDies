@@ -8,9 +8,10 @@ namespace OperaEtDies.Data;
 public static class DataValidation
 {
 	/// <summary>
-	/// Checks that a list has items, and that each item has a unique id and a title.
+	/// Checks that a list has items, and that each item has a unique id and, unless there's no way to get a title, a
+	/// title.
 	/// </summary>
-	public static IEnumerable<string> ValidateIdentifiedItems<T>(string listName, IReadOnlyList<T?> items, Func<T, string?> getId, Func<T, string?> getTitle)
+	public static IEnumerable<string> ValidateIdentifiedItems<T>(string listName, IReadOnlyList<T?> items, Func<T, string?> getId, Func<T, string?>? getTitle)
 		where T : class
 	{
 		if (items.Count == 0)
@@ -38,9 +39,39 @@ public static class DataValidation
 
 			if (!ids.Add(id))
 				yield return OurResources.DataListItemIdDuplicate.FormatCurrentCulture(id, listName);
-			if (string.IsNullOrWhiteSpace(getTitle(item)))
+			if (getTitle is not null && string.IsNullOrWhiteSpace(getTitle(item)))
 				yield return OurResources.DataListItemTitleMissing.FormatCurrentCulture(id, listName);
 		}
+	}
+
+	/// <summary>
+	/// Checks that a list of strings has items, and that each string is filled in and unique.
+	/// </summary>
+	public static IEnumerable<string> ValidateStrings(string listName, IReadOnlyList<string?> values)
+	{
+		if (values.Count == 0)
+		{
+			yield return OurResources.DataListEmpty.FormatCurrentCulture(listName);
+			yield break;
+		}
+
+		var seen = new HashSet<string>(StringComparer.Ordinal);
+		foreach (var value in values)
+		{
+			if (string.IsNullOrWhiteSpace(value))
+				yield return OurResources.DataListItemBlank.FormatCurrentCulture(listName);
+			else if (!seen.Add(value))
+				yield return OurResources.DataListValueDuplicate.FormatCurrentCulture(value, listName);
+		}
+	}
+
+	/// <summary>
+	/// Checks that a percentage chance is from 0 to 100.
+	/// </summary>
+	public static IEnumerable<string> ValidateChance(string path, double chance)
+	{
+		if (!(chance >= 0 && chance <= 100))
+			yield return OurResources.DataChanceInvalid.FormatCurrentCulture(path, chance);
 	}
 
 	/// <summary>

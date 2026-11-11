@@ -7,7 +7,8 @@ namespace OperaEtDies.Data;
 /// The percentage chance that an item chosen at random from a list is uncommon, rare, or very rare. The uncommon items
 /// in a list share the uncommon chance equally, the rare and very rare items share theirs, and the common items share
 /// the rest. If a list has no items of a frequency, its chance goes to the common items, or is shared by the other
-/// frequencies in proportion to their chances if there are no common items.
+/// frequencies in proportion to their chances if there are no common items. When only some items of a list can be
+/// chosen, the shares are still those of the whole list.
 /// </summary>
 public sealed class FrequencyChances
 {
@@ -24,12 +25,14 @@ public sealed class FrequencyChances
 	public double StepMultiplier { get; init; } = 1.5;
 
 	/// <summary>
-	/// Chooses an item from a list at random, based on the items' frequencies.
+	/// Chooses an item from a list at random, based on the items' frequencies. If the items are only the ones that can
+	/// be chosen from a longer list, pass the whole list too, so each frequency's chance is shared as it would be in the
+	/// whole list (see <see cref="GetChances{T}(IReadOnlyList{T}, Func{T, FrequencyLevel}, Func{T, FrequencyLevel}, IReadOnlyList{T}?)"/>).
 	/// </summary>
-	public T Choose<T>(System.Random random, IReadOnlyList<T> items)
+	public T Choose<T>(System.Random random, IReadOnlyList<T> items, IReadOnlyList<T>? allItems = null)
 		where T : IHasFrequency
 	{
-		var chances = GetChances(items);
+		var chances = GetChances(items, x => x.Frequency, x => x.Frequency, allItems);
 		return items[random.NextWeighted(Enumerable.Range(0, items.Count).ToList(), x => chances[x])];
 	}
 
@@ -42,29 +45,34 @@ public sealed class FrequencyChances
 
 	/// <summary>
 	/// Gets the percentage chance of choosing each item in a list, where some items' frequencies may be changed from
-	/// their usual frequencies. Chances are first worked out from the usual frequencies. An item whose frequency is
-	/// changed then has the chance an item of its new frequency has in that usual list, and the chances are scaled to
-	/// add up to 100 again. This way, changing one item's frequency doesn't change how likely the other items are
-	/// compared to each other. Each step up or down then multiplies or divides an item's chance by
-	/// <see cref="StepMultiplier"/>, and the chances are scaled to add up to 100.
+	/// their usual frequencies.
 	/// </summary>
-	public IReadOnlyList<double> GetChances<T>(IReadOnlyList<T> items, Func<T, FrequencyLevel> getUsualFrequency, Func<T, FrequencyLevel> getFrequency)
+	/// <remarks>
+	/// <para>Each frequency's chance is shared equally by the items of that frequency in the whole list, using their usual
+	/// frequencies. The whole list is <paramref name="allItems"/> if given, or else the items themselves. Items in the
+	/// whole list that aren't being chosen from are left out without giving their share to the other items of their
+	/// frequency, so a rare item stays as rare compared to the common items however many of the other rare items are
+	/// left out. If no item in the whole list usually has a frequency, the items changed to it share its chance.</para>
+	/// <para>An item whose frequency is changed has the share of an item of its new frequency. This way, changing one
+	/// item's frequency doesn't change how likely the other items are compared to each other. Each step up or down then
+	/// multiplies or divides an item's chance by <see cref="StepMultiplier"/>, and the chances are scaled to add up to
+	/// 100.</para>
+	/// </remarks>
+	public IReadOnlyList<double> GetChances<T>(IReadOnlyList<T> items, Func<T, FrequencyLevel> getUsualFrequency, Func<T, FrequencyLevel> getFrequency, IReadOnlyList<T>? allItems = null)
 	{
-		var usualFrequencies = items.Select(x => getUsualFrequency(x).Tier).ToList();
-		var usualChances = GetUsualChances(usualFrequencies);
+		var usualFrequencies = (allItems ?? items).Select(x => getUsualFrequency(x).Tier).ToList();
 		var levels = items.Select(getFrequency).ToList();
-		var frequencies = levels.Select(x => x.Tier).ToList();
 
-		// The items changed to a frequency the usual list doesn't have share that frequency's chance.
+		// If every frequency in the whole list has no chance, the frequencies are equally likely.
+		var hasChance = usualFrequencies.Distinct().Any(x => GetFrequencyChance(x, usualFrequencies) > 0);
 		double GetItemChance(Frequency frequency)
 		{
-			var index = usualFrequencies.IndexOf(frequency);
-			return index >= 0 ? usualChances[index] : GetFrequencyChance(frequency, usualFrequencies) / frequencies.Count(x => x == frequency);
+			var count = usualFrequencies.Count(x => x == frequency);
+			var chance = hasChance ? GetFrequencyChance(frequency, usualFrequencies) : 1;
+			return chance / (count != 0 ? count : levels.Count(x => x.Tier == frequency));
 		}
 
-		var weights = frequencies
-			.Select((frequency, index) => (frequency == usualFrequencies[index] ? usualChances[index] : GetItemChance(frequency)) * Math.Pow(StepMultiplier, levels[index].Steps))
-			.ToList();
+		var weights = levels.Select(x => GetItemChance(x.Tier) * Math.Pow(StepMultiplier, x.Steps)).ToList();
 		var total = weights.Sum();
 		return weights.Select(x => total > 0 ? x / total * 100 : 100.0 / weights.Count).ToList();
 	}
@@ -81,21 +89,6 @@ public sealed class FrequencyChances
 			yield return OurResources.FrequencyStepMultiplierInvalid.FormatCurrentCulture($"{path}.stepMultiplier", StepMultiplier);
 		if (Uncommon + Rare + VeryRare >= 100)
 			yield return OurResources.FrequencyChancesTooHigh.FormatCurrentCulture(path, Uncommon + Rare + VeryRare);
-	}
-
-	/// <summary>
-	/// Gets each item's chance when the items of each frequency share that frequency's chance.
-	/// </summary>
-	private IReadOnlyList<double> GetUsualChances(IReadOnlyList<Frequency> frequencies)
-	{
-		var counts = frequencies.GroupBy(x => x).ToDictionary(x => x.Key, x => x.Count());
-
-		// Without common items, the other frequencies share everything in proportion to their chances. If every
-		// frequency in the list has no chance, the frequencies are equally likely.
-		var total = counts.Keys.Sum(x => GetFrequencyChance(x, frequencies));
-		return frequencies
-			.Select(x => (total > 0 ? GetFrequencyChance(x, frequencies) / total * 100 : 100.0 / counts.Count) / counts[x])
-			.ToList();
 	}
 
 	/// <summary>

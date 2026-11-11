@@ -66,11 +66,7 @@ public abstract class CharacterPropertyEditorViewModel : ViewModelBase
 		if (!CanRandomize())
 			return;
 
-		ChangeValue(() =>
-		{
-			Trait.IsLocked = false;
-			Trait.Randomize();
-		});
+		ChangeValue(() => Character.RandomizeAlone(Property));
 	}
 
 	protected CharacterRandomizer Character { get; }

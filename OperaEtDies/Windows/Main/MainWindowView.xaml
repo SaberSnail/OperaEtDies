@@ -6,15 +6,67 @@
 	xmlns:local="clr-namespace:OperaEtDies.Windows.Main"
 	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 	xmlns:operaEtDies="clr-namespace:OperaEtDies"
+	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows"
 	Title="{Binding Title}"
 	Icon="{Binding Icon, Source={x:Static operaEtDies:AppModel.Instance}}"
-	Width="800"
-	Height="450"
+	Width="960"
+	Height="600"
 	d:DataContext="{d:DesignInstance Type=local:MainWindowViewModel}"
 	Background="{DynamicResource WindowBackgroundBrush}"
 	DataContext="{Binding ViewModel, RelativeSource={RelativeSource Self}}"
 	mc:Ignorable="d">
 
-	<ContentControl Content="{Binding CurrentLocation}" Focusable="False" />
+	<Grid>
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="Auto" />
+			<ColumnDefinition Width="*" />
+		</Grid.ColumnDefinitions>
+
+		<!--  The sidebar, with buttons that open other views in place of the player's location, and the mini-map.  -->
+		<Border
+			Grid.Column="0"
+			Background="{DynamicResource ContentBackgroundBrush}"
+			BorderBrush="{DynamicResource ControlBorderBaseBrush}"
+			BorderThickness="0,0,1,0">
+			<StackPanel Margin="12">
+				<Button
+					Width="120"
+					Height="32"
+					HorizontalAlignment="Left"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowVillagers}"
+					Content="{x:Static operaEtDies:OurResources.ViewVillagers}" />
+				<Button
+					Width="120"
+					Height="32"
+					Margin="0,8,0,0"
+					HorizontalAlignment="Left"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowMap}"
+					Content="{x:Static operaEtDies:OurResources.ViewMap}" />
+
+				<!--  The player's quarter and the quarters its paths lead to.  -->
+				<TextBlock
+					Margin="0,24,0,8"
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{x:Static operaEtDies:OurResources.MiniMapHeader}" />
+				<Border
+					Width="204"
+					Height="204"
+					BorderBrush="{DynamicResource ControlBorderBaseBrush}"
+					BorderThickness="1">
+					<ContentControl
+						HorizontalAlignment="Center"
+						VerticalAlignment="Center"
+						Content="{Binding MiniMap}"
+						ContentTemplate="{DynamicResource TownMapCanvasTemplate}"
+						Focusable="False" />
+				</Border>
+			</StackPanel>
+		</Border>
+
+		<ContentControl
+			Grid.Column="1"
+			Content="{Binding CurrentView}"
+			Focusable="False" />
+	</Grid>
 
 </Window>

@@ -93,6 +93,65 @@ public sealed class CharacterDependenciesTests
 	}
 
 	[Test]
+	public void FollowersComeRightAfterTheirProperty()
+	{
+		var properties = new[]
+		{
+			Property("gender"),
+			Property("firstName", keyedBy: "gender"),
+			Property("height"),
+			Property("profession", conditionId: "age"),
+			Property("age"),
+			Property("lastName", keyedBy: "profession", follows: "firstName"),
+			Property("build"),
+		};
+
+		// The first name waits until the last name can be placed, after the profession and the age it depends on.
+		Assert.That(CharacterDependencies.GetOrder(properties).Select(x => x.Id), Is.EqualTo(new[] { "gender", "height", "age", "profession", "firstName", "lastName", "build" }));
+		Assert.That(CharacterDependencies.FindCycle(properties), Is.Empty);
+	}
+
+	[Test]
+	public void FollowingAPropertyThatDependsOnTheFollowerIsACycle()
+	{
+		var properties = new[]
+		{
+			Property("a", conditionId: "b"),
+			Property("b", follows: "a"),
+			Property("c"),
+		};
+
+		Assert.That(CharacterDependencies.FindCycle(properties).Select(x => x.Id), Is.EqualTo(new[] { "a", "b" }));
+		Assert.That(CharacterDependencies.GetOrder(properties).Select(x => x.Id), Is.EqualTo(new[] { "c", "a", "b" }));
+	}
+
+	[Test]
+	public void InvalidFollowsReportErrors()
+	{
+		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+			{
+				"templates": [ { "id": "fullName", "template": "{a}" }, { "id": "description", "template": "{a}" } ],
+				"properties": [
+					{ "id": "a", "title": "A", "type": "valueList", "follows": "a", "values": [ { "id": "a1", "title": "A1" } ] },
+					{ "id": "b", "title": "B", "type": "valueList", "follows": "nothing", "values": [ { "id": "b1", "title": "B1" } ] },
+					{ "id": "c", "title": "C", "type": "valueList", "follows": "b", "values": [ { "id": "c1", "title": "C1" } ] },
+					{ "id": "d", "title": "D", "type": "valueList", "follows": "b", "values": [ { "id": "d1", "title": "D1" } ], "player": { "values": [] } }
+				]
+			}
+			""");
+
+		var result = CharacterData.Load(m_directory);
+
+		// An empty list of values for a role is allowed: that role never has the property.
+		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
+		{
+			OurResources.PropertyFollowsItself.FormatCurrentCulture("a"),
+			OurResources.PropertyFollowsUnknown.FormatCurrentCulture("b", "nothing"),
+			OurResources.PropertyFollowedTwice.FormatCurrentCulture("b", "\"c\", \"d\""),
+		}));
+	}
+
+	[Test]
 	public void CyclesAreFound()
 	{
 		var properties = new[]
@@ -150,7 +209,7 @@ public sealed class CharacterDependenciesTests
 					},
 				],
 			},
-			TestData.CreateLocationList());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
 
 		for (var seed = 0; seed < 20; seed++)
 		{
@@ -192,9 +251,10 @@ public sealed class CharacterDependenciesTests
 		Assert.That(templates.Format("text", x => x.Id == "a" ? "A" : "", _ => null), Is.EqualTo(expected));
 	}
 
-	private static CharacterProperty Property(string id, string? conditionId = null, string? keyedBy = null) => new()
+	private static CharacterProperty Property(string id, string? conditionId = null, string? keyedBy = null, string? follows = null) => new()
 	{
 		Id = id,
+		Follows = follows,
 		Title = id,
 		Type = keyedBy is null ? CharacterPropertyType.ValueList : CharacterPropertyType.String,
 		When = conditionId is null ? null : TestData.Condition(conditionId, "x"),

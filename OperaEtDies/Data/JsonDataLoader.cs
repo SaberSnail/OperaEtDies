@@ -22,18 +22,18 @@ public static class JsonDataLoader
 
 	/// <summary>
 	/// Loads a data file after applying the mod file with the same name from each mod folder that has one, in order.
-	/// Mods can't change the protected top level properties.
+	/// Mods can't change the protected top level properties. The value is prepared, if needed, before it's checked.
 	/// </summary>
-	public static DataLoadResult<T> Load<T>(string filePath, IReadOnlyList<string> modDirectories, IReadOnlyCollection<string> protectedProperties)
+	public static DataLoadResult<T> Load<T>(string filePath, IReadOnlyList<string> modDirectories, IReadOnlyCollection<string> protectedProperties, Func<T, T>? prepare = null)
 		where T : class
 	{
-		var result = LoadCore<T>(filePath, modDirectories, protectedProperties);
+		var result = LoadCore(filePath, modDirectories, protectedProperties, prepare);
 		foreach (var error in result.Errors)
 			Log.Error(error.ToString());
 		return result;
 	}
 
-	private static DataLoadResult<T> LoadCore<T>(string filePath, IReadOnlyList<string> modDirectories, IReadOnlyCollection<string> protectedProperties)
+	private static DataLoadResult<T> LoadCore<T>(string filePath, IReadOnlyList<string> modDirectories, IReadOnlyCollection<string> protectedProperties, Func<T, T>? prepare)
 		where T : class
 	{
 		var readResult = DataFileReader.Read(filePath, File.ReadAllText);
@@ -44,11 +44,11 @@ public static class JsonDataLoader
 		var fileName = Path.GetFileName(filePath);
 		var modFilePaths = modDirectories.Select(x => Path.Combine(x, fileName)).Where(File.Exists).ToList();
 		return modFilePaths.Count == 0
-			? Deserialize(filePath, null, options => JsonSerializer.Deserialize<T>(json, options))
-			: LoadWithMods<T>(filePath, json, modFilePaths, protectedProperties);
+			? Deserialize(filePath, null, options => JsonSerializer.Deserialize<T>(json, options), prepare)
+			: LoadWithMods(filePath, json, modFilePaths, protectedProperties, prepare);
 	}
 
-	private static DataLoadResult<T> LoadWithMods<T>(string filePath, string json, IReadOnlyList<string> modFilePaths, IReadOnlyCollection<string> protectedProperties)
+	private static DataLoadResult<T> LoadWithMods<T>(string filePath, string json, IReadOnlyList<string> modFilePaths, IReadOnlyCollection<string> protectedProperties, Func<T, T>? prepare)
 		where T : class
 	{
 		JsonNode? root;
@@ -90,13 +90,13 @@ public static class JsonDataLoader
 
 		return errors.Count != 0
 			? DataLoadResult<T>.Failure(errors)
-			: Deserialize(filePath, OurResources.DataLoadErrorWithMods, options => root.Deserialize<T>(options));
+			: Deserialize(filePath, OurResources.DataLoadErrorWithMods, options => root.Deserialize<T>(options), prepare);
 	}
 
 	/// <summary>
-	/// Reads the contents of a data file as the given type, and checks that it's valid.
+	/// Reads the contents of a data file as the given type, prepares it, and checks that it's valid.
 	/// </summary>
-	private static DataLoadResult<T> Deserialize<T>(string filePath, string? source, Func<JsonSerializerOptions, T?> deserialize)
+	private static DataLoadResult<T> Deserialize<T>(string filePath, string? source, Func<JsonSerializerOptions, T?> deserialize, Func<T, T>? prepare)
 		where T : class
 	{
 		T? value;
@@ -111,6 +111,9 @@ public static class JsonDataLoader
 
 		if (value is null)
 			return DataLoadResult<T>.Failure(new DataLoadError(filePath, OurResources.DataFileEmpty, source));
+
+		if (prepare is not null)
+			value = prepare(value);
 
 		if (value is IValidatedData validatedData)
 		{

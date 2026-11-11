@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using OperaEtDies.Data;
+using OperaEtDies.Town;
 
 namespace OperaEtDies.GameState;
 
@@ -8,14 +9,22 @@ namespace OperaEtDies.GameState;
 /// </summary>
 public sealed class LocationViewModel : ViewModelBase
 {
-	public LocationViewModel(Location location)
+	/// <summary>
+	/// Creates a location from its template. A house has no title of its own, so it's given one. A quarter has bounds on
+	/// the map, the area of the map it's in, and sentences about the map features it borders, which are added to the end
+	/// of its medium description.
+	/// </summary>
+	public LocationViewModel(string id, LocationTemplate template, string? title = null, MapRect? bounds = null, MapArea? area = null, IReadOnlyList<string>? surroundings = null)
 	{
-		Id = location.Id;
-		Title = location.Title;
-		ShortDescription = location.ShortDescription;
-		MediumDescription = location.MediumDescription;
-		LongDescription = [.. location.LongDescription];
-		m_connections = [];
+		Bounds = bounds;
+		Area = area;
+		IsLandmark = template is QuarterTemplate { IsLandmark: true };
+		Id = id;
+		Title = title ?? template.Title ?? "";
+		ShortDescription = template.ShortDescription;
+		MediumDescription = string.Join(" ", new[] { template.MediumDescription }.Concat(surroundings ?? []));
+		LongDescription = [.. template.LongDescription];
+		m_exits = [];
 		m_people = [];
 		People = new ReadOnlyObservableCollection<PersonViewModel>(m_people);
 	}
@@ -40,9 +49,29 @@ public sealed class LocationViewModel : ViewModelBase
 	public IReadOnlyList<string> LongDescription { get; }
 
 	/// <summary>
+	/// For a quarter, where it is on the map.
+	/// </summary>
+	public MapRect? Bounds { get; }
+
+	/// <summary>
+	/// For a quarter, the part of the map it's in.
+	/// </summary>
+	public MapArea? Area { get; }
+
+	/// <summary>
+	/// Whether the location is a landmark quarter, with no houses or businesses.
+	/// </summary>
+	public bool IsLandmark { get; }
+
+	/// <summary>
 	/// The locations that can be reached from this one.
 	/// </summary>
-	public IReadOnlyList<LocationViewModel> Connections => VerifyAccess(m_connections);
+	public IReadOnlyList<LocationViewModel> Connections => VerifyAccess(m_exits).Select(x => x.Location).ToList();
+
+	/// <summary>
+	/// The ways out of this location. Paths between quarters have a direction and a name.
+	/// </summary>
+	public IReadOnlyList<LocationExit> Exits => VerifyAccess(m_exits);
 
 	/// <summary>
 	/// The people in the location, including the player if they're here.
@@ -50,10 +79,10 @@ public sealed class LocationViewModel : ViewModelBase
 	public ReadOnlyObservableCollection<PersonViewModel> People { get; }
 
 	/// <summary>
-	/// Sets the connections once every location in the world has been created, since connections can go in both directions.
+	/// Sets the exits once every location in the world has been created, since exits can go in both directions.
 	/// </summary>
-	internal void SetConnections(IReadOnlyList<LocationViewModel> connections) =>
-		SetPropertyField(nameof(Connections), connections, ref m_connections);
+	internal void SetExits(IReadOnlyList<LocationExit> exits) =>
+		SetPropertyField([nameof(Exits), nameof(Connections)], exits, ref m_exits);
 
 	// People are added and removed by PersonViewModel when their location changes.
 	internal void AddPerson(PersonViewModel person)
@@ -69,5 +98,11 @@ public sealed class LocationViewModel : ViewModelBase
 	}
 
 	private readonly ObservableCollection<PersonViewModel> m_people;
-	private IReadOnlyList<LocationViewModel> m_connections;
+	private IReadOnlyList<LocationExit> m_exits;
 }
+
+/// <summary>
+/// A way out of a location: where it leads, and for a path between quarters, which way it goes, what it's called, and
+/// whether it crosses the river.
+/// </summary>
+public sealed record LocationExit(LocationViewModel Location, CompassDirection? Direction, string? Path, bool IsCrossing = false);

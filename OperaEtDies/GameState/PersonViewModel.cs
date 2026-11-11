@@ -8,15 +8,20 @@ namespace OperaEtDies.GameState;
 /// </summary>
 public sealed class PersonViewModel : ViewModelBase
 {
-	public PersonViewModel(GameData gameData, CharacterTraits traits, LocationViewModel location, bool isPlayer)
+	/// <summary>
+	/// Creates a person who starts at home. Without a workplace, the person works at home.
+	/// </summary>
+	public PersonViewModel(GameData gameData, CharacterTraits traits, LocationViewModel home, bool isPlayer, LocationViewModel? workplace = null)
 	{
 		IsPlayer = isPlayer;
 		Traits = traits;
 		FullName = traits.GetFullName(gameData.CharacterTemplates);
 		Description = traits.GetDescription(gameData.CharacterTemplates);
+		Home = home;
+		Workplace = workplace ?? home;
 
-		m_location = location;
-		location.AddPerson(this);
+		m_location = home;
+		home.AddPerson(this);
 	}
 
 	public bool IsPlayer { get; }
@@ -32,6 +37,16 @@ public sealed class PersonViewModel : ViewModelBase
 	/// Describes the person in a few sentences.
 	/// </summary>
 	public string Description { get; }
+
+	/// <summary>
+	/// The house the person lives in.
+	/// </summary>
+	public LocationViewModel Home { get; }
+
+	/// <summary>
+	/// Where the person works: their business's place, or their home if the business is run from home.
+	/// </summary>
+	public LocationViewModel Workplace { get; }
 
 	/// <summary>
 	/// The location the person is in. Changing it moves the person between the locations' lists of people.

@@ -9,7 +9,7 @@ namespace OperaEtDies.Data;
 /// </summary>
 public sealed class WeightShape
 {
-	public required ShapePeak Peak { get; init; }
+	public required PeakLevel Peak { get; init; }
 
 	public required double MostWithin { get; init; }
 
@@ -18,14 +18,7 @@ public sealed class WeightShape
 	/// </summary>
 	public IReadOnlyList<double> GetChances(int count)
 	{
-		var peak = Peak switch
-		{
-			ShapePeak.Low => 0,
-			ShapePeak.Middle => (count - 1) / 2.0,
-			ShapePeak.High => count - 1,
-			_ => throw new InvalidOperationException($"Unknown shape peak {Peak}."),
-		};
-
+		var peak = m_peakIndex ?? Peak.GetFraction() * (count - 1);
 		var weights = Enumerable.Range(0, count).Select(x => Math.Exp(-Math.Pow(x - peak, 2) / (2 * MostWithin * MostWithin))).ToList();
 		var total = weights.Sum();
 		return weights.Select(x => x / total * 100).ToList();
@@ -33,7 +26,23 @@ public sealed class WeightShape
 
 	public IEnumerable<string> Validate(string path)
 	{
+		if (!Peak.IsValid)
+			yield return OurResources.ShapePeakOutOfRange.FormatCurrentCulture($"{path}.peak", Peak);
 		if (!(MostWithin > 0) || !double.IsFinite(MostWithin))
 			yield return OurResources.ShapeMostWithinInvalid.FormatCurrentCulture($"{path}.mostWithin", MostWithin);
 	}
+
+	/// <summary>
+	/// Gets the shape of what's left of a list with the given number of values after leaving out the first ones, with
+	/// the peak and spread where they were.
+	/// </summary>
+	internal WeightShape Skipping(int skipped, int count) => new()
+	{
+		Peak = Peak,
+		MostWithin = MostWithin,
+		m_peakIndex = (m_peakIndex ?? Peak.GetFraction() * (count - 1)) - skipped,
+	};
+
+	// The exact position of the peak, which replaces the position from Peak. It can't be set from a data file.
+	private double? m_peakIndex;
 }

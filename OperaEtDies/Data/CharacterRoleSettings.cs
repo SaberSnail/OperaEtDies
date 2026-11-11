@@ -20,4 +20,9 @@ public sealed class CharacterRoleSettings
 	/// For string properties, the default values used for this role.
 	/// </summary>
 	public StringDefaults? Defaults { get; init; }
+
+	/// <summary>
+	/// Creates a copy with the given defaults.
+	/// </summary>
+	internal CharacterRoleSettings WithDefaults(StringDefaults? defaults) => new() { Values = Values, Range = Range, Defaults = defaults };
 }

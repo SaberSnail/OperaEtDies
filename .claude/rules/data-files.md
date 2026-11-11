@@ -5,7 +5,7 @@ paths:
 
 # Data File Format Documentation
 
-The format of the data files is documented in @../../Docs/DataFiles.md. When a change affects what the data files can contain or how they are validated, update that document in the same change.
+The format of the data files is documented in @../../Docs/DataFiles.md. When a change affects what the data files can contain or how they are validated, update that document in the same change. When a data file is added or removed, also update the list of files mods can change in @../../Docs/Mods.md.
 
 When editing the documentation:
 

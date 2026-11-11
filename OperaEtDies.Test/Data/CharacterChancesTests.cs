@@ -63,6 +63,43 @@ public sealed class CharacterChancesTests
 		Assert.That(chances, Is.EqualTo(expected).Within(0.1));
 	}
 
+	[TestCase("low+", 10)]
+	[TestCase("low++", 20)]
+	[TestCase("middle-", 40)]
+	[TestCase("middle--", 30)]
+	[TestCase("high-", 90)]
+	public void PeakStepsMoveThePeakByATenthOfTheRange(string text, int expectedPeak)
+	{
+		Assert.That(PeakLevel.TryParse(text, out var peak), Is.True);
+		var chances = new WeightShape { Peak = peak!.Value, MostWithin = 5 }.GetChances(101);
+
+		Assert.That(chances.ToList().IndexOf(chances.Max()), Is.EqualTo(expectedPeak));
+	}
+
+	[TestCase("")]
+	[TestCase("lowest")]
+	[TestCase("middle+++")]
+	[TestCase("high+-")]
+	public void InvalidPeaksDontParse(string text)
+	{
+		Assert.That(PeakLevel.TryParse(text, out _), Is.False);
+	}
+
+	[Test]
+	public void RangeStartingLaterKeepsTheCurve()
+	{
+		var range = new IntegerRange { Minimum = 20, Maximum = 60, Shape = new WeightShape { Peak = new PeakLevel(ShapePeak.Middle, -2), MostWithin = 8 } };
+		var full = range.Shape.GetChances(41);
+
+		var later = range.StartingAt(36);
+		var chances = later.Shape.GetChances(later.Maximum - later.Minimum + 1);
+
+		// The ages that are left keep their weights compared to each other.
+		Assert.That(later.Minimum, Is.EqualTo(36));
+		var kept = full.Skip(16).ToList();
+		Assert.That(chances, Is.EqualTo(kept.Select(x => x / kept.Sum() * 100)).Within(0.0001));
+	}
+
 	[Test]
 	public void ValueListsCanUseAShape()
 	{
@@ -82,7 +119,7 @@ public sealed class CharacterChancesTests
 					},
 				],
 			},
-			TestData.CreateLocationList());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
 		var randomizer = new CharacterRandomizer(gameData, new Random(0), CharacterRole.Npc);
 
 		var mediumCount = 0;
@@ -117,7 +154,7 @@ public sealed class CharacterChancesTests
 						"title": "Size",
 						"type": "valueList",
 						"values": [ { "id": "small", "title": "Small" }, { "id": "large", "title": "Large", "frequency": "rare" } ],
-						"shape": { "peak": "middle", "mostWithin": 0 }
+						"shape": { "peak": "high+", "mostWithin": 0 }
 					}
 				]
 			}
@@ -129,6 +166,7 @@ public sealed class CharacterChancesTests
 		{
 			OurResources.ShapeMostWithinInvalid.FormatCurrentCulture("age.range.shape.mostWithin", -1),
 			OurResources.CharacterSettingNotAllowed.FormatCurrentCulture("age", "shape"),
+			OurResources.ShapePeakOutOfRange.FormatCurrentCulture("size.shape.peak", "high+"),
 			OurResources.ShapeMostWithinInvalid.FormatCurrentCulture("size.shape.mostWithin", 0),
 			OurResources.ShapeFrequencyNotAllowed.FormatCurrentCulture("large", "size"),
 			OurResources.LowChanceWarningInvalid.FormatCurrentCulture(100),
@@ -169,7 +207,7 @@ public sealed class CharacterChancesTests
 					},
 				],
 			},
-			TestData.CreateLocationList());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
 
 		// Numbers 4 to 9 are at or below 5%, and 9 is the least likely.
 		var lowestNumberChance = numberShape.GetChances(9)[8].ToString("G3", CultureInfo.CurrentCulture);
@@ -187,13 +225,13 @@ public sealed class CharacterChancesTests
 		var conditional = TestData.CreateConditionalGameData();
 		var gameData = new GameData(
 			new CharacterData { LowChanceWarning = 20, Templates = TestData.CreateTemplates("{gender}", "{gender}"), Properties = conditional.CharacterProperties },
-			TestData.CreateLocationList());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
 
-		// Wiry and no beard are both uncommon, so each has a 20% chance among men.
+		// No beard is uncommon, so it has a 20% chance among men. Wiry is uncommon too, but men can't have the slender
+		// build, so wiry has a third of the chance among them, and isn't reported.
 		var male = OurResources.LowChanceCondition.FormatCurrentCulture(OurResources.ConditionCombinationValue.FormatCurrentCulture("gender", "male"));
 		Assert.That(gameData.GetLowChanceWarnings(), Is.EquivalentTo(new[] { "player", "npc" }.SelectMany(role => new[]
 		{
-			OurResources.LowChanceValue.FormatCurrentCulture("wiry", "build", "20", role, male, "20"),
 			OurResources.LowChanceValue.FormatCurrentCulture("none", "beard", "20", role, male, "20"),
 		})));
 	}

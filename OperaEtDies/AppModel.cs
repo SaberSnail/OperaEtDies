@@ -1,4 +1,4 @@
-﻿using System.Windows.Media;
+using System.Windows.Media;
 using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
@@ -18,11 +18,6 @@ public sealed class AppModel : ViewModelBase
 #pragma warning restore CA1001 // Types that own disposable fields should be disposable
 {
 	public static AppModel Instance => s_appModel.Value;
-
-	/// <summary>
-	/// The command line argument that stops mods from being loaded.
-	/// </summary>
-	public const string NoModsArgument = "--no-mods";
 
 	private AppModel()
 	{
@@ -79,11 +74,15 @@ public sealed class AppModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Loads the game data and opens the start up window. Mods aren't loaded if they're turned off.
+	/// Loads the game data and opens the start up window. Mods aren't loaded if they're turned off, and developer UI is
+	/// only shown if it's turned on.
 	/// </summary>
-	public async Task StartupAsync(TaskStateController state, bool areModsEnabled)
+	public async Task StartupAsync(TaskStateController state, bool areModsEnabled, bool isDeveloper)
 	{
 		m_areModsEnabled = areModsEnabled;
+		m_isDeveloper = isDeveloper;
+		if (isDeveloper)
+			Log.Info("Developer UI is turned on");
 		if (!areModsEnabled)
 			Log.Info("Mods are turned off");
 
@@ -111,7 +110,7 @@ public sealed class AppModel : ViewModelBase
 		var gameState = GameStateViewModel.CreateNewGame(gameData, settings.Player, Random);
 
 		// Open the main window before closing the start up window, so there's always a window showing.
-		MainWindow = new MainWindowViewModel(gameInfo.Title, gameState);
+		MainWindow = new MainWindowViewModel(gameInfo.Title, gameState, m_isDeveloper);
 		CloseStartUpWindow();
 	}
 
@@ -142,28 +141,34 @@ public sealed class AppModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Loads the game data from the data folder, with the files from each mod folder applied in order. The mod list is
-	/// kept under the game's title, so it's found using the game info without mods (mods can't change the title).
+	/// Loads the game content from the default data folder, with the files from each mod folder in the mod list applied
+	/// in order if mods are turned on. The mod list is kept under the game's title, so it's found using the game info
+	/// without mods (mods can't change the title). The mod list is null if the game info without mods didn't load.
+	/// </summary>
+	internal static (GameContent Content, DataLoadResult<GameInfo> BaseGameInfoResult, IModListStore? ModListStore) LoadContent(bool areModsEnabled)
+	{
+		var dataDirectory = JsonDataLoader.DefaultDataDirectory;
+		var baseGameInfoResult = GameInfo.Load(dataDirectory);
+		var modListStore = baseGameInfoResult.Value is { } baseGameInfo ? new RegistryModListStore(baseGameInfo.Title) : null;
+		var modDirectories = areModsEnabled && modListStore is not null ? modListStore.Load() : [];
+		if (modDirectories.Count != 0)
+			Log.Info($"Loading mods from {string.Join(", ", modDirectories.Select(x => $"\"{x}\""))}");
+
+		return (GameContent.Load(dataDirectory, modDirectories, baseGameInfoResult), baseGameInfoResult, modListStore);
+	}
+
+	/// <summary>
+	/// Loads the game data, and the icon from the game info without mods.
 	/// </summary>
 	private async Task LoadDataAsync(TaskStateController state)
 	{
 		await state.ToThreadPool();
 
-		var dataDirectory = JsonDataLoader.DefaultDataDirectory;
-		var baseGameInfoResult = GameInfo.Load(dataDirectory);
-		var modListStore = baseGameInfoResult.Value is { } baseGameInfo ? new RegistryModListStore(baseGameInfo.Title) : null;
-		var modDirectories = m_areModsEnabled && modListStore is not null ? modListStore.Load() : [];
-		if (modDirectories.Count != 0)
-			Log.Info($"Loading mods from {string.Join(", ", modDirectories.Select(x => $"\"{x}\""))}");
+		var (content, baseGameInfoResult, modListStore) = LoadContent(m_areModsEnabled);
+		var gameInfoResult = content.GameInfoResult;
+		var gameDataResult = content.GameDataResult;
 
-		// Every mod must load for the game data to load.
-		var modFolderErrors = ModFolders.Check(modDirectories);
-		var gameInfoResult = modDirectories.Count == 0 || modFolderErrors.Count != 0 ? baseGameInfoResult : GameInfo.Load(dataDirectory, modDirectories);
-		var gameDataResult = modFolderErrors.Count != 0
-			? DataLoadResult<GameData>.Failure(modFolderErrors)
-			: GameData.Load(dataDirectory, modDirectories, gameInfoResult.Value?.FrequencyChances);
-
-		var iconPath = baseGameInfoResult.Value?.GetIconPath(dataDirectory);
+		var iconPath = baseGameInfoResult.Value?.GetIconPath(JsonDataLoader.DefaultDataDirectory);
 		var iconReadResult = iconPath is null ? null : ImageDataLoader.Read(iconPath);
 
 		await state.ToSyncContext();
@@ -195,7 +200,7 @@ public sealed class AppModel : ViewModelBase
 		if (m_startUpWindow is not null)
 			return;
 
-		var startUpWindow = new StartUpWindowViewModel(m_gameInfoResult.Value, m_gameDataResult.Value, Random, GetLoadErrors(), m_modListStore, new FolderPicker(), m_areModsEnabled);
+		var startUpWindow = new StartUpWindowViewModel(m_gameInfoResult.Value, m_gameDataResult.Value, Random, GetLoadErrors(), m_modListStore, new FolderPicker(), m_areModsEnabled, m_isDeveloper);
 		startUpWindow.StartNewGameRequested += OnStartNewGameRequested;
 		startUpWindow.ExitGameRequested += OnExitGameRequested;
 		startUpWindow.ReloadDataRequested += OnReloadDataRequested;
@@ -242,6 +247,7 @@ public sealed class AppModel : ViewModelBase
 	private IReadOnlyList<DataLoadError> m_iconErrors = [];
 	private IModListStore? m_modListStore;
 	private bool m_areModsEnabled = true;
+	private bool m_isDeveloper;
 	private Uri m_currentTheme;
 	private TaskGroup m_taskGroup;
 }

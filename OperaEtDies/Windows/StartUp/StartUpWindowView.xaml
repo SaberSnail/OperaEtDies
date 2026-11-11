@@ -24,6 +24,7 @@
 				<RowDefinition Height="Auto" />
 				<RowDefinition Height="*" />
 				<RowDefinition Height="Auto" />
+				<RowDefinition Height="Auto" />
 			</Grid.RowDefinitions>
 
 			<StackPanel Grid.Row="0" HorizontalAlignment="Center">
@@ -84,6 +85,20 @@
 					</ItemsControl.ItemTemplate>
 				</ItemsControl>
 			</StackPanel>
+
+			<!--  Shows that the game was started with the developer command line option.  -->
+			<Border
+				Grid.Row="3"
+				Margin="0,8,0,0"
+				HorizontalAlignment="Left"
+				VerticalAlignment="Bottom"
+				Style="{DynamicResource DeveloperBorderStyle}"
+				Visibility="{Binding IsDeveloper, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+				<TextBlock
+					FontSize="{DynamicResource SmallFontSize}"
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{x:Static operaEtDies:OurResources.DeveloperMode}" />
+			</Border>
 		</Grid>
 
 		<ContentControl Content="{Binding NewGame}" Visibility="{Binding NewGame, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
