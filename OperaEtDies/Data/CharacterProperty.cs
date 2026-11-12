@@ -55,6 +55,12 @@ public sealed class CharacterProperty : IIdentified
 	public WeightShape? Shape { get; init; }
 
 	/// <summary>
+	/// For value list properties, whether the values are listed in alphabetical order of their titles when choosing
+	/// one, instead of the order they're defined in. It doesn't change how values are chosen at random.
+	/// </summary>
+	public bool SortByTitle { get; init; }
+
+	/// <summary>
 	/// For integer properties, the range used unless a role replaces it.
 	/// </summary>
 	public IntegerRange? Range { get; init; }
@@ -83,6 +89,13 @@ public sealed class CharacterProperty : IIdentified
 	/// Creates a copy of the property with the given values.
 	/// </summary>
 	internal CharacterProperty WithValues(IReadOnlyList<CharacterPropertyOption> values) => Copy(values, true, Defaults, Player, Npc);
+
+	/// <summary>
+	/// Creates a copy of the property that allows every value for the role.
+	/// </summary>
+	internal CharacterProperty WithAllValuesFor(CharacterRole role) => role == CharacterRole.Player
+		? Copy(Values, HasSourceValues, Defaults, Player?.WithoutValues(), Npc)
+		: Copy(Values, HasSourceValues, Defaults, Player, Npc?.WithoutValues());
 
 	/// <summary>
 	/// Creates a copy of a string property whose defaults are keyed by one of the given properties, with the values for
@@ -119,6 +132,7 @@ public sealed class CharacterProperty : IIdentified
 		ValuesFrom = ValuesFrom,
 		HasSourceValues = hasSourceValues,
 		Shape = Shape,
+		SortByTitle = SortByTitle,
 		Range = Range,
 		Groups = Groups,
 		Defaults = defaults,
@@ -154,6 +168,13 @@ public sealed class CharacterProperty : IIdentified
 		GetOptions(role).Where(x => CharacterCondition.IsMet(x.When, getValueId)).ToList();
 
 	/// <summary>
+	/// Gets the values a value list property can have for any role, given a function that gets the value id of other
+	/// value list properties. Only values whose conditions are met are included.
+	/// </summary>
+	public IReadOnlyList<CharacterPropertyOption> GetAllOptions(Func<string, string?> getValueId) =>
+		(Values ?? []).Where(x => CharacterCondition.IsMet(x.When, getValueId)).ToList();
+
+	/// <summary>
 	/// Gets the percentage chance of choosing each of the given values of a value list property: by the property's
 	/// shape and the values' order if it has one, or else by the values' frequencies, which can depend on the values of
 	/// other properties. Frequencies are shared as they would be among all of the property's values, so leaving some
@@ -186,6 +207,17 @@ public sealed class CharacterProperty : IIdentified
 	/// </summary>
 	public bool HasValue(CharacterRole role, Func<string, string?> getValueId) =>
 		CharacterCondition.IsMet(When, getValueId) && (Type != CharacterPropertyType.ValueList || GetOptions(role, getValueId).Count != 0);
+
+	/// <summary>
+	/// Gets the ids of the properties used by the conditions that decide whether this property has a value and which
+	/// values it can have: its own condition and its values' conditions, but not the conditions that only change its
+	/// values' frequencies.
+	/// </summary>
+	public IReadOnlyList<string> GetAvailabilityPropertyIds() =>
+		(When?.ValuePropertyIds ?? [])
+			.Concat((Values ?? []).Where(x => x?.When is not null).SelectMany(x => x.When!.ValuePropertyIds))
+			.Distinct(StringComparer.Ordinal)
+			.ToList();
 
 	/// <summary>
 	/// Gets the ids of the properties used by the conditions of this property and its values, including the conditions

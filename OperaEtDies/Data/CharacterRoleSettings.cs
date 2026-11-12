@@ -25,4 +25,9 @@ public sealed class CharacterRoleSettings
 	/// Creates a copy with the given defaults.
 	/// </summary>
 	internal CharacterRoleSettings WithDefaults(StringDefaults? defaults) => new() { Values = Values, Range = Range, Defaults = defaults };
+
+	/// <summary>
+	/// Creates a copy that allows every value.
+	/// </summary>
+	internal CharacterRoleSettings WithoutValues() => new() { Range = Range, Defaults = Defaults };
 }

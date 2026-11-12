@@ -38,6 +38,12 @@ public abstract class CharacterPropertyEditorViewModel : ViewModelBase
 	public string Title => Property.Title;
 
 	/// <summary>
+	/// Whether the property only applies because of a developer's choice, such as a gender the player isn't usually
+	/// allowed. Such a property is only shown while it's available.
+	/// </summary>
+	public bool IsDeveloperOnly { get; init; }
+
+	/// <summary>
 	/// Whether the property currently has a value. An unavailable property is shown disabled and empty.
 	/// </summary>
 	public bool IsAvailable => VerifyAccess(Character.HasValue(Property));

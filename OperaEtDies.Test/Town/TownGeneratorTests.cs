@@ -19,8 +19,11 @@ public sealed class TownGeneratorTests
 			var household = town.PlayerHousehold;
 
 			// The player keeps their chosen traits, and the game sets their roles.
-			Assert.That(town.Player.Traits.Values.Where(x => x.Key is not ("workRole" or "householdRole")), Is.EquivalentTo(player.Values.Where(x => x.Key is not ("workRole" or "householdRole"))));
+			Assert.That(town.Player.Traits.Values.Where(x => !IsGameSet(x.Key)), Is.EquivalentTo(player.Values.Where(x => !IsGameSet(x.Key))));
 			Assert.That(town.Player.Traits.GetValueId("householdRole"), Is.EqualTo("head"));
+			Assert.That(town.Player.Traits.GetValueId("headRelation"), Is.EqualTo("self"));
+			Assert.That(town.Player.Traits.GetString("headName"), Is.EqualTo(player.GetFullName(gameData.CharacterTemplates)));
+			Assert.That(town.Player.Traits.GetValueId("married"), Is.EqualTo(household.Members.Any(x => x.Role == FamilyRole.Wife) ? "married" : "unmarried"));
 			Assert.That(town.Player.IsPlayer, Is.True);
 			Assert.That(town.Player.Role, Is.EqualTo(FamilyRole.Head));
 			Assert.That(household.LastName, Is.EqualTo("Smith"));
@@ -155,6 +158,23 @@ public sealed class TownGeneratorTests
 				var isHelper = person.Business is not null && !person.IsBusinessOwner;
 				Assert.That(person.Traits.GetValueId("workRole"), Is.EqualTo(isHelper ? "helper" : "independent"));
 				Assert.That(person.Traits.GetValueId("householdRole"), Is.EqualTo(person.Role == FamilyRole.Head ? "head" : "member"));
+
+				// Everyone knows the head's name, and how the head is related to them.
+				var head = person.Household.Head;
+				Assert.That(person.Traits.GetString("headName"), Is.EqualTo(head.Traits.GetFullName(gameData.CharacterTemplates)));
+				var hasWife = person.Household.Members.Any(x => x.Role == FamilyRole.Wife);
+				var expectedRelation = person.Role switch
+				{
+					FamilyRole.Head => new[] { "self" },
+					FamilyRole.Wife => ["husband"],
+					FamilyRole.Child => [IsFemale(head) ? "mother" : "father"],
+					_ => IsFemale(head) ? ["daughter", "daughterInLaw"] : hasWife ? ["son", "sonInLaw"] : ["son"],
+				};
+				Assert.That(person.Traits.GetValueId("headRelation"), Is.AnyOf(expectedRelation));
+
+				// Only the wife and a head with a wife are married.
+				var isMarried = person.Role == FamilyRole.Wife || (person.Role == FamilyRole.Head && person.Household.Members.Any(x => x.Role == FamilyRole.Wife));
+				Assert.That(person.Traits.GetValueId("married"), Is.EqualTo(isMarried ? "married" : "unmarried"));
 
 				// Everyone works in a business, except household elders and daughters who keep house, and the infirm.
 				var profession = person.Traits.GetValueId("profession");
@@ -450,9 +470,13 @@ public sealed class TownGeneratorTests
 			foreach (var business in town.Businesses.Where(x => x.Profession.Helpers is not null))
 				Assert.That(business.Helpers, Has.Count.LessThanOrEqualTo(business.Profession.Helpers!.Value));
 
-			// Heads are described as heading their household, and no one else is.
+			// Heads are described as heading their household, and everyone else is described with the head's name.
 			foreach (var person in town.Households.SelectMany(x => x.Members))
-				Assert.That(person.Traits.GetDescription(gameData.CharacterTemplates).Contains($" is the head of the {person.Household.LastName} household.", StringComparison.Ordinal), Is.EqualTo(person.Role == FamilyRole.Head));
+			{
+				var description = person.Traits.GetDescription(gameData.CharacterTemplates);
+				Assert.That(description.Contains($" is the head of the {person.Household.LastName} household.", StringComparison.Ordinal), Is.EqualTo(person.Role == FamilyRole.Head));
+				Assert.That(description.Contains($" is {person.Household.Head.Traits.GetFullName(gameData.CharacterTemplates)}.", StringComparison.Ordinal), Is.EqualTo(person.Role != FamilyRole.Head));
+			}
 
 			// Helpers are described as helping, not as running the trade themselves.
 			foreach (var helper in town.Businesses.SelectMany(x => x.Helpers))
@@ -480,6 +504,8 @@ public sealed class TownGeneratorTests
 	}
 
 	private static bool IsFemale(TownPerson person) => person.Traits.GetValueId("gender") == "female";
+
+	private static bool IsGameSet(string propertyId) => propertyId is "workRole" or "householdRole" or "headRelation" or "headName" or "married";
 
 	private static int GetAge(TownPerson person) => person.Traits.GetInteger("age");
 }

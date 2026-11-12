@@ -25,115 +25,174 @@
 				Margin="0,16,0,0"
 				HorizontalScrollBarVisibility="Disabled"
 				VerticalScrollBarVisibility="Auto">
-				<ItemsControl
-					Width="360"
+				<!--  The player's portrait beside the properties, updated as they change.  -->
+				<StackPanel
 					HorizontalAlignment="Center"
 					VerticalAlignment="Center"
-					Focusable="False"
-					Grid.IsSharedSizeScope="True"
-					ItemsSource="{Binding Properties}">
-					<ItemsControl.Resources>
-						<Style x:Key="NewGamePropertyLabelStyle" TargetType="TextBlock">
-							<Setter Property="Margin" Value="0,0,12,0" />
-							<Setter Property="VerticalAlignment" Value="Center" />
-							<Setter Property="Text" Value="{Binding Title}" />
-						</Style>
-
-						<Style x:Key="NewGameRandomizeButtonStyle" BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
-							<Setter Property="Margin" Value="8,0,0,0" />
-							<Setter Property="Padding" Value="8,0" />
-							<Setter Property="Content" Value="{x:Static operaEtDies:OurResources.RandomizeField}" />
-							<Setter Property="Command" Value="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Randomize}" />
-							<!--  A fixed value has nothing to randomize, but keeps the space so the columns line up.  -->
-							<Setter Property="Visibility" Value="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibilityWithHidden}}" />
-						</Style>
-
-						<!--  A fixed value is shown as text instead of an editor.  -->
-						<Style x:Key="NewGameFixedValueStyle" TargetType="TextBlock">
-							<Setter Property="Grid.Column" Value="1" />
-							<Setter Property="VerticalAlignment" Value="Center" />
-							<Setter Property="Text" Value="{Binding ValueText}" />
-							<Setter Property="Visibility" Value="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
-						</Style>
-
-						<!--  Each property editor is a row with a label, an editor, and a randomize button. The columns line up across rows.  -->
-						<Style x:Key="NewGamePropertyRowStyle" TargetType="Grid">
-							<Setter Property="Height" Value="28" />
-							<Setter Property="Margin" Value="0,0,0,8" />
-						</Style>
-
-						<DataTemplate DataType="{x:Type local:StringPropertyEditorViewModel}">
-							<Grid Style="{StaticResource NewGamePropertyRowStyle}">
-								<Grid.ColumnDefinitions>
-									<ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
-									<ColumnDefinition Width="*" />
-									<ColumnDefinition Width="Auto" SharedSizeGroup="Randomize" />
-								</Grid.ColumnDefinitions>
-								<TextBlock Grid.Column="0" Style="{StaticResource NewGamePropertyLabelStyle}" />
-								<!--  Text updates when focus leaves, so a blank value can be replaced with a default. Without defaults, the text box takes the randomize button's space.  -->
-								<controls:CustomTextBox
-									Grid.Column="1"
-									VerticalContentAlignment="Center"
-									IsEnabled="{Binding IsAvailable}"
-									Text="{Binding Text}">
-									<controls:CustomTextBox.Style>
-										<Style BasedOn="{StaticResource {x:Type controls:CustomTextBox}}" TargetType="controls:CustomTextBox">
+					Orientation="Horizontal">
+					<Image
+						Width="240"
+						Margin="0,0,24,0"
+						VerticalAlignment="Top"
+						Source="{Binding Portrait}"
+						Stretch="Uniform"
+						Visibility="{Binding Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+					<ItemsControl
+						Width="360"
+						VerticalAlignment="Top"
+						Focusable="False"
+						Grid.IsSharedSizeScope="True"
+						ItemsSource="{Binding Properties}">
+						<!--  A developer-only property has the developer border, and is hidden while it doesn't apply, such as the bosom of a male player.  -->
+						<ItemsControl.ItemTemplate>
+							<DataTemplate>
+								<Grid>
+									<Grid.Style>
+										<Style TargetType="Grid">
 											<Style.Triggers>
-												<DataTrigger Binding="{Binding HasDefaults}" Value="False">
-													<Setter Property="Grid.ColumnSpan" Value="2" />
-												</DataTrigger>
+												<MultiDataTrigger>
+													<MultiDataTrigger.Conditions>
+														<Condition Binding="{Binding IsDeveloperOnly}" Value="True" />
+														<Condition Binding="{Binding IsAvailable}" Value="False" />
+													</MultiDataTrigger.Conditions>
+													<Setter Property="Visibility" Value="Collapsed" />
+												</MultiDataTrigger>
 											</Style.Triggers>
 										</Style>
-									</controls:CustomTextBox.Style>
-								</controls:CustomTextBox>
-								<Button
-									Grid.Column="2"
-									Style="{StaticResource NewGameRandomizeButtonStyle}"
-									Visibility="{Binding HasDefaults, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
-							</Grid>
-						</DataTemplate>
-
-						<DataTemplate DataType="{x:Type local:IntegerPropertyEditorViewModel}">
-							<Grid Style="{StaticResource NewGamePropertyRowStyle}">
-								<Grid.ColumnDefinitions>
-									<ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
-									<ColumnDefinition Width="*" />
-									<ColumnDefinition Width="Auto" SharedSizeGroup="Randomize" />
-								</Grid.ColumnDefinitions>
-								<TextBlock Grid.Column="0" Style="{StaticResource NewGamePropertyLabelStyle}" />
-								<!--  Text updates when focus leaves, so values outside the allowed range can be typed on the way to a valid value, and a blank value can be replaced with a random one.  -->
-								<controls:CustomTextBox
-									Grid.Column="1"
-									VerticalContentAlignment="Center"
-									IsEnabled="{Binding IsAvailable}"
-									Text="{Binding Text}"
-									Visibility="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
-								<TextBlock Style="{StaticResource NewGameFixedValueStyle}" />
-								<Button Grid.Column="2" Style="{StaticResource NewGameRandomizeButtonStyle}" />
-							</Grid>
-						</DataTemplate>
-
-						<DataTemplate DataType="{x:Type local:ValueListPropertyEditorViewModel}">
-							<Grid Style="{StaticResource NewGamePropertyRowStyle}">
-								<Grid.ColumnDefinitions>
-									<ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
-									<ColumnDefinition Width="*" />
-									<ColumnDefinition Width="Auto" SharedSizeGroup="Randomize" />
-								</Grid.ColumnDefinitions>
-								<TextBlock Grid.Column="0" Style="{StaticResource NewGamePropertyLabelStyle}" />
-								<ComboBox
-									Grid.Column="1"
-									DisplayMemberPath="Title"
-									IsEnabled="{Binding IsAvailable}"
-									ItemsSource="{Binding Options}"
-									SelectedItem="{Binding SelectedOption}"
-									Visibility="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
-								<TextBlock Style="{StaticResource NewGameFixedValueStyle}" />
-								<Button Grid.Column="2" Style="{StaticResource NewGameRandomizeButtonStyle}" />
-							</Grid>
-						</DataTemplate>
-					</ItemsControl.Resources>
-				</ItemsControl>
+									</Grid.Style>
+									<Border
+										Margin="0,0,0,8"
+										Style="{DynamicResource DeveloperBorderStyle}"
+										Visibility="{Binding IsDeveloperOnly, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+									<ContentPresenter Content="{Binding}">
+										<ContentPresenter.Style>
+											<Style TargetType="ContentPresenter">
+												<Style.Triggers>
+													<DataTrigger Binding="{Binding IsDeveloperOnly}" Value="True">
+														<Setter Property="Margin" Value="6,4,6,4" />
+													</DataTrigger>
+												</Style.Triggers>
+											</Style>
+										</ContentPresenter.Style>
+									</ContentPresenter>
+								</Grid>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+						<ItemsControl.Resources>
+							<Style x:Key="NewGamePropertyLabelStyle" TargetType="TextBlock">
+								<Setter Property="Margin" Value="0,0,12,0" />
+								<Setter Property="VerticalAlignment" Value="Center" />
+								<Setter Property="Text" Value="{Binding Title}" />
+							</Style>
+	
+							<Style x:Key="NewGameRandomizeButtonStyle" BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
+								<Setter Property="Margin" Value="8,0,0,0" />
+								<Setter Property="Padding" Value="8,0" />
+								<Setter Property="Content" Value="{x:Static operaEtDies:OurResources.RandomizeField}" />
+								<Setter Property="Command" Value="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Randomize}" />
+								<!--  A fixed value has nothing to randomize, but keeps the space so the columns line up.  -->
+								<Setter Property="Visibility" Value="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibilityWithHidden}}" />
+							</Style>
+	
+							<!--  A fixed value is shown as text instead of an editor.  -->
+							<Style x:Key="NewGameFixedValueStyle" TargetType="TextBlock">
+								<Setter Property="Grid.Column" Value="1" />
+								<Setter Property="VerticalAlignment" Value="Center" />
+								<Setter Property="Text" Value="{Binding ValueText}" />
+								<Setter Property="Visibility" Value="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+							</Style>
+	
+							<!--  Each property editor is a row with a label, an editor, and a randomize button. The columns line up across rows.  -->
+							<Style x:Key="NewGamePropertyRowStyle" TargetType="Grid">
+								<Setter Property="Height" Value="28" />
+								<Setter Property="Margin" Value="0,0,0,8" />
+							</Style>
+	
+							<DataTemplate DataType="{x:Type local:StringPropertyEditorViewModel}">
+								<Grid Style="{StaticResource NewGamePropertyRowStyle}">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="Auto" SharedSizeGroup="Randomize" />
+									</Grid.ColumnDefinitions>
+									<TextBlock Grid.Column="0" Style="{StaticResource NewGamePropertyLabelStyle}" />
+									<!--  Text updates when focus leaves, so a blank value can be replaced with a default. Without defaults, the text box takes the randomize button's space.  -->
+									<controls:CustomTextBox
+										Grid.Column="1"
+										VerticalContentAlignment="Center"
+										IsEnabled="{Binding IsAvailable}"
+										Text="{Binding Text}">
+										<controls:CustomTextBox.Style>
+											<Style BasedOn="{StaticResource {x:Type controls:CustomTextBox}}" TargetType="controls:CustomTextBox">
+												<Style.Triggers>
+													<DataTrigger Binding="{Binding HasDefaults}" Value="False">
+														<Setter Property="Grid.ColumnSpan" Value="2" />
+													</DataTrigger>
+												</Style.Triggers>
+											</Style>
+										</controls:CustomTextBox.Style>
+									</controls:CustomTextBox>
+									<Button
+										Grid.Column="2"
+										Style="{StaticResource NewGameRandomizeButtonStyle}"
+										Visibility="{Binding HasDefaults, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+								</Grid>
+							</DataTemplate>
+	
+							<DataTemplate DataType="{x:Type local:IntegerPropertyEditorViewModel}">
+								<Grid Style="{StaticResource NewGamePropertyRowStyle}">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="Auto" SharedSizeGroup="Randomize" />
+									</Grid.ColumnDefinitions>
+									<TextBlock Grid.Column="0" Style="{StaticResource NewGamePropertyLabelStyle}" />
+									<!--  Text updates when focus leaves, so values outside the allowed range can be typed on the way to a valid value, and a blank value can be replaced with a random one.  -->
+									<controls:CustomTextBox
+										Grid.Column="1"
+										VerticalContentAlignment="Center"
+										IsEnabled="{Binding IsAvailable}"
+										Text="{Binding Text}"
+										Visibility="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
+									<TextBlock Style="{StaticResource NewGameFixedValueStyle}" />
+									<Button Grid.Column="2" Style="{StaticResource NewGameRandomizeButtonStyle}" />
+								</Grid>
+							</DataTemplate>
+	
+							<DataTemplate DataType="{x:Type local:ValueListPropertyEditorViewModel}">
+								<Grid Style="{StaticResource NewGamePropertyRowStyle}">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="Auto" SharedSizeGroup="Randomize" />
+									</Grid.ColumnDefinitions>
+									<TextBlock Grid.Column="0" Style="{StaticResource NewGamePropertyLabelStyle}" />
+									<ComboBox
+										Grid.Column="1"
+										DisplayMemberPath="Title"
+										IsEnabled="{Binding IsAvailable}"
+										ItemsSource="{Binding Options}"
+										SelectedItem="{Binding SelectedOption}"
+										Visibility="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
+									<TextBlock Style="{StaticResource NewGameFixedValueStyle}" />
+									<!--  For developers: any value, including the ones the player isn't usually allowed.  -->
+									<Border
+										Grid.Column="1"
+										HorizontalAlignment="Right"
+										Style="{DynamicResource DeveloperBorderStyle}"
+										Visibility="{Binding HasDeveloperOptions, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+										<ComboBox
+											Width="120"
+											DisplayMemberPath="Title"
+											ItemsSource="{Binding DeveloperOptions}"
+											SelectedItem="{Binding DeveloperSelectedOption}" />
+									</Border>
+									<Button Grid.Column="2" Style="{StaticResource NewGameRandomizeButtonStyle}" />
+								</Grid>
+							</DataTemplate>
+						</ItemsControl.Resources>
+					</ItemsControl>
+				</StackPanel>
 			</ScrollViewer>
 
 			<Grid Grid.Row="2">

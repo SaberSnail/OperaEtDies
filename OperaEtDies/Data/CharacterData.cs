@@ -193,6 +193,11 @@ public sealed class CharacterData : IValidatedData
 			yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, "values");
 		}
 
+		if (type != CharacterPropertyType.ValueList && property.SortByTitle)
+		{
+			yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, "sortByTitle");
+		}
+
 		if (type == CharacterPropertyType.Integer)
 		{
 			if (property.Range is null && (property.Player?.Range is null || property.Npc?.Range is null))
@@ -449,7 +454,7 @@ public sealed class CharacterData : IValidatedData
 	internal static bool CanHaveValue(IReadOnlyList<CharacterProperty> properties, CharacterProperty property, CharacterRole role)
 	{
 		// If there are too many combinations to check, assume the property can have a value.
-		var combinations = GetConditionCombinations(GetConditionClosure(properties, property.GetConditionPropertyIds()), role);
+		var combinations = GetConditionCombinations(GetAvailabilityClosure(properties, property.GetAvailabilityPropertyIds()), role);
 		return combinations is null || combinations.Any(x => property.HasValue(role, id => x.GetValueOrDefault(id)));
 	}
 
@@ -457,21 +462,32 @@ public sealed class CharacterData : IValidatedData
 	/// Gets the properties with the given ids, plus the properties their conditions use, and so on. They're in
 	/// dependency order, so each property comes after the properties its conditions use.
 	/// </summary>
-	internal static IReadOnlyList<CharacterProperty> GetConditionClosure(IReadOnlyList<CharacterProperty> properties, IEnumerable<string> ids)
+	internal static IReadOnlyList<CharacterProperty> GetConditionClosure(IReadOnlyList<CharacterProperty> properties, IEnumerable<string> ids) =>
+		GetClosure(properties, ids, x => x.GetConditionPropertyIds());
+
+	/// <summary>
+	/// Gets the properties with the given ids, plus the properties that decide which values they can have, and so on,
+	/// leaving out the properties that only change frequencies. That's every property that can change whether a
+	/// property has a value or which values it can have. They're in dependency order.
+	/// </summary>
+	internal static IReadOnlyList<CharacterProperty> GetAvailabilityClosure(IReadOnlyList<CharacterProperty> properties, IEnumerable<string> ids) =>
+		GetClosure(properties, ids, x => x.GetAvailabilityPropertyIds());
+
+	private static IReadOnlyList<CharacterProperty> GetClosure(IReadOnlyList<CharacterProperty> properties, IEnumerable<string> ids, Func<CharacterProperty, IEnumerable<string>> getIds)
 	{
 		var propertiesById = properties.ToDictionary(x => x.Id, StringComparer.Ordinal);
-		var conditionIds = new HashSet<string>(StringComparer.Ordinal);
+		var closureIds = new HashSet<string>(StringComparer.Ordinal);
 		var pending = new Stack<string>(ids);
 		while (pending.TryPop(out var id))
 		{
-			if (conditionIds.Add(id) && propertiesById.TryGetValue(id, out var property))
+			if (closureIds.Add(id) && propertiesById.TryGetValue(id, out var property))
 			{
-				foreach (var conditionId in property.GetConditionPropertyIds())
-					pending.Push(conditionId);
+				foreach (var nextId in getIds(property))
+					pending.Push(nextId);
 			}
 		}
 
-		return CharacterDependencies.GetOrder(properties.Where(x => conditionIds.Contains(x.Id)).ToList());
+		return CharacterDependencies.GetOrder(properties.Where(x => closureIds.Contains(x.Id)).ToList());
 	}
 
 	/// <summary>
@@ -783,6 +799,7 @@ public sealed class CharacterData : IValidatedData
 	/// <summary>
 	/// Checks every combination of values that conditions can see, for each role. Each check only combines the
 	/// values of the properties it depends on, so properties that don't affect each other aren't multiplied together.
+	/// Conditions that only change frequencies are left out, since they can't change which values are allowed.
 	/// Every value list property that applies must have a value whose condition is met. Every template used must
 	/// have a variant whose conditions are met, and every property a used variant shows must have a visible value.
 	/// Each property a template uses that the obscurers can hide is checked both visible and hidden.
@@ -808,7 +825,7 @@ public sealed class CharacterData : IValidatedData
 		// have values.
 		var templateConditionProperties = templates.ToDictionary(
 			x => x.Key,
-			x => GetConditionClosure(properties, x.Value.Variants.SelectMany(v => v.When?.ValuePropertyIds ?? []).Concat(templatePropertyIds[x.Key].SelectMany(id => propertiesById[id].GetConditionPropertyIds()))),
+			x => GetAvailabilityClosure(properties, x.Value.Variants.SelectMany(v => v.When?.ValuePropertyIds ?? []).Concat(templatePropertyIds[x.Key].SelectMany(id => propertiesById[id].GetAvailabilityPropertyIds()))),
 			StringComparer.Ordinal);
 
 		// Templates that aren't used by other templates are used directly, as are the required templates.
@@ -821,11 +838,11 @@ public sealed class CharacterData : IValidatedData
 
 			foreach (var property in properties.Where(x => x.Type == CharacterPropertyType.ValueList))
 			{
-				var conditionProperties = GetConditionClosure(properties, property.GetConditionPropertyIds());
+				var conditionProperties = GetAvailabilityClosure(properties, property.GetAvailabilityPropertyIds());
 				var combinations = GetConditionCombinations(conditionProperties, role);
 				if (combinations is null)
 				{
-					errors.Add(OurResources.ConditionCombinationsTooMany.FormatCurrentCulture(roleName, MaxConditionCombinations));
+					errors.Add(OurResources.ConditionCombinationsTooManyForProperty.FormatCurrentCulture(property.Id, roleName, MaxConditionCombinations, DescribeCombinationSizes(conditionProperties, role)));
 				}
 				else
 				{
@@ -847,7 +864,7 @@ public sealed class CharacterData : IValidatedData
 				var combinations = GetConditionCombinations(newProperties, role, scenario.Values);
 				if (combinations is null)
 				{
-					errors.Add(OurResources.ConditionCombinationsTooMany.FormatCurrentCulture(roleName, MaxConditionCombinations));
+					errors.Add(OurResources.ConditionCombinationsTooManyForTemplate.FormatCurrentCulture(templateId, roleName, MaxConditionCombinations, DescribeCombinationSizes(newProperties, role)));
 				}
 				else
 				{
@@ -933,6 +950,13 @@ public sealed class CharacterData : IValidatedData
 
 		return combinations.Count <= MaxConditionCombinations ? combinations : null;
 	}
+
+	/// <summary>
+	/// Describes how many values each property in a check can have for the role, for messages: the values the role
+	/// allows for a value list property (before their conditions), and the groups of an integer property.
+	/// </summary>
+	private static string DescribeCombinationSizes(IReadOnlyList<CharacterProperty> properties, CharacterRole role) =>
+		string.Join(", ", properties.Select(x => $"{x.Id} ({(x.Type == CharacterPropertyType.ValueList ? x.GetOptions(role).Count : x.Groups?.Count ?? 1)})"));
 
 	/// <summary>
 	/// Gets the ids conditions can see for a property that has a value: the ids of the values whose conditions are met

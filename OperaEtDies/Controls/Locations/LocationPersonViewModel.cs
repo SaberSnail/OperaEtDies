@@ -12,14 +12,13 @@ public sealed class LocationPersonViewModel : ViewModelBase
 		Person = person;
 	}
 
+	/// <summary>
+	/// The person, whose description and portrait are only shown once they've been examined. They're bound to
+	/// directly, so they update when the person's place or work changes.
+	/// </summary>
 	public PersonViewModel Person { get; }
 
 	public string Name => Person.FullName;
-
-	/// <summary>
-	/// The description of the person, which is only shown once they've been examined.
-	/// </summary>
-	public string Description => Person.Description;
 
 	public bool IsExamined
 	{

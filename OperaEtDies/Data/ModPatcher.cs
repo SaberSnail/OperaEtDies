@@ -13,6 +13,7 @@ public static class ModPatcher
 	public const string SetOperation = "set";
 	public const string RemoveOperation = "remove";
 	public const string MoveOperation = "move";
+	public const string CopyOperation = "copy";
 
 	/// <summary>
 	/// Applies each operation in a mod file to the root of a data file, in order. Operations can't change the
@@ -23,57 +24,75 @@ public static class ModPatcher
 	{
 		var errors = new List<string>();
 		if (modFile is JsonArray operations)
-		{
-			for (var index = 0; index < operations.Count; index++)
-			{
-				if (ApplyOperation(root, operations[index], index + 1, protectedProperties) is { } error)
-					errors.Add(error);
-			}
-		}
+			ApplyOperations(root, operations, null, protectedProperties, errors);
 		else
-		{
 			errors.Add(OurResources.ModFileNotList);
-		}
 
 		return errors;
 	}
 
-	private static string? ApplyOperation(JsonNode root, JsonNode? node, int number, IReadOnlyCollection<string> protectedProperties)
+	/// <summary>
+	/// Applies a list of operations to a root, in order, adding a message for each problem found. Operations in the
+	/// changes of a copy are numbered after the operation that holds them, as in "3.2".
+	/// </summary>
+	private static void ApplyOperations(JsonNode? root, JsonArray operations, string? parentNumber, IReadOnlyCollection<string> protectedProperties, ICollection<string> errors)
 	{
-		if (node is not JsonObject operation)
-			return OurResources.ModOperationNotObject.FormatCurrentCulture(number);
-
-		var type = GetString(operation, "op");
-		var path = GetString(operation, "path");
-		string? error = null;
-		if (type is null)
+		for (var index = 0; index < operations.Count; index++)
 		{
-			error = OurResources.ModOperationTypeMissing.FormatCurrentCulture(number);
+			var number = parentNumber is null ? $"{index + 1}" : $"{parentNumber}.{index + 1}";
+			ApplyOperation(root, operations[index], number, protectedProperties, errors);
 		}
-		else if (!s_operations.Contains(type))
-		{
-			error = OurResources.ModOperationTypeInvalid.FormatCurrentCulture(number, type);
-		}
-		else if (path is null)
-		{
-			error = OurResources.ModOperationPathMissing.FormatCurrentCulture(number);
-		}
-		else if (ApplyOperation(root, operation, type.ToLowerInvariant(), path, protectedProperties) is { } message)
-		{
-			error = OurResources.ModOperationFailed.FormatCurrentCulture(number, type, path, message);
-		}
-
-		return error;
 	}
 
-	private static string? ApplyOperation(JsonNode root, JsonObject operation, string type, string path, IReadOnlyCollection<string> protectedProperties)
+	private static void ApplyOperation(JsonNode? root, JsonNode? node, string number, IReadOnlyCollection<string> protectedProperties, ICollection<string> errors)
+	{
+		string? error = null;
+		if (node is not JsonObject operation)
+		{
+			error = OurResources.ModOperationNotObject.FormatCurrentCulture(number);
+		}
+		else
+		{
+			var type = GetString(operation, "op");
+			var path = GetString(operation, "path");
+			if (type is null)
+				error = OurResources.ModOperationTypeMissing.FormatCurrentCulture(number);
+			else if (!s_operations.Contains(type))
+				error = OurResources.ModOperationTypeInvalid.FormatCurrentCulture(number, type);
+			else if (path is null)
+				error = OurResources.ModOperationPathMissing.FormatCurrentCulture(number);
+			else if (ApplyOperation(root, operation, type.ToLowerInvariant(), path, number, protectedProperties, errors) is { } message)
+				error = OurResources.ModOperationFailed.FormatCurrentCulture(number, type, path, message);
+		}
+
+		if (error is not null)
+			errors.Add(error);
+	}
+
+	private static string? ApplyOperation(JsonNode? root, JsonObject operation, string type, string path, string number, IReadOnlyCollection<string> protectedProperties, ICollection<string> errors)
 	{
 		if (!ModPath.TryParse(path, out var segments, out var pathError))
 			return pathError;
 		if (protectedProperties.Contains(segments[0].Text, StringComparer.OrdinalIgnoreCase))
 			return OurResources.ModPathProtected.FormatCurrentCulture(segments[0].Text);
-		if (type is InsertOperation or ReplaceOperation or SetOperation && FindKey(operation, "value") is null)
+		var hasValue = FindKey(operation, "value") is not null;
+		var valuesNode = GetProperty(operation, "values");
+		var hasValues = FindKey(operation, "values") is not null;
+		var hasChanges = FindKey(operation, "changes") is not null;
+		if (hasValues && type != InsertOperation)
+			return OurResources.ModValuesNotInsert;
+		if (hasValue && hasValues)
+			return OurResources.ModValueConflict;
+		if (type is ReplaceOperation or SetOperation && !hasValue)
 			return OurResources.ModValueMissing;
+		if (type is InsertOperation && !hasValue && !hasValues)
+			return OurResources.ModInsertValueMissing;
+		if (hasValues && valuesNode is not JsonArray)
+			return OurResources.ModValuesNotList;
+		if (hasChanges && type != CopyOperation)
+			return OurResources.ModChangesNotCopy;
+		if (hasChanges && GetProperty(operation, "changes") is not JsonArray)
+			return OurResources.ModChangesNotList;
 
 		var error = TryResolve(root, segments, segments.Count - 1, out var container);
 		if (error is null)
@@ -89,6 +108,7 @@ public static class ModPatcher
 					SetOperation => Set(slot, value),
 					RemoveOperation => slot.Exists ? Remove(slot) : OurResources.ModPathNotFound.FormatCurrentCulture(path),
 					MoveOperation => slot.Exists ? Move(slot, operation, path) : OurResources.ModPathNotFound.FormatCurrentCulture(path),
+					CopyOperation => slot.Exists ? Copy(slot, operation, path, number, errors) : OurResources.ModPathNotFound.FormatCurrentCulture(path),
 					_ => throw new InvalidOperationException($"Unknown mod operation \"{type}\"."),
 				};
 			}
@@ -115,7 +135,12 @@ public static class ModPatcher
 		{
 			error = TryGetPosition(operation, list, out var position);
 			if (error is null)
-				list.Insert(position ?? list.Count, value);
+			{
+				var items = GetProperty(operation, "values") is JsonArray values ? values.Select(x => x?.DeepClone()).ToList() : [value];
+				var start = position ?? list.Count;
+				for (var offset = 0; offset < items.Count; offset++)
+					list.Insert(start + offset, items[offset]);
+			}
 		}
 
 		return error;
@@ -158,7 +183,7 @@ public static class ModPatcher
 	private static string? Move(Slot slot, JsonObject operation, string path)
 	{
 		if (slot.Container is not JsonArray list)
-			return OurResources.ModMoveNotListItem.FormatCurrentCulture(path);
+			return OurResources.ModNotListItem.FormatCurrentCulture(path);
 
 		var item = list[slot.Index];
 		var itemId = GetId(item);
@@ -177,6 +202,36 @@ public static class ModPatcher
 			if (error is null && position is null)
 				error = OurResources.ModPositionMissing;
 			list.Insert(error is null ? position!.Value : slot.Index, item);
+		}
+
+		return error;
+	}
+
+	/// <summary>
+	/// Copies a list item, applies the operation's changes to the copy (with paths starting at the copy), and adds it
+	/// to the list, right after the original unless a position is given. Problems in the changes are added to the
+	/// errors, and the copy isn't added if there are any.
+	/// </summary>
+	private static string? Copy(Slot slot, JsonObject operation, string path, string number, ICollection<string> errors)
+	{
+		if (slot.Container is not JsonArray list)
+			return OurResources.ModNotListItem.FormatCurrentCulture(path);
+
+		var error = TryGetPosition(operation, list, out var position);
+		if (error is null)
+		{
+			var copy = list[slot.Index]?.DeepClone();
+			var errorCount = errors.Count;
+			if (GetProperty(operation, "changes") is JsonArray changes)
+				ApplyOperations(copy, changes, number, [], errors);
+
+			if (errors.Count == errorCount)
+			{
+				if (GetId(copy) is { } id && FindIdIndex(list, id) >= 0)
+					error = OurResources.ModCopyIdUsed.FormatCurrentCulture(id);
+				else
+					list.Insert(position ?? slot.Index + 1, copy);
+			}
 		}
 
 		return error;
@@ -228,7 +283,7 @@ public static class ModPatcher
 	/// <summary>
 	/// Follows the first steps of a path from the root, which must all exist.
 	/// </summary>
-	private static string? TryResolve(JsonNode root, IReadOnlyList<ModPathSegment> segments, int count, out JsonNode? node)
+	private static string? TryResolve(JsonNode? root, IReadOnlyList<ModPathSegment> segments, int count, out JsonNode? node)
 	{
 		node = root;
 		string? error = null;
@@ -314,5 +369,5 @@ public static class ModPatcher
 		public JsonNode? Get() => Container is JsonObject parent ? parent[Key!] : ((JsonArray) Container)[Index];
 	}
 
-	private static readonly HashSet<string> s_operations = new(StringComparer.OrdinalIgnoreCase) { InsertOperation, ReplaceOperation, SetOperation, RemoveOperation, MoveOperation };
+	private static readonly HashSet<string> s_operations = new(StringComparer.OrdinalIgnoreCase) { InsertOperation, ReplaceOperation, SetOperation, RemoveOperation, MoveOperation, CopyOperation };
 }

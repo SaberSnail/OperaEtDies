@@ -17,6 +17,12 @@ public sealed class CharacterTraits
 
 	public IReadOnlyDictionary<string, object> Values => m_values;
 
+	/// <summary>
+	/// Creates a copy of the traits with one property's value changed.
+	/// </summary>
+	public CharacterTraits With(string propertyId, object value) =>
+		new(new Dictionary<string, object>(m_values, StringComparer.Ordinal) { [propertyId] = value });
+
 	public string GetString(string propertyId) => (string) m_values[propertyId];
 
 	public int GetInteger(string propertyId) => (int) m_values[propertyId];

@@ -249,8 +249,11 @@
 		<value>The "{0}" list includes "{1}", but the property "{2}" has no value with that id.</value>
 		<comment>{0} is the name of the list in the data file. {1} is the value id. {2} is the property id.</comment>
 	</data>
-	<data name="ConditionCombinationsTooMany" xml:space="preserve">
-		<value>The conditions allow more than {1} combinations of values for the "{0}" role, which is too many to check.</value>
+	<data name="ConditionCombinationsTooManyForProperty" xml:space="preserve">
+		<value>Checking that the property "{0}" always has a value takes more than {2} combinations of values for the "{1}" role, which is too many to check. It combines the values of: {3}.</value>
+	</data>
+	<data name="ConditionCombinationsTooManyForTemplate" xml:space="preserve">
+		<value>Checking the template "{0}" takes more than {2} combinations of values for the "{1}" role, which is too many to check. It combines the values of: {3}.</value>
 		<comment>{0} is the role ("player" or "npc"). {1} is the most combinations allowed.</comment>
 	</data>
 	<data name="ConditionPropertyNoValues" xml:space="preserve">
@@ -357,23 +360,23 @@
 	</data>
 	<data name="ModOperationNotObject" xml:space="preserve">
 		<value>Operation {0} isn't an object.</value>
-		<comment>{0} is the operation's number.</comment>
+		<comment>{0} is the operation's number (such as 3, or 3.2 for the second change of operation 3).</comment>
 	</data>
 	<data name="ModOperationTypeMissing" xml:space="preserve">
 		<value>Operation {0} needs an "op".</value>
-		<comment>{0} is the operation's number.</comment>
+		<comment>{0} is the operation's number (such as 3, or 3.2 for the second change of operation 3).</comment>
 	</data>
 	<data name="ModOperationTypeInvalid" xml:space="preserve">
-		<value>Operation {0} has the op "{1}", but it must be "insert", "replace", "set", "remove", or "move".</value>
-		<comment>{0} is the operation's number. {1} is its op.</comment>
+		<value>Operation {0} has the op "{1}", but it must be "insert", "replace", "set", "remove", "move", or "copy".</value>
+		<comment>{0} is the operation's number (such as 3, or 3.2 for the second change of operation 3). {1} is its op.</comment>
 	</data>
 	<data name="ModOperationPathMissing" xml:space="preserve">
 		<value>Operation {0} needs a "path".</value>
-		<comment>{0} is the operation's number.</comment>
+		<comment>{0} is the operation's number (such as 3, or 3.2 for the second change of operation 3).</comment>
 	</data>
 	<data name="ModOperationFailed" xml:space="preserve">
 		<value>Operation {0} ({1} "{2}"): {3}</value>
-		<comment>{0} is the operation's number, {1} its op, {2} its path, and {3} the problem.</comment>
+		<comment>{0} is the operation's number (such as 3, or 3.2 for the second change of operation 3), {1} its op, {2} its path, and {3} the problem.</comment>
 	</data>
 	<data name="ModPathProtected" xml:space="preserve">
 		<value>Mods can't change "{0}".</value>
@@ -381,6 +384,18 @@
 	</data>
 	<data name="ModValueMissing" xml:space="preserve">
 		<value>The operation needs a "value".</value>
+	</data>
+	<data name="ModInsertValueMissing" xml:space="preserve">
+		<value>The operation needs a "value" or "values".</value>
+	</data>
+	<data name="ModValueConflict" xml:space="preserve">
+		<value>Only one of "value" and "values" can be given.</value>
+	</data>
+	<data name="ModValuesNotInsert" xml:space="preserve">
+		<value>Only "insert" can use "values".</value>
+	</data>
+	<data name="ModValuesNotList" xml:space="preserve">
+		<value>"values" must be a list.</value>
 	</data>
 	<data name="ModPathNotFound" xml:space="preserve">
 		<value>"{0}" doesn't exist.</value>
@@ -393,9 +408,19 @@
 	<data name="ModSetNotProperty" xml:space="preserve">
 		<value>Only properties of objects can be set. Use "replace" or "insert" for list items.</value>
 	</data>
-	<data name="ModMoveNotListItem" xml:space="preserve">
+	<data name="ModNotListItem" xml:space="preserve">
 		<value>"{0}" isn't an item in a list.</value>
 		<comment>{0} is a path.</comment>
+	</data>
+	<data name="ModChangesNotCopy" xml:space="preserve">
+		<value>Only "copy" can use "changes".</value>
+	</data>
+	<data name="ModChangesNotList" xml:space="preserve">
+		<value>"changes" must be a list.</value>
+	</data>
+	<data name="ModCopyIdUsed" xml:space="preserve">
+		<value>The copy has the id "{0}", which is already used in the list. Use "changes" to give it a new id.</value>
+		<comment>{0} is an id.</comment>
 	</data>
 	<data name="ModMoveRelativeToSelf" xml:space="preserve">
 		<value>An item can't be moved before or after itself.</value>
@@ -663,6 +688,10 @@
 		<value>The property &quot;{0}&quot; must have &quot;setByGame&quot;, since the family generator sets it.</value>
 		<comment>{0} is the property id.</comment>
 	</data>
+	<data name="FamilyInheritedPropertyNotAllowed" xml:space="preserve">
+		<value>&quot;{0}&quot; is &quot;{1}&quot;, which is one of the properties in &quot;properties&quot;, so it can&apos;t be inherited.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the property id.</comment>
+	</data>
 	<data name="ValuesFromUnknown" xml:space="preserve">
 		<value>The property &quot;{0}&quot; takes its values from &quot;{1}&quot;, but the only source is &quot;{2}&quot;.</value>
 		<comment>{0} is the property id, {1} is the source given, {2} is the only allowed source.</comment>
@@ -773,5 +802,53 @@
 	<data name="MiniMapHeader" xml:space="preserve">
 		<value>Nearby</value>
 		<comment>The heading of the mini-map on the main screen.</comment>
+	</data>
+	<data name="PortraitColorUnknown" xml:space="preserve">
+		<value>&quot;{0}&quot; is &quot;{1}&quot;, but it must be a color written as #RRGGBB or #AARRGGBB, or the id of a portrait color.</value>
+		<comment>{0} is the path, {1} is the color. A color in the colors list can only use the colors before it.</comment>
+	</data>
+	<data name="PortraitColorMixIncomplete" xml:space="preserve">
+		<value>&quot;{0}&quot; must have both a mix and an amount, or neither.</value>
+		<comment>{0} is the path to the portrait color.</comment>
+	</data>
+	<data name="PortraitPathInvalid" xml:space="preserve">
+		<value>&quot;{0}&quot; isn&apos;t valid path data. {1}</value>
+		<comment>{0} is the path in the file, {1} is the reason.</comment>
+	</data>
+	<data name="PortraitShapeNotDrawn" xml:space="preserve">
+		<value>&quot;{0}&quot; must have a fill, a stroke, or both.</value>
+		<comment>{0} is the path to the portrait shape.</comment>
+	</data>
+	<data name="PortraitGradientWithoutFill" xml:space="preserve">
+		<value>&quot;{0}&quot; has a gradient, so it must have a fill.</value>
+		<comment>{0} is the path to the portrait shape.</comment>
+	</data>
+	<data name="PortraitFillToWithoutGradient" xml:space="preserve">
+		<value>&quot;{0}&quot; has a fillTo color, so it must have a gradient.</value>
+		<comment>{0} is the path to the portrait shape.</comment>
+	</data>
+	<data name="CommandLinePortraits" xml:space="preserve">
+		<value>With --generate-villages, also write a portrait of each person to this folder as a PNG file.</value>
+		<comment>Explains the --portraits command line option.</comment>
+	</data>
+	<data name="CommandLinePortraitsAtWork" xml:space="preserve">
+		<value>With --generate-villages, draw everyone's portrait at work in their own workplace, instead of where they start the game.</value>
+		<comment>Explains the --portraits-at-work command line option.</comment>
+	</data>
+	<data name="PortraitQuarterKindUnknown" xml:space="preserve">
+		<value>&quot;{0}&quot; has &quot;{1}&quot;, but it isn&apos;t a quarter kind in Locations.json.</value>
+		<comment>{0} is the path to the portrait layer's quarter kinds, {1} is the quarter kind.</comment>
+	</data>
+	<data name="PortraitWorkplaceUnknown" xml:space="preserve">
+		<value>&quot;{0}&quot; has &quot;{1}&quot;, but it isn&apos;t a value of the &quot;{2}&quot; property.</value>
+		<comment>{0} is the path to the portrait layer's workplaces, {1} is the profession, {2} is the profession property.</comment>
+	</data>
+	<data name="PortraitPlaceEmpty" xml:space="preserve">
+		<value>&quot;{0}&quot; must have &quot;home&quot; set to true, &quot;quarterKinds&quot;, or &quot;workplaces&quot;.</value>
+		<comment>{0} is the path to the portrait layer's places.</comment>
+	</data>
+	<data name="PortraitScaleUnknown" xml:space="preserve">
+		<value>&quot;{0}&quot; is &quot;{1}&quot;, but it isn&apos;t the id of a portrait scale.</value>
+		<comment>{0} is the path to the portrait layer's or shape's scale, {1} is the scale id.</comment>
 	</data>
 </root>

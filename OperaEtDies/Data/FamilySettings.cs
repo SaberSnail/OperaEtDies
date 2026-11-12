@@ -67,6 +67,33 @@ public sealed class FamilySettings : IValidatedData
 	public required string Member { get; init; }
 
 	/// <summary>
+	/// The ids of the head relation property's values, one for each way the head of a household can be related to a
+	/// member of it.
+	/// </summary>
+	public required HeadRelations HeadRelations { get; init; }
+
+	/// <summary>
+	/// The id of the at work property's value for someone who is working.
+	/// </summary>
+	public required string AtWork { get; init; }
+
+	/// <summary>
+	/// The id of the at work property's value for someone who isn't working.
+	/// </summary>
+	public required string NotAtWork { get; init; }
+
+	/// <summary>
+	/// The id of the married property's value for someone who is married: the head of a household who has a wife, and
+	/// the wife.
+	/// </summary>
+	public required string Married { get; init; }
+
+	/// <summary>
+	/// The id of the married property's value for someone who isn't married.
+	/// </summary>
+	public required string Unmarried { get; init; }
+
+	/// <summary>
 	/// How many households the town has, other than the player's.
 	/// </summary>
 	public required IntegerRange FamilyCount { get; init; }
@@ -213,6 +240,12 @@ public sealed class FamilySettings : IValidatedData
 	public required WealthThresholds WealthThresholds { get; init; }
 
 	/// <summary>
+	/// The value list properties that family members share: a household elder has the same value as their child, and a
+	/// child takes after their parents.
+	/// </summary>
+	public IReadOnlyList<InheritedProperty> InheritedProperties { get; init; } = [];
+
+	/// <summary>
 	/// Gets the wealth level of a household with the given total wealth.
 	/// </summary>
 	public WealthLevel GetHouseholdWealthLevel(double wealth) =>
@@ -248,6 +281,15 @@ public sealed class FamilySettings : IValidatedData
 			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("head"));
 		if (string.IsNullOrWhiteSpace(Member))
 			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("member"));
+		errors.AddRange(HeadRelations.Validate());
+		if (string.IsNullOrWhiteSpace(AtWork))
+			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("atWork"));
+		if (string.IsNullOrWhiteSpace(NotAtWork))
+			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("notAtWork"));
+		if (string.IsNullOrWhiteSpace(Married))
+			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("married"));
+		if (string.IsNullOrWhiteSpace(Unmarried))
+			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("unmarried"));
 
 		errors.AddRange(CharacterData.ValidateRange("familyCount", FamilyCount));
 		if (FamilyCount.Minimum < 0)
@@ -298,6 +340,9 @@ public sealed class FamilySettings : IValidatedData
 		if (!(WealthThresholds.High >= WealthThresholds.Medium) || !double.IsFinite(WealthThresholds.High))
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("wealthThresholds.high", WealthThresholds.High, WealthThresholds.Medium));
 
+		for (var index = 0; index < InheritedProperties.Count; index++)
+			errors.AddRange(InheritedProperties[index].Validate($"inheritedProperties[{index}]"));
+
 		return errors;
 	}
 }
@@ -338,6 +383,27 @@ public sealed class FamilyProperties
 	/// </summary>
 	public required string HouseholdRole { get; init; }
 
+	/// <summary>
+	/// A value list property, set by the game, that says how the head of someone's household is related to them.
+	/// </summary>
+	public required string HeadRelation { get; init; }
+
+	/// <summary>
+	/// A string property, set by the game, holding the full name of the head of someone's household.
+	/// </summary>
+	public required string HeadName { get; init; }
+
+	/// <summary>
+	/// A value list property, set by the game, that says whether someone is working right now.
+	/// </summary>
+	public required string AtWork { get; init; }
+
+	/// <summary>
+	/// A value list property, set by the game, that says whether someone is married. It's set before the rest of a
+	/// character's values are chosen, so their conditions can use it.
+	/// </summary>
+	public required string Married { get; init; }
+
 	internal IEnumerable<string> Validate()
 	{
 		if (string.IsNullOrWhiteSpace(Gender))
@@ -352,7 +418,121 @@ public sealed class FamilyProperties
 			yield return OurResources.DataValueMissing.FormatCurrentCulture("properties.workRole");
 		if (string.IsNullOrWhiteSpace(HouseholdRole))
 			yield return OurResources.DataValueMissing.FormatCurrentCulture("properties.householdRole");
+		if (string.IsNullOrWhiteSpace(HeadRelation))
+			yield return OurResources.DataValueMissing.FormatCurrentCulture("properties.headRelation");
+		if (string.IsNullOrWhiteSpace(HeadName))
+			yield return OurResources.DataValueMissing.FormatCurrentCulture("properties.headName");
+		if (string.IsNullOrWhiteSpace(AtWork))
+			yield return OurResources.DataValueMissing.FormatCurrentCulture("properties.atWork");
+		if (string.IsNullOrWhiteSpace(Married))
+			yield return OurResources.DataValueMissing.FormatCurrentCulture("properties.married");
 	}
+}
+
+/// <summary>
+/// A value list property that family members share. A household elder has the same value as their child. A child with
+/// one parent in the household has that parent's value. A child with two parents has one of their values, or a value
+/// listed between them.
+/// </summary>
+public sealed class InheritedProperty
+{
+	/// <summary>
+	/// The id of a value list property.
+	/// </summary>
+	public required string Property { get; init; }
+
+	/// <summary>
+	/// Weights the values a child of two parents can have, from the earlier parent's value in the property's list to the
+	/// later parent's, leaving out <see cref="Unblended"/> values. Without it, a child has one parent's value or the other's.
+	/// </summary>
+	public WeightShape? Blend { get; init; }
+
+	/// <summary>
+	/// The ids of values that don't blend. A child of a parent with one of them and a parent without has the first
+	/// parent's value with <see cref="UnblendedChance"/>, and otherwise the other parent's. A child of two parents with
+	/// one of them each has a random value.
+	/// </summary>
+	public IReadOnlyList<string> Unblended { get; init; } = [];
+
+	/// <summary>
+	/// The chance that a child with one parent with an <see cref="Unblended"/> value has that value.
+	/// </summary>
+	public double UnblendedChance { get; init; } = 50;
+
+	internal IEnumerable<string> Validate(string path)
+	{
+		var errors = new List<string>();
+		if (string.IsNullOrWhiteSpace(Property))
+			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture($"{path}.property"));
+		if (Blend is not null)
+			errors.AddRange(Blend.Validate($"{path}.blend"));
+		errors.AddRange(DataValidation.ValidateChance($"{path}.unblendedChance", UnblendedChance));
+		return errors;
+	}
+}
+
+/// <summary>
+/// The ids of the head relation property's values: what the head of a household is to a member of it.
+/// </summary>
+public sealed class HeadRelations
+{
+	/// <summary>
+	/// For the head of the household.
+	/// </summary>
+	public required string Self { get; init; }
+
+	/// <summary>
+	/// For the head's wife.
+	/// </summary>
+	public required string Husband { get; init; }
+
+	/// <summary>
+	/// For the children of a man at the head of a household.
+	/// </summary>
+	public required string Father { get; init; }
+
+	/// <summary>
+	/// For the children of a woman at the head of a household.
+	/// </summary>
+	public required string Mother { get; init; }
+
+	/// <summary>
+	/// For a household elder who is the parent of a man at the head of a household.
+	/// </summary>
+	public required string Son { get; init; }
+
+	/// <summary>
+	/// For a household elder who is the parent of a woman at the head of a household.
+	/// </summary>
+	public required string Daughter { get; init; }
+
+	/// <summary>
+	/// For a household elder who is the parent of the head's wife.
+	/// </summary>
+	public required string SonInLaw { get; init; }
+
+	/// <summary>
+	/// For a household elder who is the parent of the late husband of a woman at the head of a household.
+	/// </summary>
+	public required string DaughterInLaw { get; init; }
+
+	/// <summary>
+	/// Gets the setting names and value ids of every relation.
+	/// </summary>
+	internal IReadOnlyList<(string Name, string ValueId)> GetAll() =>
+	[
+		("headRelations.self", Self),
+		("headRelations.husband", Husband),
+		("headRelations.father", Father),
+		("headRelations.mother", Mother),
+		("headRelations.son", Son),
+		("headRelations.daughter", Daughter),
+		("headRelations.sonInLaw", SonInLaw),
+		("headRelations.daughterInLaw", DaughterInLaw),
+	];
+
+	internal IEnumerable<string> Validate() =>
+		GetAll().Where(x => string.IsNullOrWhiteSpace(x.ValueId)).Select(x => OurResources.DataValueMissing.FormatCurrentCulture(x.Name));
 }
 
 /// <summary>

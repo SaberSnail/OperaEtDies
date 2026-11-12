@@ -1,4 +1,5 @@
 using GoldenAnvil.Utility.Logging;
+using OperaEtDies.Characters;
 
 namespace OperaEtDies.Data;
 
@@ -8,11 +9,12 @@ namespace OperaEtDies.Data;
 /// </summary>
 public sealed class GameData
 {
-	public GameData(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, FrequencyChances? frequencyChances = null)
+	public GameData(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, FrequencyChances? frequencyChances = null, PortraitData? portraits = null)
 	{
 		FrequencyChances = frequencyChances ?? new FrequencyChances();
 
 		CharacterProperties = new DataCatalog<CharacterProperty>(characters.Properties);
+		PortraitRenderer = portraits is null ? null : new PortraitRenderer(portraits, CharacterProperties);
 
 		// The character file is validated on load, so the templates are always valid.
 		CharacterTemplates = new TextTemplateSet(characters.Templates.Select(x => KeyValuePair.Create(x.Id, x.ParseVariants())));
@@ -70,11 +72,14 @@ public sealed class GameData
 		var locations = LocationList.Load(dataDirectory, modDirectories);
 		var families = FamilySettings.Load(dataDirectory, modDirectories);
 
-		if (characters.Value is null || locations.Value is null || professions.Value is null || families.Value is null)
-			return DataLoadResult<GameData>.Failure([.. characters.Errors, .. locations.Errors, .. professions.Errors, .. families.Errors]);
+		// The portrait file is optional. Without it, characters have no portraits.
+		var portraits = PortraitData.Load(dataDirectory, modDirectories);
+
+		if (characters.Value is null || locations.Value is null || professions.Value is null || families.Value is null || portraits is { Value: null })
+			return DataLoadResult<GameData>.Failure([.. characters.Errors, .. locations.Errors, .. professions.Errors, .. families.Errors, .. portraits?.Errors ?? []]);
 
 		// Each file is fine on its own, so check that they agree with each other.
-		var errors = GameDataValidation.Validate(dataDirectory, characters.Value, locations.Value, professions.Value, families.Value);
+		var errors = GameDataValidation.Validate(dataDirectory, characters.Value, locations.Value, professions.Value, families.Value, portraits?.Value);
 		if (errors.Count != 0)
 		{
 			foreach (var error in errors)
@@ -82,7 +87,7 @@ public sealed class GameData
 			return DataLoadResult<GameData>.Failure(errors);
 		}
 
-		var gameData = new GameData(characters.Value, locations.Value, professions.Value, families.Value, frequencyChances);
+		var gameData = new GameData(characters.Value, locations.Value, professions.Value, families.Value, frequencyChances, portraits?.Value);
 		foreach (var warning in gameData.GetLowChanceWarnings())
 			Log.Warn(warning);
 
@@ -98,6 +103,11 @@ public sealed class GameData
 	/// The properties that describe a character, in the order they were defined.
 	/// </summary>
 	public DataCatalog<CharacterProperty> CharacterProperties { get; }
+
+	/// <summary>
+	/// Draws character portraits, or null if there's no portrait data.
+	/// </summary>
+	public PortraitRenderer? PortraitRenderer { get; }
 
 	/// <summary>
 	/// The templates that create text about a character, such as their full name and description.

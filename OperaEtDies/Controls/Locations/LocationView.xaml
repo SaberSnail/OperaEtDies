@@ -33,16 +33,27 @@
 				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
 				Content="{x:Static operaEtDies:OurResources.ExamineCharacter}" />
 
-			<!--  The description, shown once the character has been examined.  -->
-			<TextBlock
+			<!--  The portrait and description, shown once the character has been examined. The portrait lines up with the name.  -->
+			<DockPanel
 				Grid.Row="1"
 				Grid.Column="0"
 				Grid.ColumnSpan="2"
 				Margin="0,8,0,0"
-				Foreground="{DynamicResource FontLightBrush}"
-				Text="{Binding Description}"
-				TextWrapping="Wrap"
-				Visibility="{Binding IsExamined, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+				LastChildFill="True"
+				Visibility="{Binding IsExamined, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+				<Image
+					Width="160"
+					Margin="0,0,12,0"
+					VerticalAlignment="Top"
+					DockPanel.Dock="Left"
+					Source="{Binding Person.Portrait}"
+					Stretch="Uniform"
+					Visibility="{Binding Person.Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+				<TextBlock
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{Binding Person.Description}"
+					TextWrapping="Wrap" />
+			</DockPanel>
 		</Grid>
 	</DataTemplate>
 

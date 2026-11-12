@@ -129,7 +129,7 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 		if (!CanShowNewGame() || !IsMenuVisible)
 			return;
 
-		var newGame = new NewGameViewModel(m_gameData!, m_random);
+		var newGame = new NewGameViewModel(m_gameData!, m_random, IsDeveloper);
 		newGame.StartGameRequested += OnStartGameRequested;
 		newGame.BackRequested += OnNewGameBackRequested;
 		NewGame = newGame;

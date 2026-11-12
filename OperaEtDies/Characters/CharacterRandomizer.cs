@@ -36,6 +36,9 @@ public sealed class CharacterRandomizer
 			foreach (var conditionId in property.GetConditionPropertyIds())
 				m_values[conditionId].ValueChanged += (_, _) => UpdateForConditions(property);
 		}
+
+		if (role == CharacterRole.Player)
+			LinkPlayerMarriedToGender();
 	}
 
 	public CharacterRole Role { get; }
@@ -57,6 +60,12 @@ public sealed class CharacterRandomizer
 	/// its values' conditions use.
 	/// </summary>
 	public IReadOnlyList<CharacterPropertyOption> GetOptions(CharacterProperty property) => property.GetOptions(Role, GetValueId);
+
+	/// <summary>
+	/// Gets the values a value list property can have for any role, given the current values of the properties its
+	/// values' conditions use.
+	/// </summary>
+	public IReadOnlyList<CharacterPropertyOption> GetAllOptions(CharacterProperty property) => property.GetAllOptions(GetValueId);
 
 	/// <summary>
 	/// Gets the range of an integer property for this role.
@@ -135,6 +144,27 @@ public sealed class CharacterRandomizer
 		else if (value.Value is null || (value.Value is CharacterPropertyOption option && !GetOptions(property).Contains(option)))
 		{
 			value.Value = PickRandom(property);
+		}
+	}
+
+	/// <summary>
+	/// Keeps the player's married value locked to fit their gender, so conditions on it hold while the player's other
+	/// values are chosen: a man heads his household with a wife, and a woman heads hers as a widow. The game sets it
+	/// again when it creates the player's household. Nothing is linked if the character properties don't have the
+	/// family properties, which only happens with character data that wasn't checked against Families.json.
+	/// </summary>
+	private void LinkPlayerMarriedToGender()
+	{
+		var families = m_gameData.Families;
+		var marriedValues = m_propertiesById.GetValueOrDefault(families.Properties.Married)?.Values;
+		var marriedValue = marriedValues?.FirstOrDefault(x => x.Id == families.Married);
+		var unmarriedValue = marriedValues?.FirstOrDefault(x => x.Id == families.Unmarried);
+		if (marriedValue is not null && unmarriedValue is not null && m_values.TryGetValue(families.Properties.Gender, out var gender))
+		{
+			var married = m_values[families.Properties.Married];
+			void Update() => married.Lock(GetValueId(families.Properties.Gender) == families.Female ? unmarriedValue : marriedValue);
+			gender.ValueChanged += (_, _) => Update();
+			Update();
 		}
 	}
 

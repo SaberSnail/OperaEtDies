@@ -288,6 +288,36 @@ public sealed class GameDataTests
 	}
 
 	[Test]
+	public void TooManyCombinationsNamesWhatWasChecked()
+	{
+		// Three properties with 30 values each make 27000 combinations. Only conditions that decide which values are
+		// allowed count, so the frequency overrides on "weighted" don't need to be checked.
+		static string Values(string prefix) => string.Join(", ", Enumerable.Range(0, 30).Select(x => $$"""{ "id": "{{prefix}}{{x}}", "title": "{{prefix}}{{x}}" }"""));
+		const string all = """{ "values": { "a": [ "a0" ], "b": [ "b0" ], "c": [ "c0" ] } }""";
+		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), $$"""
+			{
+				"templates": [ { "id": "fullName", "template": "{a}" }, { "id": "description", "template": "{a}" } ],
+				"properties": [
+					{ "id": "a", "title": "A", "type": "valueList", "values": [ {{Values("a")}} ] },
+					{ "id": "b", "title": "B", "type": "valueList", "values": [ {{Values("b")}} ] },
+					{ "id": "c", "title": "C", "type": "valueList", "values": [ {{Values("c")}} ] },
+					{ "id": "limited", "title": "Limited", "type": "valueList", "values": [ { "id": "x", "title": "X", "when": {{all}} }, { "id": "y", "title": "Y" } ] },
+					{ "id": "weighted", "title": "Weighted", "type": "valueList", "values": [ { "id": "x", "title": "X", "frequencyWhen": [ { "when": {{all}}, "frequency": "rare" } ] } ] }
+				]
+			}
+			""");
+
+		var result = CharacterData.Load(m_directory);
+
+		var sizes = "a (30), b (30), c (30)";
+		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
+		{
+			OurResources.ConditionCombinationsTooManyForProperty.FormatCurrentCulture("limited", "player", CharacterData.MaxConditionCombinations, sizes),
+			OurResources.ConditionCombinationsTooManyForProperty.FormatCurrentCulture("limited", "npc", CharacterData.MaxConditionCombinations, sizes),
+		}));
+	}
+
+	[Test]
 	public void TemplateTextMustExistOnEveryValue()
 	{
 		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
@@ -442,7 +472,7 @@ public sealed class GameDataTests
 		var gameData = TestData.CreateGameData();
 
 		Assert.That(gameData.CharacterProperties.Get("profession").Title, Is.EqualTo("Profession"));
-		Assert.That(gameData.CharacterProperties.Get("height"), Is.SameAs(gameData.CharacterProperties[6]));
+		Assert.That(gameData.CharacterProperties.Get("height"), Is.SameAs(gameData.CharacterProperties[10]));
 		Assert.That(gameData.QuarterTemplates.Get("square").Businesses, Is.EqualTo(3));
 		Assert.That(gameData.HouseTemplates.Get("hall").Wealth, Is.EqualTo(WealthLevel.High));
 		Assert.That(gameData.Professions.Get("smith").MaxBusinesses, Is.EqualTo(1));
@@ -582,7 +612,7 @@ public sealed class GameDataTests
 	{
 		File.WriteAllText(Path.Combine(m_directory, FamilySettings.FileName), """
 			{
-				"properties": { "gender": "gender", "age": "", "profession": "profession", "lastName": "lastName", "workRole": "", "householdRole": "" },
+				"properties": { "gender": "gender", "age": "", "profession": "profession", "lastName": "lastName", "workRole": "", "householdRole": "", "headRelation": "", "headName": "headName", "atWork": "", "married": "" },
 				"male": "male",
 				"female": " ",
 				"homemaker": "",
@@ -591,6 +621,11 @@ public sealed class GameDataTests
 				"helper": " ",
 				"head": "householdRole_head",
 				"member": "",
+				"headRelations": { "self": "self", "husband": "husband", "father": "father", "mother": "mother", "son": "son", "daughter": "daughter", "sonInLaw": " ", "daughterInLaw": "daughterInLaw" },
+				"atWork": "atWork_yes",
+				"notAtWork": " ",
+				"married": "married_yes",
+				"unmarried": "",
 				"familyCount": { "minimum": -1, "maximum": 5, "shape": { "peak": "middle", "mostWithin": 1 } },
 				"femaleHeadChance": 101,
 				"femaleHeadMinWealth": "low",
@@ -647,6 +682,12 @@ public sealed class GameDataTests
 			OurResources.DataValueMissing.FormatCurrentCulture("helper"),
 			OurResources.DataValueMissing.FormatCurrentCulture("member"),
 			OurResources.DataValueMissing.FormatCurrentCulture("properties.householdRole"),
+			OurResources.DataValueMissing.FormatCurrentCulture("properties.headRelation"),
+			OurResources.DataValueMissing.FormatCurrentCulture("headRelations.sonInLaw"),
+			OurResources.DataValueMissing.FormatCurrentCulture("properties.atWork"),
+			OurResources.DataValueMissing.FormatCurrentCulture("notAtWork"),
+			OurResources.DataValueMissing.FormatCurrentCulture("properties.married"),
+			OurResources.DataValueMissing.FormatCurrentCulture("unmarried"),
 		}));
 	}
 

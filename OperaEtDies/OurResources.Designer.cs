@@ -547,11 +547,20 @@ namespace OperaEtDies {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to The conditions allow more than {1} combinations of values for the &quot;{0}&quot; role, which is too many to check..
+        ///   Looks up a localized string similar to Checking that the property &quot;{0}&quot; always has a value takes more than {2} combinations of values for the &quot;{1}&quot; role, which is too many to check. It combines the values of: {3}..
         /// </summary>
-        public static string ConditionCombinationsTooMany {
+        public static string ConditionCombinationsTooManyForProperty {
             get {
-                return ResourceManager.GetString("ConditionCombinationsTooMany", resourceCulture);
+                return ResourceManager.GetString("ConditionCombinationsTooManyForProperty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Checking the template &quot;{0}&quot; takes more than {2} combinations of values for the &quot;{1}&quot; role, which is too many to check. It combines the values of: {3}..
+        /// </summary>
+        public static string ConditionCombinationsTooManyForTemplate {
+            get {
+                return ResourceManager.GetString("ConditionCombinationsTooManyForTemplate", resourceCulture);
             }
         }
 
@@ -817,7 +826,7 @@ namespace OperaEtDies {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Operation {0} has the op &quot;{1}&quot;, but it must be &quot;insert&quot;, &quot;replace&quot;, &quot;set&quot;, &quot;remove&quot;, or &quot;move&quot;..
+        ///   Looks up a localized string similar to Operation {0} has the op &quot;{1}&quot;, but it must be &quot;insert&quot;, &quot;replace&quot;, &quot;set&quot;, &quot;remove&quot;, &quot;move&quot;, or &quot;copy&quot;..
         /// </summary>
         public static string ModOperationTypeInvalid {
             get {
@@ -862,6 +871,42 @@ namespace OperaEtDies {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to The operation needs a &quot;value&quot; or &quot;values&quot;..
+        /// </summary>
+        public static string ModInsertValueMissing {
+            get {
+                return ResourceManager.GetString("ModInsertValueMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Only one of &quot;value&quot; and &quot;values&quot; can be given..
+        /// </summary>
+        public static string ModValueConflict {
+            get {
+                return ResourceManager.GetString("ModValueConflict", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Only &quot;insert&quot; can use &quot;values&quot;..
+        /// </summary>
+        public static string ModValuesNotInsert {
+            get {
+                return ResourceManager.GetString("ModValuesNotInsert", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;values&quot; must be a list..
+        /// </summary>
+        public static string ModValuesNotList {
+            get {
+                return ResourceManager.GetString("ModValuesNotList", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to &quot;{0}&quot; doesn't exist..
         /// </summary>
         public static string ModPathNotFound {
@@ -891,9 +936,36 @@ namespace OperaEtDies {
         /// <summary>
         ///   Looks up a localized string similar to &quot;{0}&quot; isn't an item in a list..
         /// </summary>
-        public static string ModMoveNotListItem {
+        public static string ModNotListItem {
             get {
-                return ResourceManager.GetString("ModMoveNotListItem", resourceCulture);
+                return ResourceManager.GetString("ModNotListItem", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Only &quot;copy&quot; can use &quot;changes&quot;..
+        /// </summary>
+        public static string ModChangesNotCopy {
+            get {
+                return ResourceManager.GetString("ModChangesNotCopy", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;changes&quot; must be a list..
+        /// </summary>
+        public static string ModChangesNotList {
+            get {
+                return ResourceManager.GetString("ModChangesNotList", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The copy has the id &quot;{0}&quot;, which is already used in the list. Use &quot;changes&quot; to give it a new id..
+        /// </summary>
+        public static string ModCopyIdUsed {
+            get {
+                return ResourceManager.GetString("ModCopyIdUsed", resourceCulture);
             }
         }
 
@@ -1526,7 +1598,16 @@ namespace OperaEtDies {
                 return ResourceManager.GetString("FamilyPropertyNotSetByGame", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is &quot;{1}&quot;, which is one of the properties in &quot;properties&quot;, so it can&apos;t be inherited..
+        /// </summary>
+        public static string FamilyInheritedPropertyNotAllowed {
+            get {
+                return ResourceManager.GetString("FamilyInheritedPropertyNotAllowed", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to The property &quot;{0}&quot; takes its values from &quot;{1}&quot;, but the only source is &quot;{2}&quot;..
         /// </summary>
@@ -1794,6 +1875,114 @@ namespace OperaEtDies {
         public static string MiniMapHeader {
             get {
                 return ResourceManager.GetString("MiniMapHeader", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is &quot;{1}&quot;, but it must be a color written as #RRGGBB or #AARRGGBB, or the id of a portrait color..
+        /// </summary>
+        public static string PortraitColorUnknown {
+            get {
+                return ResourceManager.GetString("PortraitColorUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; must have both a mix and an amount, or neither..
+        /// </summary>
+        public static string PortraitColorMixIncomplete {
+            get {
+                return ResourceManager.GetString("PortraitColorMixIncomplete", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; isn&apos;t valid path data. {1}.
+        /// </summary>
+        public static string PortraitPathInvalid {
+            get {
+                return ResourceManager.GetString("PortraitPathInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; must have a fill, a stroke, or both..
+        /// </summary>
+        public static string PortraitShapeNotDrawn {
+            get {
+                return ResourceManager.GetString("PortraitShapeNotDrawn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; has a gradient, so it must have a fill..
+        /// </summary>
+        public static string PortraitGradientWithoutFill {
+            get {
+                return ResourceManager.GetString("PortraitGradientWithoutFill", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; has a fillTo color, so it must have a gradient..
+        /// </summary>
+        public static string PortraitFillToWithoutGradient {
+            get {
+                return ResourceManager.GetString("PortraitFillToWithoutGradient", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to With --generate-villages, also write a portrait of each person to this folder as a PNG file..
+        /// </summary>
+        public static string CommandLinePortraits {
+            get {
+                return ResourceManager.GetString("CommandLinePortraits", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to With --generate-villages, draw everyone's portrait at work in their own workplace, instead of where they start the game..
+        /// </summary>
+        public static string CommandLinePortraitsAtWork {
+            get {
+                return ResourceManager.GetString("CommandLinePortraitsAtWork", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; has &quot;{1}&quot;, but it isn't a quarter kind in Locations.json..
+        /// </summary>
+        public static string PortraitQuarterKindUnknown {
+            get {
+                return ResourceManager.GetString("PortraitQuarterKindUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; has &quot;{1}&quot;, but it isn't a value of the &quot;{2}&quot; property..
+        /// </summary>
+        public static string PortraitWorkplaceUnknown {
+            get {
+                return ResourceManager.GetString("PortraitWorkplaceUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; must have &quot;home&quot; set to true, &quot;quarterKinds&quot;, or &quot;workplaces&quot;..
+        /// </summary>
+        public static string PortraitPlaceEmpty {
+            get {
+                return ResourceManager.GetString("PortraitPlaceEmpty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is &quot;{1}&quot;, but it isn&apos;t the id of a portrait scale..
+        /// </summary>
+        public static string PortraitScaleUnknown {
+            get {
+                return ResourceManager.GetString("PortraitScaleUnknown", resourceCulture);
             }
         }
     }

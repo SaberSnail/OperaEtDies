@@ -1,6 +1,6 @@
 # Data Files
 
-The game reads its data from the `Data` folder next to the executable. Every file listed here is required, except for files referenced by optional fields. Mods can change the data files (see [Mods.md](Mods.md)).
+The game reads its data from the `Data` folder next to the executable. Every file listed here is required, except for files referenced by optional fields and files marked optional. Mods can change the data files (see [Mods.md](Mods.md)).
 
 ## General Rules
 
@@ -73,7 +73,7 @@ Has at least one of `values`, `notValues`, and `hidden`. It's met when every par
 
 **Visible values.** When a character is described, some obscurers may be in effect. A property has no visible value if the character has no value for it, or if an obscurer in effect hides it with a strength at least the value's prominence. String and integer values have a prominence of 3.
 
-**Condition checks.** For each role, conditions are checked in every combination of values they can depend on. Each check only combines the values of the properties it depends on (through conditions, and the properties those conditions depend on). Every value list property must have at least one value whose condition is met in every combination of the properties its conditions use where its own condition is met. Every template used is checked too: `fullName`, `description`, templates no other template uses, and templates used by the chosen variant of a template being checked. A template is checked in every combination of the properties its conditions use and the properties its placeholders and `hidden` lists name depend on, together with the values assumed by the template that uses it. Each property a template uses that the obscurers could hide (the strongest obscurer of it is at least the lowest prominence of its possible values) is checked both visible and hidden. In each case, the template must have a variant that's used, and every property that variant's placeholders name must have a visible value. Each check can have at most 10000 combinations, and a template can use at most 10 properties that the obscurers could hide.
+**Condition checks.** For each role, conditions are checked in every combination of values they can depend on. Each check only combines the values of the properties it depends on (through conditions, and the properties those conditions depend on). Only `when` conditions of properties and their values count here: the conditions of Frequency Overrides can't change which values are allowed, so they're left out of these checks. Every value list property must have at least one value whose condition is met in every combination of the properties its conditions use where its own condition is met. Every template used is checked too: `fullName`, `description`, templates no other template uses, and templates used by the chosen variant of a template being checked. A template is checked in every combination of the properties its conditions use and the properties its placeholders and `hidden` lists name depend on, together with the values assumed by the template that uses it. Each property a template uses that the obscurers could hide (the strongest obscurer of it is at least the lowest prominence of its possible values) is checked both visible and hidden. In each case, the template must have a variant that's used, and every property that variant's placeholders name must have a visible value. Each check can have at most 10000 combinations, and a template can use at most 10 properties that the obscurers could hide.
 
 **Obscurer**
 
@@ -97,6 +97,7 @@ Something that keeps some properties from being seen or heard. Which obscurers a
 | `values` | list of Character Value | Value list properties only. Required unless `valuesFrom` is given, and not allowed with it. Identified items. |
 | `valuesFrom` | string | Optional. Value list properties only. `professions`: the property's values are the professions in Professions.json, each used as a Character Value. If Professions.json doesn't load, the property has no values, which is an error. |
 | `shape` | Shape | Optional. Value list properties only. Weights the values by their order (leaving out values that aren't allowed) instead of by frequency. The values must then all be common and have no `frequencyWhen`. |
+| `sortByTitle` | boolean | Optional (defaults to false). Value list properties only. Whether the values are listed in alphabetical order of their titles when choosing one, rather than in the order they're defined in. It doesn't change how values are chosen at random. |
 | `range` | Integer Range | Integer properties only. Optional if both `player` and `npc` have a `range`; otherwise required. |
 | `groups` | list of Integer Group | Optional. Integer properties only. Must not be empty. Named parts of the numbers that conditions can use. |
 | `defaults` | String Defaults | Optional. String properties only. |
@@ -325,6 +326,11 @@ How households are generated. A **chance** is a percentage from 0 to 100. A **we
 | `helper` | string | Filled in. Id of the work role property's value for someone who helps in a household business. |
 | `head` | string | Filled in. Id of the household role property's value for the head of a household. |
 | `member` | string | Filled in. Id of the household role property's value for everyone else in a household. |
+| `headRelations` | Head Relations | |
+| `atWork` | string | Filled in. Id of the at work property's value for someone who is working. |
+| `notAtWork` | string | Filled in. Id of the at work property's value for someone who isn't working. |
+| `married` | string | Filled in. Id of the married property's value for someone who is married. |
+| `unmarried` | string | Filled in. Id of the married property's value for someone who isn't married. |
 | `familyCount` | Integer Range | The minimum is at least 0. How many households the town has besides the player's. |
 | `femaleHeadChance` | number | Chance. The chance that the head of a household is a woman. |
 | `femaleHeadMinWealth` | string | Wealth level. The lowest wealth a woman at the head of a household can have from her profession. |
@@ -353,6 +359,7 @@ How households are generated. A **chance** is a percentage from 0 to 100. A **we
 | `householdFortune` | Integer Range | The minimum is at least 0. A percentage each household's wealth is multiplied by, for its good or bad fortune. |
 | `headAgeWealth` | map of string to number | Optional (100 for every group). Each key must be the id of one of the age property's groups, and each value is at least 0. A percentage a household's wealth is multiplied by, by the group the head's age is in. Groups that aren't listed are 100. |
 | `wealthThresholds` | Wealth Thresholds | |
+| `inheritedProperties` | array of Inherited Property | Optional (none). The properties family members share. |
 
 **Family Properties**
 
@@ -366,6 +373,25 @@ The ids of the Characters.json properties that generating households depends on.
 | `lastName` | string | Filled in. A `string` property. Its non-player defaults must have `otherValues`, which are the other last names households use. |
 | `workRole` | string | Filled in. A `valueList` property with `setByGame`. Must have the `independent` and `helper` values. |
 | `householdRole` | string | Filled in. A `valueList` property with `setByGame`. Must have the `head` and `member` values. |
+| `headRelation` | string | Filled in. A `valueList` property with `setByGame`. Must have each of the `headRelations` values. |
+| `headName` | string | Filled in. A `string` property with `setByGame`. Each character's value is the full name of the head of their household, so the head's value is their own full name. |
+| `atWork` | string | Filled in. A `valueList` property with `setByGame`. Must have the `atWork` and `notAtWork` values. During a game, each character has the `atWork` value while they're in the place of the business they own or help in, and the `notAtWork` value anywhere else. A character with a profession who works from home has an even chance of `atWork` or `notAtWork` each time they arrive home, including when the game starts with them there. A character without a profession always has `notAtWork`. |
+| `married` | string | Filled in. A `valueList` property with `setByGame`. Must have the `married` and `unmarried` values. |
+
+**Head Relations**
+
+Ids of the head relation property's values, each saying what the head of a household is to a member of it. Each is filled in.
+
+| Property | Type | Notes |
+|---|---|---|
+| `self` | string | For the head. |
+| `husband` | string | For the head's wife. |
+| `father` | string | For a child of a man at the head of a household. |
+| `mother` | string | For a child of a woman at the head of a household. |
+| `son` | string | For a household elder who is the parent of a man at the head of a household. |
+| `daughter` | string | For a household elder who is the parent of a woman at the head of a household. |
+| `sonInLaw` | string | For a household elder who is the parent of the head's wife. |
+| `daughterInLaw` | string | For a household elder who is the parent of the late husband of a woman at the head of a household. |
 
 **Gender Ages**
 
@@ -381,12 +407,23 @@ The ids of the Characters.json properties that generating households depends on.
 | `medium` | number | At least 0. The household wealth needed for the `medium` wealth level. |
 | `high` | number | At least `medium`. The household wealth needed for the `high` wealth level. |
 
-**Generating households.** The player's household is made first, with the player at its head. Then `familyCount` more households are made, one at a time. Every character other than the player uses the non-player settings of Characters.json, and gets the household's last name unless noted. Only professions in Professions.json are businesses; the `homemaker` and `infirm` values are only given to household elders. Each head, including the player, gets the `head` household role, and everyone else gets `member`.
+**Inherited Property**
+
+| Property | Type | Notes |
+|---|---|---|
+| `property` | string | Filled in. Id of a `valueList` property that isn't one of the Family Properties. |
+| `blend` | Shape | Optional. Weights the values a child of two parents can have when neither parent's value is `unblended`: the values from one parent's to the other's, in the order the property lists them, leaving out `unblended` values and values the child isn't allowed to have (except the parents' own). Without it, the child has one parent's value or the other's, with equal chances. |
+| `unblended` | array of string | Optional (none). Each must be the id of one of the property's values. Values that don't blend. |
+| `unblendedChance` | number | Optional (50). Chance. The chance that a child with one parent whose value is `unblended` and one whose value isn't has the `unblended` value. Otherwise the child has the other parent's value. A child of two parents with `unblended` values gets a random value as usual. |
+
+**Generating households.** The player's household is made first, with the player at its head. Then `familyCount` more households are made, one at a time. Every character other than the player uses the non-player settings of Characters.json, and gets the household's last name unless noted. Only professions in Professions.json are businesses; the `homemaker` and `infirm` values are only given to household elders. Each head, including the player, gets the `head` household role, and everyone else gets `member`. Each character also gets the head relation value from `headRelations` that fits how they're related to the head, and the head's full name as their head name.
 
 * The head is a woman with `femaleHeadChance`, and otherwise a man. A woman at the head of a household lives with no men. A non-player head's age is chosen from `headAge`, and so is the player's (see `headAge`). The head's usual last name is their `lastName` property's value, but one of the other last names that no household uses yet is used instead if the usual name is blank or already used, or another household's head has the same profession.
-* A man has a wife with `wifeChance`. The player always has one, if the ages allow a wife who could be the mother of an adult child.
+* A man has a wife with `wifeChance`. The player always has one, if the ages allow a wife who could be the mother of an adult child. Whether the head has a wife, and her age, are chosen before the head's other values.
+* A head who has a wife, and the wife, get the `married` value, and everyone else gets `unmarried`. The married value is set before the rest of a non-player character's values are chosen, so their conditions (such as a profession's `when` or `frequencyWhen`) can use it. While the player's values are chosen, such as on the new game screen, the player has `married` if their gender is `male`, and `unmarried` otherwise; it's then set again to fit whether the player has a wife.
 * Then the children are added, from oldest to youngest. Their ages must be in the age property's range and differ from each other, and each parent's age minus the child's must be from `minParentAge` to that parent's maximum. The player always has at least one child if the ages allow it.
-* Then a household elder is added with `householdElderChance`. They're the parent of the head or the wife. A wife's parent, and sometimes a widow's own parent, has one of the other last names. A household elder whose age would be outside the age property's range, or below their gender's `householdElderMinAge`, isn't added.
+* Then a household elder is added with `householdElderChance`. They're the parent of the head or the wife; a widow's household elder is her own parent or her late husband's, with even chances. A wife's parent, and a widow's own parent, has one of the other last names. A household elder whose age would be outside the age property's range, or below their gender's `householdElderMinAge`, isn't added.
+* Each of the `inheritedProperties` is set before the rest of a character's values are chosen. A household elder has their child's value. A child with only the head as a parent has the head's value, and a child of the head and the wife takes after both (see Inherited Property). A relative's value that the character isn't allowed to have is ignored, and a character with no relatives' values left gets a random value as usual.
 * A man who is a household elder is infirm. A woman is infirm with the `infirmChance` for her age's group. Otherwise, she helps in a household business if she would as a member (below). If not, she keeps house as a homemaker with `householdElderHomemakerChance`, and otherwise takes up a profession with `forHouseholdElders` that she's allowed to have and whose `maxBusinesses` hasn't been reached, chosen by frequency. If there's no such profession, she keeps house. Household elders never start any other business.
 * Each member besides the head helps in a household business, with `helperChance`, if they're allowed to and it has room for another helper. Only the head and the wife have household businesses, and the head's comes first. Helpers get the `helper` work role, and everyone else, including the player, gets `independent`. A wife or child who doesn't help stays at home: a daughter keeps house as a homemaker with `childHomemakerChance`, and otherwise they start a business of their own among the professions that work from home (or any profession, if they aren't allowed to have any that do). The head always starts a business. A business is chosen among the professions the person is allowed to have that have a place in the town (see below) and whose `maxBusinesses` hasn't been reached. If none of the professions the person is allowed to have meets either rule, that rule is ignored. A woman at the head of a household only chooses among the professions whose wealth is at least `femaleHeadMinWealth`, unless she isn't allowed to have any of them. The player's profession is never limited.
 * A household's wealth starts as the sum of the wealth of each business its members own, plus what each helper adds (the first helper in a business adds `helperWealth` times its wealth, and each later helper `helperWealthFalloff` times what the one before them added), plus `homemakerWealth` for each homemaker and `infirmWealth` for each infirm member. That sum is multiplied by the `headAgeWealth` percentage for the head's age, and by a percentage chosen from `householdFortune`. Its wealth level is `high` or `medium` if it reaches that threshold, and `low` otherwise.
@@ -417,6 +454,96 @@ The village quarters are taken for the core roughly richest first, with some tak
 
 The outskirts leave the village in two or three groups. They start from the ends of the main street (`linear`) or the arms (`crossroads`), and otherwise from quarters at the edge of the village on different sides of it. Each group is a chain that sometimes forks, a loop of three, a hub with the other quarters around its first, or a ladder of two chains side by side with rungs between them. Landmarks at a dead end connect to a quarter touching them if they can. Templates that haven't been used yet are chosen first, by frequency. If every template that fits has been used, one is used again, and a warning is logged.
 
+## Portraits.json
+
+Optional. Without it, characters have no portraits. A character's portrait is drawn from its layers, bottom to top, and cut off at its edges.
+
+| Property | Type | Notes |
+|---|---|---|
+| `width` | number | More than 0. The width of a portrait, in the units the paths use. |
+| `height` | number | More than 0. The height of a portrait, in the units the paths use. |
+| `colors` | list of Portrait Color | Optional (defaults to empty). Each needs a filled-in, unique `id`. |
+| `scales` | list of Portrait Scale | Optional (defaults to empty). Each needs a filled-in, unique `id`. |
+| `layers` | list of Portrait Layer | Must not be empty. Each needs a filled-in, unique `id`. |
+
+A **color** is either a hex color, written `#RRGGBB` or `#AARRGGBB`, or the id of a Portrait Color. A color in `colors` can only use the colors before it.
+
+**Portrait Color**
+
+A named color, worked out for each character in the order of the list.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | Filled in and unique. |
+| `color` | string | Color. Used when no variant applies. |
+| `variants` | list of Portrait Color Variant | Optional. Must not be empty. The first variant whose `when` condition is met replaces `color`. |
+| `mix` | string | Optional. Color. Blended into the color by `amount`. Must be given together with `amount`. |
+| `amount` | number | Optional. From 0 (none of `mix`) to 1 (all of it). Must be given together with `mix`. |
+
+**Portrait Color Variant**
+
+| Property | Type | Notes |
+|---|---|---|
+| `when` | Condition | Can't use `hidden`. |
+| `color` | string | Color. |
+
+**Portrait Scale**
+
+A named stretch, worked out for each character. Stretching a shape doesn't change the width of its outline.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | Filled in and unique. |
+| `originX` | number | Optional (defaults to 0). The horizontal position that stays in place. |
+| `originY` | number | Optional (defaults to 0). The vertical position that stays in place. |
+| `x` | number | Optional (defaults to 1). More than 0. How much shapes are stretched horizontally when no variant applies. |
+| `y` | number | Optional (defaults to 1). More than 0. How much shapes are stretched vertically when no variant applies. |
+| `variants` | list of Portrait Scale Variant | Optional. Must not be empty. The first variant whose `when` condition is met replaces `x` and `y`. |
+
+**Portrait Scale Variant**
+
+| Property | Type | Notes |
+|---|---|---|
+| `when` | Condition | Can't use `hidden`. |
+| `x` | number | Optional (defaults to 1). More than 0. |
+| `y` | number | Optional (defaults to 1). More than 0. |
+
+**Portrait Layer**
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | Filled in and unique. |
+| `when` | Condition | Optional. Can't use `hidden`. The layer is only drawn for characters who meet it. |
+| `at` | Portrait Place | Optional. The layer is only drawn for characters in one of these places. Without it, the layer is drawn anywhere. |
+| `scale` | string | Optional. The id of a Portrait Scale. Stretches the layer's shapes, except those with their own `scale`. |
+| `shapes` | list of Portrait Shape | Must not be empty. Drawn bottom to top. |
+
+**Portrait Place**
+
+Has `home` set to true, `quarterKinds`, `workplaces`, or more than one of them. A character is in a workplace when they're in a business's place, or in their own home while they have the at work property's `atWork` value (see Family Properties). They're in a home when they're in any other house, and otherwise in the kind of quarter they're in. On the new game screen, the player is in a home and has the `notAtWork` value.
+
+| Property | Type | Notes |
+|---|---|---|
+| `home` | boolean | Optional (defaults to false). Whether the layer is drawn in a home. |
+| `quarterKinds` | list of string | Optional. Must not be empty. Each is filled in, unique, and the id of a quarter kind in Locations.json. |
+| `workplaces` | list of string | Optional. Must not be empty. Each is filled in, unique, and a value of the profession property. The layer is drawn in a business's place for one of these professions, or in the home of a character with one of them while they're working from home. |
+
+**Portrait Shape**
+
+Has `fill`, `stroke`, or both.
+
+| Property | Type | Notes |
+|---|---|---|
+| `path` | string | Filled in. The outline, in WPF path markup (SVG path data, optionally starting with `F0` for the even-odd fill rule, the default, or `F1` for the nonzero fill rule). |
+| `when` | Condition | Optional. Can't use `hidden`. The shape is only drawn for characters who meet it. |
+| `fill` | string | Optional. Color. Fills the shape. |
+| `gradient` | string | Optional. Requires `fill`. `vertical` (top to bottom), `horizontal` (left to right), or `radial` (center out). Fills the shape with a gradient from `fill` to `fillTo` across the shape's bounds. |
+| `fillTo` | string | Optional. Requires `gradient`. Color. The color the gradient ends with. Without it, the gradient fades `fill` out to transparent. |
+| `stroke` | string | Optional. Color. Outlines the shape, with rounded ends and corners. |
+| `strokeWidth` | number | Optional (defaults to 1). More than 0. |
+| `opacity` | number | Optional (defaults to 1). From 0 to 1. |
+| `scale` | string | Optional. The id of a Portrait Scale. Stretches the shape, in place of the layer's `scale`. |
+
 ## Checks Between Files
 
-Once each file has loaded on its own, the files are checked against each other. The professions are only checked against the profession property if Families.json is correct. The profession property must take its values from the professions. The `homemaker` and `infirm` professions must have no business settings, and every other profession must have a `wealth`. Each business in Locations.json must be for a profession in Professions.json that doesn't work from home.
+Once each file has loaded on its own, the files are checked against each other. The professions are only checked against the profession property if Families.json is correct. The profession property must take its values from the professions. The `homemaker` and `infirm` professions must have no business settings, and every other profession must have a `wealth`. Each business in Locations.json must be for a profession in Professions.json that doesn't work from home. The conditions in Portraits.json must use Characters.json properties and values, as described for Condition, and the places in Portraits.json must use Locations.json quarter kinds and profession property values.

@@ -37,6 +37,11 @@ internal sealed class FamilyGenerator
 		var householdRole = gameData.CharacterProperties.Get(properties.HouseholdRole);
 		m_head = householdRole.Values!.First(x => x.Id == m_settings.Head);
 		m_member = householdRole.Values!.First(x => x.Id == m_settings.Member);
+		m_headRelation = gameData.CharacterProperties.Get(properties.HeadRelation);
+		var married = gameData.CharacterProperties.Get(properties.Married);
+		m_married = married.Values!.First(x => x.Id == m_settings.Married);
+		m_unmarried = married.Values!.First(x => x.Id == m_settings.Unmarried);
+		m_inheritedProperties = m_settings.InheritedProperties.Select(x => (x, gameData.CharacterProperties.Get(x.Property))).ToList();
 		m_otherLastNames = gameData.CharacterProperties.Get(properties.LastName).GetDefaults(CharacterRole.Npc)!.OtherValues!;
 
 		m_households = [];
@@ -61,36 +66,44 @@ internal sealed class FamilyGenerator
 	public Household AddPlayerHousehold(CharacterTraits player)
 	{
 		var properties = m_settings.Properties;
+		var isFemale = player.GetValueId(properties.Gender) == m_settings.Female;
+		var age = player.GetInteger(properties.Age);
+		var wifeAge = isFemale ? null : ChooseWifeAge(age, needsChild: true);
 
 		// The game sets the player's roles, like everyone else's.
+		var fullName = player.GetFullName(m_gameData.CharacterTemplates);
 		var values = player.Values.ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
 		values[properties.WorkRole] = m_independent;
 		values[properties.HouseholdRole] = m_head;
+		values[properties.HeadRelation] = GetHeadRelation(m_settings.HeadRelations.Self);
+		values[properties.HeadName] = fullName;
+		values[properties.Married] = wifeAge is not null ? m_married : m_unmarried;
 		player = new CharacterTraits(values);
 
 		var household = new Household(player.GetString(properties.LastName));
 		m_lastNames.Add(household.LastName);
-		m_fullNames.Add(player.GetFullName(m_gameData.CharacterTemplates));
+		m_fullNames.Add(fullName);
 
 		var head = new TownPerson(player, household, FamilyRole.Head, isPlayer: true);
 		household.AddMember(head);
 		if (player.Values.GetValueOrDefault(properties.Profession) is CharacterPropertyOption profession && m_gameData.Professions.Find(profession.Id) is not null)
 			StartBusiness(head, profession);
 
-		var isFemale = player.GetValueId(properties.Gender) == m_settings.Female;
-		AddRelatives(household, isFemale, player.GetInteger(properties.Age), isPlayer: true);
+		AddRelatives(household, isFemale, age, wifeAge, isPlayer: true);
 		return FinishHousehold(household);
 	}
 
 	/// <summary>
 	/// Creates a household for a non-player character and their family. A woman at the head of a household only has
-	/// professions that pay well enough to support it.
+	/// professions that pay well enough to support it. Whether a man has a wife is decided first, so his profession can
+	/// depend on whether he's married.
 	/// </summary>
 	public Household AddHousehold()
 	{
 		var isFemale = m_random.NextChance(m_settings.FemaleHeadChance);
 		var age = m_random.NextInRange(m_settings.HeadAge);
-		var character = StartCharacter(isFemale, age);
+		var wifeAge = !isFemale && m_random.NextChance(m_settings.WifeChance) ? ChooseWifeAge(age, needsChild: false) : null;
+		var character = StartCharacter(isFemale, age, isMarried: wifeAge is not null);
 
 		var profession = ChooseOwnProfession(character, minWealth: isFemale ? m_settings.FemaleHeadMinWealth : null);
 		if (profession is not null)
@@ -99,27 +112,22 @@ internal sealed class FamilyGenerator
 		var household = new Household(ChooseHeadLastName(character, profession));
 		m_lastNames.Add(household.LastName);
 
-		var head = FinishCharacter(character, household, FamilyRole.Head, household.LastName);
+		var head = FinishCharacter(character, household, FamilyRole.Head, m_settings.HeadRelations.Self, household.LastName);
 		if (profession is not null)
 			StartBusiness(head, profession);
 
-		AddRelatives(household, isFemale, age, isPlayer: false);
+		AddRelatives(household, isFemale, age, wifeAge, isPlayer: false);
 		return FinishHousehold(household);
 	}
 
 	/// <summary>
-	/// Adds the head's wife, the children, and a household elder, as the dice allow. A woman at the head of a household
-	/// is a widow, and lives with no adult men.
+	/// Adds the head's wife (if the head has one), the children, and a household elder, as the dice allow. A woman at the
+	/// head of a household is a widow, and lives with no adult men.
 	/// </summary>
-	private void AddRelatives(Household household, bool isFemaleHead, int headAge, bool isPlayer)
+	private void AddRelatives(Household household, bool isFemaleHead, int headAge, int? wifeAge, bool isPlayer)
 	{
-		int? wifeAge = null;
-		if (!isFemaleHead && (isPlayer || m_random.NextChance(m_settings.WifeChance)))
-		{
-			wifeAge = ChooseWifeAge(headAge, isPlayer);
-			if (wifeAge is { } age)
-				AddMember(household, FamilyRole.Wife, isFemale: true, age, household.LastName);
-		}
+		if (wifeAge is { } wifeAgeValue)
+			AddMember(household, FamilyRole.Wife, isFemale: true, wifeAgeValue, household.LastName);
 
 		List<(bool IsFemale, int Age)> parents = [(isFemaleHead, headAge)];
 		if (wifeAge is { } motherAge)
@@ -150,7 +158,9 @@ internal sealed class FamilyGenerator
 		if (gap is { } ageGap && childAge + ageGap <= m_ageRange.Maximum && childAge + ageGap >= Math.Max(m_ageRange.Minimum, m_settings.GetHouseholdElderMinAge(isFemale)))
 		{
 			var age = childAge + ageGap;
-			var character = StartCharacter(isFemale, age);
+			// A household elder is widowed.
+			var character = StartCharacter(isFemale, age, isMarried: false);
+			Inherit(character, [isWifeParent ? household.Members.First(x => x.Role == FamilyRole.Wife) : household.Head]);
 
 			// A man only lives in his child's household if he's too frail to work. A woman helps in a household business if
 			// she can. Otherwise she keeps house, or takes up one of the few trades open to household elders.
@@ -159,7 +169,10 @@ internal sealed class FamilyGenerator
 			var trade = isInfirm || helped is not null || m_random.NextChance(m_settings.HouseholdElderHomemakerChance) ? null : ChooseHouseholdElderTrade(character);
 			character[m_profession.Id].Lock(trade ?? GetProfessionValue(helped?.Profession.Id ?? (isInfirm ? m_settings.Infirm : m_settings.Homemaker)));
 
-			var person = FinishCharacter(character, household, FamilyRole.HouseholdElder, sharesLastName ? household.LastName : ChooseOtherLastName(), helped);
+			// A widow who shares her household elder's last name is the elder's daughter-in-law.
+			var relations = m_settings.HeadRelations;
+			var relation = isFemaleHead ? (sharesLastName ? relations.DaughterInLaw : relations.Daughter) : (isWifeParent ? relations.SonInLaw : relations.Son);
+			var person = FinishCharacter(character, household, FamilyRole.HouseholdElder, relation, sharesLastName ? household.LastName : ChooseOtherLastName(), helped);
 			if (trade is not null)
 			{
 				StartBusiness(person, trade);
@@ -228,7 +241,11 @@ internal sealed class FamilyGenerator
 	/// </summary>
 	private void AddMember(Household household, FamilyRole role, bool isFemale, int age, string lastName)
 	{
-		var character = StartCharacter(isFemale, age);
+		// The wife is married to the head. Children living with their parents are unmarried.
+		var character = StartCharacter(isFemale, age, isMarried: role == FamilyRole.Wife);
+		if (role == FamilyRole.Child)
+			Inherit(character, household.Members.Where(x => x.Role is FamilyRole.Head or FamilyRole.Wife).ToList());
+
 		var helped = ChooseBusinessToHelp(household, character);
 		var keepsHouse = helped is null && role == FamilyRole.Child && isFemale && m_random.NextChance(m_settings.ChildHomemakerChance);
 
@@ -238,7 +255,10 @@ internal sealed class FamilyGenerator
 		if (profession is not null)
 			character[m_profession.Id].Lock(profession);
 
-		var person = FinishCharacter(character, household, role, lastName, helped);
+		var relations = m_settings.HeadRelations;
+		var isFemaleHead = household.Head.Traits.GetValueId(m_settings.Properties.Gender) == m_settings.Female;
+		var relation = role == FamilyRole.Wife ? relations.Husband : isFemaleHead ? relations.Mother : relations.Father;
+		var person = FinishCharacter(character, household, role, relation, lastName, helped);
 		if (helped is null && !keepsHouse && profession is not null)
 		{
 			StartBusiness(person, profession);
@@ -259,6 +279,8 @@ internal sealed class FamilyGenerator
 	}
 
 	private CharacterPropertyOption GetProfessionValue(string id) => m_profession.Values!.First(x => x.Id == id);
+
+	private CharacterPropertyOption GetHeadRelation(string id) => m_headRelation.Values!.First(x => x.Id == id);
 
 	private bool CanHelp(CharacterRandomizer character, Profession profession) => profession.HelperWhen is { } helperWhen
 		? CharacterCondition.IsMet(helperWhen, character.GetValueId)
@@ -349,11 +371,89 @@ internal sealed class FamilyGenerator
 		return lastName;
 	}
 
-	private CharacterRandomizer StartCharacter(bool isFemale, int? age)
+	/// <summary>
+	/// Locks the character's inherited values (see <see cref="FamilySettings.InheritedProperties"/>) to fit their
+	/// relatives: the household elder's child, or a child's parents in the household. Relatives without a value the
+	/// character is allowed to have are ignored, and a value with no relatives left stays random.
+	/// </summary>
+	private void Inherit(CharacterRandomizer character, IReadOnlyList<TownPerson> relatives)
+	{
+		foreach (var (settings, property) in m_inheritedProperties)
+		{
+			if (character.HasValue(property))
+			{
+				var allowedIds = character.GetOptions(property).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+				var values = relatives
+					.Select(x => x.Traits.Values.GetValueOrDefault(property.Id) as CharacterPropertyOption)
+					.OfType<CharacterPropertyOption>()
+					.Where(x => allowedIds.Contains(x.Id))
+					.ToList();
+				if (ChooseInheritedValue(settings, property, values, allowedIds) is { } value)
+					character[property.Id].Lock(value);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Chooses a value from the relatives' values: the only one, or a blend of two parents' values. Returns null if
+	/// there are none, or if both parents' values are unblended, so the value is random.
+	/// </summary>
+	private CharacterPropertyOption? ChooseInheritedValue(InheritedProperty settings, CharacterProperty property, IReadOnlyList<CharacterPropertyOption> values, IReadOnlySet<string> allowedIds)
+	{
+		CharacterPropertyOption? value;
+		if (values.Count < 2)
+		{
+			value = values.Count != 0 ? values[0] : null;
+		}
+		else
+		{
+			var first = values[0];
+			var second = values[1];
+			var isFirstUnblended = settings.Unblended.Contains(first.Id, StringComparer.Ordinal);
+			var isSecondUnblended = settings.Unblended.Contains(second.Id, StringComparer.Ordinal);
+			if (isFirstUnblended && isSecondUnblended)
+			{
+				value = null;
+			}
+			else if (isFirstUnblended || isSecondUnblended)
+			{
+				var unblended = isFirstUnblended ? first : second;
+				value = m_random.NextChance(settings.UnblendedChance) ? unblended : (isFirstUnblended ? second : first);
+			}
+			else if (settings.Blend is { } blend)
+			{
+				// The parents' values, and the values listed between them that blend and that the character can have.
+				var all = property.Values!;
+				var ids = all.Select(x => x.Id).ToList();
+				var firstIndex = ids.IndexOf(first.Id);
+				var secondIndex = ids.IndexOf(second.Id);
+				var options = all
+					.Skip(Math.Min(firstIndex, secondIndex))
+					.Take(Math.Abs(secondIndex - firstIndex) + 1)
+					.Where(x => x.Id == first.Id || x.Id == second.Id || (allowedIds.Contains(x.Id) && !settings.Unblended.Contains(x.Id, StringComparer.Ordinal)))
+					.ToList();
+				var chances = blend.GetChances(options.Count);
+				value = options[m_random.NextWeighted(Enumerable.Range(0, options.Count).ToList(), x => chances[x])];
+			}
+			else
+			{
+				value = m_random.Next(2) == 0 ? first : second;
+			}
+		}
+
+		return value;
+	}
+
+	/// <summary>
+	/// Starts a character with their gender, age, and whether they're married, which are set before anything else so
+	/// that conditions on them hold for every choice that follows.
+	/// </summary>
+	private CharacterRandomizer StartCharacter(bool isFemale, int? age, bool isMarried)
 	{
 		var properties = m_settings.Properties;
 		var character = new CharacterRandomizer(m_gameData, m_random, CharacterRole.Npc);
 		character[properties.Gender].Lock(isFemale ? m_female : m_male);
+		character[properties.Married].Lock(isMarried ? m_married : m_unmarried);
 
 		var ageValue = character[properties.Age];
 		ageValue.Lock(age ?? (ageValue.Value as int? ?? m_ageRange.Minimum));
@@ -361,21 +461,30 @@ internal sealed class FamilyGenerator
 	}
 
 	/// <summary>
-	/// Sets the character's last name and roles, picks the rest of their values, and adds them to the household,
-	/// and to the business they help in, if any. Values are picked again a few times if needed to avoid repeating
-	/// someone else's full name.
+	/// Sets the character's last name, roles, and relation to the head of the household, picks the rest of their values,
+	/// and adds them to the household, and to the business they help in, if any. Values are picked again a few times if
+	/// needed to avoid repeating someone else's full name.
 	/// </summary>
-	private TownPerson FinishCharacter(CharacterRandomizer character, Household household, FamilyRole role, string lastName, Business? helped = null)
+	private TownPerson FinishCharacter(CharacterRandomizer character, Household household, FamilyRole role, string headRelationId, string lastName, Business? helped = null)
 	{
-		character[m_settings.Properties.LastName].Lock(lastName);
-		character[m_settings.Properties.WorkRole].Lock(helped is not null ? m_helper : m_independent);
-		character[m_settings.Properties.HouseholdRole].Lock(role == FamilyRole.Head ? m_head : m_member);
+		var properties = m_settings.Properties;
+		character[properties.LastName].Lock(lastName);
+		character[properties.WorkRole].Lock(helped is not null ? m_helper : m_independent);
+		character[properties.HouseholdRole].Lock(role == FamilyRole.Head ? m_head : m_member);
+		character[properties.HeadRelation].Lock(GetHeadRelation(headRelationId));
+		if (role != FamilyRole.Head)
+			character[properties.HeadName].Lock(household.Head.Traits.GetString(properties.HeadName));
 		character.RandomizeAll();
 		for (var attempt = 0; attempt < MaxNameAttempts && m_fullNames.Contains(character.GetTraits().GetFullName(m_gameData.CharacterTemplates)); attempt++)
 			character.RandomizeAll();
 
+		// The head's name is their own, which is only known once it's picked.
+		var fullName = character.GetTraits().GetFullName(m_gameData.CharacterTemplates);
+		if (role == FamilyRole.Head)
+			character[properties.HeadName].Lock(fullName);
+
 		var traits = character.GetTraits();
-		m_fullNames.Add(traits.GetFullName(m_gameData.CharacterTemplates));
+		m_fullNames.Add(fullName);
 
 		var person = new TownPerson(traits, household, role, isPlayer: false);
 		household.AddMember(person);
@@ -443,6 +552,10 @@ internal sealed class FamilyGenerator
 	private readonly CharacterPropertyOption m_helper;
 	private readonly CharacterPropertyOption m_head;
 	private readonly CharacterPropertyOption m_member;
+	private readonly CharacterProperty m_headRelation;
+	private readonly CharacterPropertyOption m_married;
+	private readonly CharacterPropertyOption m_unmarried;
+	private readonly IReadOnlyList<(InheritedProperty Settings, CharacterProperty Property)> m_inheritedProperties;
 	private readonly IReadOnlyList<WeightedString> m_otherLastNames;
 	private readonly Collection<Household> m_households;
 	private readonly Collection<Business> m_businesses;

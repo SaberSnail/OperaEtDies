@@ -69,6 +69,37 @@ internal static class TestData
 			},
 			new CharacterProperty
 			{
+				Id = "headRelation",
+				Title = "Head Relation",
+				Type = CharacterPropertyType.ValueList,
+				Values = new[] { "self", "husband", "father", "mother", "son", "daughter", "sonInLaw", "daughterInLaw" }.Select(x => CreateOption(x, Frequency.Common)).ToList(),
+				SetByGame = true,
+			},
+			new CharacterProperty
+			{
+				Id = "headName",
+				Title = "Head Name",
+				Type = CharacterPropertyType.String,
+				SetByGame = true,
+			},
+			new CharacterProperty
+			{
+				Id = "atWork",
+				Title = "At Work",
+				Type = CharacterPropertyType.ValueList,
+				Values = [CreateOption("atWork", Frequency.Common), CreateOption("notAtWork", Frequency.Common)],
+				SetByGame = true,
+			},
+			new CharacterProperty
+			{
+				Id = "married",
+				Title = "Married",
+				Type = CharacterPropertyType.ValueList,
+				Values = [CreateOption("married", Frequency.Common), CreateOption("unmarried", Frequency.Common)],
+				SetByGame = true,
+			},
+			new CharacterProperty
+			{
 				Id = "firstName",
 				Title = "First Name",
 				Type = CharacterPropertyType.String,
@@ -316,7 +347,7 @@ internal static class TestData
 
 	public static FamilySettings CreateFamilySettings() => new()
 	{
-		Properties = new FamilyProperties { Gender = "gender", Age = "age", Profession = "profession", LastName = "lastName", WorkRole = "workRole", HouseholdRole = "householdRole" },
+		Properties = new FamilyProperties { Gender = "gender", Age = "age", Profession = "profession", LastName = "lastName", WorkRole = "workRole", HouseholdRole = "householdRole", HeadRelation = "headRelation", HeadName = "headName", AtWork = "atWork", Married = "married" },
 		Male = "male",
 		Female = "female",
 		Homemaker = "homemaker",
@@ -325,6 +356,11 @@ internal static class TestData
 		Helper = "helper",
 		Head = "head",
 		Member = "member",
+		HeadRelations = new HeadRelations { Self = "self", Husband = "husband", Father = "father", Mother = "mother", Son = "son", Daughter = "daughter", SonInLaw = "sonInLaw", DaughterInLaw = "daughterInLaw" },
+		AtWork = "atWork",
+		NotAtWork = "notAtWork",
+		Married = "married",
+		Unmarried = "unmarried",
 		FamilyCount = new IntegerRange { Minimum = 3, Maximum = 5, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } },
 		FemaleHeadChance = 10,
 		FemaleHeadMinWealth = WealthLevel.Low,

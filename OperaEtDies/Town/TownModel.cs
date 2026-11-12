@@ -192,6 +192,11 @@ public sealed class TownLocation
 	public IReadOnlyList<TownLocation> Connections => m_exits.Select(x => x.Location).ToList();
 
 	/// <summary>
+	/// The quarter the place is in: itself for a quarter, or the quarter a house or business is in.
+	/// </summary>
+	public TownLocation? Quarter => Template is QuarterTemplate ? this : Connections.FirstOrDefault(x => x.Template is QuarterTemplate);
+
+	/// <summary>
 	/// The ways out of this place. A path between two quarters has a direction and a name, and leads the opposite way
 	/// from the other end. Going between a quarter and a house or business in it has neither.
 	/// </summary>

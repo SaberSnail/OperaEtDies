@@ -33,6 +33,11 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	public GameStateViewModel GameState { get; }
 
 	/// <summary>
+	/// The player's character, shown at the top of the sidebar.
+	/// </summary>
+	public PersonViewModel Player => GameState.Player;
+
+	/// <summary>
 	/// The screen showing the location the player is in.
 	/// </summary>
 	public LocationScreenViewModel CurrentLocation

@@ -12,10 +12,13 @@ public sealed class LocationViewModel : ViewModelBase
 	/// <summary>
 	/// Creates a location from its template. A house has no title of its own, so it's given one. A quarter has bounds on
 	/// the map, the area of the map it's in, and sentences about the map features it borders, which are added to the end
-	/// of its medium description.
+	/// of its medium description. Every location has the kind of the quarter it's in.
 	/// </summary>
-	public LocationViewModel(string id, LocationTemplate template, string? title = null, MapRect? bounds = null, MapArea? area = null, IReadOnlyList<string>? surroundings = null)
+	public LocationViewModel(string id, LocationTemplate template, string? title = null, MapRect? bounds = null, MapArea? area = null, IReadOnlyList<string>? surroundings = null, string? quarterKind = null)
 	{
+		QuarterKind = quarterKind;
+		IsHouse = template is HouseTemplate;
+		BusinessProfession = (template as BusinessTemplate)?.Profession;
 		Bounds = bounds;
 		Area = area;
 		IsLandmark = template is QuarterTemplate { IsLandmark: true };
@@ -57,6 +60,21 @@ public sealed class LocationViewModel : ViewModelBase
 	/// For a quarter, the part of the map it's in.
 	/// </summary>
 	public MapArea? Area { get; }
+
+	/// <summary>
+	/// The id of the kind of quarter the location is: the quarter itself, or the quarter a house or business is in.
+	/// </summary>
+	public string? QuarterKind { get; }
+
+	/// <summary>
+	/// Whether the location is a house someone lives in.
+	/// </summary>
+	public bool IsHouse { get; }
+
+	/// <summary>
+	/// For a business's place, the id of the profession it's for.
+	/// </summary>
+	public string? BusinessProfession { get; }
 
 	/// <summary>
 	/// Whether the location is a landmark quarter, with no houses or businesses.

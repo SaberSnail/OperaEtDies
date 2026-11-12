@@ -41,24 +41,36 @@ public sealed class GameStateViewModelTests
 	}
 
 	[Test]
-	public void EveryoneStartsAtHome()
+	public void EveryoneStartsAtHomeAtWorkOrInAQuarter()
 	{
+		var places = new HashSet<string>();
+		var homeWork = new HashSet<bool>();
 		for (var seed = 0; seed < 20; seed++)
 		{
 			var gameState = CreateGameState(seed);
+			var quarters = gameState.Locations.Where(x => x.Bounds is not null).ToList();
 			var people = gameState.Town.Households.SelectMany(x => x.Members).ToList();
 
 			Assert.That(gameState.Npcs, Has.Count.EqualTo(people.Count - 1));
 			foreach (var (npc, person) in gameState.Npcs.Zip(people.Where(x => !x.IsPlayer)))
 			{
 				Assert.That(npc.IsPlayer, Is.False);
-				Assert.That(npc.Traits, Is.SameAs(person.Traits));
-				Assert.That(npc.Location, Is.SameAs(npc.Home));
+				Assert.That(npc.Traits.GetValueId("profession"), Is.EqualTo(person.Traits.GetValueId("profession")));
+				Assert.That(npc.Location == npc.Home || npc.Location == npc.Workplace || quarters.Contains(npc.Location), Is.True);
+				// People who work from home are working half the time they're there.
+				if (npc.Location == npc.Workplace && npc.Workplace == npc.Home && npc.Profession is not null)
+					homeWork.Add(npc.IsAtWork);
+				else
+					Assert.That(npc.IsAtWork, Is.EqualTo(npc.Location == npc.Workplace && npc.Workplace != npc.Home));
 				Assert.That(npc.Home.Id, Is.EqualTo(person.Household.House!.Id));
 				Assert.That(npc.Workplace.Id, Is.EqualTo(person.Business?.Location?.Id ?? npc.Home.Id));
 				Assert.That(npc.Location.People, Does.Contain(npc));
+				places.Add(npc.Location == npc.Home ? "home" : npc.Location == npc.Workplace ? "work" : "quarter");
 			}
 		}
+
+		Assert.That(places, Is.EquivalentTo(new[] { "home", "work", "quarter" }));
+		Assert.That(homeWork, Is.EquivalentTo(new[] { true, false }));
 	}
 
 	[Test]
@@ -71,7 +83,9 @@ public sealed class GameStateViewModelTests
 		Assert.That(gameState.Families.SelectMany(x => x.Members).Where(x => !x.IsPlayer), Is.EqualTo(gameState.Npcs));
 		foreach (var (family, household) in gameState.Families.Zip(gameState.Town.Households))
 		{
-			Assert.That(family.Members.Select(x => x.Traits), Is.EqualTo(household.Members.Select(x => x.Traits)));
+			// The game sets the at work property from where people are.
+			Assert.That(family.Members.Select(x => x.Traits.Values.Where(value => value.Key != "atWork")),
+				Is.EqualTo(household.Members.Select(x => x.Traits.Values.Where(value => value.Key != "atWork"))));
 			Assert.That(family.Members.Select(x => x.Home).Distinct(), Has.Exactly(1).Items);
 		}
 	}
@@ -83,6 +97,7 @@ public sealed class GameStateViewModelTests
 		var player = gameState.Player;
 		var home = player.Home;
 		var quarter = home.Connections[0];
+		player.Location = home;
 		var changed = new List<string?>();
 		player.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
@@ -91,7 +106,8 @@ public sealed class GameStateViewModelTests
 		Assert.That(player.Location, Is.SameAs(quarter));
 		Assert.That(home.People, Does.Not.Contain(player));
 		Assert.That(quarter.People, Does.Contain(player));
-		Assert.That(changed, Is.EqualTo(new[] { nameof(PersonViewModel.Location) }));
+		Assert.That(changed, Is.EquivalentTo(new[] { nameof(PersonViewModel.Location), nameof(PersonViewModel.PortraitPlace), nameof(PersonViewModel.Portrait) }));
+		Assert.That(player.PortraitPlace, Is.EqualTo(PortraitPlace.InQuarter(quarter.QuarterKind!)));
 	}
 
 	[Test]
@@ -107,6 +123,86 @@ public sealed class GameStateViewModelTests
 		Assert.That(person.Traits.GetOption("height").Id, Is.EqualTo("tall"));
 		Assert.That(person.Description, Is.EqualTo("Alice Miller is a woman of 34. She is tall and heavy, and works as a miller."));
 		Assert.That(person.Workplace, Is.SameAs(person.Home));
+	}
+
+	[Test]
+	public void WorkAndPortraitPlaceFollowTheLocation()
+	{
+		var gameData = TestData.CreateGameData();
+		var traits = TestData.CreateTraits(gameData, "male", "John", "Smith", "smith", "tall", "slim", 40);
+		var home = new LocationViewModel("home", gameData.HouseTemplates[0]);
+		var otherHome = new LocationViewModel("otherHome", gameData.HouseTemplates[0]);
+		var forge = new LocationViewModel("forge", gameData.BusinessTemplates.Get("forge"));
+		var smithy = new LocationViewModel("smithy", gameData.BusinessTemplates.Get("smithy"));
+		var lane = new LocationViewModel("lane", gameData.QuarterTemplates[0], quarterKind: "lane");
+		var person = new PersonViewModel(gameData, traits, home, isPlayer: false, forge);
+
+		Assert.That(person.IsAtWork, Is.False);
+		Assert.That(person.Traits.GetValueId("atWork"), Is.EqualTo("notAtWork"));
+		Assert.That(person.PortraitPlace, Is.EqualTo(PortraitPlace.Home));
+
+		person.Location = forge;
+		Assert.That(person.IsAtWork, Is.True);
+		Assert.That(person.Traits.GetValueId("atWork"), Is.EqualTo("atWork"));
+		Assert.That(person.PortraitPlace, Is.EqualTo(PortraitPlace.InWorkplace("smith")));
+
+		// Someone else's business of the same profession looks the same, but the person isn't working there.
+		person.Location = smithy;
+		Assert.That(person.IsAtWork, Is.False);
+		Assert.That(person.Traits.GetValueId("atWork"), Is.EqualTo("notAtWork"));
+		Assert.That(person.PortraitPlace, Is.EqualTo(PortraitPlace.InWorkplace("smith")));
+
+		person.Location = otherHome;
+		Assert.That(person.PortraitPlace, Is.EqualTo(PortraitPlace.Home));
+
+		person.Location = lane;
+		Assert.That(person.PortraitPlace, Is.EqualTo(PortraitPlace.InQuarter("lane")));
+	}
+
+	[Test]
+	public void WorkingFromHomeMakesHomeTheWorkplace()
+	{
+		var gameData = TestData.CreateGameData();
+		var traits = TestData.CreateTraits(gameData, "male", "John", "Smith", "smith", "tall", "slim", 40);
+		var person = new PersonViewModel(gameData, traits, new LocationViewModel("home", gameData.HouseTemplates[0]), isPlayer: false);
+		person.IsAtWork = false;
+		var changed = new List<string?>();
+		person.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+		person.IsAtWork = true;
+
+		Assert.That(person.Traits.GetValueId("atWork"), Is.EqualTo("atWork"));
+		Assert.That(person.PortraitPlace, Is.EqualTo(PortraitPlace.InWorkplace("smith")));
+		Assert.That(changed, Is.EquivalentTo(new[] { nameof(PersonViewModel.IsAtWork), nameof(PersonViewModel.Traits), nameof(PersonViewModel.Description), nameof(PersonViewModel.PortraitPlace), nameof(PersonViewModel.Portrait) }));
+	}
+
+	[Test]
+	public void WorkingFromHomeIsDecidedOnArrivingHome()
+	{
+		var gameData = TestData.CreateGameData();
+		var smith = TestData.CreateTraits(gameData, "male", "John", "Smith", "smith", "tall", "slim", 40);
+		var child = new CharacterTraits(smith.Values.Where(x => x.Key != "profession").ToDictionary(x => x.Key, x => x.Value));
+		var home = new LocationViewModel("home", gameData.HouseTemplates[0]);
+		var lane = new LocationViewModel("lane", gameData.QuarterTemplates[0], quarterKind: "lane");
+		var random = new Random(0);
+		var person = new PersonViewModel(gameData, smith, home, isPlayer: false, random: random);
+		var results = new HashSet<bool> { person.IsAtWork };
+
+		for (var visit = 0; visit < 40; visit++)
+		{
+			person.Location = lane;
+			Assert.That(person.IsAtWork, Is.False);
+
+			person.Location = home;
+			results.Add(person.IsAtWork);
+			Assert.That(person.PortraitPlace, Is.EqualTo(person.IsAtWork ? PortraitPlace.InWorkplace("smith") : PortraitPlace.Home));
+		}
+
+		// Someone without a profession is never working.
+		var idle = new PersonViewModel(gameData, child, home, isPlayer: false, random: random);
+
+		Assert.That(results, Is.EquivalentTo(new[] { true, false }));
+		Assert.That(idle.IsAtWork, Is.False);
 	}
 
 	[Test]

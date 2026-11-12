@@ -58,6 +58,8 @@ public sealed class CommandLineOptions
 			(DeveloperArgument, OurResources.CommandLineDeveloper),
 			($"{VillageReport.Argument} <count>", OurResources.CommandLineGenerateVillages),
 			($"{VillageReport.SeedArgument} <number>", OurResources.CommandLineSeed),
+			($"{VillageReport.PortraitsArgument} <folder>", OurResources.CommandLinePortraits),
+			(VillageReport.PortraitsAtWorkArgument, OurResources.CommandLinePortraitsAtWork),
 		];
 
 		var width = options.Max(x => x.Option.Length) + 2;

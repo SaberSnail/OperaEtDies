@@ -84,7 +84,7 @@ public sealed class MainWindowViewModelTests
 		var viewModel = new LocationPersonViewModel(person);
 
 		Assert.That(viewModel.Name, Is.EqualTo("John Smith"));
-		Assert.That(viewModel.Description, Is.EqualTo(person.Description));
+		Assert.That(viewModel.Person, Is.SameAs(person));
 		Assert.That(viewModel.IsExamined, Is.False);
 		Assert.That(viewModel.CanExamine(), Is.True);
 
@@ -139,7 +139,7 @@ public sealed class MainWindowViewModelTests
 		person.Examine();
 
 		Assert.That(person.IsExamined, Is.True);
-		Assert.That(person.Description, Is.EqualTo(person.Person.Description));
+		Assert.That(person.Person.Description, Is.Not.Empty);
 	}
 
 	[Test]

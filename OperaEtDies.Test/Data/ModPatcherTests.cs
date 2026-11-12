@@ -37,6 +37,26 @@ public sealed class ModPatcherTests
 		Assert.That(GetIds(result), Is.EqualTo(expected));
 	}
 
+	[TestCase("", new[] { "a", "b", "c", "d", "e" })]
+	[TestCase(", \"index\": 0", new[] { "d", "e", "a", "b", "c" })]
+	[TestCase(", \"before\": \"b\"", new[] { "a", "d", "e", "b", "c" })]
+	[TestCase(", \"after\": \"b\"", new[] { "a", "b", "d", "e", "c" })]
+	public void InsertsListOfValues(string position, string[] expected)
+	{
+		var result = Apply($$"""[ { "op": "insert", "path": "items", "values": [ { "id": "d" }, { "id": "e" } ]{{position}} } ]""");
+
+		Assert.That(GetIds(result), Is.EqualTo(expected));
+	}
+
+	[Test]
+	public void InsertsEmptyListOfValues()
+	{
+		var result = Apply("""[ { "op": "insert", "path": "items[b].rules", "values": [] } ]""");
+
+		Assert.That(GetIds(result), Is.EqualTo(new[] { "a", "b", "c" }));
+		Assert.That(result["items"]![1]!["rules"]!.AsArray(), Is.Empty);
+	}
+
 	[Test]
 	public void InsertsIntoNestedListById()
 	{
@@ -122,6 +142,79 @@ public sealed class ModPatcherTests
 		Assert.That(GetIds(result), Is.EqualTo(expected));
 	}
 
+	[Test]
+	public void CopiesItemAfterOriginalByDefault()
+	{
+		var result = Apply("""[ { "op": "copy", "path": "items[a].rules[0]" } ]""");
+
+		Assert.That(GetRules(result), Is.EqualTo(new[] { 1, 1, 2 }));
+	}
+
+	[TestCase("\"index\": 0", new[] { "d", "a", "b", "c" })]
+	[TestCase("\"index\": 3", new[] { "a", "b", "c", "d" })]
+	[TestCase("\"before\": \"b\"", new[] { "a", "d", "b", "c" })]
+	[TestCase("\"after\": \"c\"", new[] { "a", "b", "c", "d" })]
+	public void CopiesItemToPosition(string position, string[] expected)
+	{
+		var result = Apply($$"""[ { "op": "copy", "path": "items[b]", "changes": [ { "op": "set", "path": "id", "value": "d" } ], {{position}} } ]""");
+
+		Assert.That(GetIds(result), Is.EqualTo(expected));
+	}
+
+	[Test]
+	public void AppliesChangesToCopyOnly()
+	{
+		var result = Apply("""
+			[
+				{
+					"op": "copy",
+					"path": "items[a]",
+					"changes": [
+						{ "op": "set", "path": "id", "value": "a2" },
+						{ "op": "set", "path": "rules[1].x", "value": 9 },
+						{ "op": "copy", "path": "rules[0]", "changes": [ { "op": "set", "path": "x", "value": 5 } ] }
+					]
+				}
+			]
+			""");
+
+		Assert.That(GetIds(result), Is.EqualTo(new[] { "a", "a2", "b", "c" }));
+		Assert.That(GetRules(result), Is.EqualTo(new[] { 1, 2 }));
+		Assert.That(result["items"]![1]!["rules"]!.AsArray().Select(x => (int) x!["x"]!), Is.EqualTo(new[] { 1, 5, 9 }));
+		Assert.That((string) result["items"]![1]!["title"]!, Is.EqualTo("A"));
+	}
+
+	[Test]
+	public void ReportsEveryProblemInChangesAndSkipsCopy()
+	{
+		var root = JsonNode.Parse(Data)!;
+		var errors = ModPatcher.Apply(root, JsonNode.Parse("""
+			[
+				{
+					"op": "copy",
+					"path": "items[a]",
+					"changes": [
+						{ "op": "remove", "path": "missing" },
+						{ "op": "set", "path": "id", "value": "a2" },
+						{ "op": "remove", "path": "other" }
+					]
+				}
+			]
+			"""), []);
+
+		Assert.That(errors, Has.Count.EqualTo(2));
+		Assert.That(errors[0], Does.Contain("1.1"));
+		Assert.That(errors[1], Does.Contain("1.3"));
+		Assert.That(GetIds(root), Is.EqualTo(new[] { "a", "b", "c" }));
+	}
+
+	[TestCase("""[ { "op": "copy", "path": "items[a]" } ]""")]
+	[TestCase("""[ { "op": "copy", "path": "items[a]", "changes": [ { "op": "set", "path": "id", "value": "b" } ] } ]""")]
+	[TestCase("""[ { "op": "copy", "path": "items[b]", "changes": {} } ]""")]
+	[TestCase("""[ { "op": "copy", "path": "map.key" } ]""")]
+	[TestCase("""[ { "op": "copy", "path": "items[z]" } ]""")]
+	[TestCase("""[ { "op": "copy", "path": "items[a].rules[0]", "index": 0, "after": "a" } ]""")]
+	[TestCase("""[ { "op": "set", "path": "map.key", "value": 1, "changes": [] } ]""")]
 	[TestCase("""[ { "op": "move", "path": "items[c]" } ]""")]
 	[TestCase("""[ { "op": "move", "path": "items[c]", "before": "c" } ]""")]
 	[TestCase("""[ { "op": "move", "path": "map.key", "index": 0 } ]""")]
@@ -130,6 +223,11 @@ public sealed class ModPatcherTests
 	[TestCase("""[ { "op": "insert", "path": "items", "value": 1, "before": "z" } ]""")]
 	[TestCase("""[ { "op": "insert", "path": "map", "value": 1 } ]""")]
 	[TestCase("""[ { "op": "insert", "path": "items" } ]""")]
+	[TestCase("""[ { "op": "insert", "path": "items", "value": 1, "values": [ 2 ] } ]""")]
+	[TestCase("""[ { "op": "insert", "path": "items", "values": 1 } ]""")]
+	[TestCase("""[ { "op": "insert", "path": "items", "values": null } ]""")]
+	[TestCase("""[ { "op": "replace", "path": "items[a]", "values": [ 1 ] } ]""")]
+	[TestCase("""[ { "op": "set", "path": "map.key", "value": 1, "values": [ 1 ] } ]""")]
 	[TestCase("""[ { "op": "remove", "path": "items[z]" } ]""")]
 	[TestCase("""[ { "op": "remove", "path": "items.a" } ]""")]
 	[TestCase("""[ { "op": "remove", "path": "title.a" } ]""")]
@@ -182,4 +280,6 @@ public sealed class ModPatcherTests
 	private static IReadOnlyList<string> GetErrors(string mod) => ModPatcher.Apply(JsonNode.Parse(Data)!, JsonNode.Parse(mod), []);
 
 	private static IEnumerable<string> GetIds(JsonNode root) => root["items"]!.AsArray().Select(x => (string) x!["id"]!);
+
+	private static IEnumerable<int> GetRules(JsonNode root) => root["items"]![0]!["rules"]!.AsArray().Select(x => (int) x!["x"]!);
 }

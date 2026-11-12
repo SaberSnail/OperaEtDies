@@ -8,7 +8,7 @@ namespace OperaEtDies.Data;
 /// </summary>
 internal static class GameDataValidation
 {
-	public static IReadOnlyList<DataLoadError> Validate(string dataDirectory, CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families)
+	public static IReadOnlyList<DataLoadError> Validate(string dataDirectory, CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, PortraitData? portraits = null)
 	{
 		var properties = new Dictionary<string, CharacterProperty>(StringComparer.Ordinal);
 		foreach (var property in characters.Properties)
@@ -32,6 +32,27 @@ internal static class GameDataValidation
 				.Select(x => new DataLoadError(Path.Combine(dataDirectory, LocationList.FileName), x)));
 		}
 
+		// Portrait conditions use the character properties, like other conditions outside of templates.
+		if (portraits is not null)
+		{
+			errors.AddRange(portraits.GetConditions()
+				.SelectMany(x => CharacterData.ValidateCondition(x.Path, x.Condition, properties, isTemplate: false))
+				.Select(x => new DataLoadError(Path.Combine(dataDirectory, PortraitData.FileName), x)));
+
+			// Layers are drawn in kinds of quarter, and in the workplaces of professions.
+			var quarterKinds = locations.QuarterKinds.Where(x => x?.Id is not null).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+			errors.AddRange(portraits.GetQuarterKinds()
+				.Where(x => !quarterKinds.Contains(x.QuarterKind))
+				.Select(x => new DataLoadError(Path.Combine(dataDirectory, PortraitData.FileName), OurResources.PortraitQuarterKindUnknown.FormatCurrentCulture(x.Path, x.QuarterKind))));
+			if (professionProperty is not null)
+			{
+				var professionIds = professionProperty.GetConditionValueIds().ToHashSet(StringComparer.Ordinal);
+				errors.AddRange(portraits.GetWorkplaces()
+					.Where(x => !professionIds.Contains(x.Profession))
+					.Select(x => new DataLoadError(Path.Combine(dataDirectory, PortraitData.FileName), OurResources.PortraitWorkplaceUnknown.FormatCurrentCulture(x.Path, x.Profession, professionProperty.Id))));
+			}
+		}
+
 		return errors;
 	}
 
@@ -44,6 +65,10 @@ internal static class GameDataValidation
 		var lastName = ValidateProperty("properties.lastName", families.Properties.LastName, CharacterPropertyType.String, "string", properties, errors);
 		var workRole = ValidateProperty("properties.workRole", families.Properties.WorkRole, CharacterPropertyType.ValueList, "valueList", properties, errors);
 		var householdRole = ValidateProperty("properties.householdRole", families.Properties.HouseholdRole, CharacterPropertyType.ValueList, "valueList", properties, errors);
+		var headRelation = ValidateProperty("properties.headRelation", families.Properties.HeadRelation, CharacterPropertyType.ValueList, "valueList", properties, errors);
+		var headName = ValidateProperty("properties.headName", families.Properties.HeadName, CharacterPropertyType.String, "string", properties, errors);
+		var atWork = ValidateProperty("properties.atWork", families.Properties.AtWork, CharacterPropertyType.ValueList, "valueList", properties, errors);
+		var married = ValidateProperty("properties.married", families.Properties.Married, CharacterPropertyType.ValueList, "valueList", properties, errors);
 
 		// Households whose usual last name is taken, and in-laws, pick from the other last names.
 		if (lastName is not null && lastName.GetDefaults(CharacterRole.Npc)?.OtherValues is not { Count: > 0 })
@@ -53,6 +78,14 @@ internal static class GameDataValidation
 			ValidateGameSetProperty(workRole, [("independent", families.Independent), ("helper", families.Helper)], errors);
 		if (householdRole is not null)
 			ValidateGameSetProperty(householdRole, [("head", families.Head), ("member", families.Member)], errors);
+		if (headRelation is not null)
+			ValidateGameSetProperty(headRelation, families.HeadRelations.GetAll(), errors);
+		if (headName is not null)
+			ValidateGameSetProperty(headName, [], errors);
+		if (atWork is not null)
+			ValidateGameSetProperty(atWork, [("atWork", families.AtWork), ("notAtWork", families.NotAtWork)], errors);
+		if (married is not null)
+			ValidateGameSetProperty(married, [("married", families.Married), ("unmarried", families.Unmarried)], errors);
 
 		if (gender is not null)
 		{
@@ -92,11 +125,30 @@ internal static class GameDataValidation
 				errors.Add(OurResources.FamilyHeadAgeTooYoung.FormatCurrentCulture(minPlayerAge));
 		}
 
+		// The properties the generator sets for itself can't also be inherited.
+		var familyPropertyIds = new[] { families.Properties.Gender, families.Properties.Age, families.Properties.Profession, families.Properties.LastName, families.Properties.WorkRole, families.Properties.HouseholdRole, families.Properties.HeadRelation, families.Properties.HeadName, families.Properties.AtWork, families.Properties.Married };
+		for (var index = 0; index < families.InheritedProperties.Count; index++)
+		{
+			var inherited = families.InheritedProperties[index];
+			var path = $"inheritedProperties[{index}]";
+			if (familyPropertyIds.Contains(inherited.Property, StringComparer.Ordinal))
+			{
+				errors.Add(OurResources.FamilyInheritedPropertyNotAllowed.FormatCurrentCulture($"{path}.property", inherited.Property));
+			}
+			else if (ValidateProperty($"{path}.property", inherited.Property, CharacterPropertyType.ValueList, "valueList", properties, errors) is { } property)
+			{
+				var valueIds = property.Values?.Select(x => x.Id).ToList() ?? [];
+				foreach (var valueId in inherited.Unblended.Where(x => !valueIds.Contains(x, StringComparer.Ordinal)))
+					errors.Add(OurResources.FamilyValueUnknown.FormatCurrentCulture($"{path}.unblended", valueId, property.Id));
+			}
+		}
+
 		return errors;
 	}
 
 	/// <summary>
-	/// Checks a property the family generator sets: the game must set it, and it must have each of the named values.
+	/// Checks a property the family generator sets: the game must set it, and a value list property must have each of
+	/// the named values.
 	/// </summary>
 	private static void ValidateGameSetProperty(CharacterProperty property, IReadOnlyList<(string Name, string ValueId)> values, ICollection<string> errors)
 	{

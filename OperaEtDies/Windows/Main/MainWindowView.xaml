@@ -22,13 +22,27 @@
 			<ColumnDefinition Width="*" />
 		</Grid.ColumnDefinitions>
 
-		<!--  The sidebar, with buttons that open other views in place of the player's location, and the mini-map.  -->
+		<!--  The sidebar, with the player's character, buttons that open other views in place of the player's location, and the mini-map.  -->
 		<Border
 			Grid.Column="0"
 			Background="{DynamicResource ContentBackgroundBrush}"
 			BorderBrush="{DynamicResource ControlBorderBaseBrush}"
 			BorderThickness="0,0,1,0">
 			<StackPanel Margin="12">
+				<!--  The player's portrait and name, as wide as the mini-map.  -->
+				<Image
+					Width="204"
+					Source="{Binding Player.Portrait}"
+					Stretch="Uniform"
+					Visibility="{Binding Player.Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+				<TextBlock
+					Width="204"
+					Margin="0,8,0,24"
+					Text="{Binding Player.FullName}"
+					TextAlignment="Center"
+					TextTrimming="CharacterEllipsis"
+					ToolTip="{Binding Player.FullName}" />
+
 				<Button
 					Width="120"
 					Height="32"
