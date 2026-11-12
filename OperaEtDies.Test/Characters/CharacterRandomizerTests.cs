@@ -295,7 +295,7 @@ public sealed class CharacterRandomizerTests
 					new CharacterObscurer { Id = "darkness", Hides = new Dictionary<string, int> { [CharacterObscurer.AllProperties] = 3 } },
 				],
 			},
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
 		var randomizer = new CharacterRandomizer(gameData, new Random(0), CharacterRole.Npc);
 		string Describe(params string[] obscurerIds) => randomizer.GetTraits().GetDescription(gameData.CharacterTemplates, gameData.GetObscuring(obscurerIds));
 
@@ -315,7 +315,7 @@ public sealed class CharacterRandomizerTests
 
 	private static GameData CreateGameData(params CharacterProperty[] properties) => new(
 		new CharacterData { Templates = TestData.CreateTemplates("name", "description"), Properties = properties },
-		TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
+		TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
 
 	private static readonly GameData s_gameData = TestData.CreateGameData();
 }

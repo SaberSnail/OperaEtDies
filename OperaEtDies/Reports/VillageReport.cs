@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using GoldenAnvil.Utility.Calendar;
 using GoldenAnvil.Utility.Logging;
 using OperaEtDies.Characters;
 using OperaEtDies.Data;
@@ -188,7 +189,7 @@ public sealed class VillageReport : ILogDestination
 
 	private void WriteHeaders(GameData gameData)
 	{
-		WriteRecord("#village", "village", "seed", "households", "people", "businesses", "quarters", "houses", "businessLocations", "reusedTemplates", "shape", "landmarks", "paths", "deadEnds", "landmarkDeadEnds", "maxExits", "features", "crossings");
+		WriteRecord("#village", "village", "seed", "households", "people", "businesses", "quarters", "houses", "businessLocations", "reusedTemplates", "shape", "landmarks", "paths", "deadEnds", "landmarkDeadEnds", "maxExits", "features", "crossings", "time", "season");
 		WriteRecord("#household", "village", "household", "lastName", "members", "wealth", "fortune", "wealthLevel", "house", "quarter", "quarterKind");
 		WriteRecord(["#person", "village", "household", "member", "role", "isPlayer", "work", "businessProfession", "fullName", "location", "place", "portraitLayers", .. gameData.CharacterProperties.Select(x => x.Id)]);
 		WriteRecord("#business", "village", "household", "profession", "ownerRole", "helpers", "location", "quarter", "quarterKind");
@@ -216,7 +217,8 @@ public sealed class VillageReport : ILogDestination
 			world.Locations.Count - world.Locations.Select(x => x.Template).Distinct().Count(), JsonNamingPolicy.CamelCase.ConvertName(town.Shape.ToString()),
 			quarters.Count(x => x.IsLandmark), pathCounts.Values.Sum() / 2, pathCounts.Count(x => x.Value == 1),
 			pathCounts.Count(x => x.Value == 1 && x.Key.IsLandmark), pathCounts.Values.DefaultIfEmpty().Max(),
-			string.Join(" ", world.Features.Select(x => x.Template.Id)), quarters.Sum(x => x.Exits.Count(exit => exit.IsCrossing)) / 2);
+			string.Join(" ", world.Features.Select(x => x.Template.Id)), quarters.Sum(x => x.Exits.Count(exit => exit.IsCrossing)) / 2,
+			gameData.Calendar.FormatTime(world.Time, TimeFormat.Long), gameData.Calendar.GetSeason(world.Time).Id);
 
 		for (var index = 0; index < world.Families.Count; index++)
 		{

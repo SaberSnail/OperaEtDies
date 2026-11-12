@@ -56,7 +56,7 @@ public sealed class GameDataTests
 		var result = GameData.Load(m_directory);
 
 		Assert.That(result.Succeeded, Is.False);
-		Assert.That(result.Errors.Select(x => Path.GetFileName(x.FilePath)).Distinct(), Is.EquivalentTo(new[] { CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName }));
+		Assert.That(result.Errors.Select(x => Path.GetFileName(x.FilePath)).Distinct(), Is.EquivalentTo(new[] { CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName }));
 	}
 
 	[Test]
@@ -485,10 +485,11 @@ public sealed class GameDataTests
 	{
 		File.WriteAllText(Path.Combine(m_directory, LocationList.FileName), """
 			{
+				"buildingTravelTime": -1,
 				"quarterKinds": [
-					{ "id": "lane", "area": "village", "path": "lane" },
-					{ "id": "lane", "area": "village", "path": "lane" },
-					{ "id": "plaza", "area": "village", "unique": true, "path": " " }
+					{ "id": "lane", "area": "village", "path": "lane", "travelTime": 2 },
+					{ "id": "lane", "area": "village", "path": "lane", "travelTime": 2 },
+					{ "id": "plaza", "area": "village", "unique": true, "path": " ", "travelTime": -1 }
 				],
 				"landmarkCount": { "minimum": -1, "maximum": 2, "shape": { "peak": "low", "mostWithin": 1 } },
 				"layouts": [ { "shape": "radial", "center": "lane" } ],
@@ -531,6 +532,8 @@ public sealed class GameDataTests
 		{
 			OurResources.DataListItemIdDuplicate.FormatCurrentCulture("lane", "quarterKinds"),
 			OurResources.DataValueMissing.FormatCurrentCulture("quarterKinds[plaza].path"),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("buildingTravelTime", -1, 0),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("quarterKinds[plaza].travelTime", -1, 0),
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("landmarkCount.minimum", -1, 0),
 			OurResources.LayoutCenterInvalid.FormatCurrentCulture("radial", "lane"),
 			OurResources.QuarterKindUniqueMissing.FormatCurrentCulture("plaza"),
@@ -694,7 +697,7 @@ public sealed class GameDataTests
 	[Test]
 	public void ProfessionsMustMatchTheOtherFiles()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
 		var professionsPath = Path.Combine(m_directory, ProfessionList.FileName);
 		File.WriteAllText(professionsPath, File.ReadAllText(professionsPath)
 			.Replace("\"wealth\": \"high-\",\n\t\t\t\"maxBusinesses\": 1,\n\t\t\t\"helperWhen\": { \"values\": { \"gender\": [ \"gender_male\", \"gender_female\" ] } }", "\"wealth\": \"high-\", \"worksFromHome\": true, \"helperWhen\": { \"values\": { \"nothing\": [ \"nothing\" ] } }", StringComparison.Ordinal)
@@ -723,7 +726,7 @@ public sealed class GameDataTests
 	[Test]
 	public void ProfessionPropertyTakesItsValuesFromProfessions()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
 		var professionsPath = Path.Combine(m_directory, ProfessionList.FileName);
 		File.WriteAllText(professionsPath, File.ReadAllText(professionsPath)
 			.Replace("\"title\": \"Blacksmith\",", "\"title\": \"Smith of Smiths\",", StringComparison.Ordinal));
@@ -740,7 +743,7 @@ public sealed class GameDataTests
 	[Test]
 	public void ProfessionsProvideKeyedDefaults()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
 		var professionsPath = Path.Combine(m_directory, ProfessionList.FileName);
 		var original = File.ReadAllText(professionsPath);
 		File.WriteAllText(professionsPath, original
@@ -763,7 +766,7 @@ public sealed class GameDataTests
 	[Test]
 	public void ProfessionsCanChangeFrequencyByCondition()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
 		var professionsPath = Path.Combine(m_directory, ProfessionList.FileName);
 		File.WriteAllText(professionsPath, File.ReadAllText(professionsPath)
 			.Replace("\"title\": \"Blacksmith\",", "\"title\": \"Blacksmith\", \"frequencyWhen\": [ { \"when\": { \"values\": { \"age\": [ \"age_veryOld\" ] } }, \"frequency\": \"veryRare\" } ],", StringComparison.Ordinal)
@@ -818,7 +821,7 @@ public sealed class GameDataTests
 	[Test]
 	public void FamilySettingsMustMatchCharacters()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
 		var familiesPath = Path.Combine(m_directory, FamilySettings.FileName);
 		File.WriteAllText(familiesPath, File.ReadAllText(familiesPath)
 			.Replace("\"age\": \"age\"", "\"age\": \"firstName\"", StringComparison.Ordinal)
@@ -838,7 +841,7 @@ public sealed class GameDataTests
 	[Test]
 	public void FamilySettingsMustMatchAgesAndProfessions()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
 		var familiesPath = Path.Combine(m_directory, FamilySettings.FileName);
 		File.WriteAllText(familiesPath, File.ReadAllText(familiesPath)
 			.Replace("\"infirm\": \"profession_infirm\"", "\"infirm\": \"profession_nothing\"", StringComparison.Ordinal)
@@ -861,7 +864,7 @@ public sealed class GameDataTests
 	[Test]
 	public void PlayerAgeComesFromHeadAges()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
 		var charactersPath = Path.Combine(m_directory, CharacterData.FileName);
 		File.WriteAllText(charactersPath, File.ReadAllText(charactersPath)
 			.Replace("\"range\": { \"minimum\": 18, \"maximum\": 80,", "\"player\": { \"range\": { \"minimum\": 36, \"maximum\": 50, \"shape\": { \"peak\": \"low\", \"mostWithin\": 10 } } }, \"range\": { \"minimum\": 18, \"maximum\": 80,", StringComparison.Ordinal));

@@ -30,6 +30,12 @@ public sealed class QuarterKind : IIdentified
 	/// towns that have the feature.
 	/// </summary>
 	public string? Borders { get; init; }
+
+	/// <summary>
+	/// How many minutes it takes to walk a path to or from a quarter of this kind. A path between two quarters takes the
+	/// longer of their kinds' times.
+	/// </summary>
+	public required int TravelTime { get; init; }
 }
 
 /// <summary>

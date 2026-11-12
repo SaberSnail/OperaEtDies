@@ -2,7 +2,6 @@
 
 ## Long Term
 
-* Passage of time: day and night cycles, maybe seasons, and weather. Player actions take time: decide what counts as an action (traveling, talking, working, examining) and what each costs.
 * Village names: generate a name for each village (from the data), keep it in the game state so it's saved, and show it in the game.
 * Save titles: show the village name and the in-game date and time in each save's title, alongside the main character's name. The in-game date and time need the passage of time first.
 * Look for things that need to move to data
@@ -10,12 +9,20 @@
 * Show more of the game's status
 * Schedules: villagers move around the town for work, their needs, and free time, instead of staying at home.
 * Set the at work property from schedules once they exist, instead of from location alone. People who work from home are currently at work half the time they arrive home, by chance.
+* Actions that take time, with the cost shown before acting, including actions that pass time in blocks: working, waiting until a part of the day, and sleeping.
 * Character needs
+* Sleep: sleep isn't forced, but going without it has consequences.
+* A curfew set by the knight, making it risky to be out after dark.
+* Seasonal and day/night variants of quarter descriptions and quarter kind portrait backgrounds.
+* Weather: chosen each day, saved, and shown in the game, and maybe affecting descriptions, schedules, and events.
 * Personality traits.
 * Relationships between characters
 * Talking to villagers.
 * Customize the family and villagers at the start of the game.
 * Customize some game configuration parameters when starting a game.
+* Choose the starting date when starting a game, since some seasons may be harder to start in.
+* Church bells at noon (and maybe other hours) that the player notices, marking the time of day.
+* Tune how fast the knight converts villagers: uncontested, about 4 picks a week takes close to 4 years to convert everyone, which seems long. Converts helping him will speed it up.
 * Inventory
 * Clothing
 * Money and trade: buying, selling, wages, and what the knight takes.

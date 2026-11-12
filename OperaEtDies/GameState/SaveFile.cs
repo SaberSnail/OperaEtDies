@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using GoldenAnvil.Utility;
+using GoldenAnvil.Utility.Calendar;
 using OperaEtDies.Data;
 
 namespace OperaEtDies.GameState;
@@ -11,13 +12,13 @@ namespace OperaEtDies.GameState;
 /// A saved game: what it was saved with, and the world objects. The player's name and the time it was saved are only
 /// for showing the save; loading doesn't use them.
 /// </summary>
-public sealed record SaveFile(int Version, string GameTitle, string DataHash, IReadOnlyList<string> Mods, DateTimeOffset SavedAt, string PlayerName, int NextId, IReadOnlyList<WorldObjectRecord> Objects)
+public sealed record SaveFile(int Version, string GameTitle, string DataHash, IReadOnlyList<string> Mods, DateTimeOffset SavedAt, string PlayerName, int NextId, string Time, IReadOnlyList<WorldObjectRecord> Objects)
 {
 	/// <summary>
 	/// The version of the save format this version of the game writes and reads. Increase it when old saves can no
 	/// longer load.
 	/// </summary>
-	public const int CurrentVersion = 1;
+	public const int CurrentVersion = 2;
 
 	public const string Extension = ".json";
 
@@ -30,7 +31,7 @@ public sealed record SaveFile(int Version, string GameTitle, string DataHash, IR
 	/// Creates the save for a world, with what the game is being saved with.
 	/// </summary>
 	public static SaveFile Create(GameWorld world, SaveSettings settings, DateTimeOffset savedAt) =>
-		new(CurrentVersion, settings.GameTitle, settings.DataHash, settings.Mods, savedAt, world.Player.FullName, world.Objects.NextId, world.Objects.All.Select(x => x.CreateRecord()).ToList())
+		new(CurrentVersion, settings.GameTitle, settings.DataHash, settings.Mods, savedAt, world.Player.FullName, world.Objects.NextId, world.Time.SaveToString(), world.Objects.All.Select(x => x.CreateRecord()).ToList())
 		{
 			ModsHash = settings.ModsHash,
 		};
@@ -125,7 +126,23 @@ public sealed record SaveFile(int Version, string GameTitle, string DataHash, IR
 		if (!string.Equals(GameTitle, gameTitle, StringComparison.Ordinal))
 			throw new SaveLoadException(OurResources.SaveGameMismatch.FormatCurrentCulture(GameTitle, gameTitle));
 
-		return GameWorld.Load(gameData, NextId, Objects ?? [], random);
+		return GameWorld.Load(gameData, NextId, LoadTime(gameData), Objects ?? [], random);
+	}
+
+	private TimePoint LoadTime(GameData gameData)
+	{
+		try
+		{
+			return gameData.Calendar.LoadFromString(Time);
+		}
+		catch (FormatException e)
+		{
+			throw new SaveLoadException(OurResources.SaveTimeInvalid.FormatCurrentCulture(Time, e.Message), e);
+		}
+		catch (ArgumentOutOfRangeException e)
+		{
+			throw new SaveLoadException(OurResources.SaveTimeInvalid.FormatCurrentCulture(Time, e.Message), e);
+		}
 	}
 
 	private static readonly JsonSerializerOptions s_options = new()

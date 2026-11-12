@@ -21,6 +21,61 @@ public sealed class GameWorldTests
 	}
 
 	[Test]
+	public void GameStartsOnARandomDayOfTheStartYearAtTheFirstPartOfTheDay()
+	{
+		var days = new HashSet<(int Season, int Week, int Day)>();
+		for (var seed = 0; seed < 40; seed++)
+		{
+			var (_, world) = CreateWorld(seed);
+			var calendar = world.GameData.Calendar;
+			var parts = calendar.GetParts(world.Time);
+
+			Assert.That(parts.Year, Is.EqualTo(calendar.StartYear));
+			Assert.That((parts.Hour, parts.Minute), Is.EqualTo((calendar.DayParts[0].Start, 0)));
+			days.Add((parts.Season, parts.Week, parts.Day));
+		}
+
+		Assert.That(days, Has.Count.GreaterThan(10));
+	}
+
+	[Test]
+	public void AdvancingTimeMovesItForward()
+	{
+		var (_, world) = CreateWorld();
+		var calendar = world.GameData.Calendar;
+		var start = world.Time;
+		var changes = new List<string?>();
+		world.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+		world.AdvanceTime(calendar.CreateTimeOffset(0, 0, 15));
+		world.AdvanceTime(calendar.CreateTimeOffset(0, 0, 0));
+
+		Assert.That(world.Time, Is.EqualTo(start + calendar.CreateTimeOffset(0, 0, 15)));
+		Assert.That(changes, Is.EqualTo(new[] { nameof(GameWorld.Time) }));
+		Assert.That(() => world.AdvanceTime(calendar.CreateTimeOffset(0, 0, -15)), Throws.ArgumentException);
+	}
+
+	[Test]
+	public void TravelTimeIsTheLongerOfTheQuarterKindsOrTheBuildingTime()
+	{
+		var (_, world) = CreateWorld(withFeatures: true);
+		var calendar = world.GameData.Calendar;
+		var quarters = world.Locations.Where(x => x.Template is QuarterTemplate).ToList();
+		var village = quarters.Where(x => x.Area == MapArea.Village).ToList();
+		var outskirts = quarters.First(x => x.Area == MapArea.Outskirts);
+		var house = world.Player.Home;
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(world.GetTravelTime(village[0], village[1]), Is.EqualTo(calendar.CreateTimeOffset(0, 0, 2)));
+			Assert.That(world.GetTravelTime(village[0], outskirts), Is.EqualTo(calendar.CreateTimeOffset(0, 0, 5)));
+			Assert.That(world.GetTravelTime(outskirts, village[0]), Is.EqualTo(calendar.CreateTimeOffset(0, 0, 5)));
+			Assert.That(world.GetTravelTime(house, house.Quarter!), Is.EqualTo(calendar.CreateTimeOffset(0, 0, 1)));
+			Assert.That(world.GetTravelTime(house.Quarter!, house), Is.EqualTo(calendar.CreateTimeOffset(0, 0, 1)));
+		});
+	}
+
+	[Test]
 	public void LocationsAreCreatedFromTown()
 	{
 		var (town, world) = CreateWorld();

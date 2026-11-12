@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.IO;
 using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Logging;
@@ -21,6 +22,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		Player = new LocationPersonViewModel(world.Player, world.GameData.PortraitRenderer);
 		m_currentLocation = CreateLocationScreen(world.Player.Location);
 		m_miniMap = CreateMiniMap(world.Player.Location);
+		World.PropertyChanged += OnWorldPropertyChanged;
 	}
 
 	public string Title { get; }
@@ -39,6 +41,37 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	/// The player's character, shown at the top of the sidebar.
 	/// </summary>
 	public LocationPersonViewModel Player { get; }
+
+	/// <summary>
+	/// Today's date, such as "Thursday, Mid Winter, 227 CR".
+	/// </summary>
+	public string Date => VerifyAccess(World.GameData.Calendar.FormatDate(World.Time));
+
+	/// <summary>
+	/// The part of the day and the time on the clock, such as "Morning, 6:00".
+	/// </summary>
+	public string TimeOfDay
+	{
+		get
+		{
+			VerifyAccess();
+			var calendar = World.GameData.Calendar;
+			return OurResources.TimeOfDay.FormatCurrentCulture(calendar.GetDayPart(World.Time).Title, calendar.FormatClock(World.Time));
+		}
+	}
+
+	/// <summary>
+	/// The special days that fall today, such as a festival, or null if today is an ordinary day.
+	/// </summary>
+	public string? SpecialDay
+	{
+		get
+		{
+			VerifyAccess();
+			var specialDays = World.GameData.Calendar.GetSpecialDays(World.Time);
+			return specialDays.Count == 0 ? null : string.Join(OurResources.SpecialDaySeparator, specialDays.Select(x => x.Title));
+		}
+	}
 
 	/// <summary>
 	/// The screen showing the location the player is in.
@@ -179,11 +212,22 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Moves the player to the given location.
+	/// Moves the player to a location next to theirs, which takes the travel time between them.
 	/// </summary>
 	public void TravelTo(Location location)
 	{
 		VerifyAccess();
+		World.AdvanceTime(World.GetTravelTime(World.Player.Location, location));
+		MoveTo(location);
+	}
+
+	/// <summary>
+	/// Moves the player straight to any location without any time passing, for developers.
+	/// </summary>
+	private void JumpTo(Location location) => MoveTo(location);
+
+	private void MoveTo(Location location)
+	{
 		var player = World.Player;
 		Log.Info($"Traveling from {player.Location.Title} ({player.Location.Id}) to {location.Title} ({location.Id})");
 
@@ -196,6 +240,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
 	public void Dispose()
 	{
+		World.PropertyChanged -= OnWorldPropertyChanged;
 		m_currentLocation.TravelRequested -= OnTravelRequested;
 		if (m_villagers is not null)
 		{
@@ -212,7 +257,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
 	private LocationScreenViewModel CreateLocationScreen(Location location)
 	{
-		var viewModel = new LocationScreenViewModel(location, World.GameData.PortraitRenderer);
+		var viewModel = new LocationScreenViewModel(location, World);
 		viewModel.TravelRequested += OnTravelRequested;
 		return viewModel;
 	}
@@ -221,12 +266,18 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
 	private void OnTravelRequested(object? sender, GenericEventArgs<Location> e) => TravelTo(e.Value);
 
+	private void OnWorldPropertyChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (e.PropertyName == nameof(GameWorld.Time))
+			RaisePropertyChanged(nameof(Date), nameof(TimeOfDay), nameof(SpecialDay));
+	}
+
 	private void OnVillagersCloseRequested(object? sender, EventArgs e) => CloseVillagers();
 
 	private void OnVillagersTravelRequested(object? sender, GenericEventArgs<Location> e)
 	{
 		CloseVillagers();
-		TravelTo(e.Value);
+		JumpTo(e.Value);
 	}
 
 	private void OnMapCloseRequested(object? sender, EventArgs e) => CloseMap();
@@ -234,7 +285,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	private void OnMapTravelRequested(object? sender, GenericEventArgs<Location> e)
 	{
 		CloseMap();
-		TravelTo(e.Value);
+		JumpTo(e.Value);
 	}
 
 	/// <summary>

@@ -37,11 +37,33 @@
 					Visibility="{Binding Player.Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 				<TextBlock
 					Width="204"
-					Margin="0,8,0,24"
+					Margin="0,8,0,0"
 					Text="{Binding Player.Name}"
 					TextAlignment="Center"
 					TextTrimming="CharacterEllipsis"
 					ToolTip="{Binding Player.Name}" />
+
+				<!--  The date, any festival or other special day, and the time of day.  -->
+				<TextBlock
+					Width="204"
+					Margin="0,16,0,0"
+					Text="{Binding Date}"
+					TextAlignment="Center"
+					TextWrapping="Wrap" />
+				<TextBlock
+					Width="204"
+					Margin="0,2,0,0"
+					FontWeight="Bold"
+					Text="{Binding SpecialDay}"
+					TextAlignment="Center"
+					TextWrapping="Wrap"
+					Visibility="{Binding SpecialDay, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+				<TextBlock
+					Width="204"
+					Margin="0,2,0,24"
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{Binding TimeOfDay}"
+					TextAlignment="Center" />
 
 				<Button
 					Width="120"

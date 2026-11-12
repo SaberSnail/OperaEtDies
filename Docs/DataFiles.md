@@ -189,6 +189,7 @@ The templates the town is built from when a new game starts.
 | Property | Type | Notes |
 |---|---|---|
 | `quarterKinds` | list of Quarter Kind | Must not be empty. Each item needs a filled-in, unique `id`. |
+| `buildingTravelTime` | integer | At least 0. How many minutes it takes to go into or out of a house or business from its quarter. |
 | `landmarkCount` | Integer Range | The minimum is at least 0. How many landmark quarters the town has, counting landmarks of unique kinds. |
 | `layouts` | list of Layout | Must not be empty. The shapes the town can be laid out in, chosen by frequency. |
 | `features` | list of Map Feature | Optional (defaults to empty). Identified items, if any. The things on the map that aren't places to go, such as a river or a forest. |
@@ -209,6 +210,7 @@ There must be at least one house, and at least one quarter with houses, for each
 | `unique` | boolean | Optional (defaults to false). Whether every town has exactly one quarter of this kind. |
 | `path` | string | Filled in. What a path to or from a quarter of this kind is called. |
 | `borders` | string | Optional. Not allowed for unique kinds. The id of one of `features`. Every quarter of this kind borders that feature, and is only used in towns that have it. |
+| `travelTime` | integer | At least 0. How many minutes it takes to walk a path to or from a quarter of this kind. A path between two quarters takes the longer of their kinds' times. |
 
 **Layout**
 
@@ -454,6 +456,47 @@ The village quarters are taken for the core roughly richest first, with some tak
 
 The outskirts leave the village in two or three groups. They start from the ends of the main street (`linear`) or the arms (`crossroads`), and otherwise from quarters at the edge of the village on different sides of it. Each group is a chain that sometimes forks, a loop of three, a hub with the other quarters around its first, or a ladder of two chains side by side with rungs between them. Landmarks at a dead end connect to a quarter touching them if they can. Templates that haven't been used yet are chosen first, by frequency. If every template that fits has been used, one is used again, and a warning is logged.
 
+## Calendar.json
+
+The game's calendar. A year is made of seasons, each season of weeks, and each week of days, in the order listed. A day has 24 hours of 60 minutes. Times are shown with the day's title, the week's title followed by the season's title, the hour from 0 to 23, and the minute, and with the year (shown with `yearFormat`) when shown in full.
+
+| Property | Type | Notes |
+|---|---|---|
+| `days` | list of Calendar Item | The days of each week. |
+| `weeks` | list of Calendar Item | The weeks of each season. |
+| `seasons` | list of Calendar Item | The seasons of each year. |
+| `dayParts` | list of Day Part | The parts of each day, in order of when they start. Each must start after the one before it. |
+| `specialDays` | list of Special Day | Optional (defaults to empty). Can be empty. Days of the year with their own title, which fall on the same day every year. |
+| `startYear` | integer | At least 1. The year a new game starts in. Years count from 1. |
+| `yearFormat` | string | How a year is shown. Must include `{year}`, which is replaced by the year's number. |
+
+**Calendar Item**
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | Filled in. |
+| `title` | string | Filled in. |
+
+**Day Part**
+
+A part of the day lasts from its start until the next part starts. The last part lasts until the first part starts the next day, so it goes past midnight unless the first part starts at 0.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | Filled in. |
+| `title` | string | Filled in. |
+| `start` | integer | The hour it starts at, from 0 to 23. |
+
+**Special Day**
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | Filled in. |
+| `title` | string | Filled in. |
+| `season` | string | Id of a season in `seasons`. |
+| `week` | string | Id of a week in `weeks`. |
+| `day` | string | Id of a day in `days`. |
+
 ## Portraits.json
 
 Optional. Without it, characters have no portraits. A character's portrait is drawn from its layers, bottom to top, and cut off at its edges.
@@ -547,3 +590,87 @@ Has `fill`, `stroke`, or both.
 ## Checks Between Files
 
 Once each file has loaded on its own, the files are checked against each other. The professions are only checked against the profession property if Families.json is correct. The profession property must take its values from the professions. The `homemaker` and `infirm` professions must have no business settings, and every other profession must have a `wealth`. Each business in Locations.json must be for a profession in Professions.json that doesn't work from home. The conditions in Portraits.json must use Characters.json properties and values, as described for Condition, and the places in Portraits.json must use Locations.json quarter kinds and profession property values.
+
+# Adding to the Data
+
+The data for one thing is often spread across several files, so this section lists everything that needs to change to add something new. Most mistakes stop the data from loading with an error, but some don't: those are marked **not checked**, and only show up as something missing in the game. After a change, generate some villages with the village report (see `Docs/CommandLine.md`) to make sure the data loads and the new item turns up, and check its `log` records for warnings.
+
+Portraits.json is generated, so portrait art is never added to it directly. It's added to SubCorona's `Art/Portraits/Portraits.sh`, as described in SubCorona's `Docs/Portraits.md`, which also explains how to generate the file and preview the results.
+
+Saved games refer to properties, values, and location and map feature templates by id, so renaming or removing one of those stops older saves from loading. Adding new ones is safe.
+
+## Profession
+
+* **Professions.json:** an entry in `professions`, with a `text` entry for every name the templates use. In Sub Corona, that's `description` and `helperDescription`. Set `when` for who can have it (such as only men), `helperWhen` for who can help in it, and `defaults` for its usual last names (optional, since households fall back on the last name property's `otherValues`).
+* For a business, give it a `wealth`, and decide on `maxBusinesses`, `helpers`, `worksFromHome`, and `forHouseholdElders`.
+* **Locations.json:** for a business that doesn't work from home, at least one entry in `businesses` for it. Each of its `quarterKinds` should have quarters with room for businesses (a `businesses` count), and there should be enough places for `maxBusinesses` businesses, or businesses end up in full quarters and a warning is logged.
+* **Characters.json:** for a business, add its id to the profession property's `player` values, so the player can choose it (**not checked**). For a profession that isn't a business (like the homemaker), add its id to the `notValues` of the `work` template's helper variant, since it has no `helperDescription`.
+* **Families.json:** only if it replaces the `homemaker` or `infirm` profession.
+* **Portrait art** (**not checked**): a workplace background (a layer with `inworkplace`), and work clothes that show while working (layers with `working` conditions). A profession that isn't a business only needs clothes, if any.
+
+## Character Property
+
+* **Characters.json:** an entry in `properties`. If it should appear in a character's description, use it in a template that `description` uses (directly or through other templates), and give every value the `text` entries those templates use (**not checked** if no template uses it).
+* **Characters.json:** if it can be seen, add it to the `darkness` obscurer, and to any other obscurers that should hide it (**not checked**).
+* **Families.json:** an entry in `inheritedProperties` if family members should share it (**not checked**). The Family Properties are the ones the game itself depends on, so a new one there needs code.
+* **Portrait art** (**not checked**): if it changes how a character looks, layers, shapes, colors, or scales whose conditions use it, with art for every value.
+* The village report gets a column for it automatically.
+
+## Character Value
+
+* **Characters.json:** an entry in the property's `values`. Give it every `text` entry the templates use for the property. For a property with a `shape`, its place in the list sets how likely it is; for a property in Families.json `inheritedProperties` with a `blend`, its place in the list sets which values it blends with.
+* **Characters.json:** if the property's `player` or `npc` settings list `values`, add it there for each role that can have it (**not checked**).
+* **Characters.json and Portraits.json:** look over the conditions that list other values of the property (`when`, `frequencyWhen`, and template variants). A `notValues` list now lets the new value through, and a `values` list leaves it out (**not checked**).
+* **Families.json:** if it's a value Families.json names (such as a gender or head relation), update the id there. For an inherited property, add it to `unblended` if it shouldn't blend.
+* **Portrait art** (**not checked**): if the property shows in portraits, art for the value, checked in the contact sheets.
+* A rare value may trip the `lowChanceWarning`.
+
+## Character Template
+
+* **Characters.json:** an entry in `templates`, and a placeholder for it (`{id}`) in the template that should show it, such as `description` or one of the templates it uses (**not checked**: a template nothing uses is still checked, but never shown).
+
+## Name
+
+* **First names:** a Weighted Value in the first name property's `defaults`, under the right key (such as a gender).
+* **Last names:** a Weighted Value in the last name property's `otherValues` for a general last name, or in a profession's `defaults` in Professions.json for a last name that comes from a trade.
+
+## Obscurer
+
+* **Characters.json:** an entry in `obscurers`, with the properties it hides. Nothing in the game puts obscurers in effect yet, so a new one has no effect until code does.
+
+## Quarter Kind
+
+* **Locations.json:** an entry in `quarterKinds`, and at least one entry in `quarters` of the kind (required for a unique kind; otherwise the kind is just never used). If its quarters should hold businesses, add it to the `quarterKinds` of those entries in `businesses`. For a unique kind in the village, it can be the `center` of new `layouts`. If it borders a map feature, set `borders`.
+* **Portrait art** (**not checked**): a background for the kind (a layer with `inquarter`).
+
+## Quarter
+
+* **Locations.json:** an entry in `quarters`, with an id that isn't used by any quarter, house, or business. Choose its `kind`, and either `wealth` and `houses`, `businesses`, or neither for a landmark. Set `borders` and `featureText` if it's by a map feature.
+* Quarters are reused, with a warning, when the town needs more of a kind than there are, so make sure there are enough quarters for each kind and wealth level. The village report's `reusedTemplates` column and `log` records show reuse.
+
+## House
+
+* **Locations.json:** an entry in `houses`, with an id that isn't used by any quarter, house, or business, and its `wealth`. There must be quarters of that wealth with houses for it to be used. As with quarters, too few houses of a wealth level leads to reuse.
+
+## Business Place
+
+* **Locations.json:** an entry in `businesses`, with an id that isn't used by any quarter, house, or business. Its `profession` must be a profession in Professions.json that doesn't work from home, and at least one of its `quarterKinds` must have a quarter with room for businesses.
+
+## Map Feature
+
+* **Locations.json:** an entry in `features` (and `featureCount`, if it's the first one). A river needs `crossings`. Its `text` describes it in the descriptions of the quarters it borders.
+* **Locations.json:** set `borders` on the quarter kinds or quarters that belong beside it, such as a riverside kind for a river (**not checked**: without them, an area feature is placed next to a quarter in the outskirts). Add `featureText` to quarters whose description of it should differ from the feature's own `text`.
+
+## Layout
+
+* **Locations.json:** an entry in `layouts`, whose `center` is a unique quarter kind in the village.
+
+## Calendar
+
+* **Day, week, or season:** an entry in `days`, `weeks`, or `seasons` in Calendar.json. Adding one changes the length of the year, so check the `specialDays` still fall where they should (**not checked**).
+* **Part of the day:** an entry in `dayParts`, in order of its start.
+* **Special day:** an entry in `specialDays`, naming its season, week, and day.
+
+## Portrait Art
+
+* Colors, scales, and layers are added to SubCorona's `Art/Portraits/Portraits.sh`, never to Portraits.json (see SubCorona's `Docs/Portraits.md`). Layers are drawn in the order they're written, so put a new layer where it belongs among the others.

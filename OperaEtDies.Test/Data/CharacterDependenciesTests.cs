@@ -209,7 +209,7 @@ public sealed class CharacterDependenciesTests
 					},
 				],
 			},
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
 
 		for (var seed = 0; seed < 20; seed++)
 		{

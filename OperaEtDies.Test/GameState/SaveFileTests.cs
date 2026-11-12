@@ -177,6 +177,15 @@ public sealed class SaveFileTests
 		AssertLoadFails(Replace(save, player, player with { IsPlayer = false }), world.GameData, "player");
 	}
 
+	[TestCase("tuesday")]
+	[TestCase("")]
+	[TestCase("-60")]
+	public void LoadFailsForInvalidTime(string time)
+	{
+		var (_, world) = GameWorldTests.CreateWorld();
+		AssertLoadFails(CreateSave(world) with { Time = time }, world.GameData, $"\"{time}\"");
+	}
+
 	[Test]
 	public void ReadFailsForInvalidJson()
 	{
@@ -194,18 +203,20 @@ public sealed class SaveFileTests
 			Throws.TypeOf<SaveLoadException>().With.Message.Contains(messagePart).IgnoreCase);
 
 	/// <summary>
-	/// Moves some people around, so the save holds more than where they started.
+	/// Moves some people around and passes some time, so the save holds more than how the game started.
 	/// </summary>
 	private static void MoveSomePeople(GameWorld world)
 	{
 		var random = new Random(1);
 		foreach (var person in world.People.Where((_, index) => index % 3 == 0))
 			person.Location = world.Locations[random.Next(world.Locations.Count)];
+		world.AdvanceTime(world.GameData.Calendar.CreateTimeOffset(9, 7, 45));
 	}
 
 	private static void AssertSameWorld(GameWorld actual, GameWorld expected)
 	{
 		Assert.That(actual.Objects.All.Select(x => (x.Id, x.GetType())), Is.EqualTo(expected.Objects.All.Select(x => (x.Id, x.GetType()))));
+		Assert.That(actual.Time, Is.EqualTo(expected.Time));
 		Assert.That(actual.Player.Id, Is.EqualTo(expected.Player.Id));
 		Assert.That(actual.Families.Select(x => x.Id), Is.EqualTo(expected.Families.Select(x => x.Id)));
 		Assert.That(actual.Npcs.Select(x => x.Id), Is.EqualTo(expected.Npcs.Select(x => x.Id)));

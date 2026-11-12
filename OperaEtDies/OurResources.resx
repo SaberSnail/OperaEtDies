@@ -956,4 +956,104 @@
 		<value>With --generate-villages, save each village and load it again before writing it, to check that saving keeps everything.</value>
 		<comment>Explains the --through-save command line option.</comment>
 	</data>
+	<data name="GameTimeLong" xml:space="preserve">
+		<value>{0}, {1} {2}, {3}, {4}:{5:00}</value>
+		<comment>{0} is the day of the week, {1} the week of the season (such as "Early"), {2} the season, {3} the year as the calendar shows it (such as "227 CR"), {4} the hour (0 to 23), and {5} the minute.</comment>
+	</data>
+	<data name="GameTimeShort" xml:space="preserve">
+		<value>{0}, {1} {2}, {3}:{4:00}</value>
+		<comment>{0} is the day of the week, {1} the week of the season (such as "Early"), {2} the season, {3} the hour (0 to 23), and {4} the minute.</comment>
+	</data>
+	<data name="GameOffsetDayLong_One" xml:space="preserve">
+		<value>{0:N0} day</value>
+		<comment>A length of time in days.</comment>
+	</data>
+	<data name="GameOffsetDayLong_Other" xml:space="preserve">
+		<value>{0:N0} days</value>
+		<comment>A length of time in days.</comment>
+	</data>
+	<data name="GameOffsetDayShort_One" xml:space="preserve">
+		<value>{0:N0}d</value>
+		<comment>A length of time in days, abbreviated.</comment>
+	</data>
+	<data name="GameOffsetDayShort_Other" xml:space="preserve">
+		<value>{0:N0}d</value>
+		<comment>A length of time in days, abbreviated.</comment>
+	</data>
+	<data name="GameOffsetHourLong_One" xml:space="preserve">
+		<value>{0:N0} hour</value>
+		<comment>A length of time in hours.</comment>
+	</data>
+	<data name="GameOffsetHourLong_Other" xml:space="preserve">
+		<value>{0:N0} hours</value>
+		<comment>A length of time in hours.</comment>
+	</data>
+	<data name="GameOffsetHourShort_One" xml:space="preserve">
+		<value>{0:N0}h</value>
+		<comment>A length of time in hours, abbreviated.</comment>
+	</data>
+	<data name="GameOffsetHourShort_Other" xml:space="preserve">
+		<value>{0:N0}h</value>
+		<comment>A length of time in hours, abbreviated.</comment>
+	</data>
+	<data name="GameOffsetMinuteLong_One" xml:space="preserve">
+		<value>{0:N0} minute</value>
+		<comment>A length of time in minutes.</comment>
+	</data>
+	<data name="GameOffsetMinuteLong_Other" xml:space="preserve">
+		<value>{0:N0} minutes</value>
+		<comment>A length of time in minutes.</comment>
+	</data>
+	<data name="GameOffsetMinuteShort_One" xml:space="preserve">
+		<value>{0:N0}m</value>
+		<comment>A length of time in minutes, abbreviated.</comment>
+	</data>
+	<data name="GameOffsetMinuteShort_Other" xml:space="preserve">
+		<value>{0:N0}m</value>
+		<comment>A length of time in minutes, abbreviated.</comment>
+	</data>
+	<data name="GameOffsetJoinLong" xml:space="preserve">
+		<value>{0}, {1}</value>
+		<comment>Joins the parts of a length of time, such as "1 hour" and "15 minutes".</comment>
+	</data>
+	<data name="GameOffsetJoinShort" xml:space="preserve">
+		<value>{0} {1}</value>
+		<comment>Joins the abbreviated parts of a length of time, such as "1h" and "15m".</comment>
+	</data>
+	<data name="CalendarDayPartStartOutOfOrder" xml:space="preserve">
+		<value>The part of the day &quot;{0}&quot; starts at {1}, but it must be from 0 to 23, and after the start of the part before it.</value>
+		<comment>{0} is the id of the part of the day. {1} is the hour it starts at.</comment>
+	</data>
+	<data name="CalendarSpecialDayUnknownPart" xml:space="preserve">
+		<value>The special day &quot;{0}&quot; has the {1} &quot;{2}&quot;, but it isn&apos;t in the &quot;{3}&quot; list.</value>
+		<comment>{0} is the special day&apos;s id. {1} is the property (season, week, or day). {2} is the id it refers to. {3} is the name of the list it should be in.</comment>
+	</data>
+	<data name="SaveTimeInvalid" xml:space="preserve">
+		<value>The saved time &quot;{0}&quot; isn&apos;t valid: {1}</value>
+		<comment>{0} is the saved time. {1} is the reason.</comment>
+	</data>
+	<data name="CalendarYearFormatInvalid" xml:space="preserve">
+		<value>&quot;yearFormat&quot; must include &quot;{0}&quot; where the year&apos;s number goes.</value>
+		<comment>{0} is the placeholder for the year.</comment>
+	</data>
+	<data name="GameDate" xml:space="preserve">
+		<value>{0}, {1} {2}, {3}</value>
+		<comment>{0} is the day of the week, {1} the week of the season (such as &quot;Early&quot;), {2} the season, and {3} the year as the calendar shows it (such as &quot;227 CR&quot;).</comment>
+	</data>
+	<data name="GameClock" xml:space="preserve">
+		<value>{0}:{1:00}</value>
+		<comment>{0} is the hour (0 to 23) and {1} the minute.</comment>
+	</data>
+	<data name="TimeOfDay" xml:space="preserve">
+		<value>{0}, {1}</value>
+		<comment>Shown below the date in the sidebar. {0} is the part of the day (such as &quot;Morning&quot;) and {1} the time on the clock (such as &quot;6:00&quot;).</comment>
+	</data>
+	<data name="SpecialDaySeparator" xml:space="preserve">
+		<value>, </value>
+		<comment>Goes between the titles of special days that fall on the same day, such as festivals.</comment>
+	</data>
+	<data name="ConnectionTravelTime" xml:space="preserve">
+		<value>({0})</value>
+		<comment>Shown beside a path or place the player can go to. {0} is how long it takes to get there, such as &quot;2 minutes&quot;.</comment>
+	</data>
 </root>

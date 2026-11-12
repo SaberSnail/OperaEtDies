@@ -60,7 +60,7 @@ Each line is one record, and its first field is the record type. The output star
 
 | Type | One record for each |
 |---|---|
-| `village` | Village: its seed, counts of households, people, businesses, and locations, and its layout: the shape, how many landmarks, paths between quarters, and dead ends there are (and how many dead ends are landmarks), the most exits any quarter has, its map features, and how many paths cross the river. |
+| `village` | Village: its seed, counts of households, people, businesses, and locations, and its layout: the shape, how many landmarks, paths between quarters, and dead ends there are (and how many dead ends are landmarks), the most exits any quarter has, its map features, how many paths cross the river, and when the game starts (the time, and the id of the season). |
 | `household` | Household: its last name, size, wealth, and house. |
 | `person` | Person: their family role and work, the location they start the game in (`location`) and the kind of place it is for their portrait (`place`: `home`, `quarter:<quarter kind>`, or `workplace:<profession>`), the ids of the portrait layers drawn for them (`portraitLayers`, separated by spaces), plus one column for each character property in Characters.json, holding the value id they start the game with. |
 | `business` | Business: its profession, owner, helpers, and location. |

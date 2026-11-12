@@ -1,6 +1,8 @@
 using GoldenAnvil.Utility;
+using GoldenAnvil.Utility.Calendar;
 using OperaEtDies.Characters;
 using OperaEtDies.Data;
+using OperaEtDies.Time;
 using OperaEtDies.Town;
 
 namespace OperaEtDies.GameState;
@@ -9,7 +11,7 @@ namespace OperaEtDies.GameState;
 /// The state of the game world while a game is being played. All of the game's mutable state is in the world objects
 /// it owns, so saving them saves the game.
 /// </summary>
-public sealed class GameWorld
+public sealed class GameWorld : NotifyPropertyChangedBase
 {
 	/// <summary>
 	/// Creates the world for a new game from the game data and the player's chosen traits, generating the town around
@@ -20,7 +22,8 @@ public sealed class GameWorld
 
 	/// <summary>
 	/// Creates the world for a new game from a generated town. The town isn't kept: everything the game needs from it is
-	/// copied into world objects. The player starts at home, and everyone else at home, at work, or in a random quarter.
+	/// copied into world objects. The player starts at home, and everyone else at home, at work, or in a random quarter. The
+	/// game starts on a random day of the calendar's start year, at the start of the first part of the day.
 	/// The world's locations and families are in the same order as the town's locations and households.
 	/// </summary>
 	public static GameWorld CreateFromTown(GameData gameData, GeneratedTown town, Random random)
@@ -55,18 +58,29 @@ public sealed class GameWorld
 				business.Location is { } location ? locationsByTownLocation[location] : null));
 		}
 
-		var world = new GameWorld(gameData, objects, random);
+		// The start time is chosen last, so it doesn't change the rest of a town generated from the same random numbers.
+		var calendar = gameData.Calendar;
+		var world = new GameWorld(gameData, objects, random, calendar.CreateTimePoint(calendar.StartYear, 1, 1, 1));
 		var quarters = world.Locations.Where(x => x.Template is QuarterTemplate).ToList();
 		foreach (var person in world.People)
 			person.PlaceAt(person.IsPlayer ? person.Home : ChooseStartingLocation(person.Home, person.Workplace, quarters, random));
+		world.m_time = ChooseStartTime(calendar, random);
 
 		return world;
 	}
 
 	/// <summary>
+	/// Chooses when a new game starts: a random day of the start year, each equally likely, at the start of the first part
+	/// of the day.
+	/// </summary>
+	private static TimePoint ChooseStartTime(GameCalendar calendar, Random random) =>
+		calendar.CreateTimePoint(calendar.StartYear, random.Next(calendar.SeasonsInYear) + 1, random.Next(calendar.WeeksInSeason) + 1,
+			random.Next(calendar.DaysInWeek) + 1, calendar.DayParts[0].Start);
+
+	/// <summary>
 	/// Creates the world for a loaded game from the saved world objects.
 	/// </summary>
-	internal static GameWorld Load(GameData gameData, int nextId, IReadOnlyList<WorldObjectRecord> records, Random random)
+	internal static GameWorld Load(GameData gameData, int nextId, TimePoint time, IReadOnlyList<WorldObjectRecord> records, Random random)
 	{
 		var loader = new WorldLoader(gameData, random, records);
 		var objects = WorldObjects.CreateLoaded(nextId, loader.CreateAll());
@@ -81,7 +95,7 @@ public sealed class GameWorld
 		if (people.Count(x => x.IsPlayer) != 1)
 			throw new SaveLoadException(OurResources.SavePlayerInvalid);
 
-		return new GameWorld(gameData, objects, random);
+		return new GameWorld(gameData, objects, random, time);
 	}
 
 	/// <summary>
@@ -96,11 +110,12 @@ public sealed class GameWorld
 			_ => quarters.Count == 0 ? home : quarters[random.Next(quarters.Count)],
 		};
 
-	private GameWorld(GameData gameData, WorldObjects objects, Random random)
+	private GameWorld(GameData gameData, WorldObjects objects, Random random, TimePoint time)
 	{
 		GameData = gameData;
 		Objects = objects;
 		Random = random;
+		m_time = time;
 
 		// The lists are built from the registry, which keeps the order the objects were created in. The player's family
 		// is always created first.
@@ -130,6 +145,43 @@ public sealed class GameWorld
 	public Random Random { get; }
 
 	/// <summary>
+	/// The current time in the game, from <see cref="GameData.Calendar"/>. It only moves forward, through
+	/// <see cref="AdvanceTime"/>.
+	/// </summary>
+	public TimePoint Time
+	{
+		get => m_time;
+		private set => SetPropertyField(value, ref m_time);
+	}
+
+	/// <summary>
+	/// Gets how long it takes to go from one location to a location next to it. A path between two quarters takes the
+	/// longer of their kinds' travel times. Going into or out of a house or business takes the building travel time.
+	/// </summary>
+	public TimeOffset GetTravelTime(Location from, Location to)
+	{
+		var calendar = GameData.Calendar;
+		if (from.Template is not QuarterTemplate fromQuarter || to.Template is not QuarterTemplate toQuarter)
+			return calendar.CreateTimeOffset(0, 0, GameData.BuildingTravelTime);
+
+		// Quarter kinds are checked against the quarters when the data is loaded.
+		var minutes = Math.Max(GameData.QuarterKinds.Get(fromQuarter.Kind).TravelTime, GameData.QuarterKinds.Get(toQuarter.Kind).TravelTime);
+		return calendar.CreateTimeOffset(0, 0, minutes);
+	}
+
+	/// <summary>
+	/// Moves the time forward. All time passes through here, so anything that happens as time passes can be handled in
+	/// one place.
+	/// </summary>
+	/// <exception cref="ArgumentException">The offset is negative.</exception>
+	public void AdvanceTime(TimeOffset offset)
+	{
+		if (offset < GameData.Calendar.CreateTimeOffset(0, 0, 0))
+			throw new ArgumentException("Time can't move backward.", nameof(offset));
+		Time += offset;
+	}
+
+	/// <summary>
 	/// Every place in the town: the quarters, and the houses and businesses in them.
 	/// </summary>
 	public IReadOnlyList<Location> Locations { get; }
@@ -157,4 +209,6 @@ public sealed class GameWorld
 	/// The people in the game world, other than the player.
 	/// </summary>
 	public IReadOnlyList<Person> Npcs { get; }
+
+	private TimePoint m_time;
 }

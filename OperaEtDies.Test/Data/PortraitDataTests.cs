@@ -40,7 +40,7 @@ public sealed class PortraitDataTests
 	[Test]
 	public void WithoutPortraitFileThereAreNoPortraits()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
 
 		var result = GameData.Load(m_directory);
 
@@ -51,7 +51,7 @@ public sealed class PortraitDataTests
 	[Test]
 	public void InvalidPortraitsReportErrors()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
 		File.WriteAllText(Path.Combine(m_directory, PortraitData.FileName), """
 			{
 				"width": 0,
@@ -105,7 +105,7 @@ public sealed class PortraitDataTests
 	[Test]
 	public void ConditionsMustUseCharacterProperties()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
 		File.WriteAllText(Path.Combine(m_directory, PortraitData.FileName), """
 			{
 				"width": 10,
@@ -132,7 +132,7 @@ public sealed class PortraitDataTests
 	[Test]
 	public void PlacesMustBeQuarterKindsAndProfessions()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
 		File.WriteAllText(Path.Combine(m_directory, PortraitData.FileName), """
 			{
 				"width": 10,
@@ -237,7 +237,7 @@ public sealed class PortraitDataTests
 				new PortraitLayer { Id = "street", At = new PortraitPlaceCondition { QuarterKinds = ["lane", "square"] }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#808080" }] },
 			],
 		};
-		var gameData = new GameData(TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), portraits: portraits);
+		var gameData = new GameData(TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings(), portraits: portraits);
 		return (gameData, gameData.PortraitRenderer!);
 	}
 

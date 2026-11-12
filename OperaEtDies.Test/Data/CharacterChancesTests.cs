@@ -119,7 +119,7 @@ public sealed class CharacterChancesTests
 					},
 				],
 			},
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
 		var randomizer = new CharacterRandomizer(gameData, new Random(0), CharacterRole.Npc);
 
 		var mediumCount = 0;
@@ -207,7 +207,7 @@ public sealed class CharacterChancesTests
 					},
 				],
 			},
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
 
 		// Numbers 4 to 9 are at or below 5%, and 9 is the least likely.
 		var lowestNumberChance = numberShape.GetChances(9)[8].ToString("G3", CultureInfo.CurrentCulture);
@@ -225,7 +225,7 @@ public sealed class CharacterChancesTests
 		var conditional = TestData.CreateConditionalGameData();
 		var gameData = new GameData(
 			new CharacterData { LowChanceWarning = 20, Templates = TestData.CreateTemplates("{gender}", "{gender}"), Properties = conditional.CharacterProperties },
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
 
 		// No beard is uncommon, so it has a 20% chance among men. Wiry is uncommon too, but men can't have the slender
 		// build, so wiry has a third of the chance among them, and isn't reported.

@@ -15,7 +15,7 @@ Saved games are kept in `%LocalAppData%\Golden Anvil\<game title>\Saves`, where 
 
 | Property | Type | Notes |
 |---|---|---|
-| `version` | number | The save format version. Must be 1. |
+| `version` | number | The save format version. Must be 2. |
 | `gameTitle` | string | The title of the game it was saved from. Must match the loaded game's title. |
 | `dataHash` | string | A hash of every file in the data folder, including their paths within it. |
 | `modsHash` | string | Optional (defaults to empty). A hash of every file in each mod folder, in order, including their paths within their folders. Empty if the game was saved without mods. |
@@ -23,6 +23,7 @@ Saved games are kept in `%LocalAppData%\Golden Anvil\<game title>\Saves`, where 
 | `savedAt` | string | When the game was saved, as an ISO 8601 date and time with its offset. Only used to show the save. |
 | `playerName` | string | The player's full name. Only used to show the save. |
 | `nextId` | number | The world id the next new object will get. Must be greater than every world id in the save. |
+| `time` | string | The current time in the game, as written by the game's calendar. Must be a time the calendar in Calendar.json can read: a whole number of seconds since the start of year 1, at least 0. |
 | `objects` | list of World Object | Every object in the world. Each object's `kind` property says which kind it is. Objects can refer to objects anywhere in the list. |
 
 If either hash doesn't match the loaded data or mods, the player is asked whether to load the save anyway.

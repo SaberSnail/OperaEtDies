@@ -2246,5 +2246,230 @@ namespace OperaEtDies {
                 return ResourceManager.GetString("CommandLineThroughSave", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}, {1} {2}, {3}, {4}:{5:00}.
+        /// </summary>
+        public static string GameTimeLong {
+            get {
+                return ResourceManager.GetString("GameTimeLong", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}, {1} {2}, {3}:{4:00}.
+        /// </summary>
+        public static string GameTimeShort {
+            get {
+                return ResourceManager.GetString("GameTimeShort", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0:N0} day.
+        /// </summary>
+        public static string GameOffsetDayLong_One {
+            get {
+                return ResourceManager.GetString("GameOffsetDayLong_One", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0:N0} days.
+        /// </summary>
+        public static string GameOffsetDayLong_Other {
+            get {
+                return ResourceManager.GetString("GameOffsetDayLong_Other", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0:N0}d.
+        /// </summary>
+        public static string GameOffsetDayShort_One {
+            get {
+                return ResourceManager.GetString("GameOffsetDayShort_One", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0:N0}d.
+        /// </summary>
+        public static string GameOffsetDayShort_Other {
+            get {
+                return ResourceManager.GetString("GameOffsetDayShort_Other", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0:N0} hour.
+        /// </summary>
+        public static string GameOffsetHourLong_One {
+            get {
+                return ResourceManager.GetString("GameOffsetHourLong_One", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0:N0} hours.
+        /// </summary>
+        public static string GameOffsetHourLong_Other {
+            get {
+                return ResourceManager.GetString("GameOffsetHourLong_Other", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0:N0}h.
+        /// </summary>
+        public static string GameOffsetHourShort_One {
+            get {
+                return ResourceManager.GetString("GameOffsetHourShort_One", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0:N0}h.
+        /// </summary>
+        public static string GameOffsetHourShort_Other {
+            get {
+                return ResourceManager.GetString("GameOffsetHourShort_Other", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0:N0} minute.
+        /// </summary>
+        public static string GameOffsetMinuteLong_One {
+            get {
+                return ResourceManager.GetString("GameOffsetMinuteLong_One", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0:N0} minutes.
+        /// </summary>
+        public static string GameOffsetMinuteLong_Other {
+            get {
+                return ResourceManager.GetString("GameOffsetMinuteLong_Other", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0:N0}m.
+        /// </summary>
+        public static string GameOffsetMinuteShort_One {
+            get {
+                return ResourceManager.GetString("GameOffsetMinuteShort_One", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0:N0}m.
+        /// </summary>
+        public static string GameOffsetMinuteShort_Other {
+            get {
+                return ResourceManager.GetString("GameOffsetMinuteShort_Other", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}, {1}.
+        /// </summary>
+        public static string GameOffsetJoinLong {
+            get {
+                return ResourceManager.GetString("GameOffsetJoinLong", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} {1}.
+        /// </summary>
+        public static string GameOffsetJoinShort {
+            get {
+                return ResourceManager.GetString("GameOffsetJoinShort", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The part of the day &quot;{0}&quot; starts at {1}, but it must be from 0 to 23, and after the start of the part before it.
+        /// </summary>
+        public static string CalendarDayPartStartOutOfOrder {
+            get {
+                return ResourceManager.GetString("CalendarDayPartStartOutOfOrder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The special day &quot;{0}&quot; has the {1} &quot;{2}&quot;, but it isn't in the &quot;{3}&quot; list.
+        /// </summary>
+        public static string CalendarSpecialDayUnknownPart {
+            get {
+                return ResourceManager.GetString("CalendarSpecialDayUnknownPart", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The saved time &quot;{0}&quot; isn't valid: {1}.
+        /// </summary>
+        public static string SaveTimeInvalid {
+            get {
+                return ResourceManager.GetString("SaveTimeInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;yearFormat&quot; must include &quot;{0}&quot; where the year's number goes.
+        /// </summary>
+        public static string CalendarYearFormatInvalid {
+            get {
+                return ResourceManager.GetString("CalendarYearFormatInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}, {1} {2}, {3}.
+        /// </summary>
+        public static string GameDate {
+            get {
+                return ResourceManager.GetString("GameDate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}:{1:00}.
+        /// </summary>
+        public static string GameClock {
+            get {
+                return ResourceManager.GetString("GameClock", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}, {1}.
+        /// </summary>
+        public static string TimeOfDay {
+            get {
+                return ResourceManager.GetString("TimeOfDay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to , .
+        /// </summary>
+        public static string SpecialDaySeparator {
+            get {
+                return ResourceManager.GetString("SpecialDaySeparator", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to ({0}).
+        /// </summary>
+        public static string ConnectionTravelTime {
+            get {
+                return ResourceManager.GetString("ConnectionTravelTime", resourceCulture);
+            }
+        }
     }
 }

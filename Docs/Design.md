@@ -19,6 +19,12 @@ The engine will need to be able to do the following things:
 3. Manage the passing of time - Time ostensibly follows a normal calender. However it is somewhat abbreviated in order to speed the passing of time. Seasons might affect some locations. Time of day passes as the player takes actions on the map.
 4. Manage events - Certain events happen to NPCs as time passes (on a schedule or based on the NPC's location at specific times). The main character might encounter various random events. Events could be triggered by a number of different things (time, location, flags set by other events, sharing a location with an NPC)
 
+# Time Costs
+
+The game's clock counts in minutes, so an action or event can take any number of them. To avoid agonizing over whether something should take 12 or 13 minutes, pick its time from these values: 1, 2, 5, 10, 15, 30, or 45 minutes, 1 hour, and then whole hours or blocks (such as working until evening). This is a recommendation, not a rule the game enforces.
+
+Looking at things (examining a place or a person, the map, the list of villagers) is free. Walking a path takes a couple of minutes in the village and longer in the outskirts, and going into or out of a building takes a minute.
+
 # Technology
 
 * The data in Sub Corona will be written as JSON files. The exact format of those files will be defined by what Opera et Dies supports. Since data files could be provided externally, reading those files will need to be fault tolerant and provide feedback to the user if something goes wrong.

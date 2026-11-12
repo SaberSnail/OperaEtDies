@@ -1,5 +1,6 @@
 using GoldenAnvil.Utility.Logging;
 using OperaEtDies.Characters;
+using OperaEtDies.Time;
 
 namespace OperaEtDies.Data;
 
@@ -9,9 +10,10 @@ namespace OperaEtDies.Data;
 /// </summary>
 public sealed class GameData
 {
-	public GameData(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, FrequencyChances? frequencyChances = null, PortraitData? portraits = null)
+	public GameData(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, CalendarSettings calendar, FrequencyChances? frequencyChances = null, PortraitData? portraits = null)
 	{
 		FrequencyChances = frequencyChances ?? new FrequencyChances();
+		Calendar = new GameCalendar(calendar);
 
 		CharacterProperties = new DataCatalog<CharacterProperty>(characters.Properties);
 		PortraitRenderer = portraits is null ? null : new PortraitRenderer(portraits, CharacterProperties);
@@ -23,6 +25,7 @@ public sealed class GameData
 
 		QuarterKinds = new DataCatalog<QuarterKind>(locations.QuarterKinds);
 		LandmarkCount = locations.LandmarkCount;
+		BuildingTravelTime = locations.BuildingTravelTime;
 		Layouts = locations.Layouts;
 		MapFeatures = new DataCatalog<MapFeature>(locations.Features);
 		FeatureCount = locations.FeatureCount ?? new IntegerRange { Minimum = 0, Maximum = 0, Shape = new WeightShape { Peak = ShapePeak.Low, MostWithin = 1 } };
@@ -71,12 +74,13 @@ public sealed class GameData
 		var characters = CharacterData.Load(dataDirectory, modDirectories, professions.Value?.Professions);
 		var locations = LocationList.Load(dataDirectory, modDirectories);
 		var families = FamilySettings.Load(dataDirectory, modDirectories);
+		var calendar = CalendarSettings.Load(dataDirectory, modDirectories);
 
 		// The portrait file is optional. Without it, characters have no portraits.
 		var portraits = PortraitData.Load(dataDirectory, modDirectories);
 
-		if (characters.Value is null || locations.Value is null || professions.Value is null || families.Value is null || portraits is { Value: null })
-			return DataLoadResult<GameData>.Failure([.. characters.Errors, .. locations.Errors, .. professions.Errors, .. families.Errors, .. portraits?.Errors ?? []]);
+		if (characters.Value is null || locations.Value is null || professions.Value is null || families.Value is null || calendar.Value is null || portraits is { Value: null })
+			return DataLoadResult<GameData>.Failure([.. characters.Errors, .. locations.Errors, .. professions.Errors, .. families.Errors, .. calendar.Errors, .. portraits?.Errors ?? []]);
 
 		// Each file is fine on its own, so check that they agree with each other.
 		var errors = GameDataValidation.Validate(dataDirectory, characters.Value, locations.Value, professions.Value, families.Value, portraits?.Value);
@@ -87,7 +91,7 @@ public sealed class GameData
 			return DataLoadResult<GameData>.Failure(errors);
 		}
 
-		var gameData = new GameData(characters.Value, locations.Value, professions.Value, families.Value, frequencyChances, portraits?.Value);
+		var gameData = new GameData(characters.Value, locations.Value, professions.Value, families.Value, calendar.Value, frequencyChances, portraits?.Value);
 		foreach (var warning in gameData.GetLowChanceWarnings())
 			Log.Warn(warning);
 
@@ -98,6 +102,11 @@ public sealed class GameData
 	/// The chances that items chosen at random are uncommon or rare.
 	/// </summary>
 	public FrequencyChances FrequencyChances { get; }
+
+	/// <summary>
+	/// The game's calendar, which creates, reads, and formats times.
+	/// </summary>
+	public GameCalendar Calendar { get; }
 
 	/// <summary>
 	/// The properties that describe a character, in the order they were defined.
@@ -133,6 +142,11 @@ public sealed class GameData
 	/// How many landmark quarters a town has, including unique ones.
 	/// </summary>
 	public IntegerRange LandmarkCount { get; }
+
+	/// <summary>
+	/// How many minutes it takes to go into or out of a house or business from its quarter.
+	/// </summary>
+	public int BuildingTravelTime { get; }
 
 	/// <summary>
 	/// The shapes a town can be laid out in, chosen by frequency.

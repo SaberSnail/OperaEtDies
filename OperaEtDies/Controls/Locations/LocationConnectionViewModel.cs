@@ -10,13 +10,14 @@ namespace OperaEtDies.Controls.Locations;
 /// </summary>
 public sealed class LocationConnectionViewModel : ViewModelBase
 {
-	public LocationConnectionViewModel(LocationExit exit, Action<Location> travel)
+	public LocationConnectionViewModel(LocationExit exit, string travelTime, Action<Location> travel)
 	{
 		Location = exit.Location;
 		Direction = exit.Direction;
 		Route = exit.Direction is { } direction
 			? (exit.IsCrossing ? OurResources.ExitCrossingRoute : OurResources.ExitRoute).FormatCurrentCulture(direction.GetTitle(), exit.Path ?? "")
 			: null;
+		TravelTime = travelTime;
 		m_travel = travel;
 	}
 
@@ -37,6 +38,16 @@ public sealed class LocationConnectionViewModel : ViewModelBase
 	public string? Route { get; }
 
 	public bool HasRoute => Route is not null;
+
+	/// <summary>
+	/// How long it takes to get there, such as "2 minutes".
+	/// </summary>
+	public string TravelTime { get; }
+
+	/// <summary>
+	/// How long it takes to get there, as shown beside the route, such as "(2 minutes)".
+	/// </summary>
+	public string TravelTimeText => OurResources.ConnectionTravelTime.FormatCurrentCulture(TravelTime);
 
 	public void Travel()
 	{

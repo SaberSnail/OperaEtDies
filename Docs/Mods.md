@@ -2,7 +2,7 @@
 
 A mod is a folder of files that change the data files described in [DataFiles.md](DataFiles.md). The game applies the mods in its mod list, in order.
 
-* A mod folder can have a file with the same name as any data file (`GameInfo.json`, `Characters.json`, `Locations.json`, `Professions.json`, `Families.json`, or `Portraits.json`). Each one is optional. Other JSON files are ignored.
+* A mod folder can have a file with the same name as any data file (`GameInfo.json`, `Characters.json`, `Locations.json`, `Professions.json`, `Families.json`, `Calendar.json`, or `Portraits.json`). Each one is optional. Other JSON files are ignored.
 * A mod's `Portraits.json` is only applied if the game's data folder has a `Portraits.json`.
 * Each data file is read, the file with the same name in each mod folder is applied to it in order, and then the result is read and checked as described in DataFiles.md. Problems found in the result are reported as coming from the mods.
 * A mod folder that doesn't exist, or any problem in a mod file, stops the game data from loading.

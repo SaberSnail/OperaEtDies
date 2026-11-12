@@ -1,4 +1,5 @@
 using GoldenAnvil.Utility;
+using GoldenAnvil.Utility.Calendar;
 using OperaEtDies.Characters;
 using OperaEtDies.GameState;
 
@@ -9,14 +10,17 @@ namespace OperaEtDies.Controls.Locations;
 /// </summary>
 public sealed class LocationScreenViewModel : ViewModelBase
 {
-	public LocationScreenViewModel(Location location, PortraitRenderer? portraitRenderer = null)
+	public LocationScreenViewModel(Location location, GameWorld world)
 	{
 		Location = location;
-		var connections = location.Exits.Select(x => new LocationConnectionViewModel(x, OnTravelRequested)).ToList();
+		var calendar = world.GameData.Calendar;
+		var connections = location.Exits
+			.Select(x => new LocationConnectionViewModel(x, calendar.FormatOffsetFrom(world.Time, world.GetTravelTime(location, x.Location), TimeFormat.Long), OnTravelRequested))
+			.ToList();
 		Paths = connections.Where(x => x.Direction is not null).OrderBy(x => x.Direction).ToList();
 		Places = connections.Where(x => x.Direction is null).ToList();
 		Connections = [.. Paths, .. Places];
-		People = location.People.Where(x => !x.IsPlayer).Select(x => new LocationPersonViewModel(x, portraitRenderer)).ToList();
+		People = location.People.Where(x => !x.IsPlayer).Select(x => new LocationPersonViewModel(x, world.GameData.PortraitRenderer)).ToList();
 	}
 
 	public event EventHandler<GenericEventArgs<Location>>? TravelRequested;

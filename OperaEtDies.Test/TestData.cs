@@ -12,7 +12,7 @@ internal static class TestData
 	public static GameInfo CreateGameInfo() => new() { Title = "Title", Description = "Description" };
 
 	public static GameData CreateGameData(LayoutShape shape = LayoutShape.Radial, bool withFeatures = false) =>
-		new(CreateCharacterData(), CreateLocationList(shape, withFeatures), CreateProfessionList(), CreateFamilySettings());
+		new(CreateCharacterData(), CreateLocationList(shape, withFeatures), CreateProfessionList(), CreateFamilySettings(), CreateCalendarSettings());
 
 	/// <summary>
 	/// Creates the templates the engine requires.
@@ -238,7 +238,8 @@ internal static class TestData
 		},
 		CreateLocationList(),
 		CreateProfessionList(),
-		CreateFamilySettings());
+		CreateFamilySettings(),
+		CreateCalendarSettings());
 
 	/// <summary>
 	/// Creates a condition that one property has one of the given values.
@@ -265,13 +266,14 @@ internal static class TestData
 		FeatureCount = withFeatures ? new IntegerRange { Minimum = 2, Maximum = 2, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } } : null,
 		QuarterKinds =
 		[
-			new QuarterKind { Id = "square", Area = MapArea.Village, Unique = true, Path = "street" },
-			new QuarterKind { Id = "lane", Area = MapArea.Village, Path = "lane" },
-			new QuarterKind { Id = "landmark", Area = MapArea.Village, Path = "alley" },
-			new QuarterKind { Id = "fields", Area = MapArea.Outskirts, Path = "track" },
-			new QuarterKind { Id = "riverbank", Area = MapArea.Outskirts, Path = "towpath", Borders = "river" },
+			new QuarterKind { Id = "square", Area = MapArea.Village, Unique = true, Path = "street", TravelTime = 2 },
+			new QuarterKind { Id = "lane", Area = MapArea.Village, Path = "lane", TravelTime = 2 },
+			new QuarterKind { Id = "landmark", Area = MapArea.Village, Path = "alley", TravelTime = 2 },
+			new QuarterKind { Id = "fields", Area = MapArea.Outskirts, Path = "track", TravelTime = 5 },
+			new QuarterKind { Id = "riverbank", Area = MapArea.Outskirts, Path = "towpath", Borders = "river", TravelTime = 5 },
 		],
 		LandmarkCount = new IntegerRange { Minimum = 1, Maximum = 3, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } },
+		BuildingTravelTime = 1,
 		Layouts = [new TownLayoutChoice { Shape = shape, Center = "square" }],
 		HouseTitle = "The {lastName} Home",
 		Quarters =
@@ -343,6 +345,37 @@ internal static class TestData
 				Text = new Dictionary<string, string> { ["description"] = "infirm" },
 			},
 		],
+	};
+
+	/// <summary>
+	/// Creates a calendar of four seasons of three weeks of seven days, with four parts of the day (the last lasting past midnight) and one special day.
+	/// </summary>
+	public static CalendarSettings CreateCalendarSettings() => new()
+	{
+		Days = [.. Enumerable.Range(1, 7).Select(x => new CalendarDay { Id = $"day{x}", Title = $"Day {x}" })],
+		Weeks =
+		[
+			new CalendarWeek { Id = "early", Title = "Early" },
+			new CalendarWeek { Id = "mid", Title = "Mid" },
+			new CalendarWeek { Id = "late", Title = "Late" },
+		],
+		Seasons =
+		[
+			new CalendarSeason { Id = "spring", Title = "Spring" },
+			new CalendarSeason { Id = "summer", Title = "Summer" },
+			new CalendarSeason { Id = "autumn", Title = "Autumn" },
+			new CalendarSeason { Id = "winter", Title = "Winter" },
+		],
+		DayParts =
+		[
+			new CalendarDayPart { Id = "morning", Title = "Morning", Start = 6 },
+			new CalendarDayPart { Id = "afternoon", Title = "Afternoon", Start = 12 },
+			new CalendarDayPart { Id = "evening", Title = "Evening", Start = 18 },
+			new CalendarDayPart { Id = "night", Title = "Night", Start = 21 },
+		],
+		SpecialDays = [new CalendarSpecialDay { Id = "midsummer", Title = "Midsummer", Season = "summer", Week = "mid", Day = "day4" }],
+		StartYear = 1,
+		YearFormat = "year {year}",
 	};
 
 	public static FamilySettings CreateFamilySettings() => new()

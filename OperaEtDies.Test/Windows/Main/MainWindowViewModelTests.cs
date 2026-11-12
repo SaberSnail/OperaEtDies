@@ -61,6 +61,51 @@ public sealed class MainWindowViewModelTests
 	}
 
 	[Test]
+	public void WalkingBetweenQuartersTakesTime()
+	{
+		using var viewModel = CreateViewModel();
+		var world = viewModel.World;
+		var calendar = world.GameData.Calendar;
+		var start = world.Time;
+
+		// Stepping out of the house into its quarter takes a minute.
+		viewModel.TravelTo(world.Player.Home.Quarter!);
+		Assert.That(world.Time, Is.EqualTo(start + calendar.CreateTimeOffset(0, 0, 1)));
+		start = world.Time;
+
+		var quarter = world.Player.Location;
+		var next = quarter.Exits.First(x => x.Direction is not null).Location;
+		viewModel.TravelTo(next);
+
+		Assert.That(world.Time, Is.EqualTo(start + world.GetTravelTime(quarter, next)));
+		Assert.That(world.Time, Is.GreaterThan(start));
+		Assert.That(calendar.GetParts(world.Time - start).Minutes, Is.EqualTo(2).Or.EqualTo(5));
+	}
+
+	[Test]
+	public void ConnectionsShowHowLongTheyTake()
+	{
+		using var viewModel = CreateViewModel();
+		var world = viewModel.World;
+
+		// From the house, the only way out is into its quarter.
+		Assert.That(viewModel.CurrentLocation.Places.Select(x => x.TravelTime), Is.EqualTo(new[] { "1 minute" }));
+
+		viewModel.TravelTo(world.Player.Home.Quarter!);
+		var quarter = world.Player.Location;
+		Assert.Multiple(() =>
+		{
+			foreach (var path in viewModel.CurrentLocation.Paths)
+			{
+				var minutes = world.GameData.Calendar.GetParts(world.GetTravelTime(quarter, path.Location)).Minutes;
+				Assert.That(path.TravelTime, Is.EqualTo($"{minutes} minutes"));
+				Assert.That(path.TravelTimeText, Is.EqualTo($"({minutes} minutes)"));
+			}
+			Assert.That(viewModel.CurrentLocation.Places.Select(x => x.TravelTime), Is.All.EqualTo("1 minute"));
+		});
+	}
+
+	[Test]
 	public void LocationShowsPeopleInIt()
 	{
 		using var viewModel = CreateViewModel();
@@ -305,8 +350,11 @@ public sealed class MainWindowViewModelTests
 		viewModel.ShowMap();
 		var quarter = viewModel.Map!.Quarters.First(x => !x.IsCurrent);
 
+		var time = viewModel.World.Time;
+
 		quarter.Visit();
 
+		Assert.That(viewModel.World.Time, Is.EqualTo(time), "Developers' jumps take no time.");
 		Assert.That(viewModel.Map, Is.Null);
 		Assert.That(viewModel.World.Player.Location, Is.SameAs(quarter.Quarter));
 		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
@@ -328,6 +376,37 @@ public sealed class MainWindowViewModelTests
 
 		viewModel.Map!.Close();
 		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
+	}
+
+	[Test]
+	public void ShowsTheDateAndTimeAsTimePasses()
+	{
+		using var viewModel = CreateViewModel();
+		var world = viewModel.World;
+		var calendar = world.GameData.Calendar;
+		var changes = new List<string?>();
+		viewModel.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+		// Move to midsummer afternoon of the next year, which is always later than the start.
+		var midsummer = calendar.CreateTimePoint(calendar.StartYear + 1, 2, 2, 4, 13, 5);
+		world.AdvanceTime(midsummer - world.Time);
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(viewModel.Date, Is.EqualTo("Day 4, Mid Summer, year 2"));
+			Assert.That(viewModel.TimeOfDay, Is.EqualTo("Afternoon, 13:05"));
+			Assert.That(viewModel.SpecialDay, Is.EqualTo("Midsummer"));
+			Assert.That(changes, Is.SupersetOf(new[] { nameof(MainWindowViewModel.Date), nameof(MainWindowViewModel.TimeOfDay), nameof(MainWindowViewModel.SpecialDay) }));
+		});
+
+		world.AdvanceTime(calendar.CreateTimeOffset(1, 9, 0));
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(viewModel.Date, Is.EqualTo("Day 5, Mid Summer, year 2"));
+			Assert.That(viewModel.TimeOfDay, Is.EqualTo("Night, 22:05"));
+			Assert.That(viewModel.SpecialDay, Is.Null);
+		});
 	}
 
 	private static MainWindowViewModel CreateViewModel(int seed = 0, bool isDeveloper = false)

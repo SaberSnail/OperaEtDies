@@ -26,6 +26,11 @@ public sealed class LocationList : IValidatedData
 	public required IReadOnlyList<QuarterKind> QuarterKinds { get; init; }
 
 	/// <summary>
+	/// How many minutes it takes to go into or out of a house or business from its quarter.
+	/// </summary>
+	public required int BuildingTravelTime { get; init; }
+
+	/// <summary>
 	/// How many landmark quarters (quarters with no houses or businesses) the town has, including unique ones.
 	/// </summary>
 	public required IntegerRange LandmarkCount { get; init; }
@@ -70,6 +75,10 @@ public sealed class LocationList : IValidatedData
 		var kinds = quarterKinds.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
 		foreach (var kind in quarterKinds.Where(x => string.IsNullOrWhiteSpace(x.Path)))
 			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture($"quarterKinds[{kind.Id}].path"));
+		if (BuildingTravelTime < 0)
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("buildingTravelTime", BuildingTravelTime, 0));
+		foreach (var kind in quarterKinds.Where(x => x.TravelTime < 0))
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"quarterKinds[{kind.Id}].travelTime", kind.TravelTime, 0));
 
 		errors.AddRange(CharacterData.ValidateRange("landmarkCount", LandmarkCount));
 		if (LandmarkCount.Minimum < 0)

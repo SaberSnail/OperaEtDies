@@ -43,7 +43,7 @@ public sealed class NewGameViewModelTests
 				Templates = TestData.CreateTemplates("{a}", "{a}"),
 				Properties = [Property("style", TestData.Condition("length", "x")), Property("a"), Property("length"), Property("b")],
 			},
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
 
 		var viewModel = new NewGameViewModel(gameData, new Random(0));
 
@@ -306,7 +306,7 @@ public sealed class NewGameViewModelTests
 				Templates = TestData.CreateTemplates("{name}", "{name}"),
 				Properties = [new CharacterProperty { Id = "name", Title = "Name", Type = CharacterPropertyType.String }],
 			},
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
 		var viewModel = new NewGameViewModel(gameData, new Random(0));
 		var editor = (StringPropertyEditorViewModel) viewModel.Properties.Single();
 
@@ -467,7 +467,7 @@ public sealed class NewGameViewModelTests
 				new PortraitLayer { Id = "apron", When = TestData.Condition("atWork", "atWork"), Shapes = [new PortraitShape { Path = "M0,5 H10", Stroke = "#FFFFFF" }] },
 			],
 		};
-		var gameData = new GameData(TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), portraits: portraits);
+		var gameData = new GameData(TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings(), portraits: portraits);
 		var randomAtWork = new HashSet<string?>();
 
 		for (var seed = 0; seed < 20; seed++)
@@ -494,7 +494,7 @@ public sealed class NewGameViewModelTests
 			Height = 10,
 			Layers = [new PortraitLayer { Id = "face", Shapes = [new PortraitShape { Path = "M0,0 H10 V10 Z", Fill = "#FFFFFF" }] }],
 		};
-		var gameData = new GameData(TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), portraits: portraits);
+		var gameData = new GameData(TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings(), portraits: portraits);
 		var viewModel = new NewGameViewModel(gameData, new Random(0));
 		var portrait = viewModel.Portrait;
 		var changes = 0;
@@ -551,7 +551,7 @@ public sealed class NewGameViewModelTests
 		};
 		var gameData = new GameData(
 			new CharacterData { Templates = TestData.CreateTemplates("{sorted}", "{sorted}"), Properties = [Property("sorted", true), Property("unsorted", false)] },
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
 
 		var viewModel = new NewGameViewModel(gameData, new Random(0));
 
@@ -590,7 +590,7 @@ public sealed class NewGameViewModelTests
 					},
 				],
 			},
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
 	}
 
 	private static NewGameViewModel CreateViewModel() => new(TestData.CreateGameData(), new Random(0));
