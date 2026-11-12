@@ -14,10 +14,10 @@ public sealed class MainWindowViewModelTests
 	public void StartsAtHome()
 	{
 		using var viewModel = CreateViewModel();
-		var home = viewModel.GameState.Player.Home;
+		var home = viewModel.World.Player.Home;
 
 		Assert.That(viewModel.Title, Is.EqualTo("Title"));
-		Assert.That(viewModel.CurrentLocation.Location, Is.SameAs(viewModel.GameState.Player.Location));
+		Assert.That(viewModel.CurrentLocation.Location, Is.SameAs(viewModel.World.Player.Location));
 		Assert.That(viewModel.CurrentLocation.Location, Is.SameAs(home));
 		Assert.That(viewModel.CurrentLocation.Title, Is.EqualTo(home.Title));
 		Assert.That(viewModel.CurrentLocation.Description, Is.EqualTo(home.MediumDescription));
@@ -38,14 +38,14 @@ public sealed class MainWindowViewModelTests
 
 		Assert.That(location.IsExamined, Is.True);
 		Assert.That(location.CanExamine(), Is.False);
-		Assert.That(location.LongDescription, Is.EqualTo(viewModel.GameState.Player.Home.LongDescription));
+		Assert.That(location.LongDescription, Is.EqualTo(viewModel.World.Player.Home.LongDescription));
 	}
 
 	[Test]
 	public void TravelMovesPlayer()
 	{
 		using var viewModel = CreateViewModel();
-		var home = viewModel.GameState.Player.Home;
+		var home = viewModel.World.Player.Home;
 		var changed = new List<string?>();
 		viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 		viewModel.CurrentLocation.Examine();
@@ -53,7 +53,7 @@ public sealed class MainWindowViewModelTests
 		viewModel.CurrentLocation.Connections[0].Travel();
 
 		var quarter = home.Connections[0];
-		Assert.That(viewModel.GameState.Player.Location, Is.SameAs(quarter));
+		Assert.That(viewModel.World.Player.Location, Is.SameAs(quarter));
 		Assert.That(viewModel.CurrentLocation.Title, Is.EqualTo(quarter.Title));
 		Assert.That(viewModel.CurrentLocation.IsExamined, Is.False);
 		Assert.That(viewModel.CurrentLocation.Connections.Select(x => x.Location), Does.Contain(home));
@@ -64,7 +64,7 @@ public sealed class MainWindowViewModelTests
 	public void LocationShowsPeopleInIt()
 	{
 		using var viewModel = CreateViewModel();
-		var gameState = viewModel.GameState;
+		var gameState = viewModel.World;
 
 		foreach (var location in gameState.Locations)
 		{
@@ -80,8 +80,9 @@ public sealed class MainWindowViewModelTests
 	public void ExaminePersonShowsDescription()
 	{
 		var gameData = TestData.CreateGameData();
-		var person = new PersonViewModel(gameData, TestData.CreatePlayerTraits(gameData), new LocationViewModel("home", gameData.HouseTemplates[0]), isPlayer: false);
-		var viewModel = new LocationPersonViewModel(person);
+		var world = new TestWorld(gameData);
+		var person = world.AddPerson(TestData.CreatePlayerTraits(gameData), world.AddLocation(gameData.HouseTemplates[0]));
+		var viewModel = new LocationPersonViewModel(person, gameData.PortraitRenderer);
 
 		Assert.That(viewModel.Name, Is.EqualTo("John Smith"));
 		Assert.That(viewModel.Person, Is.SameAs(person));
@@ -113,7 +114,7 @@ public sealed class MainWindowViewModelTests
 		viewModel.ShowVillagers();
 
 		var villagers = viewModel.Villagers!;
-		var families = viewModel.GameState.Families.OrderBy(x => x.LastName, StringComparer.CurrentCulture).ToList();
+		var families = viewModel.World.Families.OrderBy(x => x.LastName, StringComparer.CurrentCulture).ToList();
 		Assert.That(viewModel.CurrentView, Is.SameAs(villagers));
 		Assert.That(changed, Is.EquivalentTo(new[] { nameof(MainWindowViewModel.Villagers), nameof(MainWindowViewModel.CurrentView) }));
 		// Families are sorted by last name.
@@ -188,7 +189,7 @@ public sealed class MainWindowViewModelTests
 		family.VisitHome();
 
 		Assert.That(viewModel.Villagers, Is.Null);
-		Assert.That(viewModel.GameState.Player.Location, Is.SameAs(family.Family.Home));
+		Assert.That(viewModel.World.Player.Location, Is.SameAs(family.Family.Home));
 		Assert.That(viewModel.CurrentLocation.Location, Is.SameAs(family.Family.Home));
 		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
 	}
@@ -197,7 +198,7 @@ public sealed class MainWindowViewModelTests
 	public void QuartersListPathsInCompassOrderAndPlacesSeparately()
 	{
 		using var viewModel = CreateViewModel();
-		var quarter = viewModel.GameState.Player.Home.Connections.Single();
+		var quarter = viewModel.World.Player.Home.Connections.Single();
 
 		viewModel.TravelTo(quarter);
 		var screen = viewModel.CurrentLocation;
@@ -212,13 +213,13 @@ public sealed class MainWindowViewModelTests
 			Assert.That(path.Route, Is.EqualTo($"{exit.Direction!.Value.GetTitle()} along the {exit.Path}"));
 		}
 
-		Assert.That(screen.Places.Select(x => x.Location), Does.Contain(viewModel.GameState.Player.Home));
+		Assert.That(screen.Places.Select(x => x.Location), Does.Contain(viewModel.World.Player.Home));
 		Assert.That(screen.Places.Select(x => x.Route), Has.All.Null);
 		Assert.That(screen.PlacesHeader, Is.EqualTo(OurResources.PlacesHeader));
 		Assert.That(screen.Connections, Is.EqualTo(screen.Paths.Concat(screen.Places)));
 
 		// A house only leads back to its quarter.
-		viewModel.TravelTo(viewModel.GameState.Player.Home);
+		viewModel.TravelTo(viewModel.World.Player.Home);
 		Assert.That(viewModel.CurrentLocation.HasPaths, Is.False);
 		Assert.That(viewModel.CurrentLocation.PlacesHeader, Is.EqualTo(OurResources.ConnectionsHeader));
 	}
@@ -228,7 +229,7 @@ public sealed class MainWindowViewModelTests
 	{
 		using var player = CreateViewModel();
 		using var developer = CreateViewModel(isDeveloper: true);
-		var home = player.GameState.Player.Home;
+		var home = player.World.Player.Home;
 
 		player.ShowMap();
 		developer.ShowMap();
@@ -244,14 +245,14 @@ public sealed class MainWindowViewModelTests
 		Assert.That(quarter.CanVisit(), Is.False);
 		quarter.Visit();
 		Assert.That(player.Map, Is.Not.Null);
-		Assert.That(player.GameState.Player.Location, Is.SameAs(home));
+		Assert.That(player.World.Player.Location, Is.SameAs(home));
 	}
 
 	[Test]
 	public void MiniMapShowsThePlayersQuarterAndItsNeighbors()
 	{
 		using var viewModel = CreateViewModel();
-		var home = viewModel.GameState.Player.Home;
+		var home = viewModel.World.Player.Home;
 		var quarter = home.Connections.Single();
 		var neighbors = quarter.Exits.Where(x => x.Direction is not null).Select(x => x.Location).ToList();
 
@@ -278,8 +279,8 @@ public sealed class MainWindowViewModelTests
 	public void MapShowsEveryQuarterAndMarksThePlayersQuarter()
 	{
 		using var viewModel = CreateViewModel(isDeveloper: true);
-		var quarters = viewModel.GameState.Locations.Where(x => x.Bounds is not null).ToList();
-		var home = viewModel.GameState.Player.Home;
+		var quarters = viewModel.World.Locations.Where(x => x.Bounds is not null).ToList();
+		var home = viewModel.World.Player.Home;
 
 		viewModel.ShowMap();
 		var map = viewModel.Map!;
@@ -307,7 +308,7 @@ public sealed class MainWindowViewModelTests
 		quarter.Visit();
 
 		Assert.That(viewModel.Map, Is.Null);
-		Assert.That(viewModel.GameState.Player.Location, Is.SameAs(quarter.Quarter));
+		Assert.That(viewModel.World.Player.Location, Is.SameAs(quarter.Quarter));
 		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
 	}
 
@@ -332,7 +333,7 @@ public sealed class MainWindowViewModelTests
 	private static MainWindowViewModel CreateViewModel(int seed = 0, bool isDeveloper = false)
 	{
 		var gameData = TestData.CreateGameData();
-		var gameState = GameStateViewModel.CreateNewGame(gameData, TestData.CreatePlayerTraits(gameData), new Random(seed));
-		return new MainWindowViewModel(TestData.CreateGameInfo().Title, gameState, isDeveloper);
+		var world = GameWorld.CreateNewGame(gameData, TestData.CreatePlayerTraits(gameData), new Random(seed));
+		return new MainWindowViewModel(TestData.CreateGameInfo().Title, world, isDeveloper);
 	}
 }

@@ -1,0 +1,120 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:local="clr-namespace:OperaEtDies.Controls.LoadGame"
+	xmlns:operaEtDies="clr-namespace:OperaEtDies"
+	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
+
+	<DataTemplate DataType="{x:Type local:LoadGameViewModel}">
+		<Grid>
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="*" />
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="Auto" />
+			</Grid.RowDefinitions>
+
+			<TextBlock
+				Grid.Row="0"
+				HorizontalAlignment="Center"
+				FontSize="{DynamicResource TitleFontSize}"
+				Text="{x:Static operaEtDies:OurResources.LoadGameHeader}" />
+
+			<!--  The saved games, newest first. A save is loaded by choosing it, and deleted with the button beside it.  -->
+			<ScrollViewer
+				Grid.Row="1"
+				Margin="0,16,0,16"
+				IsEnabled="{Binding IsConfirming, Converter={x:Static utility:CommonConverters.BooleanNot}}"
+				VerticalScrollBarVisibility="Auto">
+				<StackPanel>
+					<TextBlock
+						Foreground="{DynamicResource FontLightBrush}"
+						Text="{x:Static operaEtDies:OurResources.NoSavedGames}"
+						Visibility="{Binding HasSaves, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
+					<ItemsControl ItemsSource="{Binding Saves}">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate DataType="{x:Type local:SavedGameViewModel}">
+								<Grid Margin="0,0,0,8">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="Auto" />
+									</Grid.ColumnDefinitions>
+									<Button
+										Grid.Column="0"
+										Padding="8,4"
+										HorizontalContentAlignment="Left"
+										Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Load}">
+										<StackPanel>
+											<TextBlock Text="{Binding Title}" />
+											<TextBlock
+												FontSize="{DynamicResource SmallFontSize}"
+												Foreground="{DynamicResource FontLightBrush}"
+												Text="{Binding Details}"
+												TextWrapping="Wrap" />
+										</StackPanel>
+									</Button>
+									<Button
+										Grid.Column="1"
+										Width="80"
+										Margin="8,0,0,0"
+										Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Delete}"
+										Content="{x:Static operaEtDies:OurResources.DeleteSave}" />
+								</Grid>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+				</StackPanel>
+			</ScrollViewer>
+
+			<!--  Asks before loading a save made with different data or mods, or deleting a save, and shows why a save couldn't be loaded or deleted.  -->
+			<StackPanel Grid.Row="2" Margin="0,0,0,16">
+				<StackPanel Visibility="{Binding ConfirmingLoad, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
+					<TextBlock Text="{x:Static operaEtDies:OurResources.SaveDataChanged}" TextWrapping="Wrap" />
+					<StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+						<Button
+							Width="120"
+							Height="32"
+							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ConfirmLoad}"
+							Content="{x:Static operaEtDies:OurResources.LoadAnyway}" />
+						<Button
+							Width="120"
+							Height="32"
+							Margin="8,0,0,0"
+							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Cancel}"
+							Content="{x:Static operaEtDies:OurResources.Cancel}" />
+					</StackPanel>
+				</StackPanel>
+				<StackPanel Visibility="{Binding ConfirmingDelete, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
+					<TextBlock Text="{Binding DeleteConfirmation}" TextWrapping="Wrap" />
+					<StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+						<Button
+							Width="120"
+							Height="32"
+							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ConfirmDelete}"
+							Content="{x:Static operaEtDies:OurResources.DeleteSave}" />
+						<Button
+							Width="120"
+							Height="32"
+							Margin="8,0,0,0"
+							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Cancel}"
+							Content="{x:Static operaEtDies:OurResources.Cancel}" />
+					</StackPanel>
+				</StackPanel>
+				<TextBlock
+					Text="{Binding Error}"
+					TextWrapping="Wrap"
+					Visibility="{Binding HasError, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+			</StackPanel>
+
+			<Button
+				Grid.Row="3"
+				Width="120"
+				Height="32"
+				HorizontalAlignment="Left"
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Back}"
+				Content="{x:Static operaEtDies:OurResources.Back}"
+				IsCancel="True" />
+		</Grid>
+	</DataTemplate>
+
+</ResourceDictionary>

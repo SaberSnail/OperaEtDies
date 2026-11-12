@@ -38,10 +38,10 @@
 				<TextBlock
 					Width="204"
 					Margin="0,8,0,24"
-					Text="{Binding Player.FullName}"
+					Text="{Binding Player.Name}"
 					TextAlignment="Center"
 					TextTrimming="CharacterEllipsis"
-					ToolTip="{Binding Player.FullName}" />
+					ToolTip="{Binding Player.Name}" />
 
 				<Button
 					Width="120"
@@ -56,6 +56,21 @@
 					HorizontalAlignment="Left"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowMap}"
 					Content="{x:Static operaEtDies:OurResources.ViewMap}" />
+				<Button
+					Width="120"
+					Height="32"
+					Margin="0,8,0,0"
+					HorizontalAlignment="Left"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SaveGame}"
+					Content="{x:Static operaEtDies:OurResources.SaveGame}" />
+				<TextBlock
+					Width="204"
+					Margin="0,4,0,0"
+					FontSize="{DynamicResource SmallFontSize}"
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{Binding SaveStatus}"
+					TextWrapping="Wrap"
+					Visibility="{Binding SaveStatus, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 
 				<!--  The player's quarter and the quarters its paths lead to.  -->
 				<TextBlock

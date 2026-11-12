@@ -107,11 +107,18 @@ public sealed class AppModel : ViewModelBase
 
 		Log.Info($"Starting new game as {settings.Player.GetFullName(gameData.CharacterTemplates)}");
 
-		var gameState = GameStateViewModel.CreateNewGame(gameData, settings.Player, Random);
+		OpenGame(GameWorld.CreateNewGame(gameData, settings.Player, Random));
+	}
 
-		// Open the main window before closing the start up window, so there's always a window showing.
-		MainWindow = new MainWindowViewModel(gameInfo.Title, gameState, m_isDeveloper);
-		CloseStartUpWindow();
+	/// <summary>
+	/// Replaces the start up window with the main window, showing a loaded game.
+	/// </summary>
+	public void OpenLoadedGame(GameWorld world)
+	{
+		VerifyAccess();
+
+		Log.Info($"Opening loaded game as {world.Player.FullName}");
+		OpenGame(world);
 	}
 
 	/// <summary>
@@ -185,6 +192,7 @@ public sealed class AppModel : ViewModelBase
 		}
 
 		m_modListStore = modListStore;
+		m_saveSettings = gameInfoResult.Value is { } gameInfo ? SaveSettings.Create(gameInfo.Title, content.DataHash, content.ModsHash, content.ModDirectories) : null;
 	}
 
 	private IReadOnlyList<DataLoadError> GetLoadErrors() => [.. m_gameInfoResult.Errors, .. m_iconErrors, .. m_gameDataResult.Errors];
@@ -192,7 +200,7 @@ public sealed class AppModel : ViewModelBase
 	private async Task ReloadDataAsync(TaskStateController state)
 	{
 		await LoadDataAsync(state);
-		m_startUpWindow?.SetData(m_gameInfoResult.Value, m_gameDataResult.Value, GetLoadErrors(), m_modListStore);
+		m_startUpWindow?.SetData(m_gameInfoResult.Value, m_gameDataResult.Value, GetLoadErrors(), m_modListStore, m_saveSettings);
 	}
 
 	private void OpenStartUpWindow()
@@ -200,8 +208,9 @@ public sealed class AppModel : ViewModelBase
 		if (m_startUpWindow is not null)
 			return;
 
-		var startUpWindow = new StartUpWindowViewModel(m_gameInfoResult.Value, m_gameDataResult.Value, Random, GetLoadErrors(), m_modListStore, new FolderPicker(), m_areModsEnabled, m_isDeveloper);
+		var startUpWindow = new StartUpWindowViewModel(m_gameInfoResult.Value, m_gameDataResult.Value, Random, GetLoadErrors(), m_modListStore, new FolderPicker(), m_areModsEnabled, m_isDeveloper, m_saveSettings);
 		startUpWindow.StartNewGameRequested += OnStartNewGameRequested;
+		startUpWindow.GameLoaded += OnGameLoaded;
 		startUpWindow.ExitGameRequested += OnExitGameRequested;
 		startUpWindow.ReloadDataRequested += OnReloadDataRequested;
 		StartUpWindow = startUpWindow;
@@ -215,9 +224,17 @@ public sealed class AppModel : ViewModelBase
 
 		StartUpWindow = null;
 		startUpWindow.StartNewGameRequested -= OnStartNewGameRequested;
+		startUpWindow.GameLoaded -= OnGameLoaded;
 		startUpWindow.ExitGameRequested -= OnExitGameRequested;
 		startUpWindow.ReloadDataRequested -= OnReloadDataRequested;
 		startUpWindow.Dispose();
+	}
+
+	private void OpenGame(GameWorld world)
+	{
+		// Open the main window before closing the start up window, so there's always a window showing.
+		MainWindow = new MainWindowViewModel(m_gameInfoResult.Value?.Title ?? OurResources.EngineName, world, m_isDeveloper, m_saveSettings);
+		CloseStartUpWindow();
 	}
 
 	private void CloseMainWindow()
@@ -231,6 +248,8 @@ public sealed class AppModel : ViewModelBase
 	}
 
 	private void OnStartNewGameRequested(object? sender, GenericEventArgs<NewGameSettings> e) => StartNewGame(e.Value);
+
+	private void OnGameLoaded(object? sender, GenericEventArgs<GameWorld> e) => OpenLoadedGame(e.Value);
 
 	private void OnExitGameRequested(object? sender, EventArgs e) => ExitGame();
 
@@ -246,6 +265,7 @@ public sealed class AppModel : ViewModelBase
 	private ImageSource? m_icon;
 	private IReadOnlyList<DataLoadError> m_iconErrors = [];
 	private IModListStore? m_modListStore;
+	private SaveSettings? m_saveSettings;
 	private bool m_areModsEnabled = true;
 	private bool m_isDeveloper;
 	private Uri m_currentTheme;

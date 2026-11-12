@@ -56,7 +56,7 @@ internal sealed class FamilyGenerator
 	/// </summary>
 	public IReadOnlyList<Household> Households => m_households;
 
-	public IReadOnlyList<Business> Businesses => m_businesses;
+	public IReadOnlyList<TownBusiness> Businesses => m_businesses;
 
 	/// <summary>
 	/// Creates the player's household, with the player at its head. It's created like any other household, except
@@ -269,7 +269,7 @@ internal sealed class FamilyGenerator
 	/// Chooses the household business the character helps in: the head's if it has room for them and they're allowed to
 	/// help, or else the wife's. Returns null if neither will have them, or if they choose not to help.
 	/// </summary>
-	private Business? ChooseBusinessToHelp(Household household, CharacterRandomizer character)
+	private TownBusiness? ChooseBusinessToHelp(Household household, CharacterRandomizer character)
 	{
 		var business = household.Members
 			.Where(x => x.Role is FamilyRole.Head or FamilyRole.Wife && x.IsBusinessOwner)
@@ -465,7 +465,7 @@ internal sealed class FamilyGenerator
 	/// and adds them to the household, and to the business they help in, if any. Values are picked again a few times if
 	/// needed to avoid repeating someone else's full name.
 	/// </summary>
-	private TownPerson FinishCharacter(CharacterRandomizer character, Household household, FamilyRole role, string headRelationId, string lastName, Business? helped = null)
+	private TownPerson FinishCharacter(CharacterRandomizer character, Household household, FamilyRole role, string headRelationId, string lastName, TownBusiness? helped = null)
 	{
 		var properties = m_settings.Properties;
 		character[properties.LastName].Lock(lastName);
@@ -500,7 +500,7 @@ internal sealed class FamilyGenerator
 	private void StartBusiness(TownPerson owner, CharacterPropertyOption professionValue)
 	{
 		var profession = m_gameData.Professions.Get(professionValue.Id);
-		var business = new Business(profession, owner);
+		var business = new TownBusiness(profession, owner);
 		owner.Business = business;
 		m_businesses.Add(business);
 		m_businessCounts[profession.Id] = m_businessCounts.GetValueOrDefault(profession.Id) + 1;
@@ -558,7 +558,7 @@ internal sealed class FamilyGenerator
 	private readonly IReadOnlyList<(InheritedProperty Settings, CharacterProperty Property)> m_inheritedProperties;
 	private readonly IReadOnlyList<WeightedString> m_otherLastNames;
 	private readonly Collection<Household> m_households;
-	private readonly Collection<Business> m_businesses;
+	private readonly Collection<TownBusiness> m_businesses;
 	private readonly Dictionary<string, int> m_businessCounts;
 	private readonly HashSet<string> m_fullNames;
 	private readonly HashSet<string> m_lastNames;

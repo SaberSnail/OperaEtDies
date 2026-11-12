@@ -16,7 +16,7 @@ namespace OperaEtDies.Town;
 internal sealed class TownLayout
 {
 	public static (IReadOnlyList<TownLocation> Locations, LayoutShape Shape, IReadOnlyList<TownFeature> Features) Create(GameData gameData, Random random,
-		IReadOnlyList<Household> households, IReadOnlyList<Business> businesses, IReadOnlyList<MapFeature> features)
+		IReadOnlyList<Household> households, IReadOnlyList<TownBusiness> businesses, IReadOnlyList<MapFeature> features)
 	{
 		var layout = new TownLayout(gameData, random, features);
 		layout.AddUniqueQuarters();
@@ -97,7 +97,7 @@ internal sealed class TownLayout
 	/// go in a kind of quarter the town can have are used, if there are any. If no quarter can be added, such as when the
 	/// only kind allowed is unique, it goes in an allowed quarter even though it's full.
 	/// </summary>
-	private void PlaceBusiness(Business business)
+	private void PlaceBusiness(TownBusiness business)
 	{
 		var places = m_gameData.GetBusinessTemplates(business.Profession.Id);
 		var availablePlaces = places.Where(x => x.QuarterKinds.Any(kind => TownGenerator.IsKindAvailable(m_gameData, kind, m_featureIds))).ToList();

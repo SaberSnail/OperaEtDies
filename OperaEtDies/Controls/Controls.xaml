@@ -2,6 +2,7 @@
 
 	<!--  Data templates for view models that are shown inside windows.  -->
 	<ResourceDictionary.MergedDictionaries>
+		<ResourceDictionary Source="LoadGame/LoadGameView.xaml" />
 		<ResourceDictionary Source="Locations/LocationView.xaml" />
 		<ResourceDictionary Source="ManageMods/ManageModsView.xaml" />
 		<ResourceDictionary Source="Map/TownMapView.xaml" />

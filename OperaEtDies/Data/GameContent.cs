@@ -20,18 +20,37 @@ public sealed class GameContent
 			? DataLoadResult<GameData>.Failure(modFolderErrors)
 			: GameData.Load(dataDirectory, modDirectories, gameInfo.Value?.FrequencyChances);
 
-		return new GameContent(gameInfo, gameData);
+		var modsHash = modDirectories.Count == 0 ? "" : DataFolderHash.Compute(modDirectories);
+		return new GameContent(gameInfo, gameData, modDirectories, DataFolderHash.Compute([dataDirectory]), modsHash);
 	}
 
-	private GameContent(DataLoadResult<GameInfo> gameInfo, DataLoadResult<GameData> gameData)
+	private GameContent(DataLoadResult<GameInfo> gameInfo, DataLoadResult<GameData> gameData, IReadOnlyList<string> modDirectories, string dataHash, string modsHash)
 	{
 		GameInfoResult = gameInfo;
 		GameDataResult = gameData;
+		ModDirectories = modDirectories;
+		DataHash = dataHash;
+		ModsHash = modsHash;
 	}
 
 	public DataLoadResult<GameInfo> GameInfoResult { get; }
 
 	public DataLoadResult<GameData> GameDataResult { get; }
+
+	/// <summary>
+	/// The mod folders whose files were applied, in order.
+	/// </summary>
+	public IReadOnlyList<string> ModDirectories { get; }
+
+	/// <summary>
+	/// The hash of the data folder, saved with games to tell whether the data has changed.
+	/// </summary>
+	public string DataHash { get; }
+
+	/// <summary>
+	/// The hash of the mod folders, in order, saved with games to tell whether the mods have changed. Empty without mods.
+	/// </summary>
+	public string ModsHash { get; }
 
 	/// <summary>
 	/// The errors from loading both the game info and the game data.

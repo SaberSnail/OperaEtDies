@@ -1985,5 +1985,266 @@ namespace OperaEtDies {
                 return ResourceManager.GetString("PortraitScaleUnknown", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The save's next id is {0}, but it has an object with id {1}..
+        /// </summary>
+        public static string SaveNextIdInvalid {
+            get {
+                return ResourceManager.GetString("SaveNextIdInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The save has more than one object with id {0}, or an object with an invalid id..
+        /// </summary>
+        public static string SaveObjectDuplicate {
+            get {
+                return ResourceManager.GetString("SaveObjectDuplicate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The save refers to object {0}, but there's no object with that id in it..
+        /// </summary>
+        public static string SaveObjectNotFound {
+            get {
+                return ResourceManager.GetString("SaveObjectNotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Object {0} in the save refers back to itself through other objects..
+        /// </summary>
+        public static string SaveObjectCycle {
+            get {
+                return ResourceManager.GetString("SaveObjectCycle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Object {0} in the save is a {1}, but it's used as a {2}..
+        /// </summary>
+        public static string SaveObjectWrongKind {
+            get {
+                return ResourceManager.GetString("SaveObjectWrongKind", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The save refers to the {0} &quot;{1}&quot;, but the game data has no {0} with that id..
+        /// </summary>
+        public static string SaveDataNotFound {
+            get {
+                return ResourceManager.GetString("SaveDataNotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Person {0} has &quot;{1}&quot; for the character property &quot;{2}&quot;, which isn't a valid value..
+        /// </summary>
+        public static string SaveTraitValueInvalid {
+            get {
+                return ResourceManager.GetString("SaveTraitValueInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Family {0} in the save has no members..
+        /// </summary>
+        public static string SaveFamilyEmpty {
+            get {
+                return ResourceManager.GetString("SaveFamilyEmpty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Everyone in the save must be in exactly one family..
+        /// </summary>
+        public static string SaveFamiliesInvalid {
+            get {
+                return ResourceManager.GetString("SaveFamiliesInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No one in the save can own or help in more than one business..
+        /// </summary>
+        public static string SaveBusinessesInvalid {
+            get {
+                return ResourceManager.GetString("SaveBusinessesInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The save must have exactly one player..
+        /// </summary>
+        public static string SavePlayerInvalid {
+            get {
+                return ResourceManager.GetString("SavePlayerInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The save is format version {0}, but this version of the game can only load version {1}..
+        /// </summary>
+        public static string SaveVersionUnsupported {
+            get {
+                return ResourceManager.GetString("SaveVersionUnsupported", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The save is for &quot;{0}&quot;, not &quot;{1}&quot;..
+        /// </summary>
+        public static string SaveGameMismatch {
+            get {
+                return ResourceManager.GetString("SaveGameMismatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The save file couldn't be read: {0}.
+        /// </summary>
+        public static string SaveFileInvalid {
+            get {
+                return ResourceManager.GetString("SaveFileInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Load Game.
+        /// </summary>
+        public static string LoadGameHeader {
+            get {
+                return ResourceManager.GetString("LoadGameHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to There are no saved games..
+        /// </summary>
+        public static string NoSavedGames {
+            get {
+                return ResourceManager.GetString("NoSavedGames", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Saved {0}.
+        /// </summary>
+        public static string SavedGameTime {
+            get {
+                return ResourceManager.GetString("SavedGameTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The game data or mods have changed since this game was saved, so it might not load, or might not play as it did. Load it anyway?.
+        /// </summary>
+        public static string SaveDataChanged {
+            get {
+                return ResourceManager.GetString("SaveDataChanged", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Load Anyway.
+        /// </summary>
+        public static string LoadAnyway {
+            get {
+                return ResourceManager.GetString("LoadAnyway", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cancel.
+        /// </summary>
+        public static string Cancel {
+            get {
+                return ResourceManager.GetString("Cancel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save Game.
+        /// </summary>
+        public static string SaveGame {
+            get {
+                return ResourceManager.GetString("SaveGame", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Game saved..
+        /// </summary>
+        public static string GameSaved {
+            get {
+                return ResourceManager.GetString("GameSaved", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The game couldn't be saved: {0}.
+        /// </summary>
+        public static string GameSaveFailed {
+            get {
+                return ResourceManager.GetString("GameSaveFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete.
+        /// </summary>
+        public static string DeleteSave {
+            get {
+                return ResourceManager.GetString("DeleteSave", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete the save for {0} ({1})? This can't be undone..
+        /// </summary>
+        public static string DeleteSaveConfirmation {
+            get {
+                return ResourceManager.GetString("DeleteSaveConfirmation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The save couldn't be deleted: {0}.
+        /// </summary>
+        public static string DeleteSaveFailed {
+            get {
+                return ResourceManager.GetString("DeleteSaveFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Data {0}.
+        /// </summary>
+        public static string DataHashLabel {
+            get {
+                return ResourceManager.GetString("DataHashLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Mods {0}.
+        /// </summary>
+        public static string ModsHashLabel {
+            get {
+                return ResourceManager.GetString("ModsHashLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to With --generate-villages, save each village and load it again before writing it, to check that saving keeps everything..
+        /// </summary>
+        public static string CommandLineThroughSave {
+            get {
+                return ResourceManager.GetString("CommandLineThroughSave", resourceCulture);
+            }
+        }
     }
 }

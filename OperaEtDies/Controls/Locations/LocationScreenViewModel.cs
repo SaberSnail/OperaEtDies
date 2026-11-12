@@ -1,4 +1,5 @@
 using GoldenAnvil.Utility;
+using OperaEtDies.Characters;
 using OperaEtDies.GameState;
 
 namespace OperaEtDies.Controls.Locations;
@@ -8,22 +9,22 @@ namespace OperaEtDies.Controls.Locations;
 /// </summary>
 public sealed class LocationScreenViewModel : ViewModelBase
 {
-	public LocationScreenViewModel(LocationViewModel location)
+	public LocationScreenViewModel(Location location, PortraitRenderer? portraitRenderer = null)
 	{
 		Location = location;
 		var connections = location.Exits.Select(x => new LocationConnectionViewModel(x, OnTravelRequested)).ToList();
 		Paths = connections.Where(x => x.Direction is not null).OrderBy(x => x.Direction).ToList();
 		Places = connections.Where(x => x.Direction is null).ToList();
 		Connections = [.. Paths, .. Places];
-		People = location.People.Where(x => !x.IsPlayer).Select(x => new LocationPersonViewModel(x)).ToList();
+		People = location.People.Where(x => !x.IsPlayer).Select(x => new LocationPersonViewModel(x, portraitRenderer)).ToList();
 	}
 
-	public event EventHandler<GenericEventArgs<LocationViewModel>>? TravelRequested;
+	public event EventHandler<GenericEventArgs<Location>>? TravelRequested;
 
 	/// <summary>
 	/// The location being shown.
 	/// </summary>
-	public LocationViewModel Location { get; }
+	public Location Location { get; }
 
 	public string Title => Location.Title;
 
@@ -80,7 +81,7 @@ public sealed class LocationScreenViewModel : ViewModelBase
 		IsExamined = true;
 	}
 
-	private void OnTravelRequested(LocationViewModel location) => TravelRequested.Raise(this, new GenericEventArgs<LocationViewModel>(location));
+	private void OnTravelRequested(Location location) => TravelRequested.Raise(this, new GenericEventArgs<Location>(location));
 
 	private bool m_isExamined;
 }

@@ -11,6 +11,7 @@ OperaEtDies.exe accepts these options. Options are matched ignoring case, can co
 | `--seed <number>` | With `--generate-villages`, the random seed of the first village. |
 | `--portraits <folder>` | With `--generate-villages`, also saves each person's portrait to the folder as a PNG file. |
 | `--portraits-at-work` | With `--generate-villages`, draws everyone's portrait at work in their own workplace, instead of where they start the game. |
+| `--through-save` | With `--generate-villages`, saves each village and loads it again before writing it, to check that saving keeps everything. |
 
 If more than one is given, `--help` wins over `--generate-villages`, which wins over starting the game.
 
@@ -80,6 +81,10 @@ With `--generate-villages`, draws each person's portrait at its full size and sa
 
 With `--generate-villages`, draws everyone at work in their own workplace instead of where they start the game: in their business's place, or at home for those who work from home, with the at work property set to working. This shows each profession's portrait art. It changes the portraits saved by `--portraits` and the `portraitLayers` column of the `person` records, but not the other columns.
 
+## --through-save
+
+With `--generate-villages`, saves each village as a saved game would be (in memory, not to a file), loads it again, and writes the loaded village instead of the generated one. Everything a save keeps is written from the loaded village. The `wealth` and `fortune` columns of the `household` records and the `shape` column of the `village` record only exist while a village is generated, so they always come from the generated village. Saving and loading keep everything the report shows if the output is the same with and without this option. A village that fails to load is written as a `log` record with the reason, in place of its other records.
+
 ## Examples
 
 Each example generates 500 villages without mods, starting from seed 0, and saves them to `villages.tsv`.
@@ -127,6 +132,14 @@ OperaEtDies/bin/Debug/net9.0-windows/OperaEtDies.exe --no-mods --generate-villag
 
 ```bash
 OperaEtDies/bin/Debug/net9.0-windows/OperaEtDies.exe --no-mods --generate-villages 1 --seed 1234 --portraits portraits --portraits-at-work > village.tsv
+```
+
+**Checking saving and loading**, by comparing the report with and without `--through-save`:
+
+```bash
+OperaEtDies/bin/Debug/net9.0-windows/OperaEtDies.exe --no-mods --generate-villages 500 --seed 0 > villages.tsv
+OperaEtDies/bin/Debug/net9.0-windows/OperaEtDies.exe --no-mods --generate-villages 500 --seed 0 --through-save > saved.tsv
+cmp villages.tsv saved.tsv
 ```
 
 **Seeing the options** from PowerShell (in a message box if you leave off the pipe):

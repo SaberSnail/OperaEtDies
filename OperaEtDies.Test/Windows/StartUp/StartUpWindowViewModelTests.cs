@@ -1,6 +1,8 @@
+using System.IO;
 using GoldenAnvil.Utility;
 using OperaEtDies.Controls.NewGame;
 using OperaEtDies.Data;
+using OperaEtDies.GameState;
 using OperaEtDies.Test.Controls.ManageMods;
 using OperaEtDies.Windows.StartUp;
 
@@ -51,6 +53,39 @@ public sealed class StartUpWindowViewModelTests
 
 		Assert.That(viewModel.Title, Is.EqualTo("Title"));
 		Assert.That(viewModel.CanShowNewGame(), Is.False);
+	}
+
+	[Test]
+	public void LoadGameNeedsDataAndSaveSettings()
+	{
+		var settings = new SaveSettings("Title", "hash", "", [], Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()));
+		using var withoutSettings = CreateViewModel();
+		using var withoutData = new StartUpWindowViewModel(TestData.CreateGameInfo(), null, new Random(0), [], saveSettings: settings);
+		using var viewModel = new StartUpWindowViewModel(TestData.CreateGameInfo(), TestData.CreateGameData(), new Random(0), [], saveSettings: settings);
+
+		Assert.That(withoutSettings.HasHashes, Is.False);
+		Assert.That(viewModel.HasHashes, Is.True);
+		Assert.That(viewModel.DataHash, Is.EqualTo("hash"));
+		Assert.That(viewModel.DataHashText, Does.Contain("hash"));
+		Assert.That(viewModel.HasModsHash, Is.False);
+
+		using var withMods = new StartUpWindowViewModel(TestData.CreateGameInfo(), TestData.CreateGameData(), new Random(0), [], saveSettings: settings with { DataHash = "0123456789ABCDEF", ModsHash = "FEDCBA9876543210" });
+		Assert.That(withMods.DataHashText, Does.Contain("0123456789AB").And.Not.Contain("CDEF"));
+		Assert.That(withMods.ModsHashText, Does.Contain("FEDCBA987654").And.Not.Contain("3210"));
+		Assert.That(withMods.ModsHash, Is.EqualTo("FEDCBA9876543210"));
+		Assert.That(withMods.HasModsHash, Is.True);
+
+		Assert.That(withoutSettings.CanShowLoadGame(), Is.False);
+		Assert.That(withoutData.CanShowLoadGame(), Is.False);
+		Assert.That(viewModel.CanShowLoadGame(), Is.True);
+
+		viewModel.ShowLoadGame();
+		Assert.That(viewModel.LoadGame, Is.Not.Null);
+		Assert.That(viewModel.IsMenuVisible, Is.False);
+
+		viewModel.LoadGame!.Back();
+		Assert.That(viewModel.LoadGame, Is.Null);
+		Assert.That(viewModel.IsMenuVisible, Is.True);
 	}
 
 	[Test]

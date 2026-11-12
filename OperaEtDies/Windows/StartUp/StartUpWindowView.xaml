@@ -55,7 +55,7 @@
 				<Button
 					Height="32"
 					Margin="0,8,0,0"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=LoadGame}"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowLoadGame}"
 					Content="{x:Static operaEtDies:OurResources.LoadGame}" />
 				<Button
 					Height="32"
@@ -99,10 +99,31 @@
 					Foreground="{DynamicResource FontLightBrush}"
 					Text="{x:Static operaEtDies:OurResources.DeveloperMode}" />
 			</Border>
+
+			<!--  The start of the data hash, with the mods hash under it if mods are loaded, and the full hashes in their tool tips.  -->
+			<StackPanel
+				Grid.Row="3"
+				Margin="0,8,0,0"
+				HorizontalAlignment="Right"
+				VerticalAlignment="Bottom"
+				TextElement.FontSize="{DynamicResource SmallFontSize}"
+				TextElement.Foreground="{DynamicResource FontLightBrush}"
+				Visibility="{Binding HasHashes, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+				<TextBlock
+					HorizontalAlignment="Right"
+					Text="{Binding DataHashText}"
+					ToolTip="{Binding DataHash}" />
+				<TextBlock
+					HorizontalAlignment="Right"
+					Text="{Binding ModsHashText}"
+					ToolTip="{Binding ModsHash}"
+					Visibility="{Binding HasModsHash, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+			</StackPanel>
 		</Grid>
 
 		<ContentControl Content="{Binding NewGame}" Visibility="{Binding NewGame, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 		<ContentControl Content="{Binding ManageMods}" Visibility="{Binding ManageMods, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+		<ContentControl Content="{Binding LoadGame}" Visibility="{Binding LoadGame, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 	</Grid>
 
 </Window>

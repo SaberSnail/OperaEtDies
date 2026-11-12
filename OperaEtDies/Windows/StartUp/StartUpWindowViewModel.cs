@@ -2,9 +2,11 @@ using System.Windows.Input;
 using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
+using OperaEtDies.Controls.LoadGame;
 using OperaEtDies.Controls.ManageMods;
 using OperaEtDies.Controls.NewGame;
 using OperaEtDies.Data;
+using OperaEtDies.GameState;
 using OperaEtDies.Mods;
 
 namespace OperaEtDies.Windows.StartUp;
@@ -15,7 +17,7 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 	/// Creates the start up window. The mod list can only be managed if a store for it is given, which needs the game
 	/// info. Mods that are turned off are still listed, but aren't loaded.
 	/// </summary>
-	public StartUpWindowViewModel(GameInfo? gameInfo, GameData? gameData, Random random, IReadOnlyList<DataLoadError> loadErrors, IModListStore? modListStore = null, IFolderPicker? folderPicker = null, bool areModsEnabled = true, bool isDeveloper = false)
+	public StartUpWindowViewModel(GameInfo? gameInfo, GameData? gameData, Random random, IReadOnlyList<DataLoadError> loadErrors, IModListStore? modListStore = null, IFolderPicker? folderPicker = null, bool areModsEnabled = true, bool isDeveloper = false, SaveSettings? saveSettings = null)
 	{
 		IsDeveloper = isDeveloper;
 		m_taskGroup = new TaskGroup();
@@ -25,7 +27,7 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 		m_title = "";
 		m_description = "";
 		m_loadErrors = [];
-		ApplyData(gameInfo, gameData, loadErrors, modListStore);
+		ApplyData(gameInfo, gameData, loadErrors, modListStore, saveSettings);
 	}
 
 	/// <summary>
@@ -34,6 +36,11 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 	public bool IsDeveloper { get; }
 
 	public event EventHandler<GenericEventArgs<NewGameSettings>>? StartNewGameRequested;
+
+	/// <summary>
+	/// Raised when a saved game has been loaded, with its world.
+	/// </summary>
+	public event EventHandler<GenericEventArgs<GameWorld>>? GameLoaded;
 
 	public event EventHandler? ExitGameRequested;
 
@@ -103,17 +110,60 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
+	/// The list of saved games being shown in place of the start up menu, or null if it isn't showing.
+	/// </summary>
+	public LoadGameViewModel? LoadGame
+	{
+		get => VerifyAccess(m_loadGame);
+		private set
+		{
+			if (SetPropertyField(value, ref m_loadGame))
+				RaisePropertyChanged(nameof(IsMenuVisible));
+		}
+	}
+
+	/// <summary>
 	/// Whether the start up menu is showing, rather than another screen.
 	/// </summary>
-	public bool IsMenuVisible => NewGame is null && ManageMods is null;
+	public bool IsMenuVisible => NewGame is null && ManageMods is null && LoadGame is null;
+
+	/// <summary>
+	/// Whether the hashes of the data and mods are known, which they are once the game info has loaded.
+	/// </summary>
+	public bool HasHashes => m_saveSettings is not null;
+
+	/// <summary>
+	/// The hash of the data files, saved with games to tell whether the data has changed.
+	/// </summary>
+	public string DataHash => m_saveSettings?.DataHash ?? "";
+
+	/// <summary>
+	/// The start of the data hash, for showing in small text.
+	/// </summary>
+	public string DataHashText => OurResources.DataHashLabel.FormatCurrentCulture(ShortenHash(DataHash));
+
+	/// <summary>
+	/// The hash of the mod files, saved with games to tell whether the mods have changed. Empty without mods.
+	/// </summary>
+	public string ModsHash => m_saveSettings?.ModsHash ?? "";
+
+	/// <summary>
+	/// The start of the mods hash, for showing in small text.
+	/// </summary>
+	public string ModsHashText => OurResources.ModsHashLabel.FormatCurrentCulture(ShortenHash(ModsHash));
+
+	/// <summary>
+	/// Whether any mods are loaded, so there's a mods hash to show.
+	/// </summary>
+	public bool HasModsHash => ModsHash.Length != 0;
 
 	/// <summary>
 	/// Shows the newly loaded game data, after <see cref="ReloadDataRequested"/>.
 	/// </summary>
-	public void SetData(GameInfo? gameInfo, GameData? gameData, IReadOnlyList<DataLoadError> loadErrors, IModListStore? modListStore)
+	public void SetData(GameInfo? gameInfo, GameData? gameData, IReadOnlyList<DataLoadError> loadErrors, IModListStore? modListStore, SaveSettings? saveSettings = null)
 	{
 		VerifyAccess();
-		ApplyData(gameInfo, gameData, loadErrors, modListStore);
+		ApplyData(gameInfo, gameData, loadErrors, modListStore, saveSettings);
 		IsLoading = false;
 
 		// Commands only check whether they can run after input, so make sure they see the new data.
@@ -135,15 +185,19 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 		NewGame = newGame;
 	}
 
-	// Saving and loading aren't implemented yet.
-	// MethodToCommandConverter only finds instance methods, so this can't be static.
-#pragma warning disable CA1822 // Mark members as static
-	public bool CanLoadGame() => false;
-#pragma warning restore CA1822 // Mark members as static
+	// Games can't be loaded without the game data, or without knowing where saves are kept.
+	public bool CanShowLoadGame() => m_gameData is not null && m_saveSettings is not null && !m_isLoading;
 
-	public void LoadGame()
+	public void ShowLoadGame()
 	{
 		VerifyAccess();
+		if (!CanShowLoadGame() || !IsMenuVisible)
+			return;
+
+		var loadGame = new LoadGameViewModel(m_gameData!, m_saveSettings!, m_random);
+		loadGame.GameLoaded += OnGameLoaded;
+		loadGame.BackRequested += OnLoadGameBackRequested;
+		LoadGame = loadGame;
 	}
 
 	// The mod list is kept under the game's title, so it can't be managed without the game info.
@@ -170,11 +224,14 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 	{
 		CloseNewGame();
 		CloseManageMods();
+		CloseLoadGame();
 		DisposableUtility.Dispose(ref m_taskGroup);
 	}
 
-	private void ApplyData(GameInfo? gameInfo, GameData? gameData, IReadOnlyList<DataLoadError> loadErrors, IModListStore? modListStore)
+	private void ApplyData(GameInfo? gameInfo, GameData? gameData, IReadOnlyList<DataLoadError> loadErrors, IModListStore? modListStore, SaveSettings? saveSettings)
 	{
+		using (ScopedPropertyChange(nameof(DataHash), nameof(DataHashText), nameof(ModsHash), nameof(ModsHashText), nameof(HasModsHash), nameof(HasHashes)))
+			m_saveSettings = saveSettings;
 		m_gameInfo = gameInfo;
 		m_gameData = gameData;
 		m_modListStore = modListStore;
@@ -192,6 +249,17 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 		NewGame = null;
 		newGame.StartGameRequested -= OnStartGameRequested;
 		newGame.BackRequested -= OnNewGameBackRequested;
+	}
+
+	private void CloseLoadGame()
+	{
+		var loadGame = m_loadGame;
+		if (loadGame is null)
+			return;
+
+		LoadGame = null;
+		loadGame.GameLoaded -= OnGameLoaded;
+		loadGame.BackRequested -= OnLoadGameBackRequested;
 	}
 
 	private void CloseManageMods()
@@ -212,6 +280,10 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 
 	private void OnNewGameBackRequested(object? sender, EventArgs e) => CloseNewGame();
 
+	private void OnGameLoaded(object? sender, GenericEventArgs<GameWorld> e) => GameLoaded.Raise(this, e);
+
+	private void OnLoadGameBackRequested(object? sender, EventArgs e) => CloseLoadGame();
+
 	// Returning from the mod list loads the game data again, with the mods as they are now.
 	private void OnManageModsBackRequested(object? sender, EventArgs e)
 	{
@@ -221,6 +293,10 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 		ReloadDataRequested.Raise(this);
 	}
 
+	private static string ShortenHash(string hash) => hash.Length > ShortHashLength ? hash[..ShortHashLength] : hash;
+
+	private const int ShortHashLength = 12;
+
 	private static ILogSource Log { get; } = LogManager.CreateLogSource(nameof(StartUpWindowViewModel));
 
 	private readonly Random m_random;
@@ -229,11 +305,13 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 	private GameInfo? m_gameInfo;
 	private GameData? m_gameData;
 	private IModListStore? m_modListStore;
+	private SaveSettings? m_saveSettings;
 	private string m_title;
 	private string m_description;
 	private IReadOnlyList<string> m_loadErrors;
 	private bool m_isLoading;
 	private NewGameViewModel? m_newGame;
 	private ManageModsViewModel? m_manageMods;
+	private LoadGameViewModel? m_loadGame;
 	private TaskGroup m_taskGroup;
 }

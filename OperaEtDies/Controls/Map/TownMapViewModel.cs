@@ -25,7 +25,7 @@ public sealed class TownMapViewModel : ViewModelBase
 	/// <summary>
 	/// Creates a map of every quarter in the town. Choosing a quarter goes there, if travel is allowed.
 	/// </summary>
-	public TownMapViewModel(IEnumerable<LocationViewModel> locations, LocationViewModel current, IEnumerable<TownFeature>? features = null, bool canTravel = false)
+	public TownMapViewModel(IEnumerable<Location> locations, Location current, IEnumerable<Feature>? features = null, bool canTravel = false)
 		: this(locations.Where(x => x.Bounds is not null).ToList(), current, features, canTravel, DefaultCellSize, clip: null)
 	{
 	}
@@ -35,16 +35,16 @@ public sealed class TownMapViewModel : ViewModelBase
 	/// its paths lead to, scaled to fit within the given size. Features are only shown where they're among those
 	/// quarters.
 	/// </summary>
-	public static TownMapViewModel CreateMiniMap(LocationViewModel current, IEnumerable<TownFeature>? features, double maxSize)
+	public static TownMapViewModel CreateMiniMap(Location current, IEnumerable<Feature>? features, double maxSize)
 	{
 		var quarter = GetQuarter(current);
-		var quarters = quarter is null ? new List<LocationViewModel>() : new[] { quarter }.Concat(quarter.Exits.Where(x => x.Direction is not null).Select(x => x.Location)).Where(x => x.Bounds is not null).Distinct().ToList();
+		var quarters = quarter is null ? new List<Location>() : new[] { quarter }.Concat(quarter.Exits.Where(x => x.Direction is not null).Select(x => x.Location)).Where(x => x.Bounds is not null).Distinct().ToList();
 		var clip = GetBounds(quarters.Select(x => x.Bounds!.Value).ToList());
 		var cellSize = clip is { } area ? Math.Min(MaxMiniMapCellSize, maxSize / Math.Max(area.Width, area.Height)) : MaxMiniMapCellSize;
 		return new TownMapViewModel(quarters, current, features, canTravel: false, cellSize, clip);
 	}
 
-	private TownMapViewModel(IReadOnlyList<LocationViewModel> quarters, LocationViewModel current, IEnumerable<TownFeature>? features, bool canTravel, double cellSize, MapRect? clip)
+	private TownMapViewModel(IReadOnlyList<Location> quarters, Location current, IEnumerable<Feature>? features, bool canTravel, double cellSize, MapRect? clip)
 	{
 		CanTravel = canTravel;
 		CellSize = cellSize;
@@ -96,7 +96,7 @@ public sealed class TownMapViewModel : ViewModelBase
 	/// <summary>
 	/// Raised when a quarter on the map is chosen, to go there. Only raised if travel is allowed.
 	/// </summary>
-	public event EventHandler<GenericEventArgs<LocationViewModel>>? TravelRequested;
+	public event EventHandler<GenericEventArgs<Location>>? TravelRequested;
 
 	public IReadOnlyList<TownMapQuarterViewModel> Quarters { get; }
 
@@ -133,7 +133,7 @@ public sealed class TownMapViewModel : ViewModelBase
 	/// <summary>
 	/// Gets the quarter a location is, or is in.
 	/// </summary>
-	private static LocationViewModel? GetQuarter(LocationViewModel location) =>
+	private static Location? GetQuarter(Location location) =>
 		location.Bounds is not null ? location : location.Connections.FirstOrDefault(x => x.Bounds is not null);
 
 	/// <summary>
@@ -164,10 +164,10 @@ public sealed class TownMapViewModel : ViewModelBase
 		return right > x && bottom > y ? new MapRect(x, y, right - x, bottom - y) : null;
 	}
 
-	private void VisitQuarter(LocationViewModel quarter)
+	private void VisitQuarter(Location quarter)
 	{
 		if (CanTravel)
-			TravelRequested.Raise(this, new GenericEventArgs<LocationViewModel>(quarter));
+			TravelRequested.Raise(this, new GenericEventArgs<Location>(quarter));
 	}
 }
 
@@ -176,7 +176,7 @@ public sealed class TownMapViewModel : ViewModelBase
 /// </summary>
 public sealed class TownMapQuarterViewModel : ViewModelBase
 {
-	public TownMapQuarterViewModel(LocationViewModel quarter, int minX, int minY, double cellSize, bool isCurrent, bool canTravel, Action<LocationViewModel> visit)
+	public TownMapQuarterViewModel(Location quarter, int minX, int minY, double cellSize, bool isCurrent, bool canTravel, Action<Location> visit)
 	{
 		Quarter = quarter;
 		var bounds = quarter.Bounds!.Value;
@@ -190,7 +190,7 @@ public sealed class TownMapQuarterViewModel : ViewModelBase
 		m_visit = visit;
 	}
 
-	public LocationViewModel Quarter { get; }
+	public Location Quarter { get; }
 
 	public string Title => Quarter.Title;
 
@@ -235,7 +235,7 @@ public sealed class TownMapQuarterViewModel : ViewModelBase
 	}
 
 	private readonly bool m_canTravel;
-	private readonly Action<LocationViewModel> m_visit;
+	private readonly Action<Location> m_visit;
 }
 
 /// <summary>
@@ -243,10 +243,10 @@ public sealed class TownMapQuarterViewModel : ViewModelBase
 /// </summary>
 public sealed class TownMapFeatureViewModel
 {
-	public TownMapFeatureViewModel(TownFeature feature, MapRect bounds, int minX, int minY, double cellSize)
+	public TownMapFeatureViewModel(Feature feature, MapRect bounds, int minX, int minY, double cellSize)
 	{
-		Title = feature.Feature.Title;
-		IsRiver = feature.Feature.Type == MapFeatureType.River;
+		Title = feature.Title;
+		IsRiver = feature.Template.Type == MapFeatureType.River;
 		Left = (bounds.X - minX) * cellSize;
 		Top = (bounds.Y - minY) * cellSize;
 		Width = bounds.Width * cellSize;

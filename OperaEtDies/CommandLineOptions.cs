@@ -60,6 +60,7 @@ public sealed class CommandLineOptions
 			($"{VillageReport.SeedArgument} <number>", OurResources.CommandLineSeed),
 			($"{VillageReport.PortraitsArgument} <folder>", OurResources.CommandLinePortraits),
 			(VillageReport.PortraitsAtWorkArgument, OurResources.CommandLinePortraitsAtWork),
+			(VillageReport.ThroughSaveArgument, OurResources.CommandLineThroughSave),
 		];
 
 		var width = options.Max(x => x.Option.Length) + 2;

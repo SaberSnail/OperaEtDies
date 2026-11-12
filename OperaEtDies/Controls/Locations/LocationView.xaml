@@ -46,9 +46,9 @@
 					Margin="0,0,12,0"
 					VerticalAlignment="Top"
 					DockPanel.Dock="Left"
-					Source="{Binding Person.Portrait}"
+					Source="{Binding Portrait}"
 					Stretch="Uniform"
-					Visibility="{Binding Person.Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+					Visibility="{Binding Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 				<TextBlock
 					Foreground="{DynamicResource FontLightBrush}"
 					Text="{Binding Person.Description}"

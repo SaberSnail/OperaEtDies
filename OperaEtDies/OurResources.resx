@@ -851,4 +851,109 @@
 		<value>&quot;{0}&quot; is &quot;{1}&quot;, but it isn&apos;t the id of a portrait scale.</value>
 		<comment>{0} is the path to the portrait layer's or shape's scale, {1} is the scale id.</comment>
 	</data>
+	<data name="SaveNextIdInvalid" xml:space="preserve">
+		<value>The save&apos;s next id is {0}, but it has an object with id {1}.</value>
+		<comment>{0} is the save's next id, {1} is the object's id.</comment>
+	</data>
+	<data name="SaveObjectDuplicate" xml:space="preserve">
+		<value>The save has more than one object with id {0}, or an object with an invalid id.</value>
+		<comment>{0} is the object's id.</comment>
+	</data>
+	<data name="SaveObjectNotFound" xml:space="preserve">
+		<value>The save refers to object {0}, but there&apos;s no object with that id in it.</value>
+		<comment>{0} is the object's id.</comment>
+	</data>
+	<data name="SaveObjectCycle" xml:space="preserve">
+		<value>Object {0} in the save refers back to itself through other objects.</value>
+		<comment>{0} is the object's id.</comment>
+	</data>
+	<data name="SaveObjectWrongKind" xml:space="preserve">
+		<value>Object {0} in the save is a {1}, but it&apos;s used as a {2}.</value>
+		<comment>{0} is the object's id, {1} is the kind of object it is, {2} is the kind it's used as.</comment>
+	</data>
+	<data name="SaveDataNotFound" xml:space="preserve">
+		<value>The save refers to the {0} &quot;{1}&quot;, but the game data has no {0} with that id.</value>
+		<comment>{0} is the kind of data, such as profession, {1} is the id.</comment>
+	</data>
+	<data name="SaveTraitValueInvalid" xml:space="preserve">
+		<value>Person {0} has &quot;{1}&quot; for the character property &quot;{2}&quot;, which isn&apos;t a valid value.</value>
+		<comment>{0} is the person's id, {1} is the saved value, {2} is the property id.</comment>
+	</data>
+	<data name="SaveFamilyEmpty" xml:space="preserve">
+		<value>Family {0} in the save has no members.</value>
+		<comment>{0} is the family's id.</comment>
+	</data>
+	<data name="SaveFamiliesInvalid" xml:space="preserve">
+		<value>Everyone in the save must be in exactly one family.</value>
+	</data>
+	<data name="SaveBusinessesInvalid" xml:space="preserve">
+		<value>No one in the save can own or help in more than one business.</value>
+	</data>
+	<data name="SavePlayerInvalid" xml:space="preserve">
+		<value>The save must have exactly one player.</value>
+	</data>
+	<data name="SaveVersionUnsupported" xml:space="preserve">
+		<value>The save is format version {0}, but this version of the game can only load version {1}.</value>
+		<comment>{0} is the save's version, {1} is the version the game reads.</comment>
+	</data>
+	<data name="SaveGameMismatch" xml:space="preserve">
+		<value>The save is for &quot;{0}&quot;, not &quot;{1}&quot;.</value>
+		<comment>{0} is the save's game title, {1} is the loaded game's title.</comment>
+	</data>
+	<data name="SaveFileInvalid" xml:space="preserve">
+		<value>The save file couldn&apos;t be read: {0}</value>
+		<comment>{0} is the reason.</comment>
+	</data>
+	<data name="LoadGameHeader" xml:space="preserve">
+		<value>Load Game</value>
+	</data>
+	<data name="NoSavedGames" xml:space="preserve">
+		<value>There are no saved games.</value>
+	</data>
+	<data name="SavedGameTime" xml:space="preserve">
+		<value>Saved {0}</value>
+		<comment>{0} is the date and time the game was saved.</comment>
+	</data>
+	<data name="SaveDataChanged" xml:space="preserve">
+		<value>The game data or mods have changed since this game was saved, so it might not load, or might not play as it did. Load it anyway?</value>
+	</data>
+	<data name="LoadAnyway" xml:space="preserve">
+		<value>Load Anyway</value>
+	</data>
+	<data name="Cancel" xml:space="preserve">
+		<value>Cancel</value>
+	</data>
+	<data name="SaveGame" xml:space="preserve">
+		<value>Save Game</value>
+	</data>
+	<data name="GameSaved" xml:space="preserve">
+		<value>Game saved.</value>
+	</data>
+	<data name="GameSaveFailed" xml:space="preserve">
+		<value>The game couldn&apos;t be saved: {0}</value>
+		<comment>{0} is the reason.</comment>
+	</data>
+	<data name="DeleteSave" xml:space="preserve">
+		<value>Delete</value>
+	</data>
+	<data name="DeleteSaveConfirmation" xml:space="preserve">
+		<value>Delete the save for {0} ({1})? This can&apos;t be undone.</value>
+		<comment>{0} is the player's name, {1} is when it was saved.</comment>
+	</data>
+	<data name="DeleteSaveFailed" xml:space="preserve">
+		<value>The save couldn&apos;t be deleted: {0}</value>
+		<comment>{0} is the reason.</comment>
+	</data>
+	<data name="DataHashLabel" xml:space="preserve">
+		<value>Data {0}</value>
+		<comment>{0} is the start of the hash of the data files.</comment>
+	</data>
+	<data name="ModsHashLabel" xml:space="preserve">
+		<value>Mods {0}</value>
+		<comment>{0} is the start of the hash of the mod files.</comment>
+	</data>
+	<data name="CommandLineThroughSave" xml:space="preserve">
+		<value>With --generate-villages, save each village and load it again before writing it, to check that saving keeps everything.</value>
+		<comment>Explains the --through-save command line option.</comment>
+	</data>
 </root>

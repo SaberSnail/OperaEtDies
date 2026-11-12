@@ -1,3 +1,4 @@
+using System.IO;
 using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
@@ -10,14 +11,16 @@ namespace OperaEtDies.Windows.Main;
 
 public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 {
-	public MainWindowViewModel(string title, GameStateViewModel gameState, bool isDeveloper = false)
+	public MainWindowViewModel(string title, GameWorld world, bool isDeveloper = false, SaveSettings? saveSettings = null)
 	{
+		m_saveSettings = saveSettings;
 		m_taskGroup = new TaskGroup();
 		Title = title;
 		IsDeveloper = isDeveloper;
-		GameState = gameState;
-		m_currentLocation = CreateLocationScreen(gameState.Player.Location);
-		m_miniMap = CreateMiniMap(gameState.Player.Location);
+		World = world;
+		Player = new LocationPersonViewModel(world.Player, world.GameData.PortraitRenderer);
+		m_currentLocation = CreateLocationScreen(world.Player.Location);
+		m_miniMap = CreateMiniMap(world.Player.Location);
 	}
 
 	public string Title { get; }
@@ -30,12 +33,12 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	/// <summary>
 	/// The state of the game world.
 	/// </summary>
-	public GameStateViewModel GameState { get; }
+	public GameWorld World { get; }
 
 	/// <summary>
 	/// The player's character, shown at the top of the sidebar.
 	/// </summary>
-	public PersonViewModel Player => GameState.Player;
+	public LocationPersonViewModel Player { get; }
 
 	/// <summary>
 	/// The screen showing the location the player is in.
@@ -88,7 +91,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		CloseMap();
 		if (m_villagers is null)
 		{
-			var villagers = new VillagersViewModel(GameState.Families, IsDeveloper);
+			var villagers = new VillagersViewModel(World.Families, IsDeveloper, World.GameData.PortraitRenderer);
 			villagers.CloseRequested += OnVillagersCloseRequested;
 			villagers.TravelRequested += OnVillagersTravelRequested;
 			Villagers = villagers;
@@ -118,7 +121,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		if (m_map is null)
 		{
 			CloseVillagers();
-			var map = new TownMapViewModel(GameState.Locations, GameState.Player.Location, GameState.Town.Features, canTravel: IsDeveloper);
+			var map = new TownMapViewModel(World.Locations, World.Player.Location, World.Features, canTravel: IsDeveloper);
 			map.CloseRequested += OnMapCloseRequested;
 			map.TravelRequested += OnMapTravelRequested;
 			Map = map;
@@ -140,15 +143,52 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Moves the player to the given location.
+	/// Whether the last save worked, or null if the game hasn't been saved since the window opened.
 	/// </summary>
-	public void TravelTo(LocationViewModel location)
+	public string? SaveStatus
+	{
+		get => VerifyAccess(m_saveStatus);
+		private set => SetPropertyField(value, ref m_saveStatus);
+	}
+
+	// Games can't be saved without knowing where saves are kept.
+	public bool CanSaveGame() => m_saveSettings is not null;
+
+	/// <summary>
+	/// Saves the game to a new file in the save folder.
+	/// </summary>
+	public void SaveGame()
 	{
 		VerifyAccess();
-		var player = GameState.Player;
-		Log.Info($"Traveling from {player.Location.Id} to {location.Id}");
+		if (m_saveSettings is { } settings)
+		{
+			var save = SaveFile.Create(World, settings, DateTimeOffset.Now);
+			var filePath = Path.Combine(settings.Directory, save.GetFileName());
+			try
+			{
+				save.Write(filePath);
+				Log.Info($"Saved the game to {filePath}");
+				SaveStatus = OurResources.GameSaved;
+			}
+			catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+			{
+				Log.Error($"Couldn't save the game to {filePath}: {e.Message}");
+				SaveStatus = OurResources.GameSaveFailed.FormatCurrentCulture(e.Message);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Moves the player to the given location.
+	/// </summary>
+	public void TravelTo(Location location)
+	{
+		VerifyAccess();
+		var player = World.Player;
+		Log.Info($"Traveling from {player.Location.Title} ({player.Location.Id}) to {location.Title} ({location.Id})");
 
 		player.Location = location;
+		SaveStatus = null;
 		m_currentLocation.TravelRequested -= OnTravelRequested;
 		CurrentLocation = CreateLocationScreen(location);
 		MiniMap = CreateMiniMap(location);
@@ -170,20 +210,20 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		DisposableUtility.Dispose(ref m_taskGroup);
 	}
 
-	private LocationScreenViewModel CreateLocationScreen(LocationViewModel location)
+	private LocationScreenViewModel CreateLocationScreen(Location location)
 	{
-		var viewModel = new LocationScreenViewModel(location);
+		var viewModel = new LocationScreenViewModel(location, World.GameData.PortraitRenderer);
 		viewModel.TravelRequested += OnTravelRequested;
 		return viewModel;
 	}
 
-	private TownMapViewModel CreateMiniMap(LocationViewModel location) => TownMapViewModel.CreateMiniMap(location, GameState.Town.Features, MiniMapSize);
+	private TownMapViewModel CreateMiniMap(Location location) => TownMapViewModel.CreateMiniMap(location, World.Features, MiniMapSize);
 
-	private void OnTravelRequested(object? sender, GenericEventArgs<LocationViewModel> e) => TravelTo(e.Value);
+	private void OnTravelRequested(object? sender, GenericEventArgs<Location> e) => TravelTo(e.Value);
 
 	private void OnVillagersCloseRequested(object? sender, EventArgs e) => CloseVillagers();
 
-	private void OnVillagersTravelRequested(object? sender, GenericEventArgs<LocationViewModel> e)
+	private void OnVillagersTravelRequested(object? sender, GenericEventArgs<Location> e)
 	{
 		CloseVillagers();
 		TravelTo(e.Value);
@@ -191,7 +231,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
 	private void OnMapCloseRequested(object? sender, EventArgs e) => CloseMap();
 
-	private void OnMapTravelRequested(object? sender, GenericEventArgs<LocationViewModel> e)
+	private void OnMapTravelRequested(object? sender, GenericEventArgs<Location> e)
 	{
 		CloseMap();
 		TravelTo(e.Value);
@@ -204,9 +244,11 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
 	private static ILogSource Log { get; } = LogManager.CreateLogSource(nameof(MainWindowViewModel));
 
+	private readonly SaveSettings? m_saveSettings;
 	private TaskGroup m_taskGroup;
 	private LocationScreenViewModel m_currentLocation;
 	private VillagersViewModel? m_villagers;
 	private TownMapViewModel? m_map;
 	private TownMapViewModel m_miniMap;
+	private string? m_saveStatus;
 }

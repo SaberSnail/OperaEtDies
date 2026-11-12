@@ -1,5 +1,6 @@
 using GoldenAnvil.Utility;
 using OperaEtDies.Controls.Locations;
+using OperaEtDies.Characters;
 using OperaEtDies.Data;
 using OperaEtDies.GameState;
 
@@ -12,12 +13,12 @@ namespace OperaEtDies.Controls.Villagers;
 /// </summary>
 public sealed class VillagersViewModel : ViewModelBase
 {
-	public VillagersViewModel(IEnumerable<FamilyViewModel> families, bool isDeveloper)
+	public VillagersViewModel(IEnumerable<Family> families, bool isDeveloper, PortraitRenderer? portraitRenderer = null)
 	{
 		IsDeveloper = isDeveloper;
 		Families = families
 			.OrderBy(x => x.LastName, StringComparer.CurrentCulture)
-			.Select(x => new VillagerFamilyViewModel(x, isDeveloper, VisitHome))
+			.Select(x => new VillagerFamilyViewModel(x, isDeveloper, VisitHome, portraitRenderer))
 			.ToList();
 	}
 
@@ -26,7 +27,7 @@ public sealed class VillagersViewModel : ViewModelBase
 	/// <summary>
 	/// Raised when a developer asks to go to a family's house.
 	/// </summary>
-	public event EventHandler<GenericEventArgs<LocationViewModel>>? TravelRequested;
+	public event EventHandler<GenericEventArgs<Location>>? TravelRequested;
 
 	public IReadOnlyList<VillagerFamilyViewModel> Families { get; }
 
@@ -41,7 +42,7 @@ public sealed class VillagersViewModel : ViewModelBase
 		CloseRequested.Raise(this);
 	}
 
-	private void VisitHome(FamilyViewModel family) => TravelRequested.Raise(this, new GenericEventArgs<LocationViewModel>(family.Home));
+	private void VisitHome(Family family) => TravelRequested.Raise(this, new GenericEventArgs<Location>(family.Home));
 }
 
 /// <summary>
@@ -49,17 +50,17 @@ public sealed class VillagersViewModel : ViewModelBase
 /// </summary>
 public sealed class VillagerFamilyViewModel : ViewModelBase
 {
-	public VillagerFamilyViewModel(FamilyViewModel family, bool isDeveloper, Action<FamilyViewModel> visitHome)
+	public VillagerFamilyViewModel(Family family, bool isDeveloper, Action<Family> visitHome, PortraitRenderer? portraitRenderer = null)
 	{
 		Family = family;
 		IsDeveloper = isDeveloper;
 		m_visitHome = visitHome;
 		Title = OurResources.FamilyTitle.FormatCurrentCulture(family.LastName);
 		Wealth = OurResources.VillagerFamilyWealth.FormatCurrentCulture(family.WealthLevel.GetDataName());
-		People = family.Members.Select(x => new LocationPersonViewModel(x)).ToList();
+		People = family.Members.Select(x => new LocationPersonViewModel(x, portraitRenderer)).ToList();
 	}
 
-	public FamilyViewModel Family { get; }
+	public Family Family { get; }
 
 	public string Title { get; }
 
@@ -89,5 +90,5 @@ public sealed class VillagerFamilyViewModel : ViewModelBase
 		m_visitHome(Family);
 	}
 
-	private readonly Action<FamilyViewModel> m_visitHome;
+	private readonly Action<Family> m_visitHome;
 }

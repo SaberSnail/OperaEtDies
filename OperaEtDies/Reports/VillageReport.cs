@@ -40,6 +40,12 @@ public sealed class VillageReport : ILogDestination
 	/// </summary>
 	public const string PortraitsAtWorkArgument = "--portraits-at-work";
 
+	/// <summary>
+	/// The optional command line argument to save each village and load it again before writing it, to check that
+	/// saving and loading keep everything the report shows.
+	/// </summary>
+	public const string ThroughSaveArgument = "--through-save";
+
 	public static bool IsRequested(IReadOnlyList<string> args) => args.Contains(Argument, StringComparer.OrdinalIgnoreCase);
 
 	/// <summary>
@@ -52,7 +58,7 @@ public sealed class VillageReport : ILogDestination
 		int exitCode;
 		if (TryParseArguments(args, out var count, out var firstSeed, out var portraitFolder, out var argumentError))
 		{
-			var report = new VillageReport(output, portraitFolder, args.Contains(PortraitsAtWorkArgument, StringComparer.OrdinalIgnoreCase));
+			var report = new VillageReport(output, portraitFolder, args.Contains(PortraitsAtWorkArgument, StringComparer.OrdinalIgnoreCase), args.Contains(ThroughSaveArgument, StringComparer.OrdinalIgnoreCase));
 			LogManager.Initialize(report);
 			exitCode = report.Generate(count, firstSeed, areModsEnabled, error);
 		}
@@ -73,8 +79,9 @@ public sealed class VillageReport : ILogDestination
 			WriteRecord("log", m_village, severity, source, message);
 	}
 
-	private VillageReport(TextWriter output, string? portraitFolder, bool arePortraitsAtWork)
+	private VillageReport(TextWriter output, string? portraitFolder, bool arePortraitsAtWork, bool isThroughSave)
 	{
+		m_isThroughSave = isThroughSave;
 		m_output = output;
 		m_portraitFolder = portraitFolder;
 		m_arePortraitsAtWork = arePortraitsAtWork;
@@ -131,21 +138,52 @@ public sealed class VillageReport : ILogDestination
 			if (m_portraitFolder is not null)
 				Directory.CreateDirectory(m_portraitFolder);
 
-			WriteHeaders(gameData);
-			for (var village = 0; village < count; village++)
-			{
-				var seed = unchecked(firstSeed + village);
-				m_village = village;
-
-				// The player and the village come from the same random numbers, as they would in a new game.
-				var random = new Random(seed);
-				var player = CharacterRandomizer.CreateRandomPlayer(gameData, random);
-				var gameState = GameStateViewModel.CreateNewGame(gameData, player, random);
-				WriteVillage(gameData, village, seed, gameState);
-			}
+			WriteVillages(gameData, count, firstSeed);
 		}
 
 		return exitCode;
+	}
+
+	/// <summary>
+	/// Generates villages with the game data and writes them to the output, without capturing logging, for tests.
+	/// </summary>
+	internal static void Write(GameData gameData, int count, int firstSeed, bool isThroughSave, TextWriter output) =>
+		new VillageReport(output, portraitFolder: null, arePortraitsAtWork: false, isThroughSave).WriteVillages(gameData, count, firstSeed);
+
+	private void WriteVillages(GameData gameData, int count, int firstSeed)
+	{
+		WriteHeaders(gameData);
+		for (var village = 0; village < count; village++)
+		{
+			var seed = unchecked(firstSeed + village);
+			m_village = village;
+
+			// The player and the village come from the same random numbers, as they would in a new game.
+			var random = new Random(seed);
+			var player = CharacterRandomizer.CreateRandomPlayer(gameData, random);
+			var town = TownGenerator.Generate(gameData, player, random);
+			var world = GameWorld.CreateFromTown(gameData, town, random);
+			try
+			{
+				if (m_isThroughSave)
+					world = SaveAndLoad(gameData, world, random);
+				WriteVillage(gameData, village, seed, town, world);
+			}
+			catch (SaveLoadException e)
+			{
+				WriteRecord("log", village, LogSeverity.Error, nameof(VillageReport), $"The village couldn't be loaded after saving it: {e.Message}");
+			}
+		}
+	}
+
+	/// <summary>
+	/// Saves the world and loads it again, as saving and loading a game does, so the report shows what a loaded game has.
+	/// </summary>
+	private static GameWorld SaveAndLoad(GameData gameData, GameWorld world, Random random)
+	{
+		var settings = new SaveSettings(nameof(VillageReport), "", "", [], "");
+		var json = SaveFile.Create(world, settings, DateTimeOffset.UnixEpoch).Serialize();
+		return SaveFile.Deserialize(json).Load(gameData, settings.GameTitle, random);
 	}
 
 	private void WriteHeaders(GameData gameData)
@@ -160,62 +198,67 @@ public sealed class VillageReport : ILogDestination
 		WriteRecord("#log", "village", "severity", "source", "message");
 	}
 
-	private void WriteVillage(GameData gameData, int village, int seed, GameStateViewModel gameState)
+	/// <summary>
+	/// Writes the records for one village. Everything comes from the world, except the details only generation has (the
+	/// households' wealth and fortune, and the layout shape), which come from the generated town. The town's households
+	/// are in the same order as the world's families.
+	/// </summary>
+	private void WriteVillage(GameData gameData, int village, int seed, GeneratedTown town, GameWorld world)
 	{
-		var town = gameState.Town;
-		var households = town.Households.Select((household, index) => (household, index)).ToDictionary(x => x.household, x => x.index);
-		var quarters = town.Locations.Where(x => x.Template is QuarterTemplate).ToList();
+		var families = world.Families.Select((family, index) => (family, index)).ToDictionary(x => x.family, x => x.index);
+		var quarters = world.Locations.Where(x => x.Template is QuarterTemplate).ToList();
+		var names = GetLocationNames(world.Locations);
 
 		// Paths between quarters are the exits with a direction. Each path has an exit at both ends.
 		var pathCounts = quarters.ToDictionary(x => x, x => x.Exits.Count(exit => exit.Direction is not null));
-		WriteRecord("village", village, seed, town.Households.Count, town.Households.Sum(x => x.Members.Count), town.Businesses.Count,
-			quarters.Count, town.Locations.Count(x => x.Template is HouseTemplate), town.Locations.Count(x => x.Template is BusinessTemplate),
-			town.Locations.Count(x => x.Id != x.Template.Id), JsonNamingPolicy.CamelCase.ConvertName(town.Shape.ToString()),
-			quarters.Count(x => ((QuarterTemplate) x.Template).IsLandmark), pathCounts.Values.Sum() / 2, pathCounts.Count(x => x.Value == 1),
-			pathCounts.Count(x => x.Value == 1 && ((QuarterTemplate) x.Key.Template).IsLandmark), pathCounts.Values.DefaultIfEmpty().Max(),
-			string.Join(" ", town.Features.Select(x => x.Feature.Id)), quarters.Sum(x => x.Exits.Count(exit => exit.IsCrossing)) / 2);
+		WriteRecord("village", village, seed, world.Families.Count, world.People.Count, world.Businesses.Count,
+			quarters.Count, world.Locations.Count(x => x.Template is HouseTemplate), world.Locations.Count(x => x.Template is BusinessTemplate),
+			world.Locations.Count - world.Locations.Select(x => x.Template).Distinct().Count(), JsonNamingPolicy.CamelCase.ConvertName(town.Shape.ToString()),
+			quarters.Count(x => x.IsLandmark), pathCounts.Values.Sum() / 2, pathCounts.Count(x => x.Value == 1),
+			pathCounts.Count(x => x.Value == 1 && x.Key.IsLandmark), pathCounts.Values.DefaultIfEmpty().Max(),
+			string.Join(" ", world.Features.Select(x => x.Template.Id)), quarters.Sum(x => x.Exits.Count(exit => exit.IsCrossing)) / 2);
 
-		for (var index = 0; index < town.Households.Count; index++)
+		for (var index = 0; index < world.Families.Count; index++)
 		{
+			var family = world.Families[index];
 			var household = town.Households[index];
-			var quarter = household.House?.Quarter;
-			WriteRecord("household", village, index, household.LastName, household.Members.Count, household.Wealth, household.Fortune, household.WealthLevel.GetDataName(),
-				household.House?.Template.Id, quarter?.Template.Id, (quarter?.Template as QuarterTemplate)?.Kind);
+			var quarter = family.Home.Quarter;
+			WriteRecord("household", village, index, family.LastName, family.Members.Count, household.Wealth, household.Fortune, family.WealthLevel.GetDataName(),
+				family.Home.Template.Id, quarter?.Template.Id, quarter?.QuarterKind);
 
-			for (var member = 0; member < household.Members.Count; member++)
+			for (var member = 0; member < family.Members.Count; member++)
 			{
-				var person = household.Members[member];
-				var personViewModel = gameState.Families[index].Members[member];
+				var person = family.Members[member];
 				var work = person.Business is null ? "none" : person.IsBusinessOwner ? "owner" : "helper";
-				var startLocation = personViewModel.Location;
-				var startPlace = personViewModel.PortraitPlace;
-				var startTraits = personViewModel.Traits;
+				var startLocation = person.Location;
+				var startPlace = person.PortraitPlace;
+				var startTraits = person.Traits;
 
 				// Portraits are drawn where the person starts, or at work in their own workplace.
 				if (m_arePortraitsAtWork)
 				{
-					personViewModel.Location = personViewModel.Workplace;
-					personViewModel.IsAtWork = true;
+					person.Location = person.Workplace;
+					person.IsAtWork = true;
 				}
 
-				var portraitLayers = gameData.PortraitRenderer?.GetLayerIds(personViewModel.Traits, personViewModel.PortraitPlace) ?? [];
+				var portraitLayers = gameData.PortraitRenderer?.GetLayerIds(person.Traits, person.PortraitPlace) ?? [];
 				WriteRecord(["person", village, index, member, person.Role, person.IsPlayer, work, person.Business?.Profession.Id,
-					startTraits.GetFullName(gameData.CharacterTemplates), startLocation.Id, startPlace, string.Join(" ", portraitLayers),
+					startTraits.GetFullName(gameData.CharacterTemplates), names[startLocation], startPlace, string.Join(" ", portraitLayers),
 					.. gameData.CharacterProperties.Select(x => FormatValue(startTraits.Values.GetValueOrDefault(x.Id)))]);
 
 				if (m_portraitFolder is not null && gameData.PortraitRenderer is { } portraitRenderer)
-					WritePortrait(portraitRenderer, personViewModel.Traits, personViewModel.PortraitPlace, Path.Combine(m_portraitFolder, FormattableString.Invariant($"{village}-{index}-{member}.png")));
+					WritePortrait(portraitRenderer, person.Traits, person.PortraitPlace, Path.Combine(m_portraitFolder, FormattableString.Invariant($"{village}-{index}-{member}.png")));
 			}
 		}
 
-		foreach (var business in town.Businesses)
+		foreach (var business in world.Businesses)
 		{
 			var quarter = business.Location?.Quarter;
-			WriteRecord("business", village, households[business.Owner.Household], business.Profession.Id, business.Owner.Role, business.Helpers.Count,
-				business.Location?.Template.Id, quarter?.Template.Id, (quarter?.Template as QuarterTemplate)?.Kind);
+			WriteRecord("business", village, families[business.Owner.Family], business.Profession.Id, business.Owner.Role, business.Helpers.Count,
+				business.Location?.Template.Id, quarter?.Template.Id, quarter?.QuarterKind);
 		}
 
-		foreach (var location in town.Locations)
+		foreach (var location in world.Locations)
 		{
 			var (type, wealth) = location.Template switch
 			{
@@ -223,21 +266,38 @@ public sealed class VillageReport : ILogDestination
 				HouseTemplate house => ("house", house.Wealth),
 				_ => ("business", (WealthLevel?) null),
 			};
-			var kind = (location.Quarter?.Template as QuarterTemplate)?.Kind;
 			var bounds = location.Bounds;
-			WriteRecord("location", village, location.Id, location.Template.Id, type, kind, wealth?.GetDataName(), location.Connections.Count,
+			WriteRecord("location", village, names[location], location.Template.Id, type, location.QuarterKind, wealth?.GetDataName(), location.Connections.Count,
 				(location.Template as QuarterTemplate)?.IsLandmark, bounds?.X, bounds?.Y, bounds?.Width, bounds?.Height,
-				string.Join(" ", location.Surroundings.Select(x => $"{x.Feature.Id}:{x.Direction}")));
+				string.Join(" ", location.Surroundings.Select(x => $"{x.Feature.Template.Id}:{x.Direction}")));
 			foreach (var exit in location.Exits.Where(x => x.Direction is not null))
-				WriteRecord("exit", village, location.Id, exit.Location.Id, exit.Direction, exit.Path, exit.IsCrossing);
+				WriteRecord("exit", village, names[location], names[exit.Location], exit.Direction, exit.Path, exit.IsCrossing);
 		}
 
-		foreach (var feature in town.Features)
+		foreach (var feature in world.Features)
 		{
 			var bounds = feature.Bounds;
-			WriteRecord("feature", village, feature.Feature.Id, JsonNamingPolicy.CamelCase.ConvertName(feature.Feature.Type.ToString()), bounds.X, bounds.Y, bounds.Width, bounds.Height,
-				town.Locations.Count(x => x.Surroundings.Any(surrounding => surrounding.Feature == feature.Feature)));
+			WriteRecord("feature", village, feature.Template.Id, JsonNamingPolicy.CamelCase.ConvertName(feature.Template.Type.ToString()), bounds.X, bounds.Y, bounds.Width, bounds.Height,
+				world.Locations.Count(x => x.Surroundings.Any(surrounding => surrounding.Feature == feature)));
 		}
+	}
+
+	/// <summary>
+	/// Names each location after its template, with a number added for each use of a template after the first, so the
+	/// names are readable and the same each time a village is generated. World ids aren't used, since they're a black box.
+	/// </summary>
+	private static Dictionary<Location, string> GetLocationNames(IReadOnlyList<Location> locations)
+	{
+		var uses = new Dictionary<string, int>(StringComparer.Ordinal);
+		var names = new Dictionary<Location, string>();
+		foreach (var location in locations)
+		{
+			var id = location.Template.Id;
+			var count = uses[id] = uses.GetValueOrDefault(id) + 1;
+			names.Add(location, count == 1 ? id : $"{id}_{count}");
+		}
+
+		return names;
 	}
 
 	private static object? FormatValue(object? value) => value is CharacterPropertyOption option ? option.Id : value;
@@ -266,5 +326,6 @@ public sealed class VillageReport : ILogDestination
 	private readonly TextWriter m_output;
 	private readonly string? m_portraitFolder;
 	private readonly bool m_arePortraitsAtWork;
+	private readonly bool m_isThroughSave;
 	private int? m_village;
 }

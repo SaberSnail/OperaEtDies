@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Media;
 using OperaEtDies.Data;
@@ -163,6 +164,25 @@ public sealed class PortraitRenderer
 		};
 	}
 
+	/// <summary>
+	/// Gets a character's portrait in a place, drawing it the first time it's asked for with those traits. Portraits
+	/// are kept for as long as the traits object is.
+	/// </summary>
+	public DrawingImage GetPortrait(CharacterTraits traits, PortraitPlace? place)
+	{
+		var portraits = m_portraits.GetValue(traits, _ => []);
+		lock (portraits)
+		{
+			if (!portraits.TryGetValue(new ValueTuple<PortraitPlace?>(place), out var portrait))
+			{
+				portrait = Render(traits, place);
+				portraits.Add(new ValueTuple<PortraitPlace?>(place), portrait);
+			}
+
+			return portrait;
+		}
+	}
+
 	private sealed record ParsedLayer(PortraitLayer Layer, IReadOnlyList<ParsedShape> Shapes);
 
 	private sealed record ParsedShape(PortraitShape Shape, Geometry Geometry);
@@ -172,4 +192,5 @@ public sealed class PortraitRenderer
 	private readonly IReadOnlyList<PortraitScale> m_scales;
 	private readonly IReadOnlyList<ParsedLayer> m_layers;
 	private readonly Geometry m_bounds;
+	private readonly ConditionalWeakTable<CharacterTraits, Dictionary<ValueTuple<PortraitPlace?>, DrawingImage>> m_portraits = new();
 }

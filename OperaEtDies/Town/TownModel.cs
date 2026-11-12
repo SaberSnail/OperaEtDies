@@ -9,7 +9,7 @@ namespace OperaEtDies.Town;
 /// </summary>
 public sealed class GeneratedTown
 {
-	public GeneratedTown(IReadOnlyList<Household> households, IReadOnlyList<Business> businesses, IReadOnlyList<TownLocation> locations, LayoutShape shape = LayoutShape.Radial, IReadOnlyList<TownFeature>? features = null)
+	public GeneratedTown(IReadOnlyList<Household> households, IReadOnlyList<TownBusiness> businesses, IReadOnlyList<TownLocation> locations, LayoutShape shape = LayoutShape.Radial, IReadOnlyList<TownFeature>? features = null)
 	{
 		Features = features ?? [];
 		Shape = shape;
@@ -23,7 +23,7 @@ public sealed class GeneratedTown
 	/// </summary>
 	public IReadOnlyList<Household> Households { get; }
 
-	public IReadOnlyList<Business> Businesses { get; }
+	public IReadOnlyList<TownBusiness> Businesses { get; }
 
 	/// <summary>
 	/// Every place in the town: the quarters, and the houses and businesses in them.
@@ -129,7 +129,7 @@ public sealed class TownPerson
 	/// <summary>
 	/// The business the person owns or helps in, or null if they have no profession.
 	/// </summary>
-	public Business? Business { get; internal set; }
+	public TownBusiness? Business { get; internal set; }
 
 	public bool IsBusinessOwner => Business?.Owner == this;
 }
@@ -137,9 +137,9 @@ public sealed class TownPerson
 /// <summary>
 /// A business, owned by one person and helped by members of their household.
 /// </summary>
-public sealed class Business
+public sealed class TownBusiness
 {
-	public Business(Profession profession, TownPerson owner)
+	public TownBusiness(Profession profession, TownPerson owner)
 	{
 		Profession = profession;
 		Owner = owner;

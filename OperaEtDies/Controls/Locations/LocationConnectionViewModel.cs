@@ -10,7 +10,7 @@ namespace OperaEtDies.Controls.Locations;
 /// </summary>
 public sealed class LocationConnectionViewModel : ViewModelBase
 {
-	public LocationConnectionViewModel(LocationExit exit, Action<LocationViewModel> travel)
+	public LocationConnectionViewModel(LocationExit exit, Action<Location> travel)
 	{
 		Location = exit.Location;
 		Direction = exit.Direction;
@@ -20,7 +20,7 @@ public sealed class LocationConnectionViewModel : ViewModelBase
 		m_travel = travel;
 	}
 
-	public LocationViewModel Location { get; }
+	public Location Location { get; }
 
 	public string Title => Location.Title;
 
@@ -44,5 +44,5 @@ public sealed class LocationConnectionViewModel : ViewModelBase
 		m_travel(Location);
 	}
 
-	private readonly Action<LocationViewModel> m_travel;
+	private readonly Action<Location> m_travel;
 }
