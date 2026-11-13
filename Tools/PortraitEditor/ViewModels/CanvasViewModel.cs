@@ -247,6 +247,32 @@ public sealed class CanvasViewModel : ViewModelBase
 	}
 
 	/// <summary>
+	/// Moves the selected point, or the selected shape if no point is selected, by a distance in the portrait's pixels.
+	/// Nudges made close together are undone together.
+	/// </summary>
+	public void Nudge(Vector portraitDelta)
+	{
+		var toShape = ShapeTransform;
+		if (toShape.HasInverse && CreateEditablePath() is { } path)
+		{
+			toShape.Invert();
+			var delta = toShape.Transform(portraitDelta);
+			if (SelectedPoint is { } point)
+			{
+				var target = point.Position + delta;
+				path.MovePoint(point, new Point(Math.Round(target.X, SvgPath.Precision), Math.Round(target.Y, SvgPath.Precision)));
+			}
+			else
+			{
+				path.Transform(default, 1, 1, new Vector(Math.Round(delta.X, SvgPath.Precision), Math.Round(delta.Y, SvgPath.Precision)));
+			}
+
+			if (Shape is { } shape)
+				m_owner.EditItem(shape, "nudge", node => node.SetProperty("path", JsonValue.Create(path.ToString())));
+		}
+	}
+
+	/// <summary>
 	/// Selects the shape drawn at a point in the portrait: the top one, or with cycling, the one under the selected
 	/// shape (going back to the top after the bottom).
 	/// </summary>

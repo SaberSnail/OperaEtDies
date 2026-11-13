@@ -891,12 +891,20 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 		}
 	}
 
+	/// <summary>
+	/// Moves the selected item past the next item the tree is showing in a direction, or to the start or end of its list
+	/// if the tree shows no more items that way.
+	/// </summary>
 	private void MoveItem(int direction)
 	{
 		if (SelectedItem is { List: { } list } item)
 		{
-			var newIndex = item.Index + direction;
-			if (newIndex >= 0 && newIndex < list.Count)
+			var siblings = GetSiblings(item);
+			var next = direction < 0
+				? siblings.LastOrDefault(x => x.Index < item.Index && x.IsVisible)
+				: siblings.FirstOrDefault(x => x.Index > item.Index && x.IsVisible);
+			var newIndex = next?.Index ?? (direction < 0 ? 0 : list.Count - 1);
+			if (newIndex >= 0 && newIndex < list.Count && newIndex != item.Index)
 			{
 				m_pendingSelection = (item.Kind, item.Parent?.Index ?? -1, newIndex);
 				m_document!.EditStructure(() =>
@@ -907,6 +915,15 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 				});
 			}
 		}
+	}
+
+	/// <summary>
+	/// Gets the items in the tree that are in the same list as an item, including the item itself.
+	/// </summary>
+	private IReadOnlyList<DataItemViewModel> GetSiblings(DataItemViewModel item)
+	{
+		var children = item.Parent?.Children ?? m_treeRoots.FirstOrDefault(x => x.Children.Contains(item))?.Children ?? [];
+		return children.OfType<DataItemViewModel>().ToList();
 	}
 
 	private static string GetUnusedId(JsonArray list, string id)

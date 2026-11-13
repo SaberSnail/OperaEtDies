@@ -11,7 +11,8 @@ namespace PortraitEditor.Controls;
 /// Shows the focused character's portrait from a <see cref="CanvasViewModel"/>, with the selected shape's outline,
 /// bounds, and points. Clicking chooses the shape under the mouse (Ctrl+click chooses the one under that), dragging
 /// inside the bounds moves the shape, dragging the handles on the bounds stretches it (Shift keeps its proportions),
-/// and dragging a point moves it (Shift keeps it level or upright). Ctrl+wheel zooms.
+/// and dragging a point moves it (Shift keeps it level or upright). The arrow keys nudge the selected point (or the shape) by a pixel, and
+/// Ctrl+wheel zooms.
 /// </summary>
 public sealed class ShapeCanvas : FrameworkElement
 {
@@ -185,6 +186,27 @@ public sealed class ShapeCanvas : FrameworkElement
 			else
 				viewModel.ZoomOut();
 			e.Handled = true;
+		}
+	}
+
+	protected override void OnKeyDown(KeyEventArgs e)
+	{
+		base.OnKeyDown(e);
+		if (ViewModel is { } viewModel && Keyboard.Modifiers == ModifierKeys.None && m_mode == DragMode.None)
+		{
+			Vector? delta = e.Key switch
+			{
+				Key.Left => new Vector(-1, 0),
+				Key.Right => new Vector(1, 0),
+				Key.Up => new Vector(0, -1),
+				Key.Down => new Vector(0, 1),
+				_ => null,
+			};
+			if (delta is { } nudge)
+			{
+				viewModel.Nudge(nudge);
+				e.Handled = true;
+			}
 		}
 	}
 

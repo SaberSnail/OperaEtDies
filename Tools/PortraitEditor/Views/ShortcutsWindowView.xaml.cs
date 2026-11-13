@@ -31,6 +31,7 @@ public partial class ShortcutsWindowView : Window
 		new("Canvas", "Drag a bounds handle", "Stretch the selected shape"),
 		new("Canvas", "Drag a point", "Move a point of the selected shape, with the curve handles attached to it"),
 		new("Canvas", "Shift while dragging", "Keep the shape or point level or upright, or keep its proportions while stretching"),
+		new("Canvas", "Arrow keys", "Nudge the selected point, or the selected shape if no point is selected, by one pixel (after clicking the canvas)"),
 		new("Canvas", "Ctrl+wheel", "Zoom in or out"),
 		new("Canvas", "Shift+wheel", "Scroll sideways"),
 		new("Fields", "Enter", "Apply a number field or the When field (they also apply when focus leaves them)"),
