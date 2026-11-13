@@ -4,7 +4,7 @@ using GoldenAnvil.Utility;
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// How character portraits are drawn, loaded from Portraits.json: the colors and stretches portraits use, and the layers drawn from
+/// How character portraits are drawn, loaded from Portraits.json: the colors, stretches, and shifts portraits use, and the layers drawn from
 /// a character's properties, bottom to top.
 /// </summary>
 public sealed class PortraitData : IValidatedData
@@ -42,6 +42,11 @@ public sealed class PortraitData : IValidatedData
 	public IReadOnlyList<PortraitScale> Scales { get; init; } = [];
 
 	/// <summary>
+	/// The named shifts the layers can use.
+	/// </summary>
+	public IReadOnlyList<PortraitOffset> Offsets { get; init; } = [];
+
+	/// <summary>
 	/// The layers of a portrait, from bottom to top.
 	/// </summary>
 	public required IReadOnlyList<PortraitLayer> Layers { get; init; }
@@ -61,6 +66,12 @@ public sealed class PortraitData : IValidatedData
 		{
 			foreach (var (variant, index) in (scale.Variants ?? []).Select((x, i) => (x, i)).Where(x => x.x?.When is not null))
 				yield return ($"scales[{scale.Id}].variants[{index}].when", variant.When);
+		}
+
+		foreach (var offset in Offsets.Where(x => x is not null))
+		{
+			foreach (var (variant, index) in (offset.Variants ?? []).Select((x, i) => (x, i)).Where(x => x.x?.When is not null))
+				yield return ($"offsets[{offset.Id}].variants[{index}].when", variant.When);
 		}
 
 		foreach (var layer in Layers.Where(x => x is not null))
@@ -135,6 +146,25 @@ public sealed class PortraitData : IValidatedData
 			}
 		}
 
+		var offsetIds = new HashSet<string>(StringComparer.Ordinal);
+		foreach (var offset in Offsets)
+		{
+			if (offset is null)
+			{
+				errors.Add(OurResources.DataListItemEmpty.FormatCurrentCulture("offsets"));
+			}
+			else if (string.IsNullOrWhiteSpace(offset.Id))
+			{
+				errors.Add(OurResources.DataListItemIdMissing.FormatCurrentCulture("offsets"));
+			}
+			else
+			{
+				errors.AddRange(ValidateOffset(offset));
+				if (!offsetIds.Add(offset.Id))
+					errors.Add(OurResources.DataListItemIdDuplicate.FormatCurrentCulture(offset.Id, "offsets"));
+			}
+		}
+
 		if (Layers.Count == 0)
 			errors.Add(OurResources.DataListEmpty.FormatCurrentCulture("layers"));
 
@@ -153,7 +183,7 @@ public sealed class PortraitData : IValidatedData
 			{
 				if (!layerIds.Add(layer.Id))
 					errors.Add(OurResources.DataListItemIdDuplicate.FormatCurrentCulture(layer.Id, "layers"));
-				errors.AddRange(ValidateLayer(layer, colorIds, scaleIds));
+				errors.AddRange(ValidateLayer(layer, colorIds, scaleIds, offsetIds));
 			}
 		}
 
@@ -196,11 +226,13 @@ public sealed class PortraitData : IValidatedData
 			yield return OurResources.DataFractionInvalid.FormatCurrentCulture($"{path}.amount", color.Amount);
 	}
 
-	private static IEnumerable<string> ValidateLayer(PortraitLayer layer, IReadOnlySet<string> colorIds, IReadOnlySet<string> scaleIds)
+	private static IEnumerable<string> ValidateLayer(PortraitLayer layer, IReadOnlySet<string> colorIds, IReadOnlySet<string> scaleIds, IReadOnlySet<string> offsetIds)
 	{
 		var path = $"layers[{layer.Id}]";
 		foreach (var error in ValidateScaleReference($"{path}.scale", layer.Scale, scaleIds))
 			yield return error;
+		if (layer.Offset is { } offset && !offsetIds.Contains(offset))
+			yield return OurResources.PortraitOffsetUnknown.FormatCurrentCulture($"{path}.offset", offset);
 
 		if (layer.At is { } at)
 		{
@@ -296,6 +328,24 @@ public sealed class PortraitData : IValidatedData
 						yield return error;
 				}
 			}
+		}
+	}
+
+	private static IEnumerable<string> ValidateOffset(PortraitOffset offset)
+	{
+		if (offset.Variants is not { } variants)
+			yield break;
+
+		var path = $"offsets[{offset.Id}]";
+		if (variants.Count == 0)
+			yield return OurResources.DataListEmpty.FormatCurrentCulture($"{path}.variants");
+
+		for (var index = 0; index < variants.Count; index++)
+		{
+			if (variants[index] is not { } variant)
+				yield return OurResources.DataListItemEmpty.FormatCurrentCulture($"{path}.variants");
+			else if (variant.When is null)
+				yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.variants[{index}].when");
 		}
 	}
 

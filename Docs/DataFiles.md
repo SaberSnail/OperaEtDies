@@ -507,6 +507,7 @@ Optional. Without it, characters have no portraits. A character's portrait is dr
 | `height` | number | More than 0. The height of a portrait, in the units the paths use. |
 | `colors` | list of Portrait Color | Optional (defaults to empty). Each needs a filled-in, unique `id`. |
 | `scales` | list of Portrait Scale | Optional (defaults to empty). Each needs a filled-in, unique `id`. |
+| `offsets` | list of Portrait Offset | Optional (defaults to empty). Each needs a filled-in, unique `id`. |
 | `layers` | list of Portrait Layer | Must not be empty. Each needs a filled-in, unique `id`. |
 
 A **color** is either a hex color, written `#RRGGBB` or `#AARRGGBB`, or the id of a Portrait Color. A color in `colors` can only use the colors before it.
@@ -551,6 +552,25 @@ A named stretch, worked out for each character. Stretching a shape doesn't chang
 | `x` | number | Optional (defaults to 1). More than 0. |
 | `y` | number | Optional (defaults to 1). More than 0. |
 
+**Portrait Offset**
+
+A named shift, worked out for each character. Shapes are shifted after they're stretched.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | Filled in and unique. |
+| `x` | number | Optional (defaults to 0). How far shapes are moved right when no variant applies. |
+| `y` | number | Optional (defaults to 0). How far shapes are moved down when no variant applies. |
+| `variants` | list of Portrait Offset Variant | Optional. Must not be empty. The first variant whose `when` condition is met replaces `x` and `y`. |
+
+**Portrait Offset Variant**
+
+| Property | Type | Notes |
+|---|---|---|
+| `when` | Condition | Can't use `hidden`. |
+| `x` | number | Optional (defaults to 0). |
+| `y` | number | Optional (defaults to 0). |
+
 **Portrait Layer**
 
 | Property | Type | Notes |
@@ -559,6 +579,7 @@ A named stretch, worked out for each character. Stretching a shape doesn't chang
 | `when` | Condition | Optional. Can't use `hidden`. The layer is only drawn for characters who meet it. |
 | `at` | Portrait Place | Optional. The layer is only drawn for characters in one of these places. Without it, the layer is drawn anywhere. |
 | `scale` | string | Optional. The id of a Portrait Scale. Stretches the layer's shapes, except those with their own `scale`. |
+| `offset` | string | Optional. The id of a Portrait Offset. Moves all of the layer's shapes. |
 | `shapes` | list of Portrait Shape | Must not be empty. Drawn bottom to top. |
 
 **Portrait Place**
@@ -613,7 +634,7 @@ Saved games refer to properties, values, and location and map feature templates 
 * **Characters.json:** an entry in `properties`. If it should appear in a character's description, use it in a template that `description` uses (directly or through other templates), and give every value the `text` entries those templates use (**not checked** if no template uses it).
 * **Characters.json:** if it can be seen, add it to the `darkness` obscurer, and to any other obscurers that should hide it (**not checked**).
 * **Families.json:** an entry in `inheritedProperties` if family members should share it (**not checked**). The Family Properties are the ones the game itself depends on, so a new one there needs code.
-* **Portrait art** (**not checked**): if it changes how a character looks, layers, shapes, colors, or scales whose conditions use it, with art for every value.
+* **Portrait art** (**not checked**): if it changes how a character looks, layers, shapes, colors, scales, or offsets whose conditions use it, with art for every value.
 * The village report gets a column for it automatically.
 
 ## Character Value
@@ -673,4 +694,4 @@ Saved games refer to properties, values, and location and map feature templates 
 
 ## Portrait Art
 
-* Colors, scales, and layers are added to SubCorona's `Art/Portraits/Portraits.sh`, never to Portraits.json (see SubCorona's `Docs/Portraits.md`). Layers are drawn in the order they're written, so put a new layer where it belongs among the others.
+* Colors, scales, offsets, and layers are added to SubCorona's `Art/Portraits/Portraits.sh`, never to Portraits.json (see SubCorona's `Docs/Portraits.md`). Layers are drawn in the order they're written, so put a new layer where it belongs among the others.

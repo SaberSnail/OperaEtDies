@@ -25,6 +25,11 @@ public sealed class PortraitLayer : IIdentified
 	public string? Scale { get; init; }
 
 	/// <summary>
+	/// The id of the portrait offset that moves the layer's shapes, after they're stretched.
+	/// </summary>
+	public string? Offset { get; init; }
+
+	/// <summary>
 	/// Whether the layer is drawn for a character in a place, given a function that gets the value id of a value list
 	/// property. A null place only draws the layers that are drawn anywhere.
 	/// </summary>

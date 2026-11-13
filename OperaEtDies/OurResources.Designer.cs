@@ -1987,6 +1987,15 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is &quot;{1}&quot;, but it isn&apos;t the id of a portrait offset..
+        /// </summary>
+        public static string PortraitOffsetUnknown {
+            get {
+                return ResourceManager.GetString("PortraitOffsetUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The save's next id is {0}, but it has an object with id {1}..
         /// </summary>
         public static string SaveNextIdInvalid {

@@ -851,6 +851,10 @@
 		<value>&quot;{0}&quot; is &quot;{1}&quot;, but it isn&apos;t the id of a portrait scale.</value>
 		<comment>{0} is the path to the portrait layer's or shape's scale, {1} is the scale id.</comment>
 	</data>
+	<data name="PortraitOffsetUnknown" xml:space="preserve">
+		<value>&quot;{0}&quot; is &quot;{1}&quot;, but it isn&apos;t the id of a portrait offset.</value>
+		<comment>{0} is the path to the portrait layer's offset, {1} is the offset id.</comment>
+	</data>
 	<data name="SaveNextIdInvalid" xml:space="preserve">
 		<value>The save&apos;s next id is {0}, but it has an object with id {1}.</value>
 		<comment>{0} is the save's next id, {1} is the object's id.</comment>

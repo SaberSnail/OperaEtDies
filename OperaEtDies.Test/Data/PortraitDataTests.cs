@@ -65,8 +65,12 @@ public sealed class PortraitDataTests
 					{ "id": "wide", "x": 0, "variants": [] },
 					{ "id": "wide", "variants": [ { "when": { "values": { "gender": [ "gender_male" ] } }, "y": -1 } ] }
 				],
+				"offsets": [
+					{ "id": "up", "variants": [] },
+					{ "id": "up", "y": -10 }
+				],
 				"layers": [
-					{ "id": "a", "scale": "narrow", "shapes": [ { "path": "M0,0 L10,10 Q" , "fill": "skin", "scale": "tall" } ] },
+					{ "id": "a", "scale": "narrow", "offset": "down", "shapes": [ { "path": "M0,0 L10,10 Q" , "fill": "skin", "scale": "tall" } ] },
 					{ "id": "a", "when": { "values": { "gender": [ "gender_unknown" ] } }, "shapes": [ { "path": "M0,0 H10", "opacity": 1.5 } ] },
 					{ "id": "b", "shapes": [ { "path": "M0,0 H10", "stroke": "skin", "strokeWidth": 0, "gradient": "radial", "fillTo": "#000000" } ] },
 					{ "id": "c", "shapes": [ { "path": "M0,0 H10", "fill": "skin", "fillTo": "#000000" } ] },
@@ -100,6 +104,9 @@ public sealed class PortraitDataTests
 		Assert.That(messages, Does.Contain(OurResources.DataListItemIdDuplicate.FormatCurrentCulture("wide", "scales")));
 		Assert.That(messages, Does.Contain(OurResources.PortraitScaleUnknown.FormatCurrentCulture("layers[a].scale", "narrow")));
 		Assert.That(messages, Does.Contain(OurResources.PortraitScaleUnknown.FormatCurrentCulture("layers[a].shapes[0].scale", "tall")));
+		Assert.That(messages, Does.Contain(OurResources.DataListEmpty.FormatCurrentCulture("offsets[up].variants")));
+		Assert.That(messages, Does.Contain(OurResources.DataListItemIdDuplicate.FormatCurrentCulture("up", "offsets")));
+		Assert.That(messages, Does.Contain(OurResources.PortraitOffsetUnknown.FormatCurrentCulture("layers[a].offset", "down")));
 	}
 
 	[Test]
@@ -112,6 +119,7 @@ public sealed class PortraitDataTests
 				"height": 10,
 				"colors": [ { "id": "skin", "color": "#FFFFFF", "variants": [ { "when": { "values": { "nothing": [ "x" ] } }, "color": "#000000" } ] } ],
 				"scales": [ { "id": "wide", "variants": [ { "when": { "values": { "gender": [ "gender_unknown" ] } }, "x": 2 } ] } ],
+				"offsets": [ { "id": "up", "variants": [ { "when": { "values": { "height": [ "height_unknown" ] } }, "y": -10 } ] } ],
 				"layers": [
 					{ "id": "a", "when": { "values": { "gender": [ "gender_unknown" ] } }, "shapes": [ { "path": "M0,0 H10", "stroke": "skin", "when": { "hidden": [ "gender" ] } } ] }
 				]
@@ -124,6 +132,7 @@ public sealed class PortraitDataTests
 		{
 			OurResources.ConditionPropertyWithoutValues.FormatCurrentCulture("colors[skin].variants[0].when.values", "nothing"),
 			OurResources.ConditionValueUnknown.FormatCurrentCulture("scales[wide].variants[0].when.values.gender", "gender_unknown", "gender"),
+			OurResources.ConditionValueUnknown.FormatCurrentCulture("offsets[up].variants[0].when.values.height", "height_unknown", "height"),
 			OurResources.ConditionValueUnknown.FormatCurrentCulture("layers[a].when.values.gender", "gender_unknown", "gender"),
 			OurResources.ConditionHiddenNotAllowed.FormatCurrentCulture("layers[a].shapes[0].when"),
 		}));
@@ -207,6 +216,18 @@ public sealed class PortraitDataTests
 		Assert.That(wrinkles.Pen.Thickness, Is.EqualTo(2));
 	}
 
+	[Test]
+	public void OffsetsMoveShapesAfterTheyreStretched()
+	{
+		var renderer = CreateRenderer();
+		var gameData = renderer.GameData;
+		var man = TestData.CreateTraits(gameData, "male", "John", "Smith", "smith", "tall", "slim", 40);
+
+		// The beard is halved in height around y = 30, from 80-110 to 55-70, then moved up 10 because the man is tall.
+		var drawings = ((DrawingGroup) renderer.Renderer.Render(man, null).Drawing).Children;
+		Assert.That(((GeometryDrawing) drawings[2]).Geometry.Bounds, Is.EqualTo(new Rect(20, 45, 60, 15)));
+	}
+
 	private static Color GetFill(DrawingImage image, int index) =>
 		((SolidColorBrush) ((GeometryDrawing) ((DrawingGroup) image.Drawing).Children[index]).Brush).Color;
 
@@ -226,10 +247,14 @@ public sealed class PortraitDataTests
 				new PortraitScale { Id = "wide", OriginX = 50, Variants = [new PortraitScaleVariant { When = TestData.Condition("gender", "male"), X = 2 }] },
 				new PortraitScale { Id = "short", OriginY = 30, Y = 0.5 },
 			],
+			Offsets =
+			[
+				new PortraitOffset { Id = "height", Variants = [new PortraitOffsetVariant { When = TestData.Condition("height", "tall"), Y = -10 }] },
+			],
 			Layers =
 			[
 				new PortraitLayer { Id = "face", Scale = "wide", Shapes = [new PortraitShape { Path = "M10,10 H90 V110 H10 Z", Fill = "skin" }] },
-				new PortraitLayer { Id = "beard", When = TestData.Condition("gender", "male"), Shapes = [new PortraitShape { Path = "M20,80 H80 V110 H20 Z", Fill = "#202020" }] },
+				new PortraitLayer { Id = "beard", When = TestData.Condition("gender", "male"), Scale = "short", Offset = "height", Shapes = [new PortraitShape { Path = "M20,80 H80 V110 H20 Z", Fill = "#202020" }] },
 				new PortraitLayer { Id = "wrinkles", When = TestData.Condition("age", "old"), Scale = "wide", Shapes = [new PortraitShape { Path = "M20,30 H80", Stroke = "#000000", StrokeWidth = 2, Opacity = 0.5, Scale = "short" }] },
 				new PortraitLayer { Id = "forge", At = new PortraitPlaceCondition { Workplaces = ["smith"] }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#FF8000" }] },
 				new PortraitLayer { Id = "apron", When = TestData.Condition("atWork", "atWork"), Shapes = [new PortraitShape { Path = "M30,90 H70", Stroke = "#FFFFFF" }] },

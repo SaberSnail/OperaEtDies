@@ -20,6 +20,7 @@ public sealed class PortraitRenderer
 		m_properties = properties;
 		m_colors = data.Colors;
 		m_scales = data.Scales;
+		m_offsets = data.Offsets;
 		Size = new Size(data.Width, data.Height);
 		m_layers = data.Layers
 			.Select(layer => new ParsedLayer(layer, layer.Shapes.Select(shape => new ParsedShape(shape, PortraitShape.TryParsePath(shape.Path, out var geometry, out _) ? geometry : Geometry.Empty)).ToList()))
@@ -52,7 +53,8 @@ public sealed class PortraitRenderer
 	{
 		var getValueId = GetValueIdFunc(traits);
 		var colors = GetColors(getValueId);
-		var transforms = GetTransforms(getValueId);
+		var scales = GetScales(getValueId);
+		var offsets = GetOffsets(getValueId);
 
 		var portrait = new DrawingGroup { ClipGeometry = m_bounds };
 
@@ -60,8 +62,9 @@ public sealed class PortraitRenderer
 		portrait.Children.Add(new GeometryDrawing(Brushes.Transparent, null, m_bounds));
 		foreach (var layer in m_layers.Where(x => x.Layer.IsDrawn(getValueId, place)))
 		{
+			var offset = offsets.GetValueOrDefault(layer.Layer.Offset ?? "");
 			foreach (var shape in layer.Shapes.Where(x => CharacterCondition.IsMet(x.Shape.When, getValueId)))
-				portrait.Children.Add(CreateDrawing(shape, colors, transforms.GetValueOrDefault(shape.Shape.Scale ?? layer.Layer.Scale ?? "")));
+				portrait.Children.Add(CreateDrawing(shape, colors, CombineTransforms(scales.GetValueOrDefault(shape.Shape.Scale ?? layer.Layer.Scale ?? ""), offset)));
 		}
 
 		var image = new DrawingImage(portrait);
@@ -93,7 +96,7 @@ public sealed class PortraitRenderer
 	/// <summary>
 	/// Works out the stretch of every portrait scale for a character, leaving out the ones that don't stretch anything.
 	/// </summary>
-	private Dictionary<string, Transform> GetTransforms(Func<string, string?> getValueId)
+	private Dictionary<string, Transform> GetScales(Func<string, string?> getValueId)
 	{
 		var transforms = new Dictionary<string, Transform>(StringComparer.Ordinal);
 		foreach (var scale in m_scales)
@@ -109,6 +112,40 @@ public sealed class PortraitRenderer
 		}
 
 		return transforms;
+	}
+
+	/// <summary>
+	/// Works out the shift of every portrait offset for a character, leaving out the ones that don't move anything.
+	/// </summary>
+	private Dictionary<string, Transform> GetOffsets(Func<string, string?> getValueId)
+	{
+		var transforms = new Dictionary<string, Transform>(StringComparer.Ordinal);
+		foreach (var offset in m_offsets)
+		{
+			var variant = offset.Variants?.FirstOrDefault(x => CharacterCondition.IsMet(x.When, getValueId));
+			var (x, y) = variant is null ? (offset.X, offset.Y) : (variant.X, variant.Y);
+			if (x != 0 || y != 0)
+			{
+				var transform = new TranslateTransform(x, y);
+				transform.Freeze();
+				transforms[offset.Id] = transform;
+			}
+		}
+
+		return transforms;
+	}
+
+	/// <summary>
+	/// Stretches by the scale, then shifts by the offset, either of which may be missing.
+	/// </summary>
+	private static Transform? CombineTransforms(Transform? scale, Transform? offset)
+	{
+		if (scale is null || offset is null)
+			return scale ?? offset;
+
+		var group = new TransformGroup { Children = { scale, offset } };
+		group.Freeze();
+		return group;
 	}
 
 	private static Color Resolve(string reference, IReadOnlyDictionary<string, Color> colors) =>
@@ -190,6 +227,7 @@ public sealed class PortraitRenderer
 	private readonly DataCatalog<CharacterProperty> m_properties;
 	private readonly IReadOnlyList<PortraitColor> m_colors;
 	private readonly IReadOnlyList<PortraitScale> m_scales;
+	private readonly IReadOnlyList<PortraitOffset> m_offsets;
 	private readonly IReadOnlyList<ParsedLayer> m_layers;
 	private readonly Geometry m_bounds;
 	private readonly ConditionalWeakTable<CharacterTraits, Dictionary<ValueTuple<PortraitPlace?>, DrawingImage>> m_portraits = new();
