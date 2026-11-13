@@ -145,7 +145,8 @@
 						Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged}" />
 					<CheckBox
 						Margin="0,0,0,4"
-						Content="Only layers and shapes drawn for the focused character"
+						Content="Only for focused character"
+						ToolTip="Only show the layers and shapes drawn for the focused character (or forced on the canvas)"
 						DockPanel.Dock="Top"
 						IsChecked="{Binding DrawnOnly}" />
 					<!--  Shown while any layers or shapes are forced or hidden on the canvas. It's below the tree, so showing it doesn't move anything.  -->
@@ -173,15 +174,13 @@
 						<Button
 							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AddShape}"
 							Content="Add shape"
-							Style="{StaticResource SmallButtonStyle}" />
+							Style="{StaticResource SmallButtonStyle}"
+							ToolTip="Add a square to the selected layer, after the selected shape" />
 						<Button
-							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=DuplicateItem}"
-							Content="Duplicate"
-							Style="{StaticResource SmallButtonStyle}" />
-						<Button
-							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=DeleteItem}"
-							Content="Delete"
-							Style="{StaticResource SmallButtonStyle}" />
+							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AddLayer}"
+							Content="Add layer"
+							Style="{StaticResource SmallButtonStyle}"
+							ToolTip="Add a layer with a square in it, after the selected layer (or at the end)" />
 						<Button
 							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=MoveItemUp}"
 							Content="▲"
@@ -196,6 +195,7 @@
 					<TreeView
 						x:Name="DataTree"
 						ItemsSource="{Binding TreeRoots}"
+						PreviewMouseRightButtonDown="OnTreePreviewMouseRightButtonDown"
 						TreeViewItem.Selected="OnTreeViewItemSelected">
 						<TreeView.Resources>
 							<!--  Items only scroll into view when they're selected, so expanding an item doesn't scroll the tree.  -->
@@ -218,11 +218,12 @@
 									</TextBlock.Style>
 								</TextBlock>
 							</HierarchicalDataTemplate>
-							<!--  Layers and shapes have a button for whether they're drawn on the canvas, a menu for setting it, and a tint while forced.  -->
+							<!--  Every item has a menu for duplicating and deleting it. Layers and shapes also have a button for whether they're drawn on the canvas, menu items for setting it, and a tint while forced.  -->
 							<HierarchicalDataTemplate DataType="{x:Type viewModels:DataItemViewModel}" ItemsSource="{Binding Children}">
 								<StackPanel Orientation="Horizontal">
 									<StackPanel.Style>
 										<Style TargetType="StackPanel">
+											<Setter Property="ContextMenu" Value="{StaticResource DataItemMenu}" />
 											<Style.Triggers>
 												<DataTrigger Binding="{Binding HasCanvasState}" Value="True">
 													<Setter Property="ContextMenu" Value="{StaticResource CanvasStateMenu}" />

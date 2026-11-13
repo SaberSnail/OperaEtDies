@@ -24,7 +24,7 @@ public partial class ShortcutsWindowView : Window
 		new("Editing", "F5", "Load the data files again, discarding any edits"),
 		new("Tree", "Click the box beside a layer or shape", "Go to the next canvas state: normal, forced (📌), hidden (⊘)"),
 		new("Tree", "Alt+click the box", "Show only that layer or shape on the canvas"),
-		new("Tree", "Right-click a layer or shape", "Set the canvas state of it, its layer, the filtered layers, or all layers"),
+		new("Tree", "Right-click an item", "Select it, and duplicate or delete it (for a layer or shape, also set the canvas state of it, its layer, the filtered layers, or all layers)"),
 		new("Canvas", "Click", "Select the shape at that point, passing over mostly see-through shapes"),
 		new("Canvas", "Ctrl+click", "Select the shape under the selected one, cycling through every shape at that point"),
 		new("Canvas", "Drag inside the bounds", "Move the selected shape"),

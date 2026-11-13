@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using PortraitEditor.Controls;
 using PortraitEditor.ViewModels;
 
@@ -76,6 +77,18 @@ public partial class MainWindowView : Window
 				m_isBringingIntoView = false;
 			}
 		}
+	}
+
+	/// <summary>
+	/// Right-clicking a layer, shape, or other item selects it, so its menu acts on the item the editor shows.
+	/// </summary>
+	private void OnTreePreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+	{
+		var element = e.OriginalSource as DependencyObject;
+		while (element is not null and not TreeViewItem)
+			element = element is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(element) : LogicalTreeHelper.GetParent(element);
+		if (element is TreeViewItem { DataContext: DataItemViewModel item })
+			item.IsSelected = true;
 	}
 
 	/// <summary>

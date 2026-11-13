@@ -71,7 +71,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 	public ObservableCollection<PreviewCharacterViewModel> Previews { get; } = [];
 
 	/// <summary>
-	/// The preview character shown on the canvas, whose colors and drawn layers the tree shows.
+	/// The preview character shown on the canvas, whose colors and drawn layers the tree shows. Changing it clears the
+	/// tree's selection, so an item that doesn't pass the filter for the new character isn't kept in the tree.
 	/// </summary>
 	public PreviewCharacterViewModel? FocusedPreview
 	{
@@ -79,7 +80,11 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 		set
 		{
 			if (SetPropertyField(value, ref m_focusedPreview))
+			{
+				ClearSelection();
 				UpdateFocus();
+				ApplyFilter();
+			}
 		}
 	}
 
@@ -184,31 +189,6 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 		}
 	}
 
-	public bool CanDuplicateItem() => SelectedItem?.Node is not null;
-
-	public void DuplicateItem()
-	{
-		if (SelectedItem is { List: { } list, Node: { } node } item)
-		{
-			var copy = node.DeepClone().AsObject();
-			if (item.Id is { } id)
-				copy.SetProperty("id", JsonValue.Create(GetUnusedId(list, id)));
-			m_pendingSelection = (item.Kind, item.Parent?.Index ?? -1, item.Index + 1);
-			m_document!.EditStructure(() => list.Insert(item.Index + 1, copy));
-		}
-	}
-
-	public bool CanDeleteItem() => SelectedItem?.Node is not null;
-
-	public void DeleteItem()
-	{
-		if (SelectedItem is { List: { } list } item)
-		{
-			m_pendingSelection = list.Count > 1 ? (item.Kind, item.Parent?.Index ?? -1, Math.Min(item.Index, list.Count - 2)) : null;
-			m_document!.EditStructure(() => list.RemoveAt(item.Index));
-		}
-	}
-
 	public bool CanMoveItemUp() => SelectedItem is { Index: > 0 };
 
 	public void MoveItemUp() => MoveItem(-1);
@@ -229,7 +209,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 		{
 			var shapes = layerNode.GetProperty("shapes") as JsonArray;
 			var index = SelectedItem?.Kind == DataItemKind.Shape ? SelectedItem.Index + 1 : shapes?.Count ?? 0;
-			var shape = new JsonObject { ["path"] = "M180,220 h40 v40 h-40 Z", ["fill"] = "#FF00FF" };
+			var shape = CreateNewShape();
 			m_pendingSelection = (DataItemKind.Shape, layer.Index, index);
 			m_document!.EditStructure(() =>
 			{
@@ -243,6 +223,40 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 			});
 		}
 	}
+
+	public bool CanAddLayer() => m_document is not null;
+
+	/// <summary>
+	/// Adds a layer with a square in it (since a layer needs a shape), after the selected layer or the selected shape's
+	/// layer, or else at the end, and selects it.
+	/// </summary>
+	public void AddLayer()
+	{
+		if (m_document is { } document)
+		{
+			var selectedLayer = SelectedItem?.Kind == DataItemKind.Shape ? SelectedItem.Parent : SelectedItem?.Kind == DataItemKind.Layer ? SelectedItem : null;
+			var layers = PortraitDocument.GetList(document.Root, "layers");
+			var index = selectedLayer is not null ? selectedLayer.Index + 1 : layers?.Count ?? 0;
+			var layer = new JsonObject
+			{
+				["id"] = layers is null ? "new_layer" : GetUnusedId(layers, "new_layer", ""),
+				["shapes"] = new JsonArray(CreateNewShape()),
+			};
+			m_pendingSelection = (DataItemKind.Layer, -1, index);
+			document.EditStructure(() =>
+			{
+				if (layers is null)
+				{
+					layers = [];
+					document.Root.SetProperty("layers", layers);
+				}
+
+				layers.Insert(index, layer);
+			});
+		}
+	}
+
+	private static JsonObject CreateNewShape() => new() { ["path"] = "M180,220 h40 v40 h-40 Z", ["fill"] = "#FF00FF" };
 
 	/// <summary>
 	/// Copies an item as JSON, to paste into a data file or mod file.
@@ -559,6 +573,10 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 				UpdateModified(parent);
 			if (item.Kind == DataItemKind.Shape)
 				UpdateShapeSwatch(item);
+
+			// The shapes kept for matching canvas states follow edits, but not changes to the lists, which are matched against them.
+			if ((item.Parent ?? item) is { Kind: DataItemKind.Layer } layer && GetStructure() == m_structure)
+				m_shapeTexts[GetLayerKey(layer)] = GetShapeTexts(layer.Node);
 			m_lastEditedItem = null;
 		}
 
@@ -576,18 +594,30 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 	{
 		if (GetStructure() != m_structure || m_pendingSelection is not null)
 		{
+			// The new tree doesn't know which items are drawn yet, so it's drawn right away instead of a moment later,
+			// so the filter doesn't show items it should hide in the meantime.
 			RebuildTree();
+			Refresh();
 		}
 		else
 		{
+			// The lists are the same length, but their items may have moved (such as when a move is undone).
+			RemapShapeStates();
+			foreach (var layer in m_layers)
+			{
+				foreach (var shape in layer.Children.OfType<DataItemViewModel>())
+					shape.SetCanvasState(m_shapeStates.GetValueOrDefault((GetLayerKey(layer), shape.Index)));
+			}
+
 			foreach (var item in GetAllItems())
 			{
 				item.RefreshText();
 				UpdateModified(item);
 			}
-		}
 
-		m_refreshTimer.Restart();
+			RaisePropertyChanged(nameof(CanvasStateSummary));
+			m_refreshTimer.Restart();
+		}
 	}
 
 	private static void CommandManagerRequery() => System.Windows.Input.CommandManager.InvalidateRequerySuggested();
@@ -598,8 +628,10 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 	/// </summary>
 	private void RebuildTree()
 	{
-		var selection = m_pendingSelection ?? (m_selectedItem is { } selected ? (selected.Kind, selected.Parent?.Index ?? -1, selected.Index) : null);
+		RemapShapeStates();
+		var selection = m_clearSelection ? null : m_pendingSelection ?? (m_selectedItem is { } selected ? (selected.Kind, selected.Parent?.Index ?? -1, selected.Index) : null);
 		m_pendingSelection = null;
+		m_clearSelection = false;
 		var expanded = m_layers.Where(x => x.IsExpanded).Select(x => x.Index).ToHashSet();
 		var expandedCategories = m_treeRoots.Where(x => x.IsExpanded).Select(x => x.Name).ToHashSet(StringComparer.Ordinal);
 
@@ -648,6 +680,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 
 		ApplyFilter();
 		UpdateSwatches();
+		RaisePropertyChanged(nameof(CanvasStateSummary));
 		CommandManagerRequery();
 	}
 
@@ -715,6 +748,19 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 
 	void ITreeItemHost.OnItemSelected(DataItemViewModel item) => OnItemSelected(item);
 
+	private void ClearSelection()
+	{
+		if (m_selectedItem is { } previous)
+		{
+			m_selectedItem = null;
+			previous.IsSelected = false;
+			SelectedItem = null;
+			ItemEditor = null;
+			Canvas.SetShape(null);
+			CommandManagerRequery();
+		}
+	}
+
 	void ITreeItemHost.OnCanvasStateChanged(DataItemViewModel item)
 	{
 		StoreCanvasState(item);
@@ -756,6 +802,40 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 
 	void ITreeItemHost.SetAll(CanvasState state) => SetLayerStates(m_layers, state);
 
+	void ITreeItemHost.Duplicate(DataItemViewModel item)
+	{
+		if (m_document is { } document && item is { List: { } list, Node: { } node })
+		{
+			var copy = node.DeepClone().AsObject();
+			if (item.Id is { } id)
+				copy.SetProperty("id", JsonValue.Create(GetUnusedId(list, id)));
+			m_pendingSelection = (item.Kind, item.Parent?.Index ?? -1, item.Index + 1);
+			document.EditStructure(() => list.Insert(item.Index + 1, copy));
+		}
+	}
+
+	/// <summary>
+	/// Removes an item, selecting the item the tree shows after it (or else before it) if it was selected. Items the
+	/// filter hides are passed over, so they don't show up just because they'd be selected.
+	/// </summary>
+	void ITreeItemHost.Delete(DataItemViewModel item)
+	{
+		if (m_document is { } document && item.List is { } list)
+		{
+			if (item == m_selectedItem)
+			{
+				var siblings = GetSiblings(item);
+				var next = siblings.FirstOrDefault(x => x.Index > item.Index && x.IsVisible);
+				var previous = siblings.LastOrDefault(x => x.Index < item.Index && x.IsVisible);
+				var index = next is not null ? next.Index - 1 : previous?.Index;
+				m_pendingSelection = index is { } newIndex ? (item.Kind, item.Parent?.Index ?? -1, newIndex) : null;
+				m_clearSelection = index is null;
+			}
+
+			document.EditStructure(() => list.RemoveAt(item.Index));
+		}
+	}
+
 	/// <summary>
 	/// The number of layers and shapes forced and hidden on the canvas, or empty if there are none.
 	/// </summary>
@@ -763,7 +843,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 	{
 		get
 		{
-			var states = m_layerStates.Values.Concat(m_shapeStates.Values).ToList();
+			// Only the layers and shapes in the data count, though the states of removed ones are kept in case they come back.
+			var states = m_layers.SelectMany(x => x.Children.OfType<DataItemViewModel>().Prepend(x)).Select(x => x.CanvasState).ToList();
 			var parts = new List<string>();
 			var forced = states.Count(x => x == CanvasState.Forced);
 			var hidden = states.Count(x => x == CanvasState.Hidden);
@@ -778,7 +859,12 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 	/// <summary>
 	/// Puts every layer and shape back to normal on the canvas.
 	/// </summary>
-	public void ResetCanvasStates() => SetLayerStates(m_layers, CanvasState.Normal);
+	public void ResetCanvasStates()
+	{
+		m_layerStates.Clear();
+		m_shapeStates.Clear();
+		SetLayerStates(m_layers, CanvasState.Normal);
+	}
 
 	/// <summary>
 	/// Sets the canvas state of layers, and puts their shapes back to normal so they follow their layers.
@@ -826,7 +912,49 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 		UpdateFocus();
 	}
 
-	private static string GetLayerKey(DataItemViewModel layer) => layer.Id ?? $"#{layer.Index.ToString(CultureInfo.InvariantCulture)}";
+	private static string GetLayerKey(DataItemViewModel layer) => GetLayerKey(layer.Id, layer.Index);
+
+	private static string GetLayerKey(string? id, int index) => id ?? $"#{index.ToString(CultureInfo.InvariantCulture)}";
+
+	private static IReadOnlyList<string> GetShapeTexts(JsonObject? layer) =>
+		(layer?.GetProperty("shapes") as JsonArray)?.Select(x => x?.ToJsonString() ?? "").ToList() ?? [];
+
+	/// <summary>
+	/// Moves the canvas states of shapes to where their shapes are now, after the lists changed. Shapes have no ids, so
+	/// each layer's shapes are matched with the shapes it had before (see ListAlignment), and a shape's state follows it
+	/// when shapes are added, removed, or moved, including by undo and when the data is loaded again.
+	/// </summary>
+	private void RemapShapeStates()
+	{
+		if (m_document?.Root is not { } root || PortraitDocument.GetList(root, "layers") is not { } layers)
+			return;
+
+		var states = new Dictionary<(string Layer, int Shape), CanvasState>();
+		var keys = new HashSet<string>(StringComparer.Ordinal);
+		for (var layerIndex = 0; layerIndex < layers.Count; layerIndex++)
+		{
+			var layer = layers[layerIndex] as JsonObject;
+			var key = GetLayerKey(layer?.GetString("id"), layerIndex);
+			keys.Add(key);
+			var texts = GetShapeTexts(layer);
+			var oldIndexes = m_shapeTexts.TryGetValue(key, out var oldTexts) ? ListAlignment.Align(oldTexts, texts) : Enumerable.Range(0, texts.Count).ToList();
+			for (var shapeIndex = 0; shapeIndex < texts.Count; shapeIndex++)
+			{
+				if (m_shapeStates.TryGetValue((key, oldIndexes[shapeIndex]), out var state))
+					states[(key, shapeIndex)] = state;
+			}
+
+			m_shapeTexts[key] = texts;
+		}
+
+		// The states of layers that are gone are kept, in case they come back (such as by undo).
+		foreach (var (key, state) in m_shapeStates.Where(x => !keys.Contains(x.Key.Layer)))
+			states[key] = state;
+
+		m_shapeStates.Clear();
+		foreach (var (key, state) in states)
+			m_shapeStates[key] = state;
+	}
 
 	private static bool? ToOverride(CanvasState state) => state switch
 	{
@@ -926,15 +1054,18 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 		return children.OfType<DataItemViewModel>().ToList();
 	}
 
-	private static string GetUnusedId(JsonArray list, string id)
+	/// <summary>
+	/// Gets an id that isn't in the list: the id with the suffix, then with the suffix and a number from 2 up.
+	/// </summary>
+	private static string GetUnusedId(JsonArray list, string id, string suffix = "_copy")
 	{
 		var ids = list.OfType<JsonObject>().Select(x => x.GetString("id")).OfType<string>().ToHashSet(StringComparer.Ordinal);
 		var number = 1;
-		var newId = $"{id}_copy";
+		var newId = $"{id}{suffix}";
 		while (ids.Contains(newId))
 		{
 			number++;
-			newId = $"{id}_copy{number.ToString(CultureInfo.InvariantCulture)}";
+			newId = $"{id}{suffix}{(suffix.Length == 0 ? "_" : "")}{number.ToString(CultureInfo.InvariantCulture)}";
 		}
 
 		return newId;
@@ -993,6 +1124,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 	private readonly Collection<FileSystemWatcher> m_watchers = [];
 	private readonly Dictionary<string, CanvasState> m_layerStates = new(StringComparer.Ordinal);
 	private readonly Dictionary<(string Layer, int Shape), CanvasState> m_shapeStates = [];
+	private readonly Dictionary<string, IReadOnlyList<string>> m_shapeTexts = new(StringComparer.Ordinal);
 	private EditorData m_data;
 	private IReadOnlyList<string> m_loadErrors = [];
 	private IReadOnlyList<PreviewSettings?> m_savedPreviews;
@@ -1004,6 +1136,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 	private IReadOnlyList<DataItemViewModel> m_layers = [];
 	private string m_structure = "";
 	private (DataItemKind Kind, int ParentIndex, int Index)? m_pendingSelection;
+	private bool m_clearSelection;
 	private DataItemViewModel? m_selectedItem;
 	private DataItemViewModel? m_lastEditedItem;
 	private ItemEditorViewModel? m_itemEditor;

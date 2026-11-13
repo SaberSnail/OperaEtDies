@@ -53,8 +53,17 @@
 		</Grid>
 	</DataTemplate>
 
-	<!--  Context menus for whether layers and shapes are drawn on the canvas. Each item calls a method on the tree item with a state's name.  -->
+	<!--  The menu for colors, scales, and offsets in the tree. Right-clicking an item selects it first.  -->
+	<ContextMenu x:Key="DataItemMenu">
+		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Duplicate}" Header="Duplicate" />
+		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Delete}" Header="Delete" />
+	</ContextMenu>
+
+	<!--  The menu for layers and shapes in the tree, which also sets whether they're drawn on the canvas. Each canvas state item calls a method on the tree item with a state's name.  -->
 	<ContextMenu x:Key="CanvasStateMenu">
+		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Duplicate}" Header="Duplicate" />
+		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Delete}" Header="Delete" />
+		<Separator />
 		<MenuItem
 			Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetState}"
 			CommandParameter="Normal"
@@ -512,14 +521,84 @@
 				<TabItem Header="Shape" Visibility="{Binding IsShape, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 					<ScrollViewer Padding="6" VerticalScrollBarVisibility="Auto">
 						<StackPanel controls:LabeledRow.IsAlignmentScope="True">
-							<TextBlock Margin="0,0,0,2" Text="Path" />
+							<!--  The insert menu adds a command after the command at the caret, or at the caret between commands.  -->
+							<DockPanel Margin="0,0,0,2">
+								<Menu
+									Background="Transparent"
+									DockPanel.Dock="Right"
+									ToolTip="Insert a command after the command at the caret, or at the caret between commands">
+									<MenuItem
+										Padding="8,2"
+										BorderBrush="#B0B0B0"
+										BorderThickness="1"
+										Header="Insert ▾"
+										ItemsSource="{Binding PathCommandOptions}">
+										<MenuItem.ItemContainerStyle>
+											<Style TargetType="MenuItem">
+												<Setter Property="Header" Value="{Binding Title}" />
+												<Setter Property="FontFamily" Value="{StaticResource CodeFontFamily}" />
+												<Setter Property="Command" Value="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Insert}" />
+											</Style>
+										</MenuItem.ItemContainerStyle>
+									</MenuItem>
+								</Menu>
+								<TextBlock VerticalAlignment="Bottom" Text="Path" />
+							</DockPanel>
 							<TextBox
 								Height="140"
 								AcceptsReturn="False"
+								controls:TextBoxCaret.Index="{Binding PathCaretIndex, Mode=TwoWay}"
+								controls:TextBoxCaret.IsTracked="True"
 								FontFamily="{StaticResource CodeFontFamily}"
 								Text="{Binding PathText, UpdateSourceTrigger=PropertyChanged}"
 								TextWrapping="Wrap"
 								VerticalScrollBarVisibility="Auto" />
+							<!--  What the command and number at the caret mean. It keeps room for a few lines, so the fields below don't jump as the caret moves.  -->
+							<Border
+								MinHeight="84"
+								Margin="0,4,0,0"
+								Padding="6,4"
+								Background="White"
+								BorderBrush="#D8D8D8"
+								BorderThickness="1"
+								CornerRadius="3"
+								DataContext="{Binding PathHelp}">
+								<StackPanel>
+									<TextBlock FontWeight="Bold" Text="{Binding Title}" />
+									<ItemsControl Focusable="False" ItemsSource="{Binding Parameters}">
+										<ItemsControl.ItemsPanel>
+											<ItemsPanelTemplate>
+												<WrapPanel />
+											</ItemsPanelTemplate>
+										</ItemsControl.ItemsPanel>
+										<ItemsControl.ItemTemplate>
+											<DataTemplate>
+												<Border
+													Margin="0,2,4,0"
+													Padding="4,0"
+													CornerRadius="2">
+													<TextBlock FontFamily="{StaticResource CodeFontFamily}" Text="{Binding Name}" />
+													<Border.Style>
+														<Style TargetType="Border">
+															<Style.Triggers>
+																<DataTrigger Binding="{Binding IsCurrent}" Value="True">
+																	<Setter Property="Background" Value="#2F7CF6" />
+																	<Setter Property="TextElement.Foreground" Value="White" />
+																</DataTrigger>
+															</Style.Triggers>
+														</Style>
+													</Border.Style>
+												</Border>
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
+									<TextBlock
+										Margin="0,2,0,0"
+										Foreground="{DynamicResource FontLightBrush}"
+										Text="{Binding Description}"
+										TextWrapping="Wrap" />
+								</StackPanel>
+							</Border>
 							<TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding PathError}" />
 							<ContentPresenter Margin="0,8,0,0" Content="{Binding Fill}" />
 							<controls:LabeledRow MinFieldWidth="140" Style="{StaticResource FieldRowStyle}">

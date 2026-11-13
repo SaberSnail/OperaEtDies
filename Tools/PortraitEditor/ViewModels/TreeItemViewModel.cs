@@ -123,6 +123,16 @@ public interface ITreeItemHost
 	/// Sets the canvas state of every layer, and puts every shape back to normal.
 	/// </summary>
 	void SetAll(CanvasState state);
+
+	/// <summary>
+	/// Adds a copy of an item right after it, and selects the copy.
+	/// </summary>
+	void Duplicate(DataItemViewModel item);
+
+	/// <summary>
+	/// Removes an item from the data.
+	/// </summary>
+	void Delete(DataItemViewModel item);
 }
 
 public enum DataItemKind
@@ -252,6 +262,17 @@ public sealed class DataItemViewModel : TreeItemViewModel
 	public void SetFiltered(string state) => m_host.SetFiltered(Enum.Parse<CanvasState>(state));
 
 	public void SetAll(string state) => m_host.SetAll(Enum.Parse<CanvasState>(state));
+
+	public bool CanDuplicate() => Node is not null;
+
+	/// <summary>
+	/// Adds a copy of the item right after it, and selects the copy.
+	/// </summary>
+	public void Duplicate() => m_host.Duplicate(this);
+
+	public bool CanDelete() => Node is not null;
+
+	public void Delete() => m_host.Delete(this);
 
 	/// <summary>
 	/// Sets the canvas state without telling the host, for changes the host makes itself. Returns whether it changed.

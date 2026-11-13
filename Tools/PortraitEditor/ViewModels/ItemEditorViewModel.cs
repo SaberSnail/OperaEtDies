@@ -97,6 +97,42 @@ public sealed class ItemEditorViewModel : ViewModelBase
 
 	public string? PathError => PortraitShape.TryParsePath(PathText, out _, out var error) ? null : error;
 
+	/// <summary>
+	/// Where the caret is in the path's text box, which the path help describes.
+	/// </summary>
+	public int PathCaretIndex
+	{
+		get => VerifyAccess(m_pathCaretIndex);
+		set
+		{
+			if (SetPropertyField(value, ref m_pathCaretIndex))
+				RaisePropertyChanged(nameof(PathHelp));
+		}
+	}
+
+	/// <summary>
+	/// The command and number of the path at the caret, and what they mean.
+	/// </summary>
+	public PathHelpInfo PathHelp => Model.PathHelp.Describe(PathText, m_pathCaretIndex);
+
+	/// <summary>
+	/// The insert menu's commands.
+	/// </summary>
+	public IReadOnlyList<PathCommandItemViewModel> PathCommandOptions => m_pathCommandOptions ??= Model.PathHelp.CommandOptions.Select(x => new PathCommandItemViewModel(this, x)).ToList();
+
+	/// <summary>
+	/// Inserts a command into the path after the command at the caret (or at the caret, between commands), and puts the
+	/// caret on its first number.
+	/// </summary>
+	public void InsertPathCommand(string command)
+	{
+		var (text, caret) = Model.PathHelp.InsertCommand(PathText, m_pathCaretIndex, command[0]);
+		m_owner.BreakUndoMerge();
+		PathText = text;
+		m_owner.BreakUndoMerge();
+		PathCaretIndex = caret;
+	}
+
 	public IReadOnlyList<string> GradientOptions { get; } = ["", "vertical", "horizontal", "radial"];
 
 	public string Gradient
@@ -160,7 +196,7 @@ public sealed class ItemEditorViewModel : ViewModelBase
 			RaisePropertyChanged(nameof(JsonText));
 		}
 
-		RaisePropertyChanged(nameof(Path), nameof(PathText), nameof(PathError), nameof(Gradient), nameof(Scale), nameof(StrokeWidth), nameof(Opacity), nameof(Amount), nameof(When), nameof(ScaleOptions));
+		RaisePropertyChanged(nameof(Path), nameof(PathText), nameof(PathError), nameof(PathHelp), nameof(Gradient), nameof(Scale), nameof(StrokeWidth), nameof(Opacity), nameof(Amount), nameof(When), nameof(ScaleOptions));
 		RefreshColors();
 	}
 
@@ -325,4 +361,16 @@ public sealed class ItemEditorViewModel : ViewModelBase
 	private string? m_jsonError;
 	private bool m_isApplyingJson;
 	private int m_selectedTab;
+	private int m_pathCaretIndex;
+	private IReadOnlyList<PathCommandItemViewModel>? m_pathCommandOptions;
+}
+
+/// <summary>
+/// A command in the path's insert menu.
+/// </summary>
+public sealed class PathCommandItemViewModel(ItemEditorViewModel owner, PathCommandOption option)
+{
+	public string Title => option.Title;
+
+	public void Insert() => owner.InsertPathCommand(option.Command);
 }

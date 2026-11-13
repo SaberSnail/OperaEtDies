@@ -17,13 +17,13 @@ Without `--data`, it loads Sub Corona's `Data` folder as found when the editor w
 
 ## The window
 
-* **Tree (left):** the colors, scales, offsets, and layers, with each layer's shapes. Edited items are bold with a dot. Layers and shapes that aren't drawn for the focused character are grey, and each color and shape has a swatch of its color for that character. The filter matches ids, and the check box shows only the layers and shapes drawn for the focused character (or forced, below). The buttons add a shape to the selected layer, duplicate, delete, or move the selected item.
-  * **Canvas states:** the box beside each layer and shape sets whether it's drawn on the canvas. It only affects the canvas, never the previews or the data, and lasts until the editor closes (kept by layer id when the data is loaded again).
+* **Tree (left):** the colors, scales, offsets, and layers, with each layer's shapes. Edited items are bold with a dot. Layers and shapes that aren't drawn for the focused character are grey, and each color and shape has a swatch of its color for that character. The filter matches ids, and **Only for focused character** shows only the layers and shapes drawn for the focused character (or forced, below). The buttons add a shape (a square) to the selected layer, add a layer (with a square in it, since a layer needs a shape) after the selected layer or at the end, or move the selected item. Right-clicking an item selects it, and its menu duplicates or deletes it. Selecting another preview character clears the selection. When the selected item is deleted, the next item the tree shows (or else the one before it) is selected, passing over items the filter hides.
+  * **Canvas states:** the box beside each layer and shape sets whether it's drawn on the canvas. It only affects the canvas, never the previews or the data, and lasts until the editor closes. Layers keep their states by id. Shapes have no ids, so each layer's shapes are matched with the ones it had before whenever the lists change, and a shape's state follows it when shapes are added, deleted, or moved, when that's undone, and when the data is loaded again. The states of deleted layers and shapes come back if the deletion is undone.
     * **Normal** (blank): drawn when the focused character meets its conditions.
     * **Forced** (📌, and the row is tinted): drawn even when the character doesn't meet them. A forced layer ignores its own condition and place, but its shapes still need their own conditions, so force a shape to see one that the character wouldn't have.
     * **Hidden** (⊘): never drawn.
     * A shape's own state wins over its layer's. Clicking the box goes to the next state, and Alt+click shows only that layer or shape (forcing it and hiding everything else).
-    * Right-clicking a layer or shape sets its state, its layer's and every shape in it, or the layers the tree is showing (with the filter) or all layers. Setting several layers at once puts their shapes back to normal, so they follow their layers. The layers heading has the last two as well.
+    * Right-clicking a layer or shape also sets its state, its layer's and every shape in it, or the layers the tree is showing (with the filter) or all layers. Setting several layers at once puts their shapes back to normal, so they follow their layers. The layers heading has the last two as well.
     * While anything is forced or hidden, a bar below the tree counts them, and its ✕ puts everything back to normal.
 * **Canvas (left of center):** the focused character's portrait, with the selected shape's outline (dashed red when it isn't drawn on the canvas), its bounds, and its points. When the selected shape isn't drawn, a line below the canvas says why (which conditions the character doesn't meet, or that it's hidden), and **Show anyway** forces it.
   * Click a shape to select it. Mostly see-through shapes (such as lighting over the whole portrait) are passed over in favor of what can be seen. Ctrl+click selects the shape under the selected one, cycling through everything at that point, see-through shapes last.
@@ -39,11 +39,15 @@ Changes are drawn a moment after they're made. If the data has problems, they're
 
 When the data files or mod files change on disk (such as after running `Generate.sh`), they're loaded again. If there are edits, a bar asks first, since loading again discards them. F5 or **Reload** loads them again at any time.
 
-The **?** button (or F1) lists the keyboard and mouse shortcuts. The window's position, whether it's maximized, the widths of the side panels, the tree's "only drawn" check box, the canvas grid, and the size of the preview portraits are kept between sessions in the registry, under `HKEY_CURRENT_USER\Software\Golden Anvil\Opera Et Dies Portrait Editor`. A window that would be off every screen opens in the middle of the screen instead.
+The **?** button (or F1) lists the keyboard and mouse shortcuts. The window's position, whether it's maximized, the widths of the side panels, the tree's **Only for focused character** check box, the canvas grid, and the size of the preview portraits are kept between sessions in the registry, under `HKEY_CURRENT_USER\Software\Golden Anvil\Opera Et Dies Portrait Editor`. A window that would be off every screen opens in the middle of the screen instead.
 
 ## Paths
 
 Paths are edited as text, so they keep their commands, whether each segment is relative, and their spacing. Only the segments whose numbers change are written again, with numbers rounded to one decimal place. Paths the editor can't take apart (but WPF can draw) can still be edited as text.
+
+Below the path, a box describes the path at the caret: the command (and whether its numbers are absolute or relative to the current point), its numbers with the one at the caret highlighted, and what that number means. Between numbers, it describes the number that would be typed next, and after a complete command, that more numbers repeat it. Where a command would go (at the start, or after a close), it lists the commands. It reads the path loosely, so it works while a path is being typed and can't be drawn yet.
+
+The **Insert** menu above the path adds a command: after the command the caret is in, or at the caret when it's between commands (but never before the fill rule). The command is absolute, with numbers that draw a short segment from the point it starts at (a curve bulges up, and a move starts a new figure below and to the right), so it shows up on the canvas ready to be adjusted. It's set off by a space on each side, except at the start or end of the path, and the caret goes to its first number, so the help box explains it.
 
 ## The icon
 
