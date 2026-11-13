@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- The icon is drawn by the editor itself from the portrait data; see "The icon" in Docs/PortraitEditor.md. -->
+    <ApplicationIcon>Icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Icon.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\OperaEtDies\OperaEtDies.csproj" />
+    <ProjectReference Include="..\..\..\..\GoldenAnvil.Utility\GoldenAnvil.Utility.Windows\GoldenAnvil.Utility.Windows.csproj" />
+    <ProjectReference Include="..\..\..\..\GoldenAnvil.Utility\GoldenAnvil.Utility\GoldenAnvil.Utility.csproj" />
+  </ItemGroup>
+
+  <!-- The editor reads Sub Corona's data folder directly (not the copy next to the game), so it sees the files as they're regenerated. -->
+  <ItemGroup>
+    <AssemblyMetadata Include="SubCoronaDataDirectory" Value="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..\SubCorona\Data'))" />
+  </ItemGroup>
+
+</Project>

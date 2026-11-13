@@ -35,22 +35,34 @@ internal static class GameDataValidation
 		// Portrait conditions use the character properties, like other conditions outside of templates.
 		if (portraits is not null)
 		{
-			errors.AddRange(portraits.GetConditions()
-				.SelectMany(x => CharacterData.ValidateCondition(x.Path, x.Condition, properties, isTemplate: false))
-				.Select(x => new DataLoadError(Path.Combine(dataDirectory, PortraitData.FileName), x)));
-
-			// Layers are drawn in kinds of quarter, and in the workplaces of professions.
 			var quarterKinds = locations.QuarterKinds.Where(x => x?.Id is not null).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
-			errors.AddRange(portraits.GetQuarterKinds()
-				.Where(x => !quarterKinds.Contains(x.QuarterKind))
-				.Select(x => new DataLoadError(Path.Combine(dataDirectory, PortraitData.FileName), OurResources.PortraitQuarterKindUnknown.FormatCurrentCulture(x.Path, x.QuarterKind))));
-			if (professionProperty is not null)
-			{
-				var professionIds = professionProperty.GetConditionValueIds().ToHashSet(StringComparer.Ordinal);
-				errors.AddRange(portraits.GetWorkplaces()
-					.Where(x => !professionIds.Contains(x.Profession))
-					.Select(x => new DataLoadError(Path.Combine(dataDirectory, PortraitData.FileName), OurResources.PortraitWorkplaceUnknown.FormatCurrentCulture(x.Path, x.Profession, professionProperty.Id))));
-			}
+			errors.AddRange(ValidatePortraits(portraits, properties, quarterKinds, professionProperty)
+				.Select(x => new DataLoadError(Path.Combine(dataDirectory, PortraitData.FileName), x)));
+		}
+
+		return errors;
+	}
+
+	/// <summary>
+	/// Checks the portrait data against the character properties, the kinds of quarter, and the profession property (if
+	/// it's known).
+	/// </summary>
+	public static IEnumerable<string> ValidatePortraits(PortraitData portraits, IReadOnlyDictionary<string, CharacterProperty> properties, IReadOnlySet<string> quarterKinds, CharacterProperty? professionProperty)
+	{
+		var errors = portraits.GetConditions()
+			.SelectMany(x => CharacterData.ValidateCondition(x.Path, x.Condition, properties, isTemplate: false))
+			.ToList();
+
+		// Layers are drawn in kinds of quarter, and in the workplaces of professions.
+		errors.AddRange(portraits.GetQuarterKinds()
+			.Where(x => !quarterKinds.Contains(x.QuarterKind))
+			.Select(x => OurResources.PortraitQuarterKindUnknown.FormatCurrentCulture(x.Path, x.QuarterKind)));
+		if (professionProperty is not null)
+		{
+			var professionIds = professionProperty.GetConditionValueIds().ToHashSet(StringComparer.Ordinal);
+			errors.AddRange(portraits.GetWorkplaces()
+				.Where(x => !professionIds.Contains(x.Profession))
+				.Select(x => OurResources.PortraitWorkplaceUnknown.FormatCurrentCulture(x.Path, x.Profession, professionProperty.Id)));
 		}
 
 		return errors;

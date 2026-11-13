@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.11.12306.390 stable
+VisualStudioVersion = 18.11.12306.390
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OperaEtDies", "OperaEtDies\OperaEtDies.csproj", "{58D9A0B8-573B-4A17-B567-8350AE194B17}"
 EndProject
@@ -17,6 +17,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution", "Solution", "{B0
 		Directory.Build.props = Directory.Build.props
 		Directory.Packages.props = Directory.Packages.props
 	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tools", "Tools", "{07C2787E-EAC7-C090-1BA3-A61EC2A24D84}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PortraitEditor", "Tools\PortraitEditor\PortraitEditor.csproj", "{4136A302-F27B-4454-9E66-7D3371358D1D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -76,9 +80,24 @@ Global
 		{116AAF75-EFF2-4DBD-A27A-7E3776754267}.Release|x64.Build.0 = Release|Any CPU
 		{116AAF75-EFF2-4DBD-A27A-7E3776754267}.Release|x86.ActiveCfg = Release|Any CPU
 		{116AAF75-EFF2-4DBD-A27A-7E3776754267}.Release|x86.Build.0 = Release|Any CPU
+		{4136A302-F27B-4454-9E66-7D3371358D1D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4136A302-F27B-4454-9E66-7D3371358D1D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4136A302-F27B-4454-9E66-7D3371358D1D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4136A302-F27B-4454-9E66-7D3371358D1D}.Debug|x64.Build.0 = Debug|Any CPU
+		{4136A302-F27B-4454-9E66-7D3371358D1D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4136A302-F27B-4454-9E66-7D3371358D1D}.Debug|x86.Build.0 = Debug|Any CPU
+		{4136A302-F27B-4454-9E66-7D3371358D1D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4136A302-F27B-4454-9E66-7D3371358D1D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4136A302-F27B-4454-9E66-7D3371358D1D}.Release|x64.ActiveCfg = Release|Any CPU
+		{4136A302-F27B-4454-9E66-7D3371358D1D}.Release|x64.Build.0 = Release|Any CPU
+		{4136A302-F27B-4454-9E66-7D3371358D1D}.Release|x86.ActiveCfg = Release|Any CPU
+		{4136A302-F27B-4454-9E66-7D3371358D1D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{4136A302-F27B-4454-9E66-7D3371358D1D} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2B1CC3DB-0B62-44B9-94E0-E2BB26528FAE}

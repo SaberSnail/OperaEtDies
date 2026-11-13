@@ -12,7 +12,7 @@ public static class ModFolders
 	/// <summary>
 	/// The names of the data files that mods can change.
 	/// </summary>
-	public static IReadOnlyList<string> DataFileNames { get; } = [GameInfo.FileName, CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName];
+	public static IReadOnlyList<string> DataFileNames { get; } = [GameInfo.FileName, CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, PortraitData.FileName];
 
 	/// <summary>
 	/// Returns an error for each mod folder that doesn't exist. JSON files in the folders that aren't data files are

@@ -46,21 +46,7 @@
 * Add `any` and `not` to Condition, so conditions can express things like "not (barmaid and at work)" directly instead of needing copies of shapes or extra colors. Conditions are used throughout the data, and the combination checks and dependency ordering assume a simple AND of property values, so this is a large change.
 * Change map generation so rivers can run through towns, not just past them.
 * GameWorld's lists (locations, families, people, and so on) are built once when the world is created, so they'll need updating once objects can be added or removed during play (births, deaths, new businesses).
+* Portrait editor: add and remove path points (and change a segment's command) with the mouse, instead of only by typing the path.
+* Portrait editor: copying edits as mod operations, and a way to carry an edited shape back to `Art/Portraits/Portraits.sh`, since Portraits.json is generated.
 
 ## Current Work
-
-More realistically proportioned portraits: smaller, more realistic heads and features on the original bodies.
-
-- [x] Shrink the head with a head scale and redraw its outline, ears, eyes, brows, nose, and mouth
-- [x] Shorter, thicker necks and a rounder bosom on the original bodies
-- [x] Beards follow each build's jaw
-- [x] Convert the remaining face layers (stubble, protruding ears, drooping eyelid, unusual noses)
-- [x] Check every contact sheet
-- [x] Update Portraits.md
-- [x] Portrait offsets in the data format, so layers can be moved by a condition
-- [x] Move characters up or down in their portraits by height
-- [x] Close-cropped hair follows the new head outline
-- [x] Homemakers wear a linen kerchief instead of a waist apron, which is below the frame
-- [x] Redraw the shawl (spinster, midwife, infirm) with crossed ends tied in a knot
-- [x] Shawls and kerchiefs follow each build's shoulders, and apron straps go around the outside of the neck
-- [x] Fishers wear an oiled-canvas apron and carry a net over the shoulder; the shepherd's hood follows each build's shoulders

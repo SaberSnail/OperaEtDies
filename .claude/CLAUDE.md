@@ -60,3 +60,5 @@ The game's command line options are defined in `OperaEtDies/CommandLineOptions.c
 Mods are experimental. Never read mod files (the files in any mod folder, including the folders in the game's mod list) into context unless I explicitly ask you to.
 
 When running the application, always pass the `--no-mods` command line argument so mods aren't loaded, unless I explicitly ask you to run it with mods.
+
+The same goes for the portrait editor (`Tools/PortraitEditor`): never run it without `--no-mods` unless I specifically ask you to.

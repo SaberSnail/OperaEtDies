@@ -48,8 +48,38 @@ public static class JsonDataLoader
 			: LoadWithMods(filePath, json, modFilePaths, protectedProperties, prepare);
 	}
 
+	/// <summary>
+	/// Reads a data file as JSON, after applying the mod file with the same name from each mod folder that has one, in
+	/// order, without reading it as any type. Mods can't change the protected top level properties.
+	/// </summary>
+	public static DataLoadResult<JsonNode> ReadJson(string filePath, IReadOnlyList<string> modDirectories, IReadOnlyCollection<string> protectedProperties)
+	{
+		var readResult = DataFileReader.Read(filePath, File.ReadAllText);
+		if (readResult.Value is not { } json)
+			return DataLoadResult<JsonNode>.Failure(readResult.Errors);
+
+		var fileName = Path.GetFileName(filePath);
+		var modFilePaths = modDirectories.Select(x => Path.Combine(x, fileName)).Where(File.Exists).ToList();
+		return ApplyMods(filePath, json, modFilePaths, protectedProperties);
+	}
+
+	/// <summary>
+	/// Reads JSON (such as from <see cref="ReadJson"/>) as the given type and checks that it's valid. Problems are
+	/// reported as coming from the given file, and from the source, if any.
+	/// </summary>
+	public static DataLoadResult<T> Deserialize<T>(string filePath, JsonNode root, string? source)
+		where T : class => Deserialize(filePath, source, options => root.Deserialize<T>(options), null);
+
 	private static DataLoadResult<T> LoadWithMods<T>(string filePath, string json, IReadOnlyList<string> modFilePaths, IReadOnlyCollection<string> protectedProperties, Func<T, T>? prepare)
 		where T : class
+	{
+		var result = ApplyMods(filePath, json, modFilePaths, protectedProperties);
+		return result.Value is { } root
+			? Deserialize(filePath, OurResources.DataLoadErrorWithMods, options => root.Deserialize<T>(options), prepare)
+			: DataLoadResult<T>.Failure(result.Errors);
+	}
+
+	private static DataLoadResult<JsonNode> ApplyMods(string filePath, string json, IReadOnlyList<string> modFilePaths, IReadOnlyCollection<string> protectedProperties)
 	{
 		JsonNode? root;
 		try
@@ -58,11 +88,11 @@ public static class JsonDataLoader
 		}
 		catch (JsonException e)
 		{
-			return DataLoadResult<T>.Failure(new DataLoadError(filePath, OurResources.DataFileInvalidJson.FormatCurrentCulture(e.Message)));
+			return DataLoadResult<JsonNode>.Failure(new DataLoadError(filePath, OurResources.DataFileInvalidJson.FormatCurrentCulture(e.Message)));
 		}
 
 		if (root is null)
-			return DataLoadResult<T>.Failure(new DataLoadError(filePath, OurResources.DataFileEmpty));
+			return DataLoadResult<JsonNode>.Failure(new DataLoadError(filePath, OurResources.DataFileEmpty));
 
 		var errors = new List<DataLoadError>();
 		foreach (var modFilePath in modFilePaths)
@@ -88,9 +118,7 @@ public static class JsonDataLoader
 			}
 		}
 
-		return errors.Count != 0
-			? DataLoadResult<T>.Failure(errors)
-			: Deserialize(filePath, OurResources.DataLoadErrorWithMods, options => root.Deserialize<T>(options), prepare);
+		return errors.Count != 0 ? DataLoadResult<JsonNode>.Failure(errors) : DataLoadResult<JsonNode>.Success(root);
 	}
 
 	/// <summary>

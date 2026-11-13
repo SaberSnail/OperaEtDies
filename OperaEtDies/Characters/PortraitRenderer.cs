@@ -49,7 +49,14 @@ public sealed class PortraitRenderer
 	/// Draws a character's portrait in a place. A null place only draws the layers
 	/// that are drawn anywhere.
 	/// </summary>
-	public DrawingImage Render(CharacterTraits traits, PortraitPlace? place)
+	public DrawingImage Render(CharacterTraits traits, PortraitPlace? place) => Render(traits, place, null, null);
+
+	/// <summary>
+	/// Draws a character's portrait in a place, with layers and shapes drawn or left out regardless of their conditions
+	/// where the overrides say so. An override gets a layer's index (and a shape's index in its layer) and returns
+	/// true to draw it, false to leave it out, or null to follow its conditions. See <see cref="IsShapeDrawn"/>.
+	/// </summary>
+	public DrawingImage Render(CharacterTraits traits, PortraitPlace? place, Func<int, bool?>? layerOverride, Func<int, int, bool?>? shapeOverride)
 	{
 		var getValueId = GetValueIdFunc(traits);
 		var colors = GetColors(getValueId);
@@ -60,16 +67,67 @@ public sealed class PortraitRenderer
 
 		// Fixes the drawing's bounds to the full portrait, whatever its layers cover.
 		portrait.Children.Add(new GeometryDrawing(Brushes.Transparent, null, m_bounds));
-		foreach (var layer in m_layers.Where(x => x.Layer.IsDrawn(getValueId, place)))
+		for (var layerIndex = 0; layerIndex < m_layers.Count; layerIndex++)
 		{
+			var layer = m_layers[layerIndex];
+			var isLayerDrawn = layer.Layer.IsDrawn(getValueId, place);
 			var offset = offsets.GetValueOrDefault(layer.Layer.Offset ?? "");
-			foreach (var shape in layer.Shapes.Where(x => CharacterCondition.IsMet(x.Shape.When, getValueId)))
-				portrait.Children.Add(CreateDrawing(shape, colors, CombineTransforms(scales.GetValueOrDefault(shape.Shape.Scale ?? layer.Layer.Scale ?? ""), offset)));
+			for (var shapeIndex = 0; shapeIndex < layer.Shapes.Count; shapeIndex++)
+			{
+				var shape = layer.Shapes[shapeIndex];
+				if (IsShapeDrawn(isLayerDrawn, CharacterCondition.IsMet(shape.Shape.When, getValueId), layerOverride?.Invoke(layerIndex), shapeOverride?.Invoke(layerIndex, shapeIndex)))
+					portrait.Children.Add(CreateDrawing(shape, colors, CombineTransforms(scales.GetValueOrDefault(shape.Shape.Scale ?? layer.Layer.Scale ?? ""), offset)));
+			}
 		}
 
 		var image = new DrawingImage(portrait);
 		image.Freeze();
 		return image;
+	}
+
+	/// <summary>
+	/// Whether a shape is drawn, given whether its layer is drawn and its own condition is met, and any overrides. A
+	/// shape's override wins over its layer's, and a layer's override replaces whether the layer is drawn, but its
+	/// shapes still need their own conditions.
+	/// </summary>
+	public static bool IsShapeDrawn(bool isLayerDrawn, bool isShapeConditionMet, bool? layerOverride, bool? shapeOverride) =>
+		shapeOverride ?? ((layerOverride ?? isLayerDrawn) && isShapeConditionMet);
+
+	/// <summary>
+	/// Works out every portrait color for a character, by id.
+	/// </summary>
+	public IReadOnlyDictionary<string, Color> GetColors(CharacterTraits traits) => GetColors(GetValueIdFunc(traits));
+
+	/// <summary>
+	/// Gets every shape of every layer as it's placed in a character's portrait in a place, from bottom to top,
+	/// including the shapes that aren't drawn.
+	/// </summary>
+	public IReadOnlyList<PortraitShapePlacement> GetShapePlacements(CharacterTraits traits, PortraitPlace? place)
+	{
+		var getValueId = GetValueIdFunc(traits);
+		var scales = GetScales(getValueId);
+		var offsets = GetOffsets(getValueId);
+		var placements = new List<PortraitShapePlacement>();
+		for (var layerIndex = 0; layerIndex < m_layers.Count; layerIndex++)
+		{
+			var layer = m_layers[layerIndex];
+			var isLayerConditionMet = CharacterCondition.IsMet(layer.Layer.When, getValueId);
+			var isPlaceMet = layer.Layer.At is null || layer.Layer.At.IsMet(place);
+			var offset = offsets.GetValueOrDefault(layer.Layer.Offset ?? "");
+			for (var shapeIndex = 0; shapeIndex < layer.Shapes.Count; shapeIndex++)
+			{
+				var shape = layer.Shapes[shapeIndex];
+				var transform = CombineTransforms(scales.GetValueOrDefault(shape.Shape.Scale ?? layer.Layer.Scale ?? ""), offset);
+				placements.Add(new PortraitShapePlacement(layerIndex, shapeIndex, shape.Shape, shape.Geometry, transform?.Value ?? Matrix.Identity)
+				{
+					IsLayerConditionMet = isLayerConditionMet,
+					IsPlaceMet = isPlaceMet,
+					IsShapeConditionMet = CharacterCondition.IsMet(shape.Shape.When, getValueId),
+				});
+			}
+		}
+
+		return placements;
 	}
 
 	private Func<string, string?> GetValueIdFunc(CharacterTraits traits) =>
@@ -231,4 +289,30 @@ public sealed class PortraitRenderer
 	private readonly IReadOnlyList<ParsedLayer> m_layers;
 	private readonly Geometry m_bounds;
 	private readonly ConditionalWeakTable<CharacterTraits, Dictionary<ValueTuple<PortraitPlace?>, DrawingImage>> m_portraits = new();
+}
+
+/// <summary>
+/// Where a shape of a portrait layer is placed in a character's portrait: its geometry before it's moved, how it's
+/// stretched and moved, and which of the conditions for drawing it are met.
+/// </summary>
+public sealed record PortraitShapePlacement(int LayerIndex, int ShapeIndex, PortraitShape Shape, Geometry Geometry, Matrix Transform)
+{
+	/// <summary>
+	/// Whether the character meets the layer's condition.
+	/// </summary>
+	public bool IsLayerConditionMet { get; init; }
+
+	/// <summary>
+	/// Whether the character is in one of the places the layer is drawn in.
+	/// </summary>
+	public bool IsPlaceMet { get; init; }
+
+	/// <summary>
+	/// Whether the character meets the shape's own condition.
+	/// </summary>
+	public bool IsShapeConditionMet { get; init; }
+
+	public bool IsLayerDrawn => IsLayerConditionMet && IsPlaceMet;
+
+	public bool IsDrawn => IsLayerDrawn && IsShapeConditionMet;
 }

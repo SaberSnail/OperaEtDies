@@ -1,0 +1,17 @@
+<Application
+	x:Class="PortraitEditor.App"
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	ShutdownMode="OnMainWindowClose">
+
+	<Application.Resources>
+		<ResourceDictionary>
+			<ResourceDictionary.MergedDictionaries>
+				<ResourceDictionary Source="pack://application:,,,/GoldenAnvil.Utility.Windows;component/Themes/Generic.xaml" />
+				<ResourceDictionary Source="pack://application:,,,/OperaEtDies;component/Themes/Default/Default.xaml" />
+				<ResourceDictionary Source="pack://application:,,,/OperaEtDies;component/Themes/Shared/Shared.xaml" />
+				<ResourceDictionary Source="Views/EditorResources.xaml" />
+			</ResourceDictionary.MergedDictionaries>
+		</ResourceDictionary>
+	</Application.Resources>
+</Application>

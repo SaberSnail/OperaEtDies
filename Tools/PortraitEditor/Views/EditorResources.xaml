@@ -1,0 +1,612 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:controls="clr-namespace:PortraitEditor.Controls"
+	xmlns:newGame="clr-namespace:OperaEtDies.Controls.NewGame;assembly=OperaEtDies"
+	xmlns:operaEtDies="clr-namespace:OperaEtDies;assembly=OperaEtDies"
+	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows"
+	xmlns:utilityControls="clr-namespace:GoldenAnvil.Utility.Windows.Controls;assembly=GoldenAnvil.Utility.Windows"
+	xmlns:viewModels="clr-namespace:PortraitEditor.ViewModels">
+
+	<FontFamily x:Key="CodeFontFamily">Consolas</FontFamily>
+	<SolidColorBrush x:Key="ErrorBrush" Color="#B02020" />
+	<SolidColorBrush x:Key="PanelBrush" Color="#F4F4F4" />
+
+	<!--  A checkerboard behind color swatches, so missing and transparent colors can be told apart.  -->
+	<DrawingBrush
+		x:Key="CheckerBrush"
+		TileMode="Tile"
+		Viewport="0,0,8,8"
+		ViewportUnits="Absolute">
+		<DrawingBrush.Drawing>
+			<GeometryDrawing Brush="#CCCCCC" Geometry="M0,0 H1 V1 H0 Z M1,1 H2 V2 H1 Z" />
+		</DrawingBrush.Drawing>
+	</DrawingBrush>
+
+	<!--  Labels are cut off with an ellipsis when a row is too narrow for them (see LabeledRow).  -->
+	<Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+		<Setter Property="Margin" Value="0,0,8,0" />
+		<Setter Property="VerticalAlignment" Value="Center" />
+		<Setter Property="TextTrimming" Value="CharacterEllipsis" />
+	</Style>
+
+	<Style x:Key="ErrorTextStyle" TargetType="TextBlock">
+		<Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+		<Setter Property="TextWrapping" Value="Wrap" />
+		<Setter Property="Visibility" Value="{Binding Text, RelativeSource={RelativeSource Self}, Converter={x:Static utility:CommonConverters.IsNullOrEmptyToVisibility}}" />
+	</Style>
+
+	<Style x:Key="SmallButtonStyle" BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
+		<Setter Property="Margin" Value="0,0,4,0" />
+		<Setter Property="Padding" Value="8,2" />
+		<Setter Property="MinHeight" Value="24" />
+	</Style>
+
+	<!--  A swatch: the color over a checkerboard.  -->
+	<DataTemplate x:Key="SwatchTemplate">
+		<Grid Width="14" Height="14">
+			<Border Background="{StaticResource CheckerBrush}" />
+			<Border
+				Background="{Binding}"
+				BorderBrush="#808080"
+				BorderThickness="1" />
+		</Grid>
+	</DataTemplate>
+
+	<!--  Context menus for whether layers and shapes are drawn on the canvas. Each item calls a method on the tree item with a state's name.  -->
+	<ContextMenu x:Key="CanvasStateMenu">
+		<MenuItem
+			Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetState}"
+			CommandParameter="Normal"
+			Header="Normal"
+			IsChecked="{Binding CanvasState, Mode=OneWay, Converter={x:Static utility:CommonConverters.IsEqual}, ConverterParameter={x:Static viewModels:CanvasState.Normal}}" />
+		<MenuItem
+			Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetState}"
+			CommandParameter="Forced"
+			Header="📌 Forced"
+			IsChecked="{Binding CanvasState, Mode=OneWay, Converter={x:Static utility:CommonConverters.IsEqual}, ConverterParameter={x:Static viewModels:CanvasState.Forced}}" />
+		<MenuItem
+			Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetState}"
+			CommandParameter="Hidden"
+			Header="⊘ Hidden"
+			IsChecked="{Binding CanvasState, Mode=OneWay, Converter={x:Static utility:CommonConverters.IsEqual}, ConverterParameter={x:Static viewModels:CanvasState.Hidden}}" />
+		<MenuItem Header="Set this layer and its shapes to">
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetLayerAndShapes}"
+				CommandParameter="Normal"
+				Header="Normal" />
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetLayerAndShapes}"
+				CommandParameter="Forced"
+				Header="📌 Forced" />
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetLayerAndShapes}"
+				CommandParameter="Hidden"
+				Header="⊘ Hidden" />
+		</MenuItem>
+		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowOnly}" Header="Show only this (Alt+click)" />
+		<Separator />
+		<MenuItem Header="Set filtered layers to">
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetFiltered}"
+				CommandParameter="Normal"
+				Header="Normal" />
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetFiltered}"
+				CommandParameter="Forced"
+				Header="📌 Forced" />
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetFiltered}"
+				CommandParameter="Hidden"
+				Header="⊘ Hidden" />
+		</MenuItem>
+		<MenuItem Header="Set all layers to">
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetAll}"
+				CommandParameter="Normal"
+				Header="Normal" />
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetAll}"
+				CommandParameter="Forced"
+				Header="📌 Forced" />
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetAll}"
+				CommandParameter="Hidden"
+				Header="⊘ Hidden" />
+		</MenuItem>
+	</ContextMenu>
+
+	<!--  The menu for the layers heading.  -->
+	<ContextMenu x:Key="CanvasStateCategoryMenu">
+		<MenuItem Header="Set filtered layers to">
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetFiltered}"
+				CommandParameter="Normal"
+				Header="Normal" />
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetFiltered}"
+				CommandParameter="Forced"
+				Header="📌 Forced" />
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetFiltered}"
+				CommandParameter="Hidden"
+				Header="⊘ Hidden" />
+		</MenuItem>
+		<MenuItem Header="Set all layers to">
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetAll}"
+				CommandParameter="Normal"
+				Header="Normal" />
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetAll}"
+				CommandParameter="Forced"
+				Header="📌 Forced" />
+			<MenuItem
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetAll}"
+				CommandParameter="Hidden"
+				Header="⊘ Hidden" />
+		</MenuItem>
+	</ContextMenu>
+
+	<!--  The button beside a layer or shape that shows its canvas state: blank when normal, a pin when forced, and a crossed circle when hidden.  -->
+	<Style x:Key="CanvasStateButtonStyle" TargetType="Button">
+		<Setter Property="Width" Value="18" />
+		<Setter Property="Height" Value="18" />
+		<Setter Property="Margin" Value="0,0,4,0" />
+		<Setter Property="Padding" Value="0" />
+		<Setter Property="FontFamily" Value="Segoe UI Emoji" />
+		<Setter Property="FontSize" Value="10" />
+		<Setter Property="Focusable" Value="False" />
+		<Setter Property="Content" Value="" />
+		<Setter Property="ToolTip" Value="Drawn on the canvas when the character meets its conditions. Click to force it, Alt+click to show only this." />
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="Button">
+					<Border
+						x:Name="Box"
+						Background="White"
+						BorderBrush="#B0B0B0"
+						BorderThickness="1"
+						CornerRadius="2">
+						<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+					</Border>
+					<ControlTemplate.Triggers>
+						<Trigger Property="IsMouseOver" Value="True">
+							<Setter TargetName="Box" Property="BorderBrush" Value="#2F7CF6" />
+						</Trigger>
+					</ControlTemplate.Triggers>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+		<Style.Triggers>
+			<DataTrigger Binding="{Binding CanvasState}" Value="{x:Static viewModels:CanvasState.Forced}">
+				<Setter Property="Content" Value="📌" />
+				<Setter Property="ToolTip" Value="Forced: drawn on the canvas even if the character doesn't meet its conditions. Click to hide it." />
+			</DataTrigger>
+			<DataTrigger Binding="{Binding CanvasState}" Value="{x:Static viewModels:CanvasState.Hidden}">
+				<Setter Property="Content" Value="⊘" />
+				<Setter Property="ToolTip" Value="Hidden: never drawn on the canvas. Click to go back to normal." />
+			</DataTrigger>
+		</Style.Triggers>
+	</Style>
+
+	<!--  A row of a form: a label, a field, and buttons. The label shrinks before the field gets narrower than its minimum.  -->
+	<Style x:Key="FieldRowStyle" TargetType="controls:LabeledRow">
+		<Setter Property="Margin" Value="0,0,0,6" />
+		<Setter Property="MinFieldWidth" Value="100" />
+	</Style>
+
+	<!--  A color property: a swatch that opens the portrait colors and a color picker, and the color as text.  -->
+	<DataTemplate DataType="{x:Type viewModels:ColorFieldViewModel}">
+		<controls:LabeledRow Style="{StaticResource FieldRowStyle}">
+			<TextBlock Style="{StaticResource FieldLabelStyle}" Text="{Binding Label}" />
+			<DockPanel>
+				<ToggleButton
+					x:Name="SwatchButton"
+					Width="32"
+					Height="24"
+					Margin="0,0,4,0"
+					Padding="2"
+					DockPanel.Dock="Left"
+					IsChecked="{Binding IsPopupOpen}"
+					IsHitTestVisible="{Binding IsPopupOpen, Converter={x:Static utility:CommonConverters.BooleanNot}}"
+					ToolTip="Choose a portrait color or pick a color">
+					<Grid Width="24" Height="16">
+						<Border Background="{StaticResource CheckerBrush}" />
+						<Border
+							Background="{Binding Swatch}"
+							BorderBrush="#808080"
+							BorderThickness="1" />
+					</Grid>
+				</ToggleButton>
+				<Popup
+					AllowsTransparency="True"
+					IsOpen="{Binding IsPopupOpen}"
+					Placement="Bottom"
+					PlacementTarget="{Binding ElementName=SwatchButton}"
+					StaysOpen="False">
+					<Border
+						Padding="8"
+						Background="White"
+						BorderBrush="#808080"
+						BorderThickness="1">
+						<StackPanel Orientation="Horizontal">
+							<ListBox
+								Width="180"
+								Height="200"
+								ItemsSource="{Binding Palette}"
+								SelectedItem="{Binding SelectedPaletteEntry}">
+								<ListBox.ItemTemplate>
+									<DataTemplate>
+										<StackPanel Orientation="Horizontal">
+											<ContentPresenter Content="{Binding Brush}" ContentTemplate="{StaticResource SwatchTemplate}" />
+											<TextBlock Margin="6,0,0,0" Text="{Binding Id}" />
+										</StackPanel>
+									</DataTemplate>
+								</ListBox.ItemTemplate>
+							</ListBox>
+							<StackPanel Margin="8,0,0,0">
+								<controls:HsvColorPicker SelectedColor="{Binding PickerColor}" />
+								<TextBox
+									Margin="0,8,0,0"
+									FontFamily="{StaticResource CodeFontFamily}"
+									Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" />
+							</StackPanel>
+						</StackPanel>
+					</Border>
+				</Popup>
+				<TextBox
+					VerticalContentAlignment="Center"
+					FontFamily="{StaticResource CodeFontFamily}"
+					Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" />
+			</DockPanel>
+			<Button
+				Margin="4,0,0,0"
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Clear}"
+				Content="✕"
+				Style="{StaticResource SmallButtonStyle}"
+				ToolTip="Remove" />
+		</controls:LabeledRow>
+	</DataTemplate>
+
+	<!--  Character property editors, like the new game screen's.  -->
+	<Style x:Key="PropertyRowStyle" TargetType="controls:LabeledRow">
+		<Setter Property="Height" Value="26" />
+		<Setter Property="Margin" Value="0,0,0,4" />
+		<Setter Property="MinFieldWidth" Value="90" />
+	</Style>
+
+	<Style x:Key="PropertyLabelStyle" TargetType="TextBlock">
+		<Setter Property="Margin" Value="0,0,8,0" />
+		<Setter Property="VerticalAlignment" Value="Center" />
+		<Setter Property="Text" Value="{Binding Title}" />
+		<Setter Property="TextTrimming" Value="CharacterEllipsis" />
+	</Style>
+
+	<Style x:Key="RandomizeButtonStyle" BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
+		<Setter Property="Margin" Value="4,0,0,0" />
+		<Setter Property="Padding" Value="6,0" />
+		<Setter Property="Content" Value="{x:Static operaEtDies:OurResources.RandomizeField}" />
+		<Setter Property="Command" Value="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Randomize}" />
+		<Setter Property="Visibility" Value="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibilityWithHidden}}" />
+	</Style>
+
+	<Style x:Key="FixedValueStyle" TargetType="TextBlock">
+		<Setter Property="VerticalAlignment" Value="Center" />
+		<Setter Property="Text" Value="{Binding ValueText}" />
+		<Setter Property="TextTrimming" Value="CharacterEllipsis" />
+		<Setter Property="Visibility" Value="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+	</Style>
+
+	<DataTemplate DataType="{x:Type newGame:StringPropertyEditorViewModel}">
+		<controls:LabeledRow Style="{StaticResource PropertyRowStyle}">
+			<TextBlock Style="{StaticResource PropertyLabelStyle}" />
+			<utilityControls:CustomTextBox
+				VerticalContentAlignment="Center"
+				IsEnabled="{Binding IsAvailable}"
+				Text="{Binding Text}" />
+			<Button Style="{StaticResource RandomizeButtonStyle}" Visibility="{Binding HasDefaults, Converter={x:Static utility:CommonConverters.BooleanToVisibilityWithHidden}}" />
+		</controls:LabeledRow>
+	</DataTemplate>
+
+	<DataTemplate DataType="{x:Type newGame:IntegerPropertyEditorViewModel}">
+		<controls:LabeledRow Style="{StaticResource PropertyRowStyle}">
+			<TextBlock Style="{StaticResource PropertyLabelStyle}" />
+			<Grid>
+				<utilityControls:CustomTextBox
+					VerticalContentAlignment="Center"
+					ForceTextSourceUpdateOnEnter="True"
+					IsEnabled="{Binding IsAvailable}"
+					Text="{Binding Text}"
+					Visibility="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
+				<TextBlock Style="{StaticResource FixedValueStyle}" />
+			</Grid>
+			<Button Style="{StaticResource RandomizeButtonStyle}" />
+		</controls:LabeledRow>
+	</DataTemplate>
+
+	<DataTemplate DataType="{x:Type newGame:ValueListPropertyEditorViewModel}">
+		<controls:LabeledRow Style="{StaticResource PropertyRowStyle}">
+			<TextBlock Style="{StaticResource PropertyLabelStyle}" />
+			<Grid>
+				<ComboBox
+					DisplayMemberPath="Title"
+					IsEnabled="{Binding IsAvailable}"
+					ItemsSource="{Binding Options}"
+					SelectedItem="{Binding SelectedOption}"
+					Visibility="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
+				<TextBlock Style="{StaticResource FixedValueStyle}" />
+			</Grid>
+			<Button Style="{StaticResource RandomizeButtonStyle}" />
+		</controls:LabeledRow>
+	</DataTemplate>
+
+	<!--  A preview character: their portrait, with buttons beside it, and their place and properties shown while editing.  -->
+	<Style x:Key="IconButtonStyle" BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
+		<Setter Property="Width" Value="30" />
+		<Setter Property="Height" Value="30" />
+		<Setter Property="Margin" Value="0,0,0,4" />
+		<Setter Property="Padding" Value="0" />
+		<Setter Property="FontFamily" Value="Segoe UI Emoji" />
+		<Setter Property="FontSize" Value="15" />
+	</Style>
+
+	<Style x:Key="IconToggleButtonStyle" BasedOn="{StaticResource {x:Type ToggleButton}}" TargetType="ToggleButton">
+		<Setter Property="Width" Value="30" />
+		<Setter Property="Height" Value="30" />
+		<Setter Property="Margin" Value="0,0,0,4" />
+		<Setter Property="Padding" Value="0" />
+		<Setter Property="FontFamily" Value="Segoe UI Emoji" />
+		<Setter Property="FontSize" Value="15" />
+	</Style>
+
+	<!--  A preview character in the list, shown selected in the same blue whether or not the list has focus.  -->
+	<Style x:Key="PreviewItemStyle" TargetType="ListBoxItem">
+		<Setter Property="Padding" Value="2" />
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="BorderBrush" Value="Transparent" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="FocusVisualStyle" Value="{x:Null}" />
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="ListBoxItem">
+					<Border
+						Padding="{TemplateBinding Padding}"
+						Background="{TemplateBinding Background}"
+						BorderBrush="{TemplateBinding BorderBrush}"
+						BorderThickness="{TemplateBinding BorderThickness}"
+						SnapsToDevicePixels="True">
+						<ContentPresenter />
+					</Border>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+		<Style.Triggers>
+			<Trigger Property="IsMouseOver" Value="True">
+				<Setter Property="Background" Value="#1F26A0DA" />
+				<Setter Property="BorderBrush" Value="#A826A0DA" />
+			</Trigger>
+			<Trigger Property="IsSelected" Value="True">
+				<Setter Property="Background" Value="#3D26A0DA" />
+				<Setter Property="BorderBrush" Value="#FF26A0DA" />
+			</Trigger>
+		</Style.Triggers>
+	</Style>
+
+	<DataTemplate DataType="{x:Type viewModels:PreviewCharacterViewModel}">
+		<Grid Margin="2">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="Auto" />
+			</Grid.RowDefinitions>
+			<StackPanel x:Name="PortraitRow" Orientation="Horizontal">
+				<Image
+					Width="{Binding DataContext.PreviewSize, RelativeSource={RelativeSource AncestorType=ListBox}}"
+					VerticalAlignment="Top"
+					Source="{Binding Portrait}"
+					Stretch="Uniform" />
+				<StackPanel Margin="4,0,0,0" VerticalAlignment="Top">
+					<ToggleButton
+						Content="✏️"
+						IsChecked="{Binding IsEditing}"
+						Style="{StaticResource IconToggleButtonStyle}"
+						ToolTip="Show the place and properties" />
+					<Button
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RandomizeAll}"
+						Content="🎲"
+						Style="{StaticResource IconButtonStyle}"
+						ToolTip="Randomize everything" />
+					<Button
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Duplicate}"
+						Content="👥"
+						Style="{StaticResource IconButtonStyle}"
+						ToolTip="Add a copy of this character" />
+					<Button
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Remove}"
+						Content="🗑️"
+						Style="{StaticResource IconButtonStyle}"
+						ToolTip="Remove this character" />
+				</StackPanel>
+			</StackPanel>
+			<StackPanel
+				Grid.Row="1"
+				Width="{Binding ActualWidth, ElementName=PortraitRow}"
+				Margin="0,4,0,0"
+				HorizontalAlignment="Left"
+				Visibility="{Binding IsEditing, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+				<ComboBox
+					Margin="0,0,0,4"
+					DisplayMemberPath="Title"
+					ItemsSource="{Binding Places}"
+					SelectedItem="{Binding SelectedPlace}"
+					ToolTip="Where the character is drawn" />
+				<ItemsControl
+					Focusable="False"
+					controls:LabeledRow.IsAlignmentScope="True"
+					ItemsSource="{Binding Properties}">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate>
+							<ContentPresenter Content="{Binding}" Visibility="{Binding IsAvailable, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+			</StackPanel>
+		</Grid>
+	</DataTemplate>
+
+	<!--  A number field, applied when focus leaves or Enter is pressed.  -->
+	<Style x:Key="NumberFieldStyle" BasedOn="{StaticResource {x:Type utilityControls:CustomTextBox}}" TargetType="utilityControls:CustomTextBox">
+		<!--  The text box style has a minimum width, which would make every number field wider than it needs to be.  -->
+		<Setter Property="MinWidth" Value="0" />
+		<Setter Property="Width" Value="70" />
+		<Setter Property="Margin" Value="0,0,8,0" />
+		<Setter Property="VerticalContentAlignment" Value="Center" />
+		<Setter Property="ForceTextSourceUpdateOnEnter" Value="True" />
+		<Setter Property="FontFamily" Value="{StaticResource CodeFontFamily}" />
+	</Style>
+
+	<!--  The compact number fields above the canvas, wide enough for a coordinate such as -123.45.  -->
+	<Style
+		x:Key="CanvasNumberFieldStyle"
+		BasedOn="{StaticResource NumberFieldStyle}"
+		TargetType="utilityControls:CustomTextBox">
+		<Setter Property="Width" Value="52" />
+		<Setter Property="Margin" Value="0,0,6,0" />
+	</Style>
+
+	<!--  The selected item's editor: fields for shapes and colors, and JSON for everything.  -->
+	<DataTemplate DataType="{x:Type viewModels:ItemEditorViewModel}">
+		<DockPanel>
+			<DockPanel Margin="0,0,0,4" DockPanel.Dock="Top">
+				<TextBlock
+					Margin="0,0,8,0"
+					VerticalAlignment="Center"
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{Binding KindTitle}" />
+				<TextBox
+					VerticalAlignment="Center"
+					Background="Transparent"
+					BorderThickness="0"
+					FontFamily="{StaticResource CodeFontFamily}"
+					IsReadOnly="True"
+					Text="{Binding Path, Mode=OneWay}"
+					TextWrapping="Wrap" />
+			</DockPanel>
+			<StackPanel
+				Margin="0,0,0,6"
+				DockPanel.Dock="Top"
+				Orientation="Horizontal">
+				<Button
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CopyJson}"
+					Content="Copy JSON"
+					FontWeight="Bold"
+					Style="{StaticResource SmallButtonStyle}"
+					ToolTip="Copy this item as JSON, to paste into a data file or mod file" />
+				<Button
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Revert}"
+					Content="Revert"
+					Style="{StaticResource SmallButtonStyle}"
+					ToolTip="Put this item back as it was loaded" />
+			</StackPanel>
+			<TabControl SelectedIndex="{Binding SelectedTab}">
+				<TabItem Header="Shape" Visibility="{Binding IsShape, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+					<ScrollViewer Padding="6" VerticalScrollBarVisibility="Auto">
+						<StackPanel controls:LabeledRow.IsAlignmentScope="True">
+							<TextBlock Margin="0,0,0,2" Text="Path" />
+							<TextBox
+								Height="140"
+								AcceptsReturn="False"
+								FontFamily="{StaticResource CodeFontFamily}"
+								Text="{Binding PathText, UpdateSourceTrigger=PropertyChanged}"
+								TextWrapping="Wrap"
+								VerticalScrollBarVisibility="Auto" />
+							<TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding PathError}" />
+							<ContentPresenter Margin="0,8,0,0" Content="{Binding Fill}" />
+							<controls:LabeledRow MinFieldWidth="140" Style="{StaticResource FieldRowStyle}">
+								<TextBlock Style="{StaticResource FieldLabelStyle}" Text="Gradient" />
+								<ComboBox
+									Width="140"
+									HorizontalAlignment="Left"
+									ItemsSource="{Binding GradientOptions}"
+									SelectedItem="{Binding Gradient}" />
+							</controls:LabeledRow>
+							<ContentPresenter Content="{Binding FillTo}" />
+							<ContentPresenter Content="{Binding Stroke}" />
+							<controls:LabeledRow MinFieldWidth="70" Style="{StaticResource FieldRowStyle}">
+								<TextBlock Style="{StaticResource FieldLabelStyle}" Text="Stroke width" />
+								<utilityControls:CustomTextBox
+									HorizontalAlignment="Left"
+									Style="{StaticResource NumberFieldStyle}"
+									Text="{Binding StrokeWidth}" />
+							</controls:LabeledRow>
+							<controls:LabeledRow MinFieldWidth="70" Style="{StaticResource FieldRowStyle}">
+								<TextBlock Style="{StaticResource FieldLabelStyle}" Text="Opacity" />
+								<utilityControls:CustomTextBox
+									HorizontalAlignment="Left"
+									Style="{StaticResource NumberFieldStyle}"
+									Text="{Binding Opacity}" />
+							</controls:LabeledRow>
+							<controls:LabeledRow MinFieldWidth="140" Style="{StaticResource FieldRowStyle}">
+								<TextBlock Style="{StaticResource FieldLabelStyle}" Text="Scale" />
+								<ComboBox
+									Width="140"
+									HorizontalAlignment="Left"
+									ItemsSource="{Binding ScaleOptions}"
+									SelectedItem="{Binding Scale}" />
+							</controls:LabeledRow>
+							<controls:LabeledRow Style="{StaticResource FieldRowStyle}">
+								<TextBlock
+									VerticalAlignment="Top"
+									Style="{StaticResource FieldLabelStyle}"
+									Text="When" />
+								<utilityControls:CustomTextBox
+									Height="64"
+									FontFamily="{StaticResource CodeFontFamily}"
+									ForceTextSourceUpdateOnEnter="True"
+									Text="{Binding When}"
+									TextWrapping="Wrap"
+									ToolTip="The shape's condition, as JSON. Applied when focus leaves or Enter is pressed. Empty removes it."
+									VerticalScrollBarVisibility="Auto" />
+							</controls:LabeledRow>
+							<TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding FieldError}" />
+						</StackPanel>
+					</ScrollViewer>
+				</TabItem>
+				<TabItem Header="Color" Visibility="{Binding IsColor, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+					<StackPanel Margin="6" controls:LabeledRow.IsAlignmentScope="True">
+						<ContentPresenter Content="{Binding BaseColor}" />
+						<ContentPresenter Content="{Binding Mix}" />
+						<controls:LabeledRow MinFieldWidth="70" Style="{StaticResource FieldRowStyle}">
+							<TextBlock Style="{StaticResource FieldLabelStyle}" Text="Amount" />
+							<utilityControls:CustomTextBox
+								HorizontalAlignment="Left"
+								Style="{StaticResource NumberFieldStyle}"
+								Text="{Binding Amount}" />
+						</controls:LabeledRow>
+						<TextBlock Style="{StaticResource ErrorTextStyle}" Text="{Binding FieldError}" />
+						<TextBlock
+							Foreground="{DynamicResource FontLightBrush}"
+							Text="Variants can be changed on the JSON tab."
+							TextWrapping="Wrap" />
+					</StackPanel>
+				</TabItem>
+				<TabItem Header="JSON">
+					<DockPanel>
+						<TextBlock
+							DockPanel.Dock="Bottom"
+							Style="{StaticResource ErrorTextStyle}"
+							Text="{Binding JsonError}" />
+						<TextBox
+							AcceptsReturn="True"
+							AcceptsTab="True"
+							FontFamily="{StaticResource CodeFontFamily}"
+							HorizontalScrollBarVisibility="Auto"
+							Text="{Binding JsonText, UpdateSourceTrigger=PropertyChanged}"
+							VerticalScrollBarVisibility="Auto" />
+					</DockPanel>
+				</TabItem>
+			</TabControl>
+		</DockPanel>
+	</DataTemplate>
+
+</ResourceDictionary>

@@ -65,9 +65,10 @@ public sealed class GameData
 		Load(dataDirectory, [], frequencyChances);
 
 	/// <summary>
-	/// Loads all of the game content, with the changes from the mod folders applied in order.
+	/// Loads all of the game content, with the changes from the mod folders applied in order. The portrait file can be
+	/// left out, in which case characters have no portraits.
 	/// </summary>
-	public static DataLoadResult<GameData> Load(string dataDirectory, IReadOnlyList<string> modDirectories, FrequencyChances? frequencyChances = null)
+	public static DataLoadResult<GameData> Load(string dataDirectory, IReadOnlyList<string> modDirectories, FrequencyChances? frequencyChances = null, bool includePortraits = true)
 	{
 		// The profession character property takes its values from Professions.json, so it's loaded first.
 		var professions = ProfessionList.Load(dataDirectory, modDirectories);
@@ -77,7 +78,7 @@ public sealed class GameData
 		var calendar = CalendarSettings.Load(dataDirectory, modDirectories);
 
 		// The portrait file is optional. Without it, characters have no portraits.
-		var portraits = PortraitData.Load(dataDirectory, modDirectories);
+		var portraits = includePortraits ? PortraitData.Load(dataDirectory, modDirectories) : null;
 
 		if (characters.Value is null || locations.Value is null || professions.Value is null || families.Value is null || calendar.Value is null || portraits is { Value: null })
 			return DataLoadResult<GameData>.Failure([.. characters.Errors, .. locations.Errors, .. professions.Errors, .. families.Errors, .. calendar.Errors, .. portraits?.Errors ?? []]);
@@ -96,6 +97,17 @@ public sealed class GameData
 			Log.Warn(warning);
 
 		return DataLoadResult<GameData>.Success(gameData);
+	}
+
+	/// <summary>
+	/// Checks portrait data, which has already been checked on its own, against the rest of the game data: the
+	/// character properties its conditions use, and the kinds of quarter and professions its layers are drawn in.
+	/// </summary>
+	public IReadOnlyList<string> ValidatePortraits(PortraitData portraits)
+	{
+		var properties = CharacterProperties.ToDictionary(x => x.Id, StringComparer.Ordinal);
+		var quarterKinds = QuarterKinds.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+		return GameDataValidation.ValidatePortraits(portraits, properties, quarterKinds, CharacterProperties.Find(Families.Properties.Profession)).ToList();
 	}
 
 	/// <summary>
