@@ -68,7 +68,7 @@ public sealed class CalendarSettings : IValidatedData
 		errors.AddRange(DataValidation.ValidateIdentifiedItems("weeks", Weeks, x => x.Id, x => x.Title));
 		errors.AddRange(DataValidation.ValidateIdentifiedItems("seasons", Seasons, x => x.Id, x => x.Title));
 		errors.AddRange(DataValidation.ValidateIdentifiedItems("dayParts", DayParts, x => x.Id, x => x.Title));
-		errors.AddRange(ValidateDayPartStarts());
+		errors.AddRange(ValidateDayParts());
 		if (SpecialDays.Count != 0)
 		{
 			errors.AddRange(DataValidation.ValidateIdentifiedItems("specialDays", SpecialDays, x => x.Id, x => x.Title));
@@ -81,13 +81,15 @@ public sealed class CalendarSettings : IValidatedData
 		return errors;
 	}
 
-	private IEnumerable<string> ValidateDayPartStarts()
+	private IEnumerable<string> ValidateDayParts()
 	{
 		var previousStart = -1;
 		foreach (var dayPart in DayParts.OfType<CalendarDayPart>())
 		{
 			if (dayPart.Start <= previousStart || dayPart.Start >= 24)
 				yield return OurResources.CalendarDayPartStartOutOfOrder.FormatCurrentCulture(dayPart.Id, dayPart.Start);
+			if (dayPart.Announcement is not null && string.IsNullOrWhiteSpace(dayPart.Announcement))
+				yield return OurResources.DataValueMissing.FormatCurrentCulture($"dayParts.{dayPart.Id}.announcement");
 			previousStart = Math.Max(previousStart, dayPart.Start);
 		}
 	}
@@ -146,6 +148,12 @@ public sealed class CalendarDayPart : IIdentified
 	/// The hour the part of the day starts at, from 0 to 23.
 	/// </summary>
 	public required int Start { get; init; }
+
+	/// <summary>
+	/// What the player notices when the part of the day starts while they wait, such as a bell ringing, or null to say
+	/// only which part of the day it is.
+	/// </summary>
+	public string? Announcement { get; init; }
 }
 
 /// <summary>

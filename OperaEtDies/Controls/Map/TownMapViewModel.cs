@@ -7,7 +7,8 @@ namespace OperaEtDies.Controls.Map;
 
 /// <summary>
 /// A map of the town, drawing each quarter as a rectangle, each path as a line through the edge the quarters share, and
-/// map features such as the river underneath. The quarter the player is in is marked. Developers can choose a quarter to
+/// map features such as the river underneath. The quarter the player is in is marked, and so are the quarters of their
+/// home and the place they work, if it isn't their home. Developers can choose a quarter to
 /// go there. A mini-map shows just the player's quarter and the quarters connected to it, at a smaller size.
 /// </summary>
 public sealed class TownMapViewModel : ViewModelBase
@@ -25,8 +26,8 @@ public sealed class TownMapViewModel : ViewModelBase
 	/// <summary>
 	/// Creates a map of every quarter in the town. Choosing a quarter goes there, if travel is allowed.
 	/// </summary>
-	public TownMapViewModel(IEnumerable<Location> locations, Location current, IEnumerable<Feature>? features = null, bool canTravel = false)
-		: this(locations.Where(x => x.Bounds is not null).ToList(), current, features, canTravel, DefaultCellSize, clip: null)
+	public TownMapViewModel(IEnumerable<Location> locations, Location current, IEnumerable<Feature>? features = null, bool canTravel = false, Location? home = null, Location? workplace = null)
+		: this(locations.Where(x => x.Bounds is not null).ToList(), current, features, canTravel, DefaultCellSize, clip: null, home, workplace)
 	{
 	}
 
@@ -35,16 +36,16 @@ public sealed class TownMapViewModel : ViewModelBase
 	/// its paths lead to, scaled to fit within the given size. Features are only shown where they're among those
 	/// quarters.
 	/// </summary>
-	public static TownMapViewModel CreateMiniMap(Location current, IEnumerable<Feature>? features, double maxSize)
+	public static TownMapViewModel CreateMiniMap(Location current, IEnumerable<Feature>? features, double maxSize, Location? home = null, Location? workplace = null)
 	{
 		var quarter = GetQuarter(current);
 		var quarters = quarter is null ? new List<Location>() : new[] { quarter }.Concat(quarter.Exits.Where(x => x.Direction is not null).Select(x => x.Location)).Where(x => x.Bounds is not null).Distinct().ToList();
 		var clip = GetBounds(quarters.Select(x => x.Bounds!.Value).ToList());
 		var cellSize = clip is { } area ? Math.Min(MaxMiniMapCellSize, maxSize / Math.Max(area.Width, area.Height)) : MaxMiniMapCellSize;
-		return new TownMapViewModel(quarters, current, features, canTravel: false, cellSize, clip);
+		return new TownMapViewModel(quarters, current, features, canTravel: false, cellSize, clip, home, workplace);
 	}
 
-	private TownMapViewModel(IReadOnlyList<Location> quarters, Location current, IEnumerable<Feature>? features, bool canTravel, double cellSize, MapRect? clip)
+	private TownMapViewModel(IReadOnlyList<Location> quarters, Location current, IEnumerable<Feature>? features, bool canTravel, double cellSize, MapRect? clip, Location? home, Location? workplace)
 	{
 		CanTravel = canTravel;
 		CellSize = cellSize;
@@ -59,8 +60,9 @@ public sealed class TownMapViewModel : ViewModelBase
 		var minX = extent?.X ?? 0;
 		var minY = extent?.Y ?? 0;
 		var currentQuarter = GetQuarter(current);
-
-		Quarters = quarters.Select(x => new TownMapQuarterViewModel(x, minX, minY, cellSize, x == currentQuarter, canTravel, VisitQuarter)).ToList();
+		var homeQuarter = home is null ? null : GetQuarter(home);
+		var workQuarter = workplace is null || workplace == home ? null : GetQuarter(workplace);
+		Quarters = quarters.Select(x => new TownMapQuarterViewModel(x, minX, minY, cellSize, x == currentQuarter, canTravel, VisitQuarter) { HasHome = x == homeQuarter, HasWorkplace = x == workQuarter }).ToList();
 		Features = shownFeatures.Select(x => new TownMapFeatureViewModel(x.Feature, x.Bounds, minX, minY, cellSize)).ToList();
 		Width = (extent?.Width ?? 0) * cellSize;
 		Height = (extent?.Height ?? 0) * cellSize;
@@ -211,6 +213,16 @@ public sealed class TownMapQuarterViewModel : ViewModelBase
 	/// Whether the player is in this quarter, or in a house or business in it.
 	/// </summary>
 	public bool IsCurrent { get; }
+
+	/// <summary>
+	/// Whether the player's home is in this quarter.
+	/// </summary>
+	public bool HasHome { get; init; }
+
+	/// <summary>
+	/// Whether the place the player works is in this quarter, when it isn't their home.
+	/// </summary>
+	public bool HasWorkplace { get; init; }
 
 	/// <summary>
 	/// What kind of place the quarter is, which decides its color.

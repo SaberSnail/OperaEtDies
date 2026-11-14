@@ -8,7 +8,7 @@ namespace OperaEtDies.Data;
 /// </summary>
 internal static class GameDataValidation
 {
-	public static IReadOnlyList<DataLoadError> Validate(string dataDirectory, CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, PortraitData? portraits = null)
+	public static IReadOnlyList<DataLoadError> Validate(string dataDirectory, CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, CalendarSettings calendar, ScheduleSettings schedules, PortraitData? portraits = null)
 	{
 		var properties = new Dictionary<string, CharacterProperty>(StringComparer.Ordinal);
 		foreach (var property in characters.Properties)
@@ -31,6 +31,10 @@ internal static class GameDataValidation
 			errors.AddRange(CharacterData.ValidatePlaceholders("houseTitle", houseTitle, null, properties, new HashSet<string>(StringComparer.Ordinal))
 				.Select(x => new DataLoadError(Path.Combine(dataDirectory, LocationList.FileName), x)));
 		}
+
+		// Schedules use the character properties, the kinds of quarter, and the days of the week.
+		errors.AddRange(ValidateSchedules(schedules, properties, locations, calendar)
+			.Select(x => new DataLoadError(Path.Combine(dataDirectory, ScheduleSettings.FileName), x)));
 
 		// Portrait conditions use the character properties, like other conditions outside of templates.
 		if (portraits is not null)
@@ -94,6 +98,7 @@ internal static class GameDataValidation
 			ValidateGameSetProperty(headRelation, families.HeadRelations.GetAll(), errors);
 		if (headName is not null)
 			ValidateGameSetProperty(headName, [], errors);
+		errors.AddRange(families.PlayerRelations.OfType<PlayerRelation>().SelectMany((x, index) => CharacterData.ValidateCondition($"playerRelations[{index}].when", x.When, properties, isTemplate: false)));
 		if (atWork is not null)
 			ValidateGameSetProperty(atWork, [("atWork", families.AtWork), ("notAtWork", families.NotAtWork)], errors);
 		if (married is not null)
@@ -229,6 +234,15 @@ internal static class GameDataValidation
 			if (isBusiness && !profession.WorksFromHome && !professionsWithBusinesses.Contains(profession.Id))
 				yield return OurResources.ProfessionLocationsMissing.FormatCurrentCulture(profession.Id);
 		}
+	}
+
+	private static IEnumerable<string> ValidateSchedules(ScheduleSettings schedules, IReadOnlyDictionary<string, CharacterProperty> properties, LocationList locations, CalendarSettings calendar)
+	{
+		var quarterKinds = locations.QuarterKinds.Where(x => x?.Id is not null).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+		var days = calendar.Days.Where(x => x?.Id is not null).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+		return schedules.GetConditions().SelectMany(x => CharacterData.ValidateCondition(x.Path, x.Condition, properties, isTemplate: false))
+			.Concat(schedules.GetQuarterKinds().Where(x => !quarterKinds.Contains(x.QuarterKind)).Select(x => OurResources.DataIdUnknown.FormatCurrentCulture(x.Path, x.QuarterKind, "quarterKinds")))
+			.Concat(schedules.GetDays().Where(x => !days.Contains(x.Day)).Select(x => OurResources.DataIdUnknown.FormatCurrentCulture(x.Path, x.Day, "days")));
 	}
 
 	private static IEnumerable<string> ValidateBusinesses(LocationList locations, ProfessionList professions, FamilySettings families)

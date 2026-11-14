@@ -21,6 +21,17 @@ public sealed class QuarterKind : IIdentified
 	public bool Unique { get; init; }
 
 	/// <summary>
+	/// For a unique kind, the id of a map feature that makes the quarter optional: a town with the feature only has a
+	/// quarter of this kind <see cref="OptionalChance"/> percent of the time, such as a well in a town with a river.
+	/// </summary>
+	public string? OptionalWith { get; init; }
+
+	/// <summary>
+	/// The percentage chance that a town with <see cref="OptionalWith"/> still has a quarter of this kind.
+	/// </summary>
+	public double OptionalChance { get; init; } = 50;
+
+	/// <summary>
 	/// What a path to or from a quarter of this kind is called, such as "lane" or "track".
 	/// </summary>
 	public required string Path { get; init; }

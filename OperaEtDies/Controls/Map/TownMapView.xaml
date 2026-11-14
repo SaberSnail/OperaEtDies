@@ -75,6 +75,7 @@
 							<Border.InputBindings>
 								<MouseBinding Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Visit}" Gesture="LeftClick" />
 							</Border.InputBindings>
+							<Grid>
 							<TextBlock
 								Margin="2"
 								HorizontalAlignment="Center"
@@ -84,6 +85,36 @@
 								TextAlignment="Center"
 								TextTrimming="CharacterEllipsis"
 								TextWrapping="Wrap" />
+								<!--  Markers for the player's home and the place they work, in the corner.  -->
+								<StackPanel
+									HorizontalAlignment="Left"
+									VerticalAlignment="Top"
+									IsHitTestVisible="False"
+									Orientation="Horizontal">
+									<Border
+										Margin="1"
+										Padding="2,0"
+										Background="{DynamicResource MapCurrentBrush}"
+										Visibility="{Binding HasHome, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+										<TextBlock
+											FontSize="{DynamicResource SmallFontSize}"
+											FontWeight="Bold"
+											Foreground="{DynamicResource MapVillageBrush}"
+											Text="{x:Static operaEtDies:OurResources.MapHomeMarker}" />
+									</Border>
+									<Border
+										Margin="1"
+										Padding="2,0"
+										Background="{DynamicResource MapCurrentBrush}"
+										Visibility="{Binding HasWorkplace, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+										<TextBlock
+											FontSize="{DynamicResource SmallFontSize}"
+											FontWeight="Bold"
+											Foreground="{DynamicResource MapVillageBrush}"
+											Text="{x:Static operaEtDies:OurResources.MapWorkMarker}" />
+									</Border>
+								</StackPanel>
+							</Grid>
 						</Border>
 						<DataTemplate.Triggers>
 							<DataTrigger Binding="{Binding Category}" Value="{x:Static local:TownMapCategory.Outskirts}">

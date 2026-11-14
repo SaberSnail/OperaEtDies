@@ -717,7 +717,7 @@
 		<comment>{0} is the profession id, {1} is the property id, {2} is the profession property id.</comment>
 	</data>
 	<data name="LayoutCenterInvalid" xml:space="preserve">
-		<value>The &quot;{0}&quot; layout is built around &quot;{1}&quot;, but that isn&apos;t a unique quarter kind in the village.</value>
+		<value>The &quot;{0}&quot; layout is built around &quot;{1}&quot;, but that isn&apos;t a unique quarter kind in the village that every town has.</value>
 		<comment>{0} is the layout shape, {1} is the center kind id.</comment>
 	</data>
 	<data name="QuarterKindUniqueMissing" xml:space="preserve">
@@ -1059,5 +1059,309 @@
 	<data name="ConnectionTravelTime" xml:space="preserve">
 		<value>({0})</value>
 		<comment>Shown beside a path or place the player can go to. {0} is how long it takes to get there, such as &quot;2 minutes&quot;.</comment>
+	</data>
+	<data name="ScheduleStartNeedInvalid" xml:space="preserve">
+		<value>&quot;start.need&quot; is &quot;{0}&quot;, but it must be the id of a level need.</value>
+		<comment>{0} is the need id found.</comment>
+	</data>
+	<data name="ScheduleHourInvalid" xml:space="preserve">
+		<value>&quot;{0}&quot; is {1}, but it must be from 0 to {2}.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the value found. {2} is the largest allowed hour.</comment>
+	</data>
+	<data name="ScheduleQuarterKindsNotAllowed" xml:space="preserve">
+		<value>&quot;{0}.quarterKinds&quot; can only be set when the place is &quot;quarter&quot;.</value>
+		<comment>{0} is the location of the setting in the data file.</comment>
+	</data>
+	<data name="NeedSettingMissing" xml:space="preserve">
+		<value>The need &quot;{0}&quot; needs &quot;{1}&quot;, since it&apos;s a {2} need.</value>
+		<comment>{0} is the need id. {1} is the setting name. {2} is the kind of need (level or daily).</comment>
+	</data>
+	<data name="NeedSettingNotAllowed" xml:space="preserve">
+		<value>The need &quot;{0}&quot; can&apos;t have &quot;{1}&quot;, since it&apos;s a {2} need.</value>
+		<comment>{0} is the need id. {1} is the setting name. {2} is the kind of need (level or daily).</comment>
+	</data>
+	<data name="DataIdUnknown" xml:space="preserve">
+		<value>&quot;{0}&quot; has &quot;{1}&quot;, but it isn&apos;t in the &quot;{2}&quot; list.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the id found. {2} is the list it should be in.</comment>
+	</data>
+	<data name="NeedLevelOutOfRange" xml:space="preserve">
+		<value>&quot;{0}&quot; must be from 0 to {1}.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the highest level a need can have.</comment>
+	</data>
+	<data name="NeedLevelsOutOfOrder" xml:space="preserve">
+		<value>Each of the levels of &quot;{0}&quot; must have a minimum from 0 to {1} that&apos;s higher than the level before it.</value>
+		<comment>{0} is the location of the need in the data file. {1} is the highest level a need can have.</comment>
+	</data>
+	<data name="NeedHoursInvalid" xml:space="preserve">
+		<value>The need &quot;{0}&quot; runs from hour {1} to hour {2}, but it must start before it ends, from hour 0 to 24.</value>
+		<comment>{0} is the need id. {1} is the start hour. {2} is the end hour.</comment>
+	</data>
+	<data name="NeedMinutesTooLong" xml:space="preserve">
+		<value>The need &quot;{0}&quot; takes {1} minutes, but its hours only have {2}.</value>
+		<comment>{0} is the need id. {1} is the minutes it takes. {2} is the minutes between its start and end hours.</comment>
+	</data>
+	<data name="SaveNeedInvalid" xml:space="preserve">
+		<value>The person {0} has a value for the need &quot;{1}&quot; that it can&apos;t have.</value>
+		<comment>{0} is the person&apos;s world id. {1} is the need id.</comment>
+	</data>
+	<data name="PlayerNeed" xml:space="preserve">
+		<value>{0}: {1}</value>
+		<comment>Shown in the sidebar for each of the player&apos;s needs. {0} is the need&apos;s title, such as &quot;Fatigue&quot;. {1} is the word for its level, such as &quot;Tired&quot;.</comment>
+	</data>
+	<data name="CommandLineSimulateDays" xml:space="preserve">
+		<value>With --generate-villages, runs each village for this many days after it&apos;s created, writing an activity record each time someone starts a task.</value>
+		<comment>Help for the --simulate-days command line option.</comment>
+	</data>
+	<data name="NeedUrgentFromOutOfRange" xml:space="preserve">
+		<value>&quot;{0}&quot; is {1}, but it must be at least 0 and less than {2}.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the value found. {2} is the highest level a need can have.</comment>
+	</data>
+	<data name="NeedLevelHoursInvalid" xml:space="preserve">
+		<value>The need &quot;{0}&quot; runs from hour {1} to hour {2}, but its hours must be different, from 0 to 23.</value>
+		<comment>{0} is the need id. {1} is the start hour. {2} is the end hour.</comment>
+	</data>
+	<data name="Wait" xml:space="preserve">
+		<value>Wait</value>
+		<comment>The button that waits in the player&apos;s location.</comment>
+	</data>
+	<data name="WaitToolTip" xml:space="preserve">
+		<value>Wait here until someone arrives or leaves, or until the next part of the day.</value>
+		<comment>Tooltip for the Wait button.</comment>
+	</data>
+	<data name="WaitResultChanged" xml:space="preserve">
+		<value>You waited {0}.</value>
+		<comment>Shown after waiting until someone arrived or left. {0} is how long, such as &quot;25 minutes&quot;.</comment>
+	</data>
+	<data name="WaitResultDayPart" xml:space="preserve">
+		<value>You waited {0}. {1}</value>
+		<comment>Shown after waiting until the next part of the day started with no one arriving or leaving. {0} is how long, such as &quot;3 hours&quot;. {1} is the part of the day&apos;s announcement, or DayPartStarted.</comment>
+	</data>
+	<data name="DayPartStarted" xml:space="preserve">
+		<value>{0} has begun.</value>
+		<comment>Shown after waiting until the next part of the day started, for a part of the day without an announcement. {0} is its title, such as &quot;Afternoon&quot;.</comment>
+	</data>
+	<data name="ThisIsYou" xml:space="preserve">
+		<value>This is you</value>
+		<comment>Labels the player in the list of villagers.</comment>
+	</data>
+	<data name="GoToPerson" xml:space="preserve">
+		<value>Go There</value>
+		<comment>For developers, the button in the list of villagers that goes straight to where someone is.</comment>
+	</data>
+	<data name="QuarterKindOptionalNotUnique" xml:space="preserve">
+		<value>The quarter kind &quot;{0}&quot; has &quot;optionalWith&quot;, but only unique kinds can be optional.</value>
+		<comment>{0} is the quarter kind id.</comment>
+	</data>
+	<data name="NeedQuotaMixed" xml:space="preserve">
+		<value>The need &quot;{0}&quot; can measure its quota in time (&quot;minutes&quot;, &quot;minutesPerMember&quot;, and &quot;shift&quot;) or in trips (&quot;visits&quot;, &quot;visitsPerMember&quot;, and &quot;visitMinutes&quot;), but not both.</value>
+		<comment>{0} is the need id.</comment>
+	</data>
+	<data name="NeedPerMemberNotShared" xml:space="preserve">
+		<value>The need &quot;{0}&quot; has an amount for each family member, but it isn&apos;t shared by the family.</value>
+		<comment>{0} is the need id.</comment>
+	</data>
+	<data name="NeedHomeMinutesWithoutReturn" xml:space="preserve">
+		<value>The need &quot;{0}&quot; has time at home after each trip, but it doesn&apos;t return home.</value>
+		<comment>{0} is the need id.</comment>
+	</data>
+	<data name="NeedVisitMinutesNotPositive" xml:space="preserve">
+		<value>The need &quot;{0}&quot; is measured in trips, so each trip must take at least a minute at the place for one person.</value>
+		<comment>{0} is the need id.</comment>
+	</data>
+	<data name="NeedOverdueNotAllowed" xml:space="preserve">
+		<value>The need &quot;{0}&quot; has &quot;overdueUrgency&quot;, but only quota needs measured by the week with a list of days can have it.</value>
+		<comment>{0} is the need id.</comment>
+	</data>
+	<data name="NeedHomeActivityWithoutHomeMinutes" xml:space="preserve">
+		<value>The need &quot;{0}&quot; has &quot;homeActivity&quot;, but no time at home after its trips.</value>
+		<comment>{0} is the need id.</comment>
+	</data>
+	<data name="PersonTraveling" xml:space="preserve">
+		<value>Walking to {0}</value>
+		<comment>What someone walking somewhere is shown to be doing. {0} is the title of the place they&apos;re going to.</comment>
+	</data>
+	<data name="FollowPerson" xml:space="preserve">
+		<value>Follow</value>
+		<comment>The button beside someone in the player&apos;s location that has the player follow them when they leave while the player waits.</comment>
+	</data>
+	<data name="StopFollowing" xml:space="preserve">
+		<value>Stop Following</value>
+		<comment>The button beside the person the player is following.</comment>
+	</data>
+	<data name="WaitResultFollowed" xml:space="preserve">
+		<value>You followed {0} to {1}.</value>
+		<comment>Shown after waiting until the person the player was following left, and following them. {0} is the person&apos;s name. {1} is the title of where they went.</comment>
+	</data>
+	<data name="PlayerActionOptionInvalid" xml:space="preserve">
+		<value>&quot;{0}&quot; must have exactly one of &quot;untilMet&quot;, &quot;untilHour&quot;, and &quot;minutes&quot;.</value>
+		<comment>{0} is the path to the option in the data file.</comment>
+	</data>
+	<data name="PlayerActionOptionText" xml:space="preserve">
+		<value>{0} ({1})</value>
+		<comment>{0} is the option title, such as Until rested, and {1} how long it takes.</comment>
+	</data>
+	<data name="PlayerActionResult" xml:space="preserve">
+		<value>{0} for {1}.</value>
+		<comment>{0} is the start of the sentence from the data, such as You slept, and {1} how long it took.</comment>
+	</data>
+	<data name="ActionsHeader" xml:space="preserve">
+		<value>Things to do here</value>
+		<comment>Heading for the actions the player can spend time on at their location.</comment>
+	</data>
+	<data name="ViewStatus" xml:space="preserve">
+		<value>Status</value>
+		<comment>Button that opens the player status page.</comment>
+	</data>
+	<data name="StatusHeader" xml:space="preserve">
+		<value>Your Status</value>
+		<comment>Title of the player status page.</comment>
+	</data>
+	<data name="NeedsHeader" xml:space="preserve">
+		<value>Needs</value>
+		<comment>Heading for the list of the player needs on the status page.</comment>
+	</data>
+	<data name="NeedStatusLevel" xml:space="preserve">
+		<value>{0} of {1}</value>
+		<comment>{0} is the level of a need, and {1} the highest it can be.</comment>
+	</data>
+	<data name="NeedStatusLevelTitled" xml:space="preserve">
+		<value>{0} ({1})</value>
+		<comment>{0} is the word for a need level, such as Tired, and {1} the level, such as 62 of 100.</comment>
+	</data>
+	<data name="NeedStatusQuotaDay" xml:space="preserve">
+		<value>{0} of {1} today</value>
+		<comment>{0} is the time spent on a need today, and {1} the time it takes.</comment>
+	</data>
+	<data name="NeedStatusQuotaWeek" xml:space="preserve">
+		<value>{0} of {1} this week</value>
+		<comment>{0} is the time spent on a need this week, and {1} the time it takes.</comment>
+	</data>
+	<data name="NeedStatusShared" xml:space="preserve">
+		<value>Shared by the household</value>
+		<comment>Note beside a need that the whole household works toward.</comment>
+	</data>
+	<data name="ThisIsYourRelation" xml:space="preserve">
+		<value>This is your {0}</value>
+		<comment>{0} is how the person is related to the player, such as son or mother-in-law.</comment>
+	</data>
+	<data name="MapHomeMarker" xml:space="preserve">
+		<value>Home</value>
+		<comment>Marker on the map for the quarter of the player home.</comment>
+	</data>
+	<data name="MapWorkMarker" xml:space="preserve">
+		<value>Work</value>
+		<comment>Marker on the map for the quarter of the place the player works.</comment>
+	</data>
+	<data name="PlayerActionSettingNotAllowed" xml:space="preserve">
+		<value>&quot;{0}&quot; is only allowed for a need it fits: &quot;options&quot; for a need whose quota isn&apos;t measured in trips, &quot;return&quot; and &quot;home&quot; for a trip that returns home, and &quot;onlyInHours&quot; for a quota need.</value>
+		<comment>{0} is the path to the setting in the data file.</comment>
+	</data>
+	<data name="OpeningHours" xml:space="preserve">
+		<value>Open on {0} from {1} to {2}</value>
+		<comment>Shown in place of a player action's options while it's closed. {0} is the days, {1} the opening time, and {2} the closing time.</comment>
+	</data>
+	<data name="OpeningHoursNotSpecialDays" xml:space="preserve">
+		<value>Open on {0} from {1} to {2}, except on holidays</value>
+		<comment>Shown in place of a player action's options while it's closed, for one that's closed on special days. {0} is the days, {1} the opening time, and {2} the closing time.</comment>
+	</data>
+	<data name="OpeningHoursEveryDay" xml:space="preserve">
+		<value>every day</value>
+		<comment>The days in opening hours when it's open every day of the week.</comment>
+	</data>
+	<data name="OpeningHoursTwoDays" xml:space="preserve">
+		<value>{0} and {1}</value>
+		<comment>The days in opening hours when it's open two days of the week. {0} and {1} are the days.</comment>
+	</data>
+	<data name="OpeningHoursManyDays" xml:space="preserve">
+		<value>{0}, and {1}</value>
+		<comment>The days in opening hours when it's open three or more days of the week. {0} is all but the last day, separated by OpeningHoursDaySeparator, and {1} is the last day.</comment>
+	</data>
+	<data name="OpeningHoursDaySeparator" xml:space="preserve">
+		<value>, </value>
+		<comment>Separates the days in OpeningHoursManyDays.</comment>
+	</data>
+	<data name="DeveloperGoal" xml:space="preserve">
+		<value>{0} at {1}</value>
+		<comment>For developers, someone's goal. {0} is the need's title and {1} the place it's met.</comment>
+	</data>
+	<data name="DeveloperGoalThenHome" xml:space="preserve">
+		<value>{0} at {1}, then home</value>
+		<comment>For developers, someone's goal that they go home afterward to finish. {0} is the need's title and {1} the place it's met.</comment>
+	</data>
+	<data name="DeveloperIdle" xml:space="preserve">
+		<value>Idle at {0}</value>
+		<comment>For developers, someone with no goal. {0} is where they're idle.</comment>
+	</data>
+	<data name="DeveloperWalking" xml:space="preserve">
+		<value>{0} (walking to {1})</value>
+		<comment>For developers, someone's goal while they're walking. {0} is the goal and {1} the end of the walk.</comment>
+	</data>
+	<data name="DeveloperNoGoalChoice" xml:space="preserve">
+		<value>Their plan wasn't chosen from their needs.</value>
+		<comment>For developers, when someone's plan was set some other way than choosing a goal from their needs.</comment>
+	</data>
+	<data name="DeveloperGoalChosen" xml:space="preserve">
+		<value>At {0}, chose {1}</value>
+		<comment>For developers, how someone chose their goal. {0} is the time and {1} the need's title.</comment>
+	</data>
+	<data name="DeveloperGoalNothingUrgent" xml:space="preserve">
+		<value>At {0}, nothing was urgent enough</value>
+		<comment>For developers, when someone went idle because no need was urgent enough. {0} is the time.</comment>
+	</data>
+	<data name="DeveloperGoalNoPlace" xml:space="preserve">
+		<value>At {0}, chose {1}, but there was nowhere to do it</value>
+		<comment>For developers, when someone went idle because there was nowhere to meet the chosen need. {0} is the time and {1} the need's title.</comment>
+	</data>
+	<data name="DeveloperGoalNoTime" xml:space="preserve">
+		<value>At {0}, chose {1}, but there was no time left for it</value>
+		<comment>For developers, when someone went idle because there was no time left for the chosen need. {0} is the time and {1} the need's title.</comment>
+	</data>
+	<data name="DeveloperGoalReason" xml:space="preserve">
+		<value>{0}. Urgencies: {1}.</value>
+		<comment>For developers, why someone chose their goal. {0} is how they chose it and {1} the needs' urgencies.</comment>
+	</data>
+	<data name="DeveloperUrgency" xml:space="preserve">
+		<value>{0} {1:0} ({2:0%})</value>
+		<comment>For developers, a need's urgency when a goal was chosen. {0} is the need's title, {1} its urgency, and {2} its chance of being chosen.</comment>
+	</data>
+	<data name="DeveloperUrgencyTooLow" xml:space="preserve">
+		<value>{0} {1:0} (below {2:0})</value>
+		<comment>For developers, a need that wasn't urgent enough to be chosen. {0} is the need's title, {1} its urgency, and {2} the minimum urgency.</comment>
+	</data>
+	<data name="DeveloperUrgencySeparator" xml:space="preserve">
+		<value>, </value>
+		<comment>Separates the needs in DeveloperGoalReason.</comment>
+	</data>
+	<data name="DeveloperNoUrgencies" xml:space="preserve">
+		<value>none</value>
+		<comment>For developers, when no need was at all urgent when a goal was chosen.</comment>
+	</data>
+	<data name="PlayerActionFinish" xml:space="preserve">
+		<value>Finish</value>
+		<comment>Button that finishes a trip at home when it takes no time.</comment>
+	</data>
+	<data name="PlayerActionResultInstant" xml:space="preserve">
+		<value>{0}.</value>
+		<comment>{0} is the sentence from the data, such as You put away the water.</comment>
+	</data>
+	<data name="PlayerActionResultReturn" xml:space="preserve">
+		<value>{0} {1}</value>
+		<comment>{0} is what the player did, and {1} the reminder from the data to finish it at home.</comment>
+	</data>
+	<data name="NeedStatusNoteSeparator" xml:space="preserve">
+		<value> </value>
+		<comment>Between notes beside a need on the status page.</comment>
+	</data>
+	<data name="NeedStatusTripsDay" xml:space="preserve">
+		<value>{0} of {1} visits today ({2} each)</value>
+		<comment>{0} is the visits finished today, {1} the visits needed, and {2} how long each takes.</comment>
+	</data>
+	<data name="NeedStatusTripsWeek" xml:space="preserve">
+		<value>{0} of {1} visits this week ({2} each)</value>
+		<comment>{0} is the visits finished this week, {1} the visits needed, and {2} how long each takes.</comment>
+	</data>
+	<data name="NeedStatusDone" xml:space="preserve">
+		<value>Done</value>
+		<comment>Marker on the status page for a need that is done for the day or week.</comment>
 	</data>
 </root>

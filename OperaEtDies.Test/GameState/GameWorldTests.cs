@@ -21,21 +21,24 @@ public sealed class GameWorldTests
 	}
 
 	[Test]
-	public void GameStartsOnARandomDayOfTheStartYearAtTheFirstPartOfTheDay()
+	public void GameStartsWhenThePlayerWakesOnTheFirstDayOfARandomWeekOfTheStartYear()
 	{
-		var days = new HashSet<(int Season, int Week, int Day)>();
+		var weeks = new HashSet<(int Season, int Week)>();
 		for (var seed = 0; seed < 40; seed++)
 		{
 			var (_, world) = CreateWorld(seed);
 			var calendar = world.GameData.Calendar;
 			var parts = calendar.GetParts(world.Time);
 
+			// Without schedules, everyone wakes at six exactly.
 			Assert.That(parts.Year, Is.EqualTo(calendar.StartYear));
-			Assert.That((parts.Hour, parts.Minute), Is.EqualTo((calendar.DayParts[0].Start, 0)));
-			days.Add((parts.Season, parts.Week, parts.Day));
+			Assert.That((parts.Day, parts.Hour, parts.Minute), Is.EqualTo((1, 6, 0)));
+			Assert.That(world.Player.TaskEnd, Is.Null);
+			Assert.That(world.Player.Tasks, Is.Empty);
+			weeks.Add((parts.Season, parts.Week));
 		}
 
-		Assert.That(days, Has.Count.GreaterThan(10));
+		Assert.That(weeks, Has.Count.GreaterThan(6));
 	}
 
 	[Test]
@@ -109,14 +112,11 @@ public sealed class GameWorldTests
 	}
 
 	[Test]
-	public void EveryoneStartsAtHomeAtWorkOrInAQuarter()
+	public void PeopleAreCreatedFromTheTownAtHome()
 	{
-		var places = new HashSet<string>();
-		var homeWork = new HashSet<bool>();
 		for (var seed = 0; seed < 20; seed++)
 		{
 			var (town, world) = CreateWorld(seed);
-			var quarters = world.Locations.Where(x => x.Bounds is not null).ToList();
 			var townLocations = world.Locations.Zip(town.Locations).ToDictionary(x => x.First, x => x.Second);
 			var people = town.Households.SelectMany(x => x.Members).ToList();
 
@@ -126,23 +126,16 @@ public sealed class GameWorldTests
 				Assert.That(npc.IsPlayer, Is.False);
 				Assert.That(npc.Role, Is.EqualTo(person.Role));
 				Assert.That(npc.Traits.GetValueId("profession"), Is.EqualTo(person.Traits.GetValueId("profession")));
-				Assert.That(npc.Location == npc.Home || npc.Location == npc.Workplace || quarters.Contains(npc.Location), Is.True);
-				// People who work from home are working half the time they're there.
-				if (npc.Location == npc.Workplace && npc.Workplace == npc.Home && npc.Profession is not null)
-					homeWork.Add(npc.IsAtWork);
-				else
-					Assert.That(npc.IsAtWork, Is.EqualTo(npc.Location == npc.Workplace && npc.Workplace != npc.Home));
+				// Without schedules, everyone stays at home and isn't working.
+				Assert.That(npc.Location, Is.SameAs(npc.Home));
+				Assert.That(npc.IsAtWork, Is.False);
 				Assert.That(townLocations[npc.Home], Is.SameAs(person.Household.House));
 				Assert.That(townLocations[npc.Workplace], Is.SameAs(person.Business?.Location ?? person.Household.House));
 				Assert.That(npc.Business?.Profession, Is.SameAs(person.Business?.Profession));
 				Assert.That(npc.IsBusinessOwner, Is.EqualTo(person.IsBusinessOwner));
 				Assert.That(npc.Location.People, Does.Contain(npc));
-				places.Add(npc.Location == npc.Home ? "home" : npc.Location == npc.Workplace ? "work" : "quarter");
 			}
 		}
-
-		Assert.That(places, Is.EquivalentTo(new[] { "home", "work", "quarter" }));
-		Assert.That(homeWork, Is.EquivalentTo(new[] { true, false }));
 	}
 
 	[Test]
@@ -202,7 +195,7 @@ public sealed class GameWorldTests
 	}
 
 	[Test]
-	public void WorkAndPortraitPlaceFollowTheLocation()
+	public void PortraitPlaceFollowsTheLocationAndWork()
 	{
 		var gameData = TestData.CreateGameData();
 		var world = new TestWorld(gameData);
@@ -219,16 +212,17 @@ public sealed class GameWorldTests
 		Assert.That(person.Traits.GetValueId("atWork"), Is.EqualTo("notAtWork"));
 		Assert.That(person.PortraitPlace, Is.EqualTo(PortraitPlace.Home));
 
+		// Arriving somewhere doesn't start or stop work: tasks do.
 		person.Location = forge;
-		Assert.That(person.IsAtWork, Is.True);
-		Assert.That(person.Traits.GetValueId("atWork"), Is.EqualTo("atWork"));
+		Assert.That(person.IsAtWork, Is.False);
 		Assert.That(person.PortraitPlace, Is.EqualTo(PortraitPlace.InWorkplace("smith")));
 
-		// Someone else's business of the same profession looks the same, but the person isn't working there.
+		person.IsAtWork = true;
+		Assert.That(person.Traits.GetValueId("atWork"), Is.EqualTo("atWork"));
 		person.Location = smithy;
-		Assert.That(person.IsAtWork, Is.False);
-		Assert.That(person.Traits.GetValueId("atWork"), Is.EqualTo("notAtWork"));
+		Assert.That(person.IsAtWork, Is.True);
 		Assert.That(person.PortraitPlace, Is.EqualTo(PortraitPlace.InWorkplace("smith")));
+		person.IsAtWork = false;
 
 		person.Location = otherHome;
 		Assert.That(person.PortraitPlace, Is.EqualTo(PortraitPlace.Home));
@@ -256,35 +250,6 @@ public sealed class GameWorldTests
 	}
 
 	[Test]
-	public void WorkingFromHomeIsDecidedOnArrivingHome()
-	{
-		var gameData = TestData.CreateGameData();
-		var world = new TestWorld(gameData);
-		var smith = TestData.CreateTraits(gameData, "male", "John", "Smith", "smith", "tall", "slim", 40);
-		var child = new CharacterTraits(smith.Values.Where(x => x.Key != "profession").ToDictionary(x => x.Key, x => x.Value));
-		var home = world.AddLocation(gameData.HouseTemplates[0]);
-		var lane = world.AddLocation(gameData.QuarterTemplates[0]);
-		var person = world.AddPerson(smith, home);
-		var results = new HashSet<bool> { person.IsAtWork };
-
-		for (var visit = 0; visit < 40; visit++)
-		{
-			person.Location = lane;
-			Assert.That(person.IsAtWork, Is.False);
-
-			person.Location = home;
-			results.Add(person.IsAtWork);
-			Assert.That(person.PortraitPlace, Is.EqualTo(person.IsAtWork ? PortraitPlace.InWorkplace("smith") : PortraitPlace.Home));
-		}
-
-		// Someone without a profession is never working.
-		var idle = world.AddPerson(child, home);
-
-		Assert.That(results, Is.EquivalentTo(new[] { true, false }));
-		Assert.That(idle.IsAtWork, Is.False);
-	}
-
-	[Test]
 	public void ShippedDataDescribesPeople()
 	{
 		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
@@ -307,9 +272,9 @@ public sealed class GameWorldTests
 		}
 	}
 
-	internal static (GeneratedTown Town, GameWorld World) CreateWorld(int seed = 0, bool withFeatures = false)
+	internal static (GeneratedTown Town, GameWorld World) CreateWorld(int seed = 0, bool withFeatures = false, bool withSchedules = false)
 	{
-		var gameData = TestData.CreateGameData(withFeatures: withFeatures);
+		var gameData = TestData.CreateGameData(withFeatures: withFeatures, withSchedules: withSchedules);
 		var random = new Random(seed);
 		var town = TownGenerator.Generate(gameData, TestData.CreatePlayerTraits(gameData), random);
 		return (town, GameWorld.CreateFromTown(gameData, town, random));

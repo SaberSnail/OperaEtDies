@@ -208,6 +208,8 @@ There must be at least one house, and at least one quarter with houses, for each
 | `id` | string | |
 | `area` | string | `village` or `outskirts`. The part of the map quarters of this kind are in. |
 | `unique` | boolean | Optional (defaults to false). Whether every town has exactly one quarter of this kind. |
+| `optionalWith` | string | Optional. Unique kinds only. The id of a map feature in `features`. A town with the feature only has a quarter of this kind `optionalChance` percent of the time, unless none of the quarters for its houses and businesses border the feature, when it always has one. The layouts can't be built around a kind with it. |
+| `optionalChance` | number | Optional (defaults to 50). From 0 to 100. |
 | `path` | string | Filled in. What a path to or from a quarter of this kind is called. |
 | `borders` | string | Optional. Not allowed for unique kinds. The id of one of `features`. Every quarter of this kind borders that feature, and is only used in towns that have it. |
 | `travelTime` | integer | At least 0. How many minutes it takes to walk a path to or from a quarter of this kind. A path between two quarters takes the longer of their kinds' times. |
@@ -217,7 +219,7 @@ There must be at least one house, and at least one quarter with houses, for each
 | Property | Type | Notes |
 |---|---|---|
 | `shape` | string | `radial`, `linear`, `crossroads`, or `warren` (see Laying out the town). |
-| `center` | string | The id of a unique kind in the `village` area. The quarter the shape is built around. |
+| `center` | string | The id of a unique kind in the `village` area without `optionalWith`. The quarter the shape is built around. |
 | `frequency` | string | Optional (defaults to `common`). Frequency. |
 
 **Map Feature**
@@ -334,6 +336,7 @@ How households are generated. A **chance** is a percentage from 0 to 100. A **we
 | `married` | string | Filled in. Id of the married property's value for someone who is married. |
 | `unmarried` | string | Filled in. Id of the married property's value for someone who isn't married. |
 | `familyCount` | Integer Range | The minimum is at least 0. How many households the town has besides the player's. |
+| `playerRelations` | list of Player Relation | Optional (defaults to empty). Can be empty. How each member of the player's household is related to the player, who is its head: the first relation whose `when` the member meets is shown. |
 | `femaleHeadChance` | number | Chance. The chance that the head of a household is a woman. |
 | `femaleHeadMinWealth` | string | Wealth level. The lowest wealth a woman at the head of a household can have from her profession. |
 | `headAge` | Integer Range | Within the age property's range for non-player characters. The maximum must be at least the youngest age at which the player can have an adult child: the youngest age in that range plus `minParentAge`. The age of the head of a household. The player's age uses the part of this range from that youngest age up, with the same weights. |
@@ -395,6 +398,13 @@ Ids of the head relation property's values, each saying what the head of a house
 | `sonInLaw` | string | For a household elder who is the parent of the head's wife. |
 | `daughterInLaw` | string | For a household elder who is the parent of the late husband of a woman at the head of a household. |
 
+**Player Relation**
+
+| Property | Type | Notes |
+|---|---|---|
+| `when` | Condition | Can't use `hidden`. |
+| `title` | string | Filled in. Shown to the player, such as in "This is your {title}". |
+
 **Gender Ages**
 
 | Property | Type | Notes |
@@ -434,7 +444,7 @@ Ids of the head relation property's values, each saying what the head of a house
 
 **Laying out the town.** The quarters are chosen first, and then arranged on the map. Quarters that border a feature the town doesn't have, through their kind or themselves, are never chosen, and neither are business places that can only go in such quarters.
 
-* The town gets one quarter of each unique kind.
+* The town gets one quarter of each unique kind, except an optional kind (one with `optionalWith`) in a town with its feature. Once the houses and businesses have their quarters, the town gets one of those if none of their quarters border the feature, or else `optionalChance` percent of the time.
 * Each household gets a house of its wealth level, in a quarter of the same wealth that isn't of a unique kind. Quarters are added until there's room for every household, each planning a number of houses within its range, leaning toward fewer. Each quarter gets one house, then its minimum, as far as the households go, and the rest are spread among quarters below their planned number.
 * Each business that doesn't work from home gets a place from the businesses for its profession, in a quarter of one of its kinds with room for another business. If none has room, a quarter that isn't of a unique kind is added, preferring one whose minimum houses is 0. If none can be added, the business goes in a full quarter of one of its kinds, and a warning is logged.
 * Landmarks are added until the town has a number from `landmarkCount`, counting landmarks of unique kinds. Village and outskirts landmarks take turns.
@@ -486,6 +496,7 @@ A part of the day lasts from its start until the next part starts. The last part
 | `id` | string | Filled in. |
 | `title` | string | Filled in. |
 | `start` | integer | The hour it starts at, from 0 to 23. |
+| `announcement` | string | Optional. Filled in. What the player notices when the part of the day starts while they wait, such as a bell ringing. Without it, they're told which part of the day has begun. |
 
 **Special Day**
 
@@ -496,6 +507,160 @@ A part of the day lasts from its start until the next part starts. The last part
 | `season` | string | Id of a season in `seasons`. |
 | `week` | string | Id of a week in `weeks`. |
 | `day` | string | Id of a day in `days`. |
+
+## Schedules.json
+
+How people decide what to do. Everyone works through a list of tasks toward a goal: walking to a place one path at a time, starting work if the goal needs it, spending time there, and stopping work. When someone other than the player runs out of tasks, they work out how urgent each of their needs is, and choose one of the needs with an urgency of at least `minimumUrgency` at random, with each need's chance in proportion to its urgency raised to `urgencyPower`. A need that can't be met (it has no place, or no time is left to spend on it) leaves them idle. Urgency runs from 0 to 100, and is then multiplied by every urgency factor for the need whose condition the person meets, so it can be more than 100.
+
+| Property | Type | Notes |
+|---|---|---|
+| `minimumUrgency` | number | At least 0. Needs less urgent than this aren't chosen. |
+| `urgencyPower` | number | More than 0. |
+| `needs` | list of Need | Each need needs a filled-in `id` and `title`. |
+| `idle` | Idle | What people do when no need is chosen. |
+| `start` | Start | How everyone starts a new game. |
+| `travelTimeFactors` | list of Travel Time Factor | Optional (defaults to empty). Can be empty. |
+| `urgencyFactors` | list of Urgency Factor | Optional (defaults to empty). Can be empty. |
+
+**Need**
+
+There are two kinds of need. A **level** need has a level from 0 to 100, which grows by `perHour` each hour, except while it's being met (when it drops by `satisfyPerHour` each hour) or while a need in its `pausedBy` list is being met. Time spent meeting a level need lasts until its level reaches 0. A level need's urgency rises from 0 at `urgentFrom` to 100 at level 100, and it's 0 outside its hours.
+
+A **quota** need has a quota to meet each day or each week (its `period`), between the hours `start` and `end` on the days it can be met. The quota is measured either in time or in trips:
+
+* **Time:** `minutes`, plus `minutesPerMember` for each member of the family, spent in stretches of at most `shift` minutes.
+* **Trips:** `visits`, plus `visitsPerMember` for each member of the family, rounded up. Each trip spends `visitMinutes`, plus `visitMinutesPerMember` for each member of the family, at the place, and then, for a need that returns home, `homeMinutes`, plus `homeMinutesPerMember` for each member of the family, at home afterward.
+
+Each stretch or trip is shorter if less of the quota is left, or if less of today's hours are left once the person gets to the place. Only time spent at the place (and, for a trip, at home afterward) counts toward the quota, which starts again from 0 at the start of each day or week (the first day in Calendar.json). For a need shared by the family, the time every member has spent counts, and so does the time other members already plan to spend on it. A quota need's urgency is 0 outside its hours, on days it can't be met, and once its quota is met. Otherwise it's 0 while the spare time left (the minutes left in its hours from now to the end of its day or week, minus the minutes left of its quota) is at least `lead`, rises to 100 as the spare time drops to 0, and stays at 100 after that. A weekly quota need with `days` and `overdueUrgency` is overdue once the time left in its hours on its days this week has run out with its quota unmet: it can then be met during its hours on any day for the rest of the week (other than special days it skips), with an urgency of `overdueUrgency`.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | Filled in. |
+| `title` | string | Filled in. Shown to the player with the level's title, for a need with `levels`. |
+| `activity` | string | Optional (defaults to `title`). Filled in. What someone meeting the need is shown to be doing. |
+| `kind` | string | `level` or `quota`. |
+| `when` | Condition | Optional. Who has the need. Without it, everyone does. Can't use `hidden`. |
+| `place` | string | Where the need is met: `home`, `workplace`, or `quarter`. Only people with a business have a need met at their `workplace`: their business's place, or their home if it's run from home. |
+| `quarterKinds` | list of Quarter Choice | Required for the `quarter` place, and not allowed otherwise. Must not be empty. With `nearest`, the nearest quarter of any of the kinds is chosen. Otherwise the kind is chosen by frequency among the kinds the town has, then a quarter of that kind, with nearer quarters more likely: each quarter's weight is 1 divided by 1 plus the minutes it takes to walk there. |
+| `nearest` | boolean | Optional (defaults to false). Only allowed for the `quarter` place. |
+| `atWork` | boolean | Optional (defaults to false). Whether people are at work while meeting the need. |
+| `returnHome` | boolean | Optional (defaults to false). Not allowed for the `home` place. Whether people walk home after meeting the need. |
+| `perHour` | number | Level needs only, and required. At least 0. |
+| `satisfyPerHour` | number | Level needs only, and required. More than 0. |
+| `pausedBy` | list of string | Optional. Level needs only. Ids of needs in `needs`. |
+| `urgentFrom` | number | Optional (defaults to 0). Level needs only. At least 0 and less than 100. |
+| `startLevel` | Integer Range | Optional (defaults to 0). Level needs only. From 0 to 100. The level at the start of a new game. |
+| `levels` | list of Level | Optional. Level needs only. Must not be empty. The words for how high the need is. Needs with `levels` are shown to the player. |
+| `period` | string | Optional (defaults to `day`). Quota needs only. `day` or `week`. |
+| `days` | list of string | Optional (defaults to every day). Quota needs only. Ids of days in Calendar.json, each filled in and listed once. The days of the week the need can be met on. |
+| `onSpecialDays` | boolean | Optional (defaults to true). Quota needs only. Whether the need can be met on special days. |
+| `start` | integer | Required for quota needs, optional for level needs. The hour the need can be met from. |
+| `end` | integer | Required for quota needs, and for level needs with a `start`. The hour the need can be met until. For a quota need, `start` must be from 0 to 23, `end` must be after it and at most 24, and the quota for one person must fit in the hours of its period (one day, or each of its days in a week). For a level need, both are from 0 to 23 and must be different, and the hours run past midnight if `start` is after `end`. |
+| `minutes` | integer | Quota needs measured in time only. At least 0. Required unless there's `minutesPerMember`. |
+| `minutesPerMember` | integer | Optional. Quota needs measured in time and shared by the family only. At least 0. |
+| `shift` | integer | Quota needs measured in time only, and required for them. More than 0. |
+| `visits` | number | Quota needs measured in trips only. At least 0. Required unless there's `visitsPerMember`. |
+| `visitsPerMember` | number | Optional. Quota needs measured in trips and shared by the family only. At least 0. |
+| `visitMinutes` | integer | Quota needs measured in trips only. At least 0. Required unless there's `visitMinutesPerMember`. With one family member, a trip must spend at least a minute at the place. |
+| `visitMinutesPerMember` | integer | Optional. Quota needs measured in trips and shared by the family only. At least 0. |
+| `homeMinutes` | integer | Optional. Quota needs measured in trips that return home only. At least 0. |
+| `homeMinutesPerMember` | integer | Optional. Quota needs measured in trips that return home and are shared by the family only. At least 0. |
+| `lead` | integer | Quota needs only, and required. More than 0. |
+| `overdueUrgency` | number | Optional. Quota needs with a `period` of `week` and `days` only. From 0 to 100. |
+| `homeActivity` | string | Optional (defaults to `activity`). Quota needs with time at home after their trips only. Filled in. What someone is shown to be doing during that time. |
+| `sharedByFamily` | boolean | Optional (defaults to false). Quota needs only. Whether the need is met for the whole family by anyone in it. |
+| `playerAction` | Player Action | Optional. Lets the player spend time on the need where they can meet it: their home or workplace, or a quarter of one of `quarterKinds`. Not offered for a need met at a workplace when the player has no business, or whose `when` the player doesn't meet. |
+
+A quota need is measured in trips if it has any of `visits`, `visitsPerMember`, `visitMinutes`, `visitMinutesPerMember`, `homeMinutes`, or `homeMinutesPerMember`, and can't have them along with `minutes`, `minutesPerMember`, or `shift`.
+
+**Player Action**
+
+For a need whose quota isn't measured in trips, the player chooses one of the options, and spends that long meeting the need, starting and stopping work around it for a need with `atWork`. For a quota need, the options can't be chosen on a day it can't be met (one not in its `days`, or a special day when `onSpecialDays` is false), unless it's overdue, or with `onlyInHours`, outside its hours (`start` to `end`) on such a day. While a need with `onlyInHours` is closed, the player is told the days and hours it's open in place of the action.
+
+For a quota need measured in trips, the player spends one trip's time at the place (`visitMinutes` and `visitMinutesPerMember`), if the quota isn't met and can be met today (and now, with `onlyInHours`). For a trip that returns home, they're then told `return`, and the trip is in progress until they finish it at home with `home`, which takes the trip's time at home (`homeMinutes` and `homeMinutesPerMember`, which can be 0). While it's in progress, they can't start the trip again, and the time at home counts as planned for the rest of the family.
+
+After each action, the player is told `result` (or `home.result`) followed by how long it took, if it took any time.
+
+| Property | Type | Notes |
+|---|---|---|
+| `title` | string | Filled in. The name of the action. |
+| `result` | string | Filled in. |
+| `options` | list of Player Action Option | Required for a need whose quota isn't measured in trips, and must not be empty. Not allowed for a quota need measured in trips. |
+| `return` | string | Required for a quota need measured in trips that returns home, and not allowed otherwise. Filled in. |
+| `home` | Player Action Home | Required for a quota need measured in trips that returns home, and not allowed otherwise. |
+| `onlyInHours` | boolean | Optional, defaults to false. Only allowed for a quota need. |
+
+**Player Action Home**
+
+| Property | Type | Notes |
+|---|---|---|
+| `title` | string | Filled in. The name of the action that finishes the trip. |
+| `result` | string | Filled in. |
+
+**Player Action Option**
+
+Each option has exactly one of `untilMet`, `untilHour`, and `minutes`. An option that would take no time can't be chosen.
+
+| Property | Type | Notes |
+|---|---|---|
+| `title` | string | Filled in. Optional for an option with `minutes`, which is otherwise called by how long it takes. Shown with how long the option takes. |
+| `untilMet` | boolean | Optional (defaults to false). Until a level need's level is 0, or a quota need's quota for the player (or the family, for a need shared by the family) is met this day or week. |
+| `untilHour` | integer | Optional. From 0 to 23. Until the next time it's this hour, which is a day away at that hour. |
+| `minutes` | integer | Optional. More than 0. |
+
+**Quarter Choice**
+
+| Property | Type | Notes |
+|---|---|---|
+| `quarterKind` | string | Filled in. The id of a quarter kind in Locations.json. |
+| `frequency` | frequency | Optional (defaults to `common`). |
+
+**Level**
+
+The title of the last level whose `minimum` is at or below the need's level is shown.
+
+| Property | Type | Notes |
+|---|---|---|
+| `minimum` | number | From 0 to 100, and more than the level before it. |
+| `title` | string | Filled in. |
+
+**Idle**
+
+Someone who doesn't choose a need goes to the place and waits there for a number of minutes, then decides again.
+
+| Property | Type | Notes |
+|---|---|---|
+| `place` | string | As for a need. |
+| `quarterKinds` | list of Quarter Choice | As for a need. |
+| `minutes` | Integer Range | The minimum is at least 1. |
+| `activity` | string | Optional. Filled in. What someone idle is shown to be doing. Without it, nothing is shown. |
+
+**Start**
+
+A new game starts at midnight on the first day of a random week of the start year. Everyone is at home, meeting `need`, with each level need at its `startLevel`. Each person wakes `wakeMinutes` from `wakeHour`, at least a minute after midnight, and the level of `need` is set to what's met by then. Time runs until the player wakes.
+
+| Property | Type | Notes |
+|---|---|---|
+| `need` | string | The id of a level need in `needs`. |
+| `wakeHour` | integer | From 0 to 23. |
+| `wakeMinutes` | Integer Range | How many minutes before or after `wakeHour` each person wakes. |
+
+**Urgency Factor**
+
+| Property | Type | Notes |
+|---|---|---|
+| `when` | Condition | Can't use `hidden`. |
+| `needs` | list of string | Must not be empty. Ids of needs in `needs`, each filled in and listed once. |
+| `factor` | number | More than 0. |
+
+**Travel Time Factor**
+
+Walking a path takes its travel time (see Locations.json) multiplied by every factor whose condition the person meets, rounded up to a whole minute.
+
+| Property | Type | Notes |
+|---|---|---|
+| `when` | Condition | Can't use `hidden`. |
+| `factor` | number | More than 0. |
 
 ## Portraits.json
 
@@ -610,7 +775,7 @@ Has `fill`, `stroke`, or both.
 
 ## Checks Between Files
 
-Once each file has loaded on its own, the files are checked against each other. The professions are only checked against the profession property if Families.json is correct. The profession property must take its values from the professions. The `homemaker` and `infirm` professions must have no business settings, and every other profession must have a `wealth`. Each business in Locations.json must be for a profession in Professions.json that doesn't work from home. The conditions in Portraits.json must use Characters.json properties and values, as described for Condition, and the places in Portraits.json must use Locations.json quarter kinds and profession property values.
+Once each file has loaded on its own, the files are checked against each other. The professions are only checked against the profession property if Families.json is correct. The profession property must take its values from the professions. The `homemaker` and `infirm` professions must have no business settings, and every other profession must have a `wealth`. Each business in Locations.json must be for a profession in Professions.json that doesn't work from home. The conditions in Portraits.json must use Characters.json properties and values, as described for Condition, and the places in Portraits.json must use Locations.json quarter kinds and profession property values. The conditions in Schedules.json must use Characters.json properties and values in the same way, its quarter kinds must be quarter kinds in Locations.json, and its days must be days in Calendar.json.
 
 # Adding to the Data
 
@@ -618,7 +783,7 @@ The data for one thing is often spread across several files, so this section lis
 
 Portraits.json is generated, so portrait art is never added to it directly. It's added to SubCorona's `Art/Portraits/Portraits.sh`, as described in SubCorona's `Docs/Portraits.md`, which also explains how to generate the file and preview the results.
 
-Saved games refer to properties, values, and location and map feature templates by id, so renaming or removing one of those stops older saves from loading. Adding new ones is safe.
+Saved games refer to properties, values, location and map feature templates, and needs by id, so renaming or removing one of those stops older saves from loading. Adding new ones is safe.
 
 ## Profession
 
@@ -661,7 +826,7 @@ Saved games refer to properties, values, and location and map feature templates 
 
 ## Quarter Kind
 
-* **Locations.json:** an entry in `quarterKinds`, and at least one entry in `quarters` of the kind (required for a unique kind; otherwise the kind is just never used). If its quarters should hold businesses, add it to the `quarterKinds` of those entries in `businesses`. For a unique kind in the village, it can be the `center` of new `layouts`. If it borders a map feature, set `borders`.
+* **Locations.json:** an entry in `quarterKinds`, and at least one entry in `quarters` of the kind (required for a unique kind; otherwise the kind is just never used). A unique kind that's only needed without a feature (such as a well where there's no river) can be made optional with `optionalWith`. If its quarters should hold businesses, add it to the `quarterKinds` of those entries in `businesses`. For a unique kind in the village, it can be the `center` of new `layouts`. If it borders a map feature, set `borders`.
 * **Portrait art** (**not checked**): a background for the kind (a layer with `inquarter`).
 
 ## Quarter
@@ -688,9 +853,16 @@ Saved games refer to properties, values, and location and map feature templates 
 
 ## Calendar
 
-* **Day, week, or season:** an entry in `days`, `weeks`, or `seasons` in Calendar.json. Adding one changes the length of the year, so check the `specialDays` still fall where they should (**not checked**).
+* **Day, week, or season:** an entry in `days`, `weeks`, or `seasons` in Calendar.json. Adding one changes the length of the year, so check the `specialDays` still fall where they should (**not checked**). For a day, add it to the `days` of each quota need in Schedules.json that should be met on it (**not checked**).
 * **Part of the day:** an entry in `dayParts`, in order of its start.
 * **Special day:** an entry in `specialDays`, naming its season, week, and day.
+
+## Need
+
+* **Schedules.json:** an entry in `needs`, choosing its `kind` and `place`, and the settings for its kind. Give a level need `levels` if the player should see it. For a need met in a quarter, list the kinds of quarter in `quarterKinds`.
+* **Schedules.json:** add it to the `pausedBy` of any level need that shouldn't grow while it's being met (**not checked**).
+* **Schedules.json:** add it to the `needs` of any urgency factor that should apply to it, such as the homemaker's for a household chore (**not checked**).
+* The village report gets a column for it automatically, and `--simulate-days` shows when people meet it.
 
 ## Portrait Art
 

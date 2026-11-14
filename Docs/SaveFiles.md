@@ -15,7 +15,7 @@ Saved games are kept in `%LocalAppData%\Golden Anvil\<game title>\Saves`, where 
 
 | Property | Type | Notes |
 |---|---|---|
-| `version` | number | The save format version. Must be 2. |
+| `version` | number | The save format version. Must be 3. |
 | `gameTitle` | string | The title of the game it was saved from. Must match the loaded game's title. |
 | `dataHash` | string | A hash of every file in the data folder, including their paths within it. |
 | `modsHash` | string | Optional (defaults to empty). A hash of every file in each mod folder, in order, including their paths within their folders. Empty if the game was saved without mods. |
@@ -85,6 +85,13 @@ A quarter, house, or business's place.
 | `role` | string | How the person is related to the head of their family: `head`, `wife`, `child`, or `householdElder`. |
 | `location` | world id | Where the person is. Must be a location. |
 | `traits` | object | The person's character property values, keyed by character property id. A string property's value is a string, an integer property's value is a whole number, and a value list property's value is the id of one of its values. Each key must be the id of a character property in Characters.json. The at work property set in Families.json must have a value. |
+| `goal` | string | Optional. The id of the need in Schedules.json the person is trying to meet, or `null` if they're idle or have no goal. |
+| `tasks` | list of Task | The tasks left toward the person's goal, in order. Can be empty. |
+| `taskEnd` | string | Optional. When the first task ends, written the same way as `time`, if the person is doing it. `null` if they aren't doing anything, as for the player while they decide what to do. Ignored when there are no tasks. |
+| `needs` | object | The level of each level need, keyed by need id, as of `time`. Each key must be the id of a level need in Schedules.json, and each level must be from 0 to 100. A level need that isn't listed is at 0. |
+| `progress` | object | The minutes spent at the place on quota needs this day or week (as each need's period says), keyed by need id, as of `time`. Each key must be the id of a quota need in Schedules.json, and each value must be a whole number of at least 0. A quota need that isn't listed has had no time spent on it. |
+| `pendingTrip` | string | Optional. The id of a quota need in Schedules.json measured in trips that return home, whose trip the person has been to the place for but hasn't finished at home yet. Missing or `null` if there isn't one. Only the player has one. |
+| `goalChoice` | Goal Choice | Optional. How the person last chose their goal from their needs. Missing or `null` if their plan was last set some other way, as for the player. |
 
 **Family** (`family`)
 
@@ -103,6 +110,32 @@ A quarter, house, or business's place.
 | `owner` | world id | Must be a person. |
 | `helpers` | list of world id | Each must be a person. |
 | `location` | world id | Optional. The place the business is run from, or `null` if it's run from the owner's home. Must be a location. |
+
+**Goal Choice**
+
+| Property | Type | Notes |
+|---|---|---|
+| `time` | string | When the goal was chosen, written the same way as `time`. |
+| `urgencies` | list of Need Urgency | Each need that was at all urgent then, with how urgent it was. Can be empty. |
+| `need` | string | Optional. The id of the need in Schedules.json chosen from the ones urgent enough, or `null` if none were. |
+| `result` | string | `chosen` if the need became the goal, or why the person went idle instead: `nothingUrgent`, `noPlace` (nowhere to meet the need), or `noTime` (no time left for it). |
+
+**Need Urgency**
+
+| Property | Type | Notes |
+|---|---|---|
+| `need` | string | The id of a need in Schedules.json. |
+| `urgency` | number | At least 0. |
+
+**Task**
+
+One step toward a person's goal. Each task's `kind` property says which kind it is, and must come first.
+
+| Kind | Other properties | Notes |
+|---|---|---|
+| `travel` | `destination` (world id) | Walks to a location next to the person's. Must be a location. |
+| `busy` | `minutes` (number, optional) | Spends time where the person is. Without `minutes` (or with `null`), it lasts until the goal's level need reaches 0. |
+| `atWork` | `isAtWork` (boolean) | Starts or stops work, which takes no time. |
 
 **Rect**
 

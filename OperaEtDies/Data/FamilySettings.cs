@@ -99,6 +99,17 @@ public sealed class FamilySettings : IValidatedData
 	public required IntegerRange FamilyCount { get; init; }
 
 	/// <summary>
+	/// How members of the player's household are related to the player, who is its head, such as "son" or
+	/// "mother-in-law". The first whose condition a member meets is used.
+	/// </summary>
+	public IReadOnlyList<PlayerRelation> PlayerRelations { get; init; } = [];
+
+	/// <summary>
+	/// Gets how a member of the player's household is related to the player, or null if no relation fits.
+	/// </summary>
+	public string? GetPlayerRelation(Func<string, string?> getValueId) => PlayerRelations.FirstOrDefault(x => CharacterCondition.IsMet(x.When, getValueId))?.Title;
+
+	/// <summary>
 	/// The chance that the head of a household is a widow rather than a man.
 	/// </summary>
 	public required double FemaleHeadChance { get; init; }
@@ -282,6 +293,13 @@ public sealed class FamilySettings : IValidatedData
 		if (string.IsNullOrWhiteSpace(Member))
 			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("member"));
 		errors.AddRange(HeadRelations.Validate());
+		for (var index = 0; index < PlayerRelations.Count; index++)
+		{
+			if (PlayerRelations[index] is not { } relation)
+				errors.Add(OurResources.DataListItemEmpty.FormatCurrentCulture("playerRelations"));
+			else if (string.IsNullOrWhiteSpace(relation.Title))
+				errors.Add(OurResources.DataValueMissing.FormatCurrentCulture($"playerRelations[{index}].title"));
+		}
 		if (string.IsNullOrWhiteSpace(AtWork))
 			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("atWork"));
 		if (string.IsNullOrWhiteSpace(NotAtWork))
@@ -469,6 +487,16 @@ public sealed class InheritedProperty
 		errors.AddRange(DataValidation.ValidateChance($"{path}.unblendedChance", UnblendedChance));
 		return errors;
 	}
+}
+
+/// <summary>
+/// How a member of the player's household who meets a condition is related to the player, such as "son".
+/// </summary>
+public sealed class PlayerRelation
+{
+	public required CharacterCondition When { get; init; }
+
+	public required string Title { get; init; }
 }
 
 /// <summary>

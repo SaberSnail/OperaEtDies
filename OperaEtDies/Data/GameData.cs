@@ -10,8 +10,9 @@ namespace OperaEtDies.Data;
 /// </summary>
 public sealed class GameData
 {
-	public GameData(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, CalendarSettings calendar, FrequencyChances? frequencyChances = null, PortraitData? portraits = null)
+	public GameData(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, CalendarSettings calendar, FrequencyChances? frequencyChances = null, PortraitData? portraits = null, ScheduleSettings? schedules = null)
 	{
+		Schedules = schedules ?? ScheduleSettings.None;
 		FrequencyChances = frequencyChances ?? new FrequencyChances();
 		Calendar = new GameCalendar(calendar);
 
@@ -76,15 +77,16 @@ public sealed class GameData
 		var locations = LocationList.Load(dataDirectory, modDirectories);
 		var families = FamilySettings.Load(dataDirectory, modDirectories);
 		var calendar = CalendarSettings.Load(dataDirectory, modDirectories);
+		var schedules = ScheduleSettings.Load(dataDirectory, modDirectories);
 
 		// The portrait file is optional. Without it, characters have no portraits.
 		var portraits = includePortraits ? PortraitData.Load(dataDirectory, modDirectories) : null;
 
-		if (characters.Value is null || locations.Value is null || professions.Value is null || families.Value is null || calendar.Value is null || portraits is { Value: null })
-			return DataLoadResult<GameData>.Failure([.. characters.Errors, .. locations.Errors, .. professions.Errors, .. families.Errors, .. calendar.Errors, .. portraits?.Errors ?? []]);
+		if (characters.Value is null || locations.Value is null || professions.Value is null || families.Value is null || calendar.Value is null || schedules.Value is null || portraits is { Value: null })
+			return DataLoadResult<GameData>.Failure([.. characters.Errors, .. locations.Errors, .. professions.Errors, .. families.Errors, .. calendar.Errors, .. schedules.Errors, .. portraits?.Errors ?? []]);
 
 		// Each file is fine on its own, so check that they agree with each other.
-		var errors = GameDataValidation.Validate(dataDirectory, characters.Value, locations.Value, professions.Value, families.Value, portraits?.Value);
+		var errors = GameDataValidation.Validate(dataDirectory, characters.Value, locations.Value, professions.Value, families.Value, calendar.Value, schedules.Value, portraits?.Value);
 		if (errors.Count != 0)
 		{
 			foreach (var error in errors)
@@ -92,7 +94,7 @@ public sealed class GameData
 			return DataLoadResult<GameData>.Failure(errors);
 		}
 
-		var gameData = new GameData(characters.Value, locations.Value, professions.Value, families.Value, calendar.Value, frequencyChances, portraits?.Value);
+		var gameData = new GameData(characters.Value, locations.Value, professions.Value, families.Value, calendar.Value, frequencyChances, portraits?.Value, schedules.Value);
 		foreach (var warning in gameData.GetLowChanceWarnings())
 			Log.Warn(warning);
 
@@ -119,6 +121,11 @@ public sealed class GameData
 	/// The game's calendar, which creates, reads, and formats times.
 	/// </summary>
 	public GameCalendar Calendar { get; }
+
+	/// <summary>
+	/// How people decide what to do, and the needs that drive them.
+	/// </summary>
+	public ScheduleSettings Schedules { get; }
 
 	/// <summary>
 	/// The properties that describe a character, in the order they were defined.

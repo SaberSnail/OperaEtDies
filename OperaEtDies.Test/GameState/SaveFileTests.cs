@@ -38,6 +38,62 @@ public sealed class SaveFileTests
 	}
 
 	[Test]
+	public void SchedulesSaveAndLoad()
+	{
+		for (var seed = 0; seed < 10; seed++)
+		{
+			var (_, world) = GameWorldTests.CreateWorld(seed, withSchedules: true);
+			world.AdvanceTime(world.GameData.Calendar.CreateTimeOffset(0, seed + 3, seed * 7));
+
+			var json = CreateSave(world).Serialize();
+			var loaded = SaveFile.Deserialize(json).Load(world.GameData, GameTitle, new Random(seed));
+
+			AssertSameWorld(loaded, world);
+			Assert.That(CreateSave(loaded).Serialize(), Is.EqualTo(json), $"Seed {seed}");
+			Assert.That(loaded.Npcs.Where(x => x.Goal is not null), Is.Not.Empty);
+			Assert.That(loaded.Npcs.Where(x => x.GoalChoice is { Urgencies.Count: > 0 }), Is.Not.Empty);
+		}
+	}
+
+	[Test]
+	public void PendingTripSavesAndLoads()
+	{
+		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
+		world.Player.PendingTrip = world.GameData.Schedules.Needs.Single(x => x.Id == "laundry");
+
+		var json = CreateSave(world).Serialize();
+		var loaded = SaveFile.Deserialize(json).Load(world.GameData, GameTitle, new Random(0));
+
+		Assert.That(loaded.Player.PendingTrip?.Id, Is.EqualTo("laundry"));
+		Assert.That(loaded.Npcs.All(x => x.PendingTrip is null), Is.True);
+		Assert.That(CreateSave(loaded).Serialize(), Is.EqualTo(json));
+	}
+
+	[Test]
+	public void LoadFailsForUnknownOrInvalidNeeds()
+	{
+		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
+		var save = CreateSave(world);
+		var person = save.Objects.OfType<PersonRecord>().First();
+		var index = save.Objects.ToList().IndexOf(person);
+
+		SaveFile With(PersonRecord record) => save with { Objects = [.. save.Objects.Take(index), record, .. save.Objects.Skip(index + 1)] };
+		AssertLoadFails(With(person with { Goal = "flying" }), world.GameData, "flying");
+		AssertLoadFails(With(person with { Needs = new Dictionary<string, double> { ["flying"] = 5 } }), world.GameData, "flying");
+		AssertLoadFails(With(person with { Needs = new Dictionary<string, double> { ["work"] = 5 } }), world.GameData, "work");
+		AssertLoadFails(With(person with { Needs = new Dictionary<string, double> { ["fatigue"] = 500 } }), world.GameData, "fatigue");
+		AssertLoadFails(With(person with { Progress = new Dictionary<string, long> { ["fatigue"] = 5 } }), world.GameData, "fatigue");
+		AssertLoadFails(With(person with { PendingTrip = "flying" }), world.GameData, "flying");
+		AssertLoadFails(With(person with { PendingTrip = "work" }), world.GameData, "work");
+
+		var choice = new GoalChoiceRecord(save.Time, [new NeedUrgencyRecord("fatigue", 50)], "fatigue", GoalChoiceResult.Chosen);
+		AssertLoadFails(With(person with { GoalChoice = choice with { Need = "flying" } }), world.GameData, "flying");
+		AssertLoadFails(With(person with { GoalChoice = choice with { Urgencies = [new NeedUrgencyRecord("flying", 50)] } }), world.GameData, "flying");
+		AssertLoadFails(With(person with { GoalChoice = choice with { Urgencies = [new NeedUrgencyRecord("hunger", -1)] } }), world.GameData, "hunger");
+		AssertLoadFails(With(person with { GoalChoice = choice with { Time = "never" } }), world.GameData, "never");
+	}
+
+	[Test]
 	public void ShippedDataSavesAndLoads()
 	{
 		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
@@ -248,6 +304,16 @@ public sealed class SaveFileTests
 			Assert.That(person.Workplace.Id, Is.EqualTo(other.Workplace.Id));
 			Assert.That(person.Business?.Id, Is.EqualTo(other.Business?.Id));
 			Assert.That(person.PortraitPlace, Is.EqualTo(other.PortraitPlace));
+			Assert.That(person.Goal, Is.SameAs(other.Goal));
+			Assert.That(person.Tasks.Select(x => x.CreateRecord()), Is.EqualTo(other.Tasks.Select(x => x.CreateRecord())));
+			Assert.That(person.TaskEnd, Is.EqualTo(other.TaskEnd));
+			Assert.That((person.GoalChoice?.Time, person.GoalChoice?.Need, person.GoalChoice?.Result), Is.EqualTo((other.GoalChoice?.Time, other.GoalChoice?.Need, other.GoalChoice?.Result)));
+			Assert.That(person.GoalChoice?.Urgencies, Is.EqualTo(other.GoalChoice?.Urgencies));
+			foreach (var need in actual.GameData.Schedules.Needs)
+			{
+				Assert.That(person.GetLevel(need), Is.EqualTo(other.GetLevel(need)));
+				Assert.That(person.GetProgress(need), Is.EqualTo(other.GetProgress(need)));
+			}
 		}
 
 		foreach (var (business, other) in actual.Businesses.Zip(expected.Businesses))

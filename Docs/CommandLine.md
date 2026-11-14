@@ -12,6 +12,7 @@ OperaEtDies.exe accepts these options. Options are matched ignoring case, can co
 | `--portraits <folder>` | With `--generate-villages`, also saves each person's portrait to the folder as a PNG file. |
 | `--portraits-at-work` | With `--generate-villages`, draws everyone's portrait at work in their own workplace, instead of where they start the game. |
 | `--through-save` | With `--generate-villages`, saves each village and loads it again before writing it, to check that saving keeps everything. |
+| `--simulate-days <days>` | With `--generate-villages`, runs each village for this many days after it's created, writing what people do. |
 
 If more than one is given, `--help` wins over `--generate-villages`, which wins over starting the game.
 
@@ -62,12 +63,16 @@ Each line is one record, and its first field is the record type. The output star
 |---|---|
 | `village` | Village: its seed, counts of households, people, businesses, and locations, and its layout: the shape, how many landmarks, paths between quarters, and dead ends there are (and how many dead ends are landmarks), the most exits any quarter has, its map features, how many paths cross the river, and when the game starts (the time, and the id of the season). |
 | `household` | Household: its last name, size, wealth, and house. |
-| `person` | Person: their family role and work, the location they start the game in (`location`) and the kind of place it is for their portrait (`place`: `home`, `quarter:<quarter kind>`, or `workplace:<profession>`), the ids of the portrait layers drawn for them (`portraitLayers`, separated by spaces), plus one column for each character property in Characters.json, holding the value id they start the game with. |
+| `person` | Person: their family role and work, the location they start the game in (`location`) and the kind of place it is for their portrait (`place`: `home`, `quarter:<quarter kind>`, or `workplace:<profession>`), the ids of the portrait layers drawn for them (`portraitLayers`, separated by spaces), the id of the need they're trying to meet (`goal`, empty if idle), their current task (`task`: `travel` or `busy`, empty if none) and when it ends (`taskEnd`), the id of a trip they've been to the place for but haven't finished at home (`pendingTrip`, only ever the player's), one column for each need in Schedules.json, holding a level need's level or the minutes spent on a quota need this day or week, plus one column for each character property in Characters.json, holding the value id they start the game with. |
 | `business` | Business: its profession, owner, helpers, and location. |
 | `location` | Quarter, house, and business location: its template, its connections, whether it's a landmark, and for a quarter, its position and size on the map, and the map features it borders, each with its direction. |
 | `exit` | Direction of each path between quarters: where it starts and ends, its compass direction, what the path is called, and whether it crosses the river. Each path has two, one for each end. |
 | `feature` | Map feature, such as the river or a forest: its type, its position and size on the map, and how many quarters border it. |
+| `activity` | Task someone starts while `--simulate-days` runs: when (the time, and the id of the day of the week), who (their household and member numbers, as in the `person` record), the id of the need they're trying to meet (empty if idle), the task (`travel` or `busy`), how many minutes it takes, where they are, and for `travel`, where they're going. |
 | `log` | Warning or error logged while loading or generating, such as a location template being used twice. |
+
+
+Everything is written as of the time the game starts, when the player wakes up, or after `--simulate-days` if it's given.
 
 ## --seed
 
@@ -80,6 +85,10 @@ With `--generate-villages`, draws each person's portrait at its full size and sa
 ## --portraits-at-work
 
 With `--generate-villages`, draws everyone at work in their own workplace instead of where they start the game: in their business's place, or at home for those who work from home, with the at work property set to working. This shows each profession's portrait art. It changes the portraits saved by `--portraits` and the `portraitLayers` column of the `person` records, but not the other columns.
+
+## --simulate-days
+
+With `--generate-villages`, runs each village for the given number of days after it's created, as if the player waited that long, and writes an `activity` record each time someone starts walking a path or spending time somewhere. The other records are written once it's done. The number must be a whole number of at least 0, and 0 runs nothing. Each day of 50 villages takes about a second. With `--through-save`, the village is saved and loaded after it runs.
 
 ## --through-save
 
@@ -132,6 +141,13 @@ OperaEtDies/bin/Debug/net9.0-windows/OperaEtDies.exe --no-mods --generate-villag
 
 ```bash
 OperaEtDies/bin/Debug/net9.0-windows/OperaEtDies.exe --no-mods --generate-villages 1 --seed 1234 --portraits portraits --portraits-at-work > village.tsv
+```
+
+**Seeing a week of village life**, with when everyone goes to bed:
+
+```bash
+OperaEtDies/bin/Debug/net9.0-windows/OperaEtDies.exe --no-mods --generate-villages 50 --seed 0 --simulate-days 7 > week.tsv
+awk -F'\t' '$1=="activity" && $8=="busy" && $7=="need_fatigue"{split($3,a,", "); split(a[4],t,":"); print t[1]}' week.tsv | sort -n | uniq -c
 ```
 
 **Checking saving and loading**, by comparing the report with and without `--through-save`:

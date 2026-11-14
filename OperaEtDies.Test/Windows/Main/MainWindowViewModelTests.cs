@@ -1,3 +1,5 @@
+using GoldenAnvil.Utility;
+using GoldenAnvil.Utility.Calendar;
 using OperaEtDies.Controls.Locations;
 using OperaEtDies.Data;
 using OperaEtDies.GameState;
@@ -171,6 +173,327 @@ public sealed class MainWindowViewModelTests
 		// Showing them again while they're open changes nothing.
 		viewModel.ShowVillagers();
 		Assert.That(viewModel.Villagers, Is.SameAs(villagers));
+	}
+
+	[Test]
+	public void ShowStatusListsThePlayersNeeds()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		viewModel.ShowMap();
+		viewModel.ShowStatus();
+
+		var status = viewModel.Status!;
+		var world = viewModel.World;
+		Assert.That(viewModel.Map, Is.Null);
+		Assert.That(viewModel.CurrentView, Is.SameAs(status));
+		var fatigue = status.Needs.Single(x => x.Title == "Fatigue");
+		Assert.That(fatigue.Value, Does.StartWith("Rested (").And.EndsWith(" of 100)"));
+		var upkeep = status.Needs.Single(x => x.Title == "Upkeep");
+		var quota = 30 + (15 * world.Player.Family.Members.Count);
+		Assert.That(upkeep.Value, Does.EndWith($" of {world.GameData.Calendar.FormatOffsetFrom(world.Time, world.GameData.Calendar.CreateTimeOffset(0, 0, quota), TimeFormat.Long)} today"));
+		Assert.That(upkeep.Note, Is.EqualTo(OurResources.NeedStatusShared));
+		Assert.That(status.Needs.Any(x => x.Title == "Work"), Is.EqualTo(world.Player.Business is not null));
+
+		// Trips are counted in visits, with how long each takes.
+		var members = world.Player.Family.Members;
+		var water = world.GameData.Schedules.Needs.Single(x => x.Id == "water");
+		var visits = members.Sum(x => x.GetProgress(water)) / 5;
+		Assert.That(status.Needs.Single(x => x.Title == "Water").Value, Is.EqualTo($"{Math.Min(visits, members.Count)} of {members.Count} visits today (5 minutes each)"));
+		Assert.That(status.Needs.Single(x => x.Title == "Water").IsDone, Is.EqualTo(visits >= members.Count));
+		Assert.That(fatigue.IsDone, Is.False);
+
+		// Opening the villagers closes it, and closing it shows the location.
+		viewModel.ShowVillagers();
+		Assert.That(viewModel.Status, Is.Null);
+		viewModel.ShowStatus();
+		viewModel.Status!.Close();
+		Assert.That((viewModel.Status, viewModel.CurrentView), Is.EqualTo(((object?) null, (object) viewModel.CurrentLocation)));
+	}
+
+	[Test]
+	public void DoneChoresAreMarkedAndNoLongerOffered()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		var world = viewModel.World;
+		var upkeep = world.GameData.Schedules.Needs.Single(x => x.Id == "upkeep");
+		foreach (var member in world.Player.Family.Members)
+		{
+			member.UpdateNeeds(world.Time);
+			member.SetProgress(upkeep, 0);
+			if (!member.IsPlayer)
+				member.SetPlan(null, []);
+		}
+
+		// With less time left than an option takes, the option isn't offered.
+		var quota = 30 + (15 * world.Player.Family.Members.Count);
+		var location = viewModel.CurrentLocation;
+		var tidy = location.Actions.Single(x => x.Choice.Need == upkeep);
+		Assert.That(tidy.Options.Select(x => x.Text), Has.Member("15 minutes"));
+		world.Player.SetProgress(upkeep, quota - 10);
+		location.Actions.Single(x => x.Choice.Need.Id == "fatigue").Options[2].Do();
+		tidy = location.Actions.Single(x => x.Choice.Need == upkeep);
+		Assert.That(tidy.Options.Select(x => x.Text), Is.EqualTo(new[] { "Until done (10 minutes)" }));
+
+		// Once it's done, it isn't offered at all, and the status page says so.
+		tidy.Options[0].Do();
+		Assert.That(location.Actions.Any(x => x.Choice.Need == upkeep), Is.False);
+		viewModel.ShowStatus();
+		Assert.That(viewModel.Status!.Needs.Single(x => x.Title == "Upkeep").IsDone, Is.True);
+	}
+
+	[Test]
+	public void PathsToThePlayersHomeAreMarked()
+	{
+		using var viewModel = CreateViewModel();
+		var player = viewModel.World.Player;
+		Assert.That(viewModel.CurrentLocation.Connections.All(x => x.Marker is null), Is.True);
+
+		viewModel.TravelTo(player.Home.Quarter!);
+		var home = viewModel.CurrentLocation.Connections.Single(x => x.Location == player.Home);
+		Assert.That(home.Marker, Is.EqualTo("Home"));
+		Assert.That(viewModel.CurrentLocation.Connections.Where(x => x.Marker is not null).Select(x => x.Location),
+			Is.SubsetOf(new[] { player.Home, player.Workplace }));
+	}
+
+	[Test]
+	public void MapsMarkThePlayersHome()
+	{
+		using var viewModel = CreateViewModel();
+		var player = viewModel.World.Player;
+		viewModel.ShowMap();
+
+		Assert.That(viewModel.Map!.Quarters.Where(x => x.HasHome).Select(x => x.Quarter), Is.EqualTo(new[] { player.Home.Quarter }));
+		Assert.That(viewModel.Map.Quarters.Where(x => x.HasWorkplace).Select(x => x.Quarter),
+			Is.EqualTo(player.Business is null || player.Workplace == player.Home ? Array.Empty<Location>() : new[] { player.Workplace.Quarter }));
+		Assert.That(viewModel.MiniMap.Quarters.Where(x => x.HasHome).Select(x => x.Quarter), Is.EqualTo(new[] { player.Home.Quarter }));
+	}
+
+	[Test]
+	public void FetchingWaterTellsThePlayerToTakeItHome()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		var world = viewModel.World;
+		var square = world.Locations.First(x => x.Template is QuarterTemplate && x.QuarterKind == "square");
+		var water = world.GameData.Schedules.Needs.Single(x => x.Id == "water");
+		foreach (var member in world.Player.Family.Members)
+		{
+			member.UpdateNeeds(world.Time);
+			member.SetProgress(water, 0);
+			if (!member.IsPlayer)
+				member.SetPlan(null, []);
+		}
+		viewModel.TravelTo(square);
+
+		var fetch = viewModel.CurrentLocation.Actions.Single(x => x.Choice.Need.Id == "water");
+		Assert.That((fetch.Title, fetch.Options.Single().Text), Is.EqualTo(("Fetch water", "5 minutes")));
+		fetch.Options[0].Do();
+
+		Assert.That(viewModel.CurrentLocation.WaitResult, Is.EqualTo("You fetched water for 5 minutes. Take it home to finish."));
+		Assert.That(viewModel.CurrentLocation.Actions.Single(x => x.Choice.Need.Id == "water").Options[0].CanDo(), Is.False);
+	}
+
+	[Test]
+	public void ClosedMarketShowsWhenItIsOpen()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		var world = viewModel.World;
+		var square = world.Locations.First(x => x.Template is QuarterTemplate && x.QuarterKind == "square");
+		viewModel.TravelTo(square);
+
+		// The game starts on the first day, and the market is only open on the sixth.
+		var market = viewModel.CurrentLocation.Actions.Single(x => x.Choice.Need.Id == "market");
+		Assert.That(market.Title, Is.EqualTo("Shop"));
+		Assert.That(market.Options, Is.Empty);
+		Assert.That(market.OpeningHours, Is.EqualTo("Open on Day 6 from 7:00 to 14:00"));
+		Assert.That(viewModel.CurrentLocation.Actions.Single(x => x.Choice.Need.Id == "water").OpeningHours, Is.Null);
+	}
+
+	[Test]
+	public void SidebarButtonsCloseTheirOpenViews()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+
+		viewModel.ToggleVillagers();
+		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Villagers));
+		viewModel.ToggleVillagers();
+		Assert.That(viewModel.Villagers, Is.Null);
+		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
+
+		viewModel.ToggleStatus();
+		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Status));
+		viewModel.ToggleStatus();
+		Assert.That(viewModel.Status, Is.Null);
+		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
+
+		// Another view's button switches to that view rather than closing.
+		viewModel.ToggleMap();
+		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Map));
+		viewModel.ToggleStatus();
+		Assert.That(viewModel.Map, Is.Null);
+		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Status));
+		viewModel.ToggleMap();
+		viewModel.ToggleMap();
+		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
+	}
+
+	[Test]
+	public void PeopleAtTheLocationAreLabeledWithTheirRelationToThePlayer()
+	{
+		using var viewModel = CreateViewModel();
+		var world = viewModel.World;
+		var player = world.Player;
+		var relatives = viewModel.CurrentLocation.People.Where(x => x.Person.Family == player.Family).ToList();
+
+		// The game starts at home, with the family there.
+		Assert.That(relatives, Is.Not.Empty);
+		Assert.That(relatives.Select(x => x.PlayerLabel), Has.All.StartsWith("This is your "));
+		Assert.That(viewModel.CurrentLocation.People.Where(x => x.Person.Family != player.Family).Select(x => x.PlayerLabel), Has.All.Null);
+		Assert.That(viewModel.CurrentLocation.People.Any(x => x.IsYou), Is.False);
+	}
+
+	[Test]
+	public void PlayerCanSleepAtHome()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		var world = viewModel.World;
+		var location = viewModel.CurrentLocation;
+		Assert.That(location.Location, Is.SameAs(world.Player.Home));
+		var sleep = location.Actions.Single(x => x.Choice.Need.Id == "fatigue");
+		Assert.That(sleep.Title, Is.EqualTo("Sleep"));
+		Assert.That(sleep.Options[2].Text, Is.EqualTo("1 hour"));
+		Assert.That(sleep.Options[1].Text, Does.StartWith("Until dawn ("));
+
+		var start = world.Time;
+		sleep.Options[2].Do();
+
+		Assert.That(world.Time, Is.EqualTo(world.GameData.Calendar.AddMinutes(start, 60)));
+		Assert.That(location.WaitResult, Is.EqualTo("You slept for 1 hour."));
+		Assert.That(location.Actions.Single(x => x.Choice.Need.Id == "fatigue"), Is.Not.SameAs(sleep));
+	}
+
+	[Test]
+	public void VillagersLabelThePlayer()
+	{
+		using var viewModel = CreateViewModel();
+		viewModel.ShowVillagers();
+		var people = viewModel.Villagers!.Families.SelectMany(x => x.People).ToList();
+
+		Assert.That(people.Where(x => x.IsYou).Select(x => x.Person), Is.EqualTo(new[] { viewModel.World.Player }));
+		var player = viewModel.World.Player;
+		foreach (var person in people)
+		{
+			var expected = person.Person.IsPlayer ? "This is you" :
+				person.Person.Family != player.Family ? null :
+				person.Person.Role == FamilyRole.Wife ? "This is your wife" :
+				person.Person.Role == FamilyRole.Child ? (person.Person.Traits.GetValueId("gender") == "male" ? "This is your son" : "This is your daughter") :
+				person.Person.Traits.GetValueId("gender") == "male" ? "This is your father" : "This is your mother";
+			Assert.That(person.PlayerLabel, Is.EqualTo(expected), person.Name);
+		}
+		Assert.That(people.Count(x => x.PlayerLabel is not null), Is.GreaterThan(1));
+		Assert.That(people.Any(x => x.CanGoTo), Is.False);
+	}
+
+	[Test]
+	public void DevelopersCanGoStraightToAVillager()
+	{
+		using var viewModel = CreateViewModel(isDeveloper: true, withSchedules: true);
+		var start = viewModel.World.Time;
+		viewModel.World.AdvanceTime(viewModel.World.GameData.Calendar.CreateTimeOffset(0, 3, 0));
+		viewModel.ShowVillagers();
+		var people = viewModel.Villagers!.Families.SelectMany(x => x.People).ToList();
+		var target = people.First(x => !x.Person.IsPlayer && x.Person.Location != viewModel.World.Player.Location);
+		var time = viewModel.World.Time;
+
+		Assert.That(people.Where(x => x.CanGoTo).Select(x => x.Person), Is.EquivalentTo(viewModel.World.Npcs));
+
+		target.GoTo();
+
+		Assert.That(viewModel.World.Player.Location, Is.SameAs(target.Person.Location));
+		Assert.That(viewModel.CurrentLocation.Location, Is.SameAs(target.Person.Location));
+		Assert.That(viewModel.Villagers, Is.Null);
+		Assert.That(viewModel.World.Time, Is.EqualTo(time));
+		Assert.That(time, Is.GreaterThan(start));
+	}
+
+	[Test]
+	public void FollowingSomeoneTakesThePlayerWithThemWhenTheyLeave()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		var world = viewModel.World;
+		var target = viewModel.CurrentLocation.People[0];
+		var person = target.Person;
+
+		target.ToggleFollow();
+		Assert.That((viewModel.CurrentLocation.Following, target.IsFollowed), Is.EqualTo((person, true)));
+
+		// While they stay put, waiting stops each time they start spending time on a different goal (or when the part of the day
+		// ends), not when they carry on with the same one, and leaves the player where they are.
+		// Once they leave, the player goes with them.
+		var start = viewModel.CurrentLocation.Location;
+		var calendar = world.GameData.Calendar;
+		for (var wait = 0; wait < 200 && viewModel.CurrentLocation.Location == start; wait++)
+		{
+			var (time, goal) = (world.Time, person.Goal);
+			viewModel.CurrentLocation.Wait();
+			if (viewModel.CurrentLocation.Location == start)
+				Assert.That(person.Goal != goal || world.Time == calendar.GetNextDayPartStart(time), Is.True);
+		}
+
+		var screen = viewModel.CurrentLocation;
+		Assert.That(screen.Location, Is.Not.SameAs(start));
+		Assert.That(world.Player.Location, Is.SameAs(person.Location));
+		Assert.That(screen.Location, Is.SameAs(person.Location));
+		Assert.That(screen.Following, Is.SameAs(person));
+		Assert.That(screen.People.Single(x => x.Person == person).IsFollowed, Is.True);
+		Assert.That(screen.WaitResult, Is.EqualTo(OurResources.WaitResultFollowed.FormatCurrentCulture(person.FullName, screen.Location.Title)));
+
+		// Following can be stopped, and walking somewhere stops it too.
+		screen.People.Single(x => x.Person == person).ToggleFollow();
+		Assert.That(screen.Following, Is.Null);
+		screen.People.Single(x => x.Person == person).ToggleFollow();
+		screen.Connections[0].Travel();
+		Assert.That(viewModel.CurrentLocation.Following, Is.Null);
+	}
+
+	[Test]
+	public void WaitingStopsWhenSomeoneArrivesOrLeaves()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		var world = viewModel.World;
+		var calendar = world.GameData.Calendar;
+		var screen = viewModel.CurrentLocation;
+		var changes = 0;
+		var dayParts = new HashSet<string>();
+
+		Assert.That(screen.WaitResult, Is.Null);
+		for (var wait = 0; wait < 30; wait++)
+		{
+			var before = screen.People.Select(x => x.Person).ToList();
+			var examined = screen.People.Count == 0 ? null : screen.People[0];
+			examined?.Examine();
+			var start = world.Time;
+
+			screen.Wait();
+
+			var after = screen.People.Select(x => x.Person).ToList();
+			Assert.That(after, Is.EquivalentTo(screen.Location.People.Where(x => !x.IsPlayer)));
+			Assert.That(world.Time, Is.GreaterThan(start).And.LessThanOrEqualTo(calendar.GetNextDayPartStart(start)));
+			if (!after.SequenceEqual(before))
+				changes++;
+			else
+			{
+				Assert.That(world.Time, Is.EqualTo(calendar.GetNextDayPartStart(start)));
+				var dayPart = calendar.GetDayPart(world.Time);
+				Assert.That(screen.WaitResult, Does.EndWith(dayPart.Announcement ?? OurResources.DayPartStarted.FormatCurrentCulture(dayPart.Title)));
+				dayParts.Add(dayPart.Id);
+			}
+			if (examined is not null && after.Contains(examined.Person))
+				Assert.That(screen.People.Single(x => x.Person == examined.Person).IsExamined, Is.True);
+			Assert.That(screen.WaitResult, Is.Not.Null);
+		}
+
+		Assert.That(changes, Is.GreaterThan(0));
+		Assert.That(dayParts, Has.Count.GreaterThan(1));
 	}
 
 	[Test]
@@ -409,9 +732,9 @@ public sealed class MainWindowViewModelTests
 		});
 	}
 
-	private static MainWindowViewModel CreateViewModel(int seed = 0, bool isDeveloper = false)
+	private static MainWindowViewModel CreateViewModel(int seed = 0, bool isDeveloper = false, bool withSchedules = false)
 	{
-		var gameData = TestData.CreateGameData();
+		var gameData = TestData.CreateGameData(withSchedules: withSchedules);
 		var world = GameWorld.CreateNewGame(gameData, TestData.CreatePlayerTraits(gameData), new Random(seed));
 		return new MainWindowViewModel(TestData.CreateGameInfo().Title, world, isDeveloper);
 	}

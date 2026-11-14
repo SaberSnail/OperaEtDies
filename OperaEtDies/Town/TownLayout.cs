@@ -24,6 +24,7 @@ internal sealed class TownLayout
 			layout.PlaceHouses(households.Where(x => x.WealthLevel == wealth).ToList(), wealth);
 		foreach (var business in businesses.Where(x => !x.Profession.WorksFromHome))
 			layout.PlaceBusiness(business);
+		layout.AddOptionalQuarters();
 		layout.AddLandmarks();
 		var (shape, townFeatures) = layout.Arrange();
 		return (layout.m_locations, shape, townFeatures);
@@ -41,13 +42,33 @@ internal sealed class TownLayout
 	}
 
 	/// <summary>
-	/// Adds a quarter of each unique kind, such as the village square.
+	/// Adds a quarter of each unique kind, such as the village square, other than the optional kinds the town has the feature
+	/// for, which are added later.
 	/// </summary>
 	private void AddUniqueQuarters()
 	{
-		foreach (var kind in m_gameData.QuarterKinds.Where(x => x.Unique))
-			AddQuarter(ChooseTemplate(m_gameData.QuarterTemplates.Where(x => x.Kind == kind.Id && IsAvailable(x)).ToList(), $"the {kind.Id} kind"));
+		foreach (var kind in m_gameData.QuarterKinds.Where(x => x.Unique && !IsOptional(x)))
+			AddUniqueQuarter(kind);
 	}
+
+	/// <summary>
+	/// Adds a quarter of each optional kind the town has the feature for, some of the time, once the houses and businesses
+	/// have their quarters. If none of those quarters border the feature, the town needs the optional quarter, so it's
+	/// always added, such as a well in a town whose river has no riverside quarters.
+	/// </summary>
+	private void AddOptionalQuarters()
+	{
+		foreach (var kind in m_gameData.QuarterKinds.Where(x => x.Unique && IsOptional(x)))
+		{
+			if (!m_quarters.Any(x => x.Borders.Contains(kind.OptionalWith!, StringComparer.Ordinal)) || m_random.NextChance(kind.OptionalChance))
+				AddUniqueQuarter(kind);
+		}
+	}
+
+	private bool IsOptional(QuarterKind kind) => kind.OptionalWith is { } feature && m_featureIds.Contains(feature);
+
+	private void AddUniqueQuarter(QuarterKind kind) =>
+		AddQuarter(ChooseTemplate(m_gameData.QuarterTemplates.Where(x => x.Kind == kind.Id && IsAvailable(x)).ToList(), $"the {kind.Id} kind"));
 
 	/// <summary>
 	/// Gives each household a house, in quarters of the same wealth. Quarters are added, each planning a number of houses

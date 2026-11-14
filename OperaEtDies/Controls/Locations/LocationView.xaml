@@ -5,7 +5,9 @@
 	xmlns:operaEtDies="clr-namespace:OperaEtDies"
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
 
-	<!--  A person who can be examined. Also used by the list of villagers.  -->
+	<!--  A person who can be examined, with what they're doing at the end of the row, so it doesn't move the buttons. In the
+		player's location, they can be followed. Also used by the list of villagers, where the player is labeled, and developers
+		can go to where anyone else is.  -->
 	<DataTemplate DataType="{x:Type local:LocationPersonViewModel}">
 		<Grid Margin="0,0,0,8">
 			<Grid.ColumnDefinitions>
@@ -15,27 +17,84 @@
 			<Grid.RowDefinitions>
 				<RowDefinition Height="Auto" />
 				<RowDefinition Height="Auto" />
+				<RowDefinition Height="Auto" />
 			</Grid.RowDefinitions>
 
-			<TextBlock
-				Grid.Row="0"
-				Grid.Column="0"
-				VerticalAlignment="Center"
-				Text="{Binding Name}"
-				TextTrimming="CharacterEllipsis" />
-			<Button
+			<!--  A small portrait beside the name, no taller than the buttons, hidden (keeping its space so the name doesn't move)
+				once the full portrait is shown.  -->
+			<DockPanel Grid.Row="0" Grid.Column="0">
+				<Image
+					Width="32"
+					Height="32"
+					Margin="0,0,8,0"
+					DockPanel.Dock="Left"
+					Source="{Binding Portrait}"
+					Stretch="Uniform"
+					Visibility="{Binding IsExamined, Converter={x:Static utility:CommonConverters.BooleanNotToVisibilityWithHidden}}" />
+				<TextBlock
+					VerticalAlignment="Center"
+					Text="{Binding Name}"
+					TextTrimming="CharacterEllipsis" />
+			</DockPanel>
+			<StackPanel
 				Grid.Row="0"
 				Grid.Column="1"
-				Width="120"
-				Height="32"
 				Margin="12,0,0,0"
-				HorizontalAlignment="Left"
-				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
-				Content="{x:Static operaEtDies:OurResources.ExamineCharacter}" />
+				Orientation="Horizontal">
+				<Button
+					Width="120"
+					Height="32"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
+					Content="{x:Static operaEtDies:OurResources.ExamineCharacter}" />
+				<Button
+					Width="130"
+					Height="32"
+					Margin="8,0,0,0"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleFollow}"
+					Content="{Binding FollowText}"
+					Visibility="{Binding CanFollow, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+				<TextBlock
+					Margin="12,0,0,0"
+					VerticalAlignment="Center"
+					FontWeight="Bold"
+					Text="{Binding PlayerLabel}"
+					Visibility="{Binding PlayerLabel, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+				<Border
+					Margin="12,0,0,0"
+					Style="{DynamicResource DeveloperBorderStyle}"
+					Visibility="{Binding CanGoTo, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+					<Button
+						Padding="8,2"
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=GoTo}"
+						Content="{x:Static operaEtDies:OurResources.GoToPerson}" />
+				</Border>
+				<TextBlock
+					Margin="12,0,0,0"
+					VerticalAlignment="Center"
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{Binding Activity}" />
+			</StackPanel>
+
+			<!--  For developers, where the person is going and why they chose to.  -->
+			<Border
+				Grid.Row="1"
+				Grid.Column="0"
+				Grid.ColumnSpan="2"
+				Margin="0,8,0,0"
+				Style="{DynamicResource DeveloperBorderStyle}"
+				Visibility="{Binding DeveloperGoal, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
+				<StackPanel>
+					<TextBlock Text="{Binding DeveloperGoal}" TextWrapping="Wrap" />
+					<TextBlock
+						Foreground="{DynamicResource FontLightBrush}"
+						Text="{Binding DeveloperGoalReason}"
+						TextWrapping="Wrap" />
+				</StackPanel>
+			</Border>
 
 			<!--  The portrait and description, shown once the character has been examined. The portrait lines up with the name.  -->
 			<DockPanel
-				Grid.Row="1"
+				Grid.Row="2"
 				Grid.Column="0"
 				Grid.ColumnSpan="2"
 				Margin="0,8,0,0"
@@ -57,7 +116,7 @@
 		</Grid>
 	</DataTemplate>
 
-	<!--  A place the player can go to. A path to another quarter shows which way it goes above the description.  -->
+	<!--  A place the player can go to, marked if it's the player's home or workplace. A path to another quarter shows which way it goes above the description.  -->
 	<DataTemplate x:Key="LocationConnectionTemplate" DataType="{x:Type local:LocationConnectionViewModel}">
 		<Grid Margin="0,0,0,8">
 			<Grid.ColumnDefinitions>
@@ -69,8 +128,25 @@
 				Grid.Column="0"
 				Height="32"
 				VerticalAlignment="Top"
-				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Travel}"
-				Content="{Binding Title}" />
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Travel}">
+				<!--  The player's home and workplace are marked, like on the map.  -->
+				<DockPanel>
+					<Border
+						DockPanel.Dock="Left"
+						Margin="0,0,6,0"
+						Padding="3,0"
+						VerticalAlignment="Center"
+						Background="{DynamicResource MapCurrentBrush}"
+						Visibility="{Binding Marker, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
+						<TextBlock
+							FontSize="{DynamicResource SmallFontSize}"
+							FontWeight="Bold"
+							Foreground="{DynamicResource MapVillageBrush}"
+							Text="{Binding Marker}" />
+					</Border>
+					<TextBlock VerticalAlignment="Center" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+				</DockPanel>
+			</Button>
 			<StackPanel
 				Grid.Column="1"
 				Margin="12,0,0,0"
@@ -121,13 +197,79 @@
 					</ItemsControl.ItemTemplate>
 				</ItemsControl>
 
-				<Button
-					Width="120"
-					Height="32"
-					Margin="0,12,0,0"
-					HorizontalAlignment="Left"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
-					Content="{x:Static operaEtDies:OurResources.ExamineLocation}" />
+				<!--  Examining the location, and waiting here. How the last wait went is beside the buttons, so it doesn't move anything.  -->
+				<StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+					<Button
+						Width="120"
+						Height="32"
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
+						Content="{x:Static operaEtDies:OurResources.ExamineLocation}" />
+					<Button
+						Width="120"
+						Height="32"
+						Margin="8,0,0,0"
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Wait}"
+						Content="{x:Static operaEtDies:OurResources.Wait}"
+						ToolTip="{x:Static operaEtDies:OurResources.WaitToolTip}" />
+					<TextBlock
+						Margin="12,0,0,0"
+						VerticalAlignment="Center"
+						Foreground="{DynamicResource FontLightBrush}"
+						Text="{Binding WaitResult}" />
+				</StackPanel>
+
+				<!--  What the player can spend time on here, each with its choices of how long, which show how long they take.  -->
+				<StackPanel Visibility="{Binding HasActions, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+					<TextBlock Margin="0,24,0,8" Text="{x:Static operaEtDies:OurResources.ActionsHeader}" />
+					<ItemsControl ItemsSource="{Binding Actions}">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate DataType="{x:Type local:PlayerActionViewModel}">
+								<Grid Margin="0,0,0,8">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="160" />
+										<ColumnDefinition Width="*" />
+									</Grid.ColumnDefinitions>
+									<TextBlock
+										Grid.Column="0"
+										Margin="0,8,0,0"
+										VerticalAlignment="Top"
+										Text="{Binding Title}"
+										TextTrimming="CharacterEllipsis" />
+									<!--  While the action is closed, when it's open is shown in place of its options.  -->
+									<TextBlock
+										Grid.Column="1"
+										Margin="12,8,0,8"
+										VerticalAlignment="Top"
+										Foreground="{DynamicResource FontLightBrush}"
+										Text="{Binding OpeningHours}"
+										TextWrapping="Wrap"
+										Visibility="{Binding OpeningHours, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+									<ItemsControl
+										Grid.Column="1"
+										Margin="12,0,0,0"
+										ItemsSource="{Binding Options}">
+										<ItemsControl.ItemsPanel>
+											<ItemsPanelTemplate>
+												<WrapPanel />
+											</ItemsPanelTemplate>
+										</ItemsControl.ItemsPanel>
+										<ItemsControl.ItemTemplate>
+											<DataTemplate DataType="{x:Type local:PlayerActionOptionViewModel}">
+												<Button
+													MinWidth="120"
+													Height="32"
+													Margin="0,0,8,8"
+													Padding="8,0"
+													Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Do}"
+													Content="{Binding Text}" />
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
+								</Grid>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+				</StackPanel>
 
 				<StackPanel Visibility="{Binding HasPeople, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 					<TextBlock Margin="0,24,0,8" Text="{x:Static operaEtDies:OurResources.PeopleHeader}" />

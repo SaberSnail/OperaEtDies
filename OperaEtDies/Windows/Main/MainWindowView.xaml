@@ -60,23 +60,42 @@
 					Visibility="{Binding SpecialDay, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 				<TextBlock
 					Width="204"
-					Margin="0,2,0,24"
+					Margin="0,2,0,0"
 					Foreground="{DynamicResource FontLightBrush}"
 					Text="{Binding TimeOfDay}"
 					TextAlignment="Center" />
+
+				<!--  How the player is doing with the needs shown to them, such as fatigue.  -->
+				<ItemsControl
+					Width="204"
+					Margin="0,8,0,24"
+					ItemsSource="{Binding PlayerNeeds}">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate>
+							<TextBlock Text="{Binding}" TextAlignment="Center" />
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
 
 				<Button
 					Width="120"
 					Height="32"
 					HorizontalAlignment="Left"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowVillagers}"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleVillagers}"
 					Content="{x:Static operaEtDies:OurResources.ViewVillagers}" />
 				<Button
 					Width="120"
 					Height="32"
 					Margin="0,8,0,0"
 					HorizontalAlignment="Left"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowMap}"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleStatus}"
+					Content="{x:Static operaEtDies:OurResources.ViewStatus}" />
+				<Button
+					Width="120"
+					Height="32"
+					Margin="0,8,0,0"
+					HorizontalAlignment="Left"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleMap}"
 					Content="{x:Static operaEtDies:OurResources.ViewMap}" />
 				<Button
 					Width="120"

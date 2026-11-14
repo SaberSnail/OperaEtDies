@@ -1663,7 +1663,7 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The &quot;{0}&quot; layout is built around &quot;{1}&quot;, but that isn't a unique quarter kind in the village..
+        ///   Looks up a localized string similar to The &quot;{0}&quot; layout is built around &quot;{1}&quot;, but that isn't a unique quarter kind in the village that every town has..
         /// </summary>
         public static string LayoutCenterInvalid {
             get {
@@ -2478,6 +2478,690 @@ namespace OperaEtDies {
         public static string ConnectionTravelTime {
             get {
                 return ResourceManager.GetString("ConnectionTravelTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "start.need" is "{0}", but it must be the id of a level need..
+        /// </summary>
+        public static string ScheduleStartNeedInvalid {
+            get {
+                return ResourceManager.GetString("ScheduleStartNeedInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is {1}, but it must be from 0 to {2}..
+        /// </summary>
+        public static string ScheduleHourInvalid {
+            get {
+                return ResourceManager.GetString("ScheduleHourInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}.quarterKinds" can only be set when the place is "quarter"..
+        /// </summary>
+        public static string ScheduleQuarterKindsNotAllowed {
+            get {
+                return ResourceManager.GetString("ScheduleQuarterKindsNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" needs "{1}", since it's a {2} need..
+        /// </summary>
+        public static string NeedSettingMissing {
+            get {
+                return ResourceManager.GetString("NeedSettingMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" can't have "{1}", since it's a {2} need..
+        /// </summary>
+        public static string NeedSettingNotAllowed {
+            get {
+                return ResourceManager.GetString("NeedSettingNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" has "{1}", but it isn't in the "{2}" list..
+        /// </summary>
+        public static string DataIdUnknown {
+            get {
+                return ResourceManager.GetString("DataIdUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" must be from 0 to {1}..
+        /// </summary>
+        public static string NeedLevelOutOfRange {
+            get {
+                return ResourceManager.GetString("NeedLevelOutOfRange", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Each of the levels of "{0}" must have a minimum from 0 to {1} that's higher than the level before it..
+        /// </summary>
+        public static string NeedLevelsOutOfOrder {
+            get {
+                return ResourceManager.GetString("NeedLevelsOutOfOrder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" runs from hour {1} to hour {2}, but it must start before it ends, from hour 0 to 24..
+        /// </summary>
+        public static string NeedHoursInvalid {
+            get {
+                return ResourceManager.GetString("NeedHoursInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" takes {1} minutes, but its hours only have {2}..
+        /// </summary>
+        public static string NeedMinutesTooLong {
+            get {
+                return ResourceManager.GetString("NeedMinutesTooLong", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The person {0} has a value for the need "{1}" that it can't have..
+        /// </summary>
+        public static string SaveNeedInvalid {
+            get {
+                return ResourceManager.GetString("SaveNeedInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}: {1}.
+        /// </summary>
+        public static string PlayerNeed {
+            get {
+                return ResourceManager.GetString("PlayerNeed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to With --generate-villages, runs each village for this many days after it's created, writing an activity record each time someone starts a task..
+        /// </summary>
+        public static string CommandLineSimulateDays {
+            get {
+                return ResourceManager.GetString("CommandLineSimulateDays", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is {1}, but it must be at least 0 and less than {2}..
+        /// </summary>
+        public static string NeedUrgentFromOutOfRange {
+            get {
+                return ResourceManager.GetString("NeedUrgentFromOutOfRange", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" runs from hour {1} to hour {2}, but its hours must be different, from 0 to 23..
+        /// </summary>
+        public static string NeedLevelHoursInvalid {
+            get {
+                return ResourceManager.GetString("NeedLevelHoursInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Wait.
+        /// </summary>
+        public static string Wait {
+            get {
+                return ResourceManager.GetString("Wait", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Wait here until someone arrives or leaves, or until the next part of the day..
+        /// </summary>
+        public static string WaitToolTip {
+            get {
+                return ResourceManager.GetString("WaitToolTip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You waited {0}..
+        /// </summary>
+        public static string WaitResultChanged {
+            get {
+                return ResourceManager.GetString("WaitResultChanged", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You waited {0}. {1}.
+        /// </summary>
+        public static string WaitResultDayPart {
+            get {
+                return ResourceManager.GetString("WaitResultDayPart", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} has begun..
+        /// </summary>
+        public static string DayPartStarted {
+            get {
+                return ResourceManager.GetString("DayPartStarted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This is you.
+        /// </summary>
+        public static string ThisIsYou {
+            get {
+                return ResourceManager.GetString("ThisIsYou", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Go There.
+        /// </summary>
+        public static string GoToPerson {
+            get {
+                return ResourceManager.GetString("GoToPerson", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The quarter kind "{0}" has "optionalWith", but only unique kinds can be optional..
+        /// </summary>
+        public static string QuarterKindOptionalNotUnique {
+            get {
+                return ResourceManager.GetString("QuarterKindOptionalNotUnique", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" can measure its quota in time ("minutes", "minutesPerMember", and "shift") or in trips ("visits", "visitsPerMember", and "visitMinutes"), but not both..
+        /// </summary>
+        public static string NeedQuotaMixed {
+            get {
+                return ResourceManager.GetString("NeedQuotaMixed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" has an amount for each family member, but it isn't shared by the family..
+        /// </summary>
+        public static string NeedPerMemberNotShared {
+            get {
+                return ResourceManager.GetString("NeedPerMemberNotShared", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" has time at home after each trip, but it doesn't return home..
+        /// </summary>
+        public static string NeedHomeMinutesWithoutReturn {
+            get {
+                return ResourceManager.GetString("NeedHomeMinutesWithoutReturn", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" is measured in trips, so each trip must take at least a minute at the place for one person..
+        /// </summary>
+        public static string NeedVisitMinutesNotPositive {
+            get {
+                return ResourceManager.GetString("NeedVisitMinutesNotPositive", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" has "overdueUrgency", but only quota needs measured by the week with a list of days can have it..
+        /// </summary>
+        public static string NeedOverdueNotAllowed {
+            get {
+                return ResourceManager.GetString("NeedOverdueNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" has "homeActivity", but no time at home after its trips..
+        /// </summary>
+        public static string NeedHomeActivityWithoutHomeMinutes {
+            get {
+                return ResourceManager.GetString("NeedHomeActivityWithoutHomeMinutes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Walking to {0}.
+        /// </summary>
+        public static string PersonTraveling {
+            get {
+                return ResourceManager.GetString("PersonTraveling", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Follow.
+        /// </summary>
+        public static string FollowPerson {
+            get {
+                return ResourceManager.GetString("FollowPerson", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Stop Following.
+        /// </summary>
+        public static string StopFollowing {
+            get {
+                return ResourceManager.GetString("StopFollowing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You followed {0} to {1}..
+        /// </summary>
+        public static string WaitResultFollowed {
+            get {
+                return ResourceManager.GetString("WaitResultFollowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" must have exactly one of "untilMet", "untilHour", and "minutes"..
+        /// </summary>
+        public static string PlayerActionOptionInvalid {
+            get {
+                return ResourceManager.GetString("PlayerActionOptionInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} ({1}).
+        /// </summary>
+        public static string PlayerActionOptionText {
+            get {
+                return ResourceManager.GetString("PlayerActionOptionText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} for {1}..
+        /// </summary>
+        public static string PlayerActionResult {
+            get {
+                return ResourceManager.GetString("PlayerActionResult", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Things to do here.
+        /// </summary>
+        public static string ActionsHeader {
+            get {
+                return ResourceManager.GetString("ActionsHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Status.
+        /// </summary>
+        public static string ViewStatus {
+            get {
+                return ResourceManager.GetString("ViewStatus", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Your Status.
+        /// </summary>
+        public static string StatusHeader {
+            get {
+                return ResourceManager.GetString("StatusHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Needs.
+        /// </summary>
+        public static string NeedsHeader {
+            get {
+                return ResourceManager.GetString("NeedsHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} of {1}.
+        /// </summary>
+        public static string NeedStatusLevel {
+            get {
+                return ResourceManager.GetString("NeedStatusLevel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} ({1}).
+        /// </summary>
+        public static string NeedStatusLevelTitled {
+            get {
+                return ResourceManager.GetString("NeedStatusLevelTitled", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} of {1} today.
+        /// </summary>
+        public static string NeedStatusQuotaDay {
+            get {
+                return ResourceManager.GetString("NeedStatusQuotaDay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} of {1} this week.
+        /// </summary>
+        public static string NeedStatusQuotaWeek {
+            get {
+                return ResourceManager.GetString("NeedStatusQuotaWeek", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Shared by the household.
+        /// </summary>
+        public static string NeedStatusShared {
+            get {
+                return ResourceManager.GetString("NeedStatusShared", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This is your {0}.
+        /// </summary>
+        public static string ThisIsYourRelation {
+            get {
+                return ResourceManager.GetString("ThisIsYourRelation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Home.
+        /// </summary>
+        public static string MapHomeMarker {
+            get {
+                return ResourceManager.GetString("MapHomeMarker", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Work.
+        /// </summary>
+        public static string MapWorkMarker {
+            get {
+                return ResourceManager.GetString("MapWorkMarker", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is only allowed for a need it fits: "options" for a need whose quota isn't measured in trips, "return" and "home" for a trip that returns home, and "onlyInHours" for a quota need..
+        /// </summary>
+        public static string PlayerActionSettingNotAllowed {
+            get {
+                return ResourceManager.GetString("PlayerActionSettingNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} at {1}.
+        /// </summary>
+        public static string DeveloperGoal {
+            get {
+                return ResourceManager.GetString("DeveloperGoal", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} at {1}, then home.
+        /// </summary>
+        public static string DeveloperGoalThenHome {
+            get {
+                return ResourceManager.GetString("DeveloperGoalThenHome", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Idle at {0}.
+        /// </summary>
+        public static string DeveloperIdle {
+            get {
+                return ResourceManager.GetString("DeveloperIdle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} (walking to {1}).
+        /// </summary>
+        public static string DeveloperWalking {
+            get {
+                return ResourceManager.GetString("DeveloperWalking", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Their plan wasn't chosen from their needs..
+        /// </summary>
+        public static string DeveloperNoGoalChoice {
+            get {
+                return ResourceManager.GetString("DeveloperNoGoalChoice", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to At {0}, chose {1}.
+        /// </summary>
+        public static string DeveloperGoalChosen {
+            get {
+                return ResourceManager.GetString("DeveloperGoalChosen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to At {0}, nothing was urgent enough.
+        /// </summary>
+        public static string DeveloperGoalNothingUrgent {
+            get {
+                return ResourceManager.GetString("DeveloperGoalNothingUrgent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to At {0}, chose {1}, but there was nowhere to do it.
+        /// </summary>
+        public static string DeveloperGoalNoPlace {
+            get {
+                return ResourceManager.GetString("DeveloperGoalNoPlace", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to At {0}, chose {1}, but there was no time left for it.
+        /// </summary>
+        public static string DeveloperGoalNoTime {
+            get {
+                return ResourceManager.GetString("DeveloperGoalNoTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}. Urgencies: {1}..
+        /// </summary>
+        public static string DeveloperGoalReason {
+            get {
+                return ResourceManager.GetString("DeveloperGoalReason", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} {1:0} ({2:0%}).
+        /// </summary>
+        public static string DeveloperUrgency {
+            get {
+                return ResourceManager.GetString("DeveloperUrgency", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} {1:0} (below {2:0}).
+        /// </summary>
+        public static string DeveloperUrgencyTooLow {
+            get {
+                return ResourceManager.GetString("DeveloperUrgencyTooLow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to , .
+        /// </summary>
+        public static string DeveloperUrgencySeparator {
+            get {
+                return ResourceManager.GetString("DeveloperUrgencySeparator", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to none.
+        /// </summary>
+        public static string DeveloperNoUrgencies {
+            get {
+                return ResourceManager.GetString("DeveloperNoUrgencies", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open on {0} from {1} to {2}.
+        /// </summary>
+        public static string OpeningHours {
+            get {
+                return ResourceManager.GetString("OpeningHours", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open on {0} from {1} to {2}, except on holidays.
+        /// </summary>
+        public static string OpeningHoursNotSpecialDays {
+            get {
+                return ResourceManager.GetString("OpeningHoursNotSpecialDays", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to every day.
+        /// </summary>
+        public static string OpeningHoursEveryDay {
+            get {
+                return ResourceManager.GetString("OpeningHoursEveryDay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} and {1}.
+        /// </summary>
+        public static string OpeningHoursTwoDays {
+            get {
+                return ResourceManager.GetString("OpeningHoursTwoDays", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}, and {1}.
+        /// </summary>
+        public static string OpeningHoursManyDays {
+            get {
+                return ResourceManager.GetString("OpeningHoursManyDays", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to , .
+        /// </summary>
+        public static string OpeningHoursDaySeparator {
+            get {
+                return ResourceManager.GetString("OpeningHoursDaySeparator", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Finish.
+        /// </summary>
+        public static string PlayerActionFinish {
+            get {
+                return ResourceManager.GetString("PlayerActionFinish", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}..
+        /// </summary>
+        public static string PlayerActionResultInstant {
+            get {
+                return ResourceManager.GetString("PlayerActionResultInstant", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} {1}.
+        /// </summary>
+        public static string PlayerActionResultReturn {
+            get {
+                return ResourceManager.GetString("PlayerActionResultReturn", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to  .
+        /// </summary>
+        public static string NeedStatusNoteSeparator {
+            get {
+                return ResourceManager.GetString("NeedStatusNoteSeparator", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} of {1} visits today ({2} each).
+        /// </summary>
+        public static string NeedStatusTripsDay {
+            get {
+                return ResourceManager.GetString("NeedStatusTripsDay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} of {1} visits this week ({2} each).
+        /// </summary>
+        public static string NeedStatusTripsWeek {
+            get {
+                return ResourceManager.GetString("NeedStatusTripsWeek", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Done.
+        /// </summary>
+        public static string NeedStatusDone {
+            get {
+                return ResourceManager.GetString("NeedStatusDone", resourceCulture);
             }
         }
     }

@@ -106,6 +106,27 @@ public sealed class GameCalendarTests
 		Assert.That(m_calendar.GetParts(offset), Is.EqualTo(new GameTimeOffsetParts(expectedDays, expectedHours, expectedMinutes)));
 	}
 
+	[TestCase(5, 0, 0, 6)]
+	[TestCase(6, 0, 0, 12)]
+	[TestCase(13, 30, 0, 18)]
+	[TestCase(21, 0, 1, 6)]
+	[TestCase(23, 59, 1, 6)]
+	public void NextPartOfTheDayStartsLaterTodayOrTomorrow(int hour, int minute, int days, int startHour)
+	{
+		var point = m_calendar.CreateTimePoint(2, 3, 2, 5, hour, minute);
+		var expected = m_calendar.GetStartOfDay(point) + m_calendar.CreateTimeOffset(days, startHour, 0);
+		Assert.That(m_calendar.GetNextDayPartStart(point), Is.EqualTo(expected));
+	}
+
+	[TestCase(1)]
+	[TestCase(4)]
+	[TestCase(7)]
+	public void StartOfWeekIsMidnightOnTheFirstDay(int day)
+	{
+		var point = m_calendar.CreateTimePoint(2, 3, 2, day, 17, 45);
+		Assert.That(m_calendar.GetStartOfWeek(point), Is.EqualTo(m_calendar.CreateTimePoint(2, 3, 2, 1)));
+	}
+
 	[Test]
 	public void StartOfDayIsMidnight()
 	{

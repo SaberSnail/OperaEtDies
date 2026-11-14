@@ -40,7 +40,7 @@ public sealed class PortraitDataTests
 	[Test]
 	public void WithoutPortraitFileThereAreNoPortraits()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
 
 		var result = GameData.Load(m_directory);
 
@@ -51,7 +51,7 @@ public sealed class PortraitDataTests
 	[Test]
 	public void InvalidPortraitsReportErrors()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
 		File.WriteAllText(Path.Combine(m_directory, PortraitData.FileName), """
 			{
 				"width": 0,
@@ -112,7 +112,7 @@ public sealed class PortraitDataTests
 	[Test]
 	public void ConditionsMustUseCharacterProperties()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
 		File.WriteAllText(Path.Combine(m_directory, PortraitData.FileName), """
 			{
 				"width": 10,
@@ -141,7 +141,7 @@ public sealed class PortraitDataTests
 	[Test]
 	public void PlacesMustBeQuarterKindsAndProfessions()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName);
+		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
 		File.WriteAllText(Path.Combine(m_directory, PortraitData.FileName), """
 			{
 				"width": 10,

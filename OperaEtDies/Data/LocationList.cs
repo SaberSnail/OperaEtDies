@@ -86,7 +86,7 @@ public sealed class LocationList : IValidatedData
 
 		if (Layouts.Count == 0)
 			errors.Add(OurResources.DataListEmpty.FormatCurrentCulture("layouts"));
-		foreach (var layout in Layouts.Where(x => x is not null && !quarterKinds.Any(kind => kind.Id == x.Center && kind.Unique && kind.Area == MapArea.Village)))
+		foreach (var layout in Layouts.Where(x => x is not null && !quarterKinds.Any(kind => kind.Id == x.Center && kind.Unique && kind.OptionalWith is null && kind.Area == MapArea.Village)))
 			errors.Add(OurResources.LayoutCenterInvalid.FormatCurrentCulture(JsonNamingPolicy.CamelCase.ConvertName(layout.Shape.ToString()), layout.Center));
 
 		errors.AddRange(DataValidation.ValidateIdentifiedItems("quarters", Quarters, x => x.Id, x => x.Title));
@@ -219,6 +219,15 @@ public sealed class LocationList : IValidatedData
 				errors.Add(OurResources.FeatureUnknown.FormatCurrentCulture($"quarterKinds[{kind.Id}].borders", kind.Borders));
 			if (kind.Unique)
 				errors.Add(OurResources.QuarterKindUniqueBorders.FormatCurrentCulture(kind.Id));
+		}
+
+		foreach (var kind in quarterKinds.Where(x => x.OptionalWith is not null))
+		{
+			if (!featureIds.Contains(kind.OptionalWith!))
+				errors.Add(OurResources.FeatureUnknown.FormatCurrentCulture($"quarterKinds[{kind.Id}].optionalWith", kind.OptionalWith));
+			if (!kind.Unique)
+				errors.Add(OurResources.QuarterKindOptionalNotUnique.FormatCurrentCulture(kind.Id));
+			errors.AddRange(DataValidation.ValidateChance($"quarterKinds[{kind.Id}].optionalChance", kind.OptionalChance));
 		}
 
 		foreach (var quarter in quarters)

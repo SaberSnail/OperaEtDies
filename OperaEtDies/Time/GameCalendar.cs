@@ -26,6 +26,11 @@ public sealed class GameCalendar : CalendarBase
 
 	public int DaysInWeek => m_settings.Days.Count;
 
+	/// <summary>
+	/// The days of the week, in order.
+	/// </summary>
+	public IReadOnlyList<CalendarDay> Days => m_settings.Days;
+
 	public int WeeksInSeason => m_settings.Weeks.Count;
 
 	public int SeasonsInYear => m_settings.Seasons.Count;
@@ -63,6 +68,16 @@ public sealed class GameCalendar : CalendarBase
 	/// </summary>
 	public TimeOffset CreateTimeOffset(long days, long hours, long minutes) =>
 		CreateTimeOffsetFromTotalSeconds((days * c_secondsInDay) + (hours * c_secondsInHour) + (minutes * c_secondsInMinute));
+
+	/// <summary>
+	/// Gets the length of time in whole minutes, rounded toward zero.
+	/// </summary>
+	public long GetTotalMinutes(TimeOffset offset) => GetTotalSeconds(offset) / c_secondsInMinute;
+
+	/// <summary>
+	/// Gets the time a number of minutes after the given time.
+	/// </summary>
+	public TimePoint AddMinutes(TimePoint point, long minutes) => point + CreateTimeOffset(0, 0, minutes);
 
 	/// <summary>
 	/// Gets midnight at the start of the time's day.
@@ -108,6 +123,22 @@ public sealed class GameCalendar : CalendarBase
 	{
 		var hour = GetParts(point).Hour;
 		return m_settings.DayParts.LastOrDefault(x => x.Start <= hour) ?? m_settings.DayParts[^1];
+	}
+
+	/// <summary>
+	/// Gets midnight at the start of the first day of the time's week.
+	/// </summary>
+	public TimePoint GetStartOfWeek(TimePoint point) => GetStartOfDay(point) + CreateTimeOffset(1 - GetParts(point).Day, 0, 0);
+
+	/// <summary>
+	/// Gets when the next part of the day starts after the given time: later the same day, or else the first part of the
+	/// next day.
+	/// </summary>
+	public TimePoint GetNextDayPartStart(TimePoint point)
+	{
+		var day = GetStartOfDay(point);
+		return m_settings.DayParts.Select(x => day + CreateTimeOffset(0, x.Start, 0)).FirstOrDefault(x => x > point)
+			?? day + CreateTimeOffset(1, m_settings.DayParts[0].Start, 0);
 	}
 
 	/// <summary>

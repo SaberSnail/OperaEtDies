@@ -1,0 +1,81 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:local="clr-namespace:OperaEtDies.Controls.Status"
+	xmlns:operaEtDies="clr-namespace:OperaEtDies"
+	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
+
+	<!--  The player's needs, each with how they're doing, whether it's done, and any note beside it.  -->
+	<DataTemplate DataType="{x:Type local:StatusViewModel}">
+		<Grid Margin="24">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="*" />
+			</Grid.RowDefinitions>
+
+			<DockPanel Grid.Row="0" LastChildFill="True">
+				<Button
+					Width="120"
+					Height="32"
+					VerticalAlignment="Center"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Close}"
+					Content="{x:Static operaEtDies:OurResources.CloseView}"
+					DockPanel.Dock="Right" />
+				<TextBlock
+					FontSize="{DynamicResource TitleFontSize}"
+					Text="{x:Static operaEtDies:OurResources.StatusHeader}"
+					TextWrapping="Wrap" />
+			</DockPanel>
+
+			<ScrollViewer
+				Grid.Row="1"
+				Margin="0,12,0,0"
+				HorizontalScrollBarVisibility="Disabled"
+				VerticalScrollBarVisibility="Auto">
+				<StackPanel>
+					<TextBlock
+						Margin="0,12,0,8"
+						FontSize="{DynamicResource LargeFontSize}"
+						FontWeight="Bold"
+						Text="{x:Static operaEtDies:OurResources.NeedsHeader}" />
+					<ItemsControl ItemsSource="{Binding Needs}">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate DataType="{x:Type local:NeedStatusViewModel}">
+								<Grid Margin="0,0,0,8">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="160" />
+										<ColumnDefinition Width="Auto" />
+										<ColumnDefinition Width="Auto" />
+										<ColumnDefinition Width="*" />
+									</Grid.ColumnDefinitions>
+									<TextBlock Grid.Column="0" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+									<TextBlock Grid.Column="1" Margin="12,0,0,0" Text="{Binding Value}" />
+									<!--  A need that's done for the day or week is marked, so it stands out from the ones still to do.  -->
+									<Border
+										Grid.Column="2"
+										Margin="12,0,0,0"
+										Padding="6,0"
+										VerticalAlignment="Center"
+										Background="{DynamicResource MapCurrentBrush}"
+										Visibility="{Binding IsDone, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+										<TextBlock
+											FontWeight="Bold"
+											Foreground="{DynamicResource MapVillageBrush}"
+											Text="{x:Static operaEtDies:OurResources.NeedStatusDone}" />
+									</Border>
+									<TextBlock
+										Grid.Column="3"
+										Margin="12,0,0,0"
+										Foreground="{DynamicResource FontLightBrush}"
+										Text="{Binding Note}"
+										TextWrapping="Wrap" />
+								</Grid>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+				</StackPanel>
+			</ScrollViewer>
+		</Grid>
+	</DataTemplate>
+
+</ResourceDictionary>

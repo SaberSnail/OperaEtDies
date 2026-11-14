@@ -6,12 +6,12 @@ namespace OperaEtDies.Controls.Locations;
 
 /// <summary>
 /// A location the player can travel to from their current location. A path to another quarter says which way it goes
-/// and what it's called.
-/// </summary>
+/// and what it's called. The player's home and the place they work are marked.
 public sealed class LocationConnectionViewModel : ViewModelBase
 {
-	public LocationConnectionViewModel(LocationExit exit, string travelTime, Action<Location> travel)
+	public LocationConnectionViewModel(LocationExit exit, string travelTime, Action<Location> travel, string? marker = null)
 	{
+		Marker = marker;
 		Location = exit.Location;
 		Direction = exit.Direction;
 		Route = exit.Direction is { } direction
@@ -26,6 +26,11 @@ public sealed class LocationConnectionViewModel : ViewModelBase
 	public string Title => Location.Title;
 
 	public string Description => Location.ShortDescription;
+
+	/// <summary>
+	/// A word marking the place as the player's, such as "Home" or "Work", or null if it isn't.
+	/// </summary>
+	public string? Marker { get; }
 
 	/// <summary>
 	/// For a path to another quarter, the direction it leads in.

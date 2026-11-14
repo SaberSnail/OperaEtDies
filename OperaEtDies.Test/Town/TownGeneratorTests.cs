@@ -252,6 +252,7 @@ public sealed class TownGeneratorTests
 		// The shipped data chooses among its own layouts.
 		var gameData = useShippedData ? GameData.Load(JsonDataLoader.DefaultDataDirectory).Value! : TestData.CreateGameData(shape!.Value);
 
+		var optionalCounts = new HashSet<int>();
 		for (var seed = 0; seed < 100; seed++)
 		{
 			var player = useShippedData ? new CharacterRandomizer(gameData, new Random(seed), CharacterRole.Player).GetTraits() : TestData.CreatePlayerTraits(gameData);
@@ -260,9 +261,18 @@ public sealed class TownGeneratorTests
 			if (shape is not null)
 				Assert.That(town.Shape, Is.EqualTo(shape));
 
-			// Every unique kind has exactly one quarter, and there are as many landmarks as allowed.
+			// Every unique kind has exactly one quarter, unless the town has the feature that makes it optional, when it has at
+			// most one. It can only go without one if a quarter borders the feature. There are as many landmarks as allowed.
 			foreach (var kind in gameData.QuarterKinds.Where(x => x.Unique))
-				Assert.That(quarters.Count(x => ((QuarterTemplate) x.Template).Kind == kind.Id), Is.EqualTo(1), kind.Id);
+			{
+				var isOptional = kind.OptionalWith is { } feature && town.Features.Any(x => x.Feature.Id == feature);
+				var count = quarters.Count(x => ((QuarterTemplate) x.Template).Kind == kind.Id);
+				Assert.That(count, isOptional ? Is.InRange(0, 1) : Is.EqualTo(1), kind.Id);
+				if (isOptional && count == 0)
+					Assert.That(quarters.Any(x => gameData.GetBorderedFeatures((QuarterTemplate) x.Template).Contains(kind.OptionalWith!)), Is.True, $"{kind.Id} is missing, but no quarter borders {kind.OptionalWith}");
+				if (isOptional)
+					optionalCounts.Add(count);
+			}
 			Assert.That(quarters.Count(x => ((QuarterTemplate) x.Template).IsLandmark), Is.InRange(gameData.LandmarkCount.Minimum, gameData.LandmarkCount.Maximum));
 
 			// Quarters are rectangles of their size that don't overlap. Houses and businesses aren't on the map.
@@ -297,6 +307,10 @@ public sealed class TownGeneratorTests
 				Assert.That(quarter.Exits.Where(x => x.Location.Template is not QuarterTemplate).Select(x => x.Direction), Has.All.Null);
 			}
 		}
+
+		// A kind made optional by a feature is sometimes left out and sometimes not.
+		if (gameData.QuarterKinds.Any(x => x.OptionalWith is not null))
+			Assert.That(optionalCounts, Is.EquivalentTo(new[] { 0, 1 }));
 	}
 
 	[Test]

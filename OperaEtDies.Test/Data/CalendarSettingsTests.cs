@@ -60,6 +60,13 @@ public sealed class CalendarSettingsTests
 	}
 
 	[Test]
+	public void DayPartAnnouncementsMustBeFilledIn()
+	{
+		var settings = With(dayParts: [DayPart("morning", 6), new CalendarDayPart { Id = "night", Title = "Night", Start = 21, Announcement = " " }]);
+		Assert.That(settings.Validate(), Has.Exactly(1).Contains("dayParts.night.announcement"));
+	}
+
+	[Test]
 	public void SpecialDaysMustUseKnownParts()
 	{
 		var settings = With(specialDays: [new CalendarSpecialDay { Id = "feast", Title = "Feast", Season = "monsoon", Week = "first", Day = "day9" }]);

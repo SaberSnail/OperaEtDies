@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using GoldenAnvil.Utility;
+using GoldenAnvil.Utility.Calendar;
 using OperaEtDies.Data;
 
 namespace OperaEtDies.GameState;
@@ -11,9 +12,10 @@ namespace OperaEtDies.GameState;
 /// </summary>
 public sealed class WorldLoader
 {
-	internal WorldLoader(GameData gameData, Random random, IReadOnlyList<WorldObjectRecord> records)
+	internal WorldLoader(GameData gameData, Random random, TimePoint time, IReadOnlyList<WorldObjectRecord> records)
 	{
 		GameData = gameData;
+		Time = time;
 		Random = random;
 		m_recordList = records;
 		m_records = [];
@@ -29,6 +31,11 @@ public sealed class WorldLoader
 	}
 
 	public GameData GameData { get; }
+
+	/// <summary>
+	/// The time the game was saved at.
+	/// </summary>
+	public TimePoint Time { get; }
 
 	/// <summary>
 	/// The random numbers for the loaded game.

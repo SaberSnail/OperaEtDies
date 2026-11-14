@@ -7,6 +7,7 @@
 		<ResourceDictionary Source="ManageMods/ManageModsView.xaml" />
 		<ResourceDictionary Source="Map/TownMapView.xaml" />
 		<ResourceDictionary Source="NewGame/NewGameView.xaml" />
+		<ResourceDictionary Source="Status/StatusView.xaml" />
 		<ResourceDictionary Source="Villagers/VillagersView.xaml" />
 	</ResourceDictionary.MergedDictionaries>
 

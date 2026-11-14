@@ -42,6 +42,12 @@ public sealed class VillageReport : ILogDestination
 	public const string PortraitsAtWorkArgument = "--portraits-at-work";
 
 	/// <summary>
+	/// The optional command line argument for how many days to run each village for after creating it, writing what
+	/// people do as they go.
+	/// </summary>
+	public const string SimulateDaysArgument = "--simulate-days";
+
+	/// <summary>
 	/// The optional command line argument to save each village and load it again before writing it, to check that
 	/// saving and loading keep everything the report shows.
 	/// </summary>
@@ -57,9 +63,9 @@ public sealed class VillageReport : ILogDestination
 	public static int Run(IReadOnlyList<string> args, bool areModsEnabled, TextWriter output, TextWriter error)
 	{
 		int exitCode;
-		if (TryParseArguments(args, out var count, out var firstSeed, out var portraitFolder, out var argumentError))
+		if (TryParseArguments(args, out var count, out var firstSeed, out var portraitFolder, out var simulateDays, out var argumentError))
 		{
-			var report = new VillageReport(output, portraitFolder, args.Contains(PortraitsAtWorkArgument, StringComparer.OrdinalIgnoreCase), args.Contains(ThroughSaveArgument, StringComparer.OrdinalIgnoreCase));
+			var report = new VillageReport(output, portraitFolder, args.Contains(PortraitsAtWorkArgument, StringComparer.OrdinalIgnoreCase), args.Contains(ThroughSaveArgument, StringComparer.OrdinalIgnoreCase), simulateDays);
 			LogManager.Initialize(report);
 			exitCode = report.Generate(count, firstSeed, areModsEnabled, error);
 		}
@@ -80,16 +86,18 @@ public sealed class VillageReport : ILogDestination
 			WriteRecord("log", m_village, severity, source, message);
 	}
 
-	private VillageReport(TextWriter output, string? portraitFolder, bool arePortraitsAtWork, bool isThroughSave)
+	private VillageReport(TextWriter output, string? portraitFolder, bool arePortraitsAtWork, bool isThroughSave, int simulateDays)
 	{
+		m_simulateDays = simulateDays;
 		m_isThroughSave = isThroughSave;
 		m_output = output;
 		m_portraitFolder = portraitFolder;
 		m_arePortraitsAtWork = arePortraitsAtWork;
 	}
 
-	private static bool TryParseArguments(IReadOnlyList<string> args, out int count, out int firstSeed, out string? portraitFolder, out string error)
+	private static bool TryParseArguments(IReadOnlyList<string> args, out int count, out int firstSeed, out string? portraitFolder, out int simulateDays, out string error)
 	{
+		simulateDays = 0;
 		count = 0;
 		firstSeed = Random.Shared.Next();
 		portraitFolder = null;
@@ -99,6 +107,7 @@ public sealed class VillageReport : ILogDestination
 		{
 			var isCount = string.Equals(args[index], Argument, StringComparison.OrdinalIgnoreCase);
 			var isSeed = string.Equals(args[index], SeedArgument, StringComparison.OrdinalIgnoreCase);
+			var isDays = string.Equals(args[index], SimulateDaysArgument, StringComparison.OrdinalIgnoreCase);
 			if (string.Equals(args[index], PortraitsArgument, StringComparison.OrdinalIgnoreCase))
 			{
 				index++;
@@ -106,6 +115,15 @@ public sealed class VillageReport : ILogDestination
 					portraitFolder = args[index];
 				else
 					error = $"{PortraitsArgument} must be followed by a folder.";
+			}
+			else if (isDays)
+			{
+				index++;
+				var text = index < args.Count ? args[index] : "";
+				if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var days) && days >= 0)
+					simulateDays = days;
+				else
+					error = $"{SimulateDaysArgument} must be followed by a number of days of at least 0.";
 			}
 			else if (isCount || isSeed)
 			{
@@ -148,8 +166,8 @@ public sealed class VillageReport : ILogDestination
 	/// <summary>
 	/// Generates villages with the game data and writes them to the output, without capturing logging, for tests.
 	/// </summary>
-	internal static void Write(GameData gameData, int count, int firstSeed, bool isThroughSave, TextWriter output) =>
-		new VillageReport(output, portraitFolder: null, arePortraitsAtWork: false, isThroughSave).WriteVillages(gameData, count, firstSeed);
+	internal static void Write(GameData gameData, int count, int firstSeed, bool isThroughSave, TextWriter output, int simulateDays = 0) =>
+		new VillageReport(output, portraitFolder: null, arePortraitsAtWork: false, isThroughSave, simulateDays).WriteVillages(gameData, count, firstSeed);
 
 	private void WriteVillages(GameData gameData, int count, int firstSeed)
 	{
@@ -164,6 +182,9 @@ public sealed class VillageReport : ILogDestination
 			var player = CharacterRandomizer.CreateRandomPlayer(gameData, random);
 			var town = TownGenerator.Generate(gameData, player, random);
 			var world = GameWorld.CreateFromTown(gameData, town, random);
+			if (m_simulateDays > 0)
+				Simulate(village, world);
+
 			try
 			{
 				if (m_isThroughSave)
@@ -175,6 +196,27 @@ public sealed class VillageReport : ILogDestination
 				WriteRecord("log", village, LogSeverity.Error, nameof(VillageReport), $"The village couldn't be loaded after saving it: {e.Message}");
 			}
 		}
+	}
+
+	/// <summary>
+	/// Runs the world for the report's number of days, writing an activity record each time someone starts a task.
+	/// </summary>
+	private void Simulate(int village, GameWorld world)
+	{
+		var calendar = world.GameData.Calendar;
+		var names = GetLocationNames(world.Locations);
+		var members = world.Families.SelectMany((family, index) => family.Members.Select((person, member) => (person, index, member))).ToDictionary(x => x.person);
+		void OnTaskStarted(object? sender, PersonTaskEventArgs e)
+		{
+			var (person, household, member) = members[e.Person];
+			WriteRecord("activity", village, calendar.FormatTime(e.Time, TimeFormat.Long), calendar.GetDayOfWeek(e.Time).Id, household, member, person.Goal?.Id, GetTaskName(e.Task),
+				person.TaskEnd is { } end ? calendar.GetTotalMinutes(end - e.Time) : null,
+				names[person.Location], e.Task is TravelTask travel ? names[travel.Destination] : null);
+		}
+
+		world.TaskStarted += OnTaskStarted;
+		world.AdvanceTime(calendar.CreateTimeOffset(m_simulateDays, 0, 0));
+		world.TaskStarted -= OnTaskStarted;
 	}
 
 	/// <summary>
@@ -191,7 +233,9 @@ public sealed class VillageReport : ILogDestination
 	{
 		WriteRecord("#village", "village", "seed", "households", "people", "businesses", "quarters", "houses", "businessLocations", "reusedTemplates", "shape", "landmarks", "paths", "deadEnds", "landmarkDeadEnds", "maxExits", "features", "crossings", "time", "season");
 		WriteRecord("#household", "village", "household", "lastName", "members", "wealth", "fortune", "wealthLevel", "house", "quarter", "quarterKind");
-		WriteRecord(["#person", "village", "household", "member", "role", "isPlayer", "work", "businessProfession", "fullName", "location", "place", "portraitLayers", .. gameData.CharacterProperties.Select(x => x.Id)]);
+		WriteRecord(["#person", "village", "household", "member", "role", "isPlayer", "work", "businessProfession", "fullName", "location", "place", "portraitLayers", "goal", "task", "taskEnd", "pendingTrip",
+			.. gameData.Schedules.Needs.Select(x => x.Id), .. gameData.CharacterProperties.Select(x => x.Id)]);
+		WriteRecord("#activity", "village", "time", "day", "household", "member", "goal", "task", "minutes", "location", "destination");
 		WriteRecord("#business", "village", "household", "profession", "ownerRole", "helpers", "location", "quarter", "quarterKind");
 		WriteRecord("#location", "village", "id", "template", "type", "quarterKind", "wealth", "connections", "landmark", "x", "y", "width", "height", "borders");
 		WriteRecord("#exit", "village", "from", "to", "direction", "path", "crossing");
@@ -235,6 +279,10 @@ public sealed class VillageReport : ILogDestination
 				var startLocation = person.Location;
 				var startPlace = person.PortraitPlace;
 				var startTraits = person.Traits;
+				var task = person.CurrentTask is { } currentTask ? GetTaskName(currentTask) : null;
+				var taskEnd = person.TaskEnd is { } end ? gameData.Calendar.FormatTime(end, TimeFormat.Long) : null;
+				var needs = gameData.Schedules.Needs.Select(x => x.Kind == NeedKind.Level ? person.GetLevel(x).ToString("0.##", CultureInfo.InvariantCulture) : (object) person.GetProgress(x)).ToList();
+				var goal = person.Goal?.Id;
 
 				// Portraits are drawn where the person starts, or at work in their own workplace.
 				if (m_arePortraitsAtWork)
@@ -245,7 +293,7 @@ public sealed class VillageReport : ILogDestination
 
 				var portraitLayers = gameData.PortraitRenderer?.GetLayerIds(person.Traits, person.PortraitPlace) ?? [];
 				WriteRecord(["person", village, index, member, person.Role, person.IsPlayer, work, person.Business?.Profession.Id,
-					startTraits.GetFullName(gameData.CharacterTemplates), names[startLocation], startPlace, string.Join(" ", portraitLayers),
+					startTraits.GetFullName(gameData.CharacterTemplates), names[startLocation], startPlace, string.Join(" ", portraitLayers), goal, task, taskEnd, person.PendingTrip?.Id, .. needs,
 					.. gameData.CharacterProperties.Select(x => FormatValue(startTraits.Values.GetValueOrDefault(x.Id)))]);
 
 				if (m_portraitFolder is not null && gameData.PortraitRenderer is { } portraitRenderer)
@@ -302,6 +350,14 @@ public sealed class VillageReport : ILogDestination
 		return names;
 	}
 
+	private static string GetTaskName(PersonTask task) => task switch
+	{
+		TravelTask => "travel",
+		BusyTask => "busy",
+		AtWorkTask { IsAtWork: true } => "startWork",
+		_ => "stopWork",
+	};
+
 	private static object? FormatValue(object? value) => value is CharacterPropertyOption option ? option.Id : value;
 
 	/// <summary>
@@ -329,5 +385,6 @@ public sealed class VillageReport : ILogDestination
 	private readonly string? m_portraitFolder;
 	private readonly bool m_arePortraitsAtWork;
 	private readonly bool m_isThroughSave;
+	private readonly int m_simulateDays;
 	private int? m_village;
 }
