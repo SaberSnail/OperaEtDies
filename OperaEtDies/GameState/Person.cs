@@ -168,6 +168,20 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	}
 
 	/// <summary>
+	/// Whether the person has napped since they last slept until rested. Someone only naps once between full sleeps.
+	/// </summary>
+	public bool HasNapped { get; internal set; }
+
+	/// <summary>
+	/// Someone who asked the player to chat and is waiting for an answer, or null if no one is. Only the player is asked.
+	/// </summary>
+	public Person? TalkRequest
+	{
+		get => m_talkRequest;
+		internal set => SetPropertyField(value, ref m_talkRequest);
+	}
+
+	/// <summary>
 	/// The tasks left toward the person's goal. The first one is the current task, if <see cref="TaskEnd"/> is set.
 	/// </summary>
 	public IReadOnlyList<PersonTask> Tasks => m_tasks;
@@ -208,8 +222,8 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 		{
 			for (var index = 0; index < m_tasks.Count; index++)
 			{
-				if (m_tasks[index] is BusyTask { Minutes: { } busy })
-					minutes += index == 0 && m_taskEnd is { } end ? Math.Max(m_gameData.Calendar.GetTotalMinutes(end - time), 0) : busy;
+				if (m_tasks[index] is BusyTask { Minutes: { } busy } task)
+					minutes += index == 0 && m_taskEnd is { } end ? Math.Max(m_gameData.Calendar.GetTotalMinutes(end - time), 0) : task.ResumeMinutes ?? busy;
 			}
 		}
 
@@ -217,9 +231,15 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	}
 
 	/// <summary>
-	/// The need being met right now: the goal, while the person is busy with it.
+	/// The need being met right now: the goal, while the person is busy with it, or the need a talk meets. Looking for a
+	/// friend to socialize with doesn't meet the socializing need by itself.
 	/// </summary>
-	internal Need? ActiveNeed => CurrentTask is BusyTask ? m_goal : null;
+	internal Need? ActiveNeed => CurrentTask switch
+	{
+		BusyTask => m_goal?.Id == m_gameData.Schedules.Talking.SocializeNeed ? null : m_goal,
+		TalkTask talk => talk.Need,
+		_ => null,
+	};
 
 	public WorldObjectRecord CreateRecord() =>
 		new PersonRecord(Id, IsPlayer, Role, m_location.Id, m_traits.Values.ToDictionary(x => x.Key, x => JsonSerializer.SerializeToElement(x.Value switch
@@ -228,9 +248,72 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 			var value => value,
 		}), StringComparer.Ordinal), m_goal?.Id, m_tasks.Select(x => x.CreateRecord()).ToList(), m_taskEnd?.SaveToString(),
 			new Dictionary<string, double>(m_levels, StringComparer.Ordinal), new Dictionary<string, long>(m_progress, StringComparer.Ordinal), m_pendingTrip?.Id,
-			m_goalChoice?.CreateRecord());
+			m_goalChoice?.CreateRecord(), m_sightings.Count == 0 ? null : m_sightings.Select(x => x.Value.CreateRecord(x.Key)).ToList(), m_talkRequest?.Id, HasNapped);
 
 	internal void SetFamily(Family family) => m_family = family;
+
+	/// <summary>
+	/// The person's relationships with everyone else, by the other person.
+	/// </summary>
+	public IReadOnlyDictionary<Person, Relationship> Relationships => m_relationships;
+
+	/// <summary>
+	/// Gets the person's relationship with someone else.
+	/// </summary>
+	public Relationship GetRelationship(Person other) => m_relationships[other];
+
+	internal void AddRelationship(Relationship relationship) => m_relationships.Add(relationship.GetOther(this), relationship);
+
+	/// <summary>
+	/// The last time the person saw each other person, or heard about them from someone else, in the last
+	/// <see cref="ScheduleSettings.SightingHours"/> hours, by the person seen.
+	/// </summary>
+	public IReadOnlyDictionary<Person, Sighting> Sightings => m_sightings;
+
+	/// <summary>
+	/// Whether the person is asleep: spending time on the need people meet while asleep.
+	/// </summary>
+	public bool IsAsleep => CurrentTask is BusyTask && m_goal is { } goal && goal.Id == m_gameData.Schedules.Start.Need;
+
+	/// <summary>
+	/// Remembers seeing someone, replacing any earlier sighting of them. What they said they were doing is kept while
+	/// their goal stays the same.
+	/// </summary>
+	internal void See(Person other, Sighting sighting)
+	{
+		if (other != this)
+		{
+			if (sighting.Plan is null && m_sightings.TryGetValue(other, out var known) && known is { Source: null, Plan: { } plan } && plan.Goal == other.Goal)
+				sighting = sighting with { Plan = plan };
+			m_sightings[other] = sighting;
+		}
+	}
+
+	/// <summary>
+	/// Sets a sighting as it was saved.
+	/// </summary>
+	internal void LoadSighting(Person other, Sighting sighting) => m_sightings[other] = sighting;
+
+	/// <summary>
+	/// Learns about a sighting of someone from someone else, and remembers it as secondhand if it's more recent than what
+	/// the person already knows. Returns whether it was remembered.
+	/// </summary>
+	public bool LearnSighting(Person other, Sighting sighting, Person source)
+	{
+		var isNewer = other != this && other != source && (!m_sightings.TryGetValue(other, out var known) || known.Time < sighting.Time);
+		if (isNewer)
+			m_sightings[other] = sighting with { Source = source };
+		return isNewer;
+	}
+
+	/// <summary>
+	/// Forgets the sightings from before the given time.
+	/// </summary>
+	internal void ForgetSightingsBefore(TimePoint time)
+	{
+		foreach (var other in m_sightings.Where(x => x.Value.Time < time).Select(x => x.Key).ToList())
+			m_sightings.Remove(other);
+	}
 
 	internal void SetLevel(Need need, double level) => m_levels[need.Id] = Math.Clamp(level, 0, Need.MaximumLevel);
 
@@ -258,6 +341,21 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	{
 		if (m_tasks.Count == 0)
 			throw new InvalidOperationException($"Person {Id} has no task to start.");
+		m_taskEnd = end;
+		RaiseScheduleChanged();
+	}
+
+	/// <summary>
+	/// Interrupts what the person is doing at the given time with another task, which ends at the given time. Their needs
+	/// are brought up to date first. The task they were doing is kept after the interruption, with the minutes it had left,
+	/// and their goal stays the same.
+	/// </summary>
+	internal void Interrupt(PersonTask interruption, TimePoint time, TimePoint end)
+	{
+		UpdateNeeds(time);
+		if (m_taskEnd is { } taskEnd)
+			m_tasks[0] = m_tasks[0] with { ResumeMinutes = (int) Math.Max(m_gameData.Calendar.GetTotalMinutes(taskEnd - time), 0) };
+		m_tasks.Insert(0, interruption);
 		m_taskEnd = end;
 		RaiseScheduleChanged();
 	}
@@ -350,6 +448,9 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	private CharacterTraits m_traits;
 	private string m_description;
 	private Family? m_family;
+	private readonly Dictionary<Person, Relationship> m_relationships = [];
+	private readonly Dictionary<Person, Sighting> m_sightings = [];
+	private Person? m_talkRequest;
 	private Location m_location;
 	private Need? m_goal;
 	private GoalChoice? m_goalChoice;
@@ -368,7 +469,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 /// </summary>
 public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, WorldId Location, IReadOnlyDictionary<string, JsonElement> Traits,
 	string? Goal, IReadOnlyList<PersonTaskRecord> Tasks, string? TaskEnd, IReadOnlyDictionary<string, double> Needs, IReadOnlyDictionary<string, long> Progress,
-	string? PendingTrip = null, GoalChoiceRecord? GoalChoice = null)
+	string? PendingTrip = null, GoalChoiceRecord? GoalChoice = null, IReadOnlyList<SightingRecord>? Sightings = null, WorldId? TalkRequest = null, bool HasNapped = false)
 	: WorldObjectRecord(Id)
 {
 	internal override IWorldObject Create(WorldLoader loader)
@@ -394,6 +495,7 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 			throw new SaveLoadException(OurResources.SaveTraitValueInvalid.FormatCurrentCulture(Id, "", atWorkProperty));
 
 		var person = new Person(Id, gameData, traits, Role, IsPlayer, loader.Get<Location>(Location), loader.Time);
+		person.HasNapped = HasNapped;
 		foreach (var (needId, level) in Needs)
 		{
 			var need = GetNeed(gameData, needId);
@@ -411,8 +513,9 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 		}
 
 		var goal = Goal is null ? null : GetNeed(gameData, Goal);
-		var choice = GoalChoice is { } choiceRecord ? LoadGoalChoice(gameData, choiceRecord) : null;
-		person.LoadSchedule(goal, Tasks.Select(x => x.Create(loader)).ToList(), TaskEnd is null || Tasks.Count == 0 ? null : LoadTime(gameData, TaskEnd), choice);
+		// Tasks and goal choices can refer to other people, such as someone they're talking with, who may not exist yet.
+		loader.Defer(() => person.LoadSchedule(goal, Tasks.Select(x => x.Create(loader)).ToList(), TaskEnd is null || Tasks.Count == 0 ? null : LoadTime(gameData, TaskEnd),
+			GoalChoice is { } choiceRecord ? LoadGoalChoice(loader, choiceRecord) : null));
 		if (PendingTrip is not null)
 		{
 			var trip = GetNeed(gameData, PendingTrip);
@@ -421,11 +524,18 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 			person.PendingTrip = trip;
 		}
 
+		// Sightings refer to other people, who may not exist yet.
+		if (Sightings is { } sightings)
+			loader.Defer(() => LoadSightings(loader, person, sightings));
+		if (TalkRequest is { } talkRequest)
+			loader.Defer(() => person.TalkRequest = loader.Get<Person>(talkRequest));
+
 		return person;
 	}
 
-	private GoalChoice LoadGoalChoice(GameData gameData, GoalChoiceRecord record)
+	private GoalChoice LoadGoalChoice(WorldLoader loader, GoalChoiceRecord record)
 	{
+		var gameData = loader.GameData;
 		var urgencies = new List<NeedUrgency>();
 		foreach (var urgency in record.Urgencies)
 		{
@@ -436,21 +546,30 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 		}
 
 		var chosen = record.Need is null ? null : GetNeed(gameData, record.Need);
-		return new GoalChoice(LoadTime(gameData, record.Time), urgencies, chosen, record.Result);
+		var seeking = record.Seeking is { } seek ? new SeekChoice(loader.Get<Person>(seek.Friend), loader.Get<Location>(seek.Place), seek.Clue) : null;
+		return new GoalChoice(LoadTime(gameData, record.Time), urgencies, chosen, record.Result, seeking);
+	}
+
+	private void LoadSightings(WorldLoader loader, Person person, IReadOnlyList<SightingRecord> sightings)
+	{
+		foreach (var record in sightings)
+		{
+			var other = loader.Get<Person>(record.Person);
+			var need = record.Need is null ? null : GetNeed(loader.GameData, record.Need);
+			var hasDestination = record.Activity is SightingActivity.Walking or SightingActivity.Left;
+			if (other == person || person.Sightings.ContainsKey(other) || !Enum.IsDefined(record.Activity) || (need is not null) != (record.Activity == SightingActivity.Busy) || (record.Destination is not null) != hasDestination)
+				throw new SaveLoadException(OurResources.SaveSightingInvalid.FormatCurrentCulture(Id, record.Person));
+
+			var plan = record.Plan is { } planRecord
+				? new SightingPlan(planRecord.Goal is null ? null : GetNeed(loader.GameData, planRecord.Goal), planRecord.Destination is { } planDestination ? loader.Get<Location>(planDestination) : null)
+				: null;
+			person.LoadSighting(other, new Sighting(loader.Get<Location>(record.Location), loader.LoadTime(record.Time), record.Activity, need,
+				record.Destination is { } destination ? loader.Get<Location>(destination) : null, record.Source is { } source ? loader.Get<Person>(source) : null, plan));
+		}
 	}
 
 	private static Need GetNeed(GameData gameData, string id) =>
 		gameData.Schedules.Needs.FirstOrDefault(x => x.Id == id) ?? throw new SaveLoadException(OurResources.SaveDataNotFound.FormatCurrentCulture("need", id));
 
-	private static TimePoint LoadTime(GameData gameData, string text)
-	{
-		try
-		{
-			return gameData.Calendar.LoadFromString(text);
-		}
-		catch (Exception e) when (e is FormatException or ArgumentOutOfRangeException)
-		{
-			throw new SaveLoadException(OurResources.SaveTimeInvalid.FormatCurrentCulture(text, e.Message), e);
-		}
-	}
+	private static TimePoint LoadTime(GameData gameData, string text) => WorldLoader.LoadTime(gameData, text);
 }

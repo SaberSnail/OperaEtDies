@@ -8,14 +8,14 @@ Do not run the application for testing unless specifically requested. It is suff
 
 `ToDo.md` at the repository root has two sections:
 
-* **Long Term** comes first: a bulleted list (not checkboxes) of items to address in the future.
-* **Current Work** comes second: the project being worked on now. Its first line is a brief description of the project, followed by a checklist of items with checkboxes.
+* **Long Term** comes first: items to address in the future, grouped into sub-projects of strongly related items. Each sub-project is a `###` heading followed by a bulleted list (not checkboxes).
+* **Current Work** comes second: the project being worked on now. Its first line is a brief description of the project, followed by a checklist of items with checkboxes. A larger project can split its checklist into sub-projects, each a `###` heading with its own checklist. Items that don't fit a sub-project of their own go in a **Cleanup** sub-project, which stays last.
 
 "Work" and "project" mean the same thing here (current work, current project). Manage the list like this:
 
-* Clear Current Work when starting new work from Long Term, or when told the current work is complete. To clear it, move every unchecked item in it to Long Term (as a bullet point), then remove the rest of it, including its description.
-* When starting work on an item from Long Term, clear Current Work first, then remove the item from Long Term and put its brief description at the top of Current Work.
-* As things that need to be addressed come up during the current project, add them to the Current Work checklist.
+* Clear Current Work when starting new work from Long Term, or when told the current work is complete. To clear it, move every unchecked item in it to Long Term, as a bullet point in the sub-project it fits best (or a new sub-project if none fits), then remove the rest of it, including its description and its sub-project headings.
+* When starting work on an item or a whole sub-project from Long Term, clear Current Work first, then remove it from Long Term (along with its sub-project heading, if the sub-project is left empty) and put its brief description at the top of Current Work.
+* As things that need to be addressed come up during the current project, add them to the Current Work checklist, in the sub-project they belong to, if it has sub-projects.
 * When a Current Work item is addressed, check it off and leave it in place. Don't delete it.
 
 ## Village Report
@@ -30,7 +30,7 @@ OperaEtDies/bin/Debug/net9.0-windows/OperaEtDies.exe --no-mods --generate-villag
 * `--seed <n>` is optional. Village `i` uses seed `n + i`, so `--generate-villages 1 --seed <seed>` reproduces any village from its `seed` column. Without it, the first seed is random.
 * Exit code 0 is success, 1 means the data failed to load (errors go to standard error), and 2 means invalid arguments.
 * About 500 villages take 5 seconds.
-* The first field of each line is the record type. The output starts with one header line per type (the type prefixed with `#`) naming its columns, so check the headers rather than assuming column positions. The types are `village`, `household`, `person` (with one column per need and one per character property, holding the value id), `business`, `location` (with each quarter's position and size on the map), `exit` (one per direction of each path between quarters), `feature` (map features such as the river), `activity` (with `--simulate-days`), and `log` (warnings and errors logged while loading or generating, such as reused templates). To see a village's layout, draw each quarter's rectangle from its `location` record as a grid of letters with awk.
+* The first field of each line is the record type. The output starts with one header line per type (the type prefixed with `#`) naming its columns, so check the headers rather than assuming column positions. The types are `village`, `household`, `person` (with one column per need and one per character property, holding the value id), `business`, `relationship` (each pair of people, with their score and whether they're friends), `sighting` (the last time each person saw each other person), `location` (with each quarter's position and size on the map), `exit` (one per direction of each path between quarters), `feature` (map features such as the river), `activity` (with `--simulate-days`), and `log` (warnings and errors logged while loading or generating, such as reused templates). To see a village's layout, draw each quarter's rectangle from its `location` record as a grid of letters with awk.
 * Analyze the file with `awk -F'\t'`, `sort`, and `uniq -c` (Python and jq aren't available). For example, the owners of each profession: `awk -F'\t' '$1=="business"{print $4}' villages.tsv | sort | uniq -c | sort -rn`.
 * `--portraits <folder>` also saves each person's portrait to the folder as `<village>-<household>-<member>.png`, and the `portraitLayers` column of each `person` record lists the portrait layers drawn for them.
 * `--simulate-days <days>` runs each village for that many days after it's created and writes an `activity` record each time someone starts a task (when, who, their goal need, the task, how long it takes, and where). Use it to check schedules and needs, such as when people sleep, eat, and work.

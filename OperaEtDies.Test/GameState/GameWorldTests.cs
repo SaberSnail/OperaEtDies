@@ -272,11 +272,13 @@ public sealed class GameWorldTests
 		}
 	}
 
-	internal static (GeneratedTown Town, GameWorld World) CreateWorld(int seed = 0, bool withFeatures = false, bool withSchedules = false)
+	internal static (GeneratedTown Town, GameWorld World) CreateWorld(int seed = 0, bool withFeatures = false, bool withSchedules = false, bool isHeadless = true)
 	{
 		var gameData = TestData.CreateGameData(withFeatures: withFeatures, withSchedules: withSchedules);
 		var random = new Random(seed);
 		var town = TownGenerator.Generate(gameData, TestData.CreatePlayerTraits(gameData), random);
-		return (town, GameWorld.CreateFromTown(gameData, town, random));
+		var world = GameWorld.CreateFromTown(gameData, town, random);
+		world.IsHeadless = isHeadless;
+		return (town, world);
 	}
 }

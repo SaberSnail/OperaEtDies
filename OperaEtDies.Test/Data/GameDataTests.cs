@@ -613,7 +613,8 @@ public sealed class GameDataTests
 			{
 				"professions": [
 					{ "id": "smith", "title": "Smith", "wealth": "high", "maxBusinesses": 0, "helpers": -1, "forHouseholdElders": true },
-					{ "id": "smith", "title": "Smith", "wealth": "low", "worksFromHome": true }
+					{ "id": "smith", "title": "Smith", "wealth": "low", "worksFromHome": true },
+					{ "id": "brewer", "title": "Brewer", "wealth": "low", "workHours": { "start": 20, "end": 20 } }
 				]
 			}
 			""");
@@ -626,6 +627,7 @@ public sealed class GameDataTests
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("professions[smith].helpers", -1, 0),
 			OurResources.ProfessionElderTradeNotFromHome.FormatCurrentCulture("smith"),
 			OurResources.DataListItemIdDuplicate.FormatCurrentCulture("smith", "professions"),
+			OurResources.ProfessionWorkHoursInvalid.FormatCurrentCulture("brewer", 20, 20),
 		}));
 	}
 
@@ -649,6 +651,8 @@ public sealed class GameDataTests
 				"married": "married_yes",
 				"unmarried": "",
 				"familyCount": { "minimum": -1, "maximum": 5, "shape": { "peak": "middle", "mostWithin": 1 } },
+				"relationships": { "score": { "minimum": -5, "maximum": 120, "shape": { "peak": "middle", "mostWithin": 10 } }, "familyBonus": -1, "spouseBonus": -2, "elderBonus": 5, "elderInLawBonus": 5, "neighborBonus": 5, "friendScore": 101,
+					"levels": [ { "minimum": 10, "title": "Cold" }, { "minimum": 5, "title": "" } ] },
 				"femaleHeadChance": 101,
 				"femaleHeadMinWealth": "low",
 				"headAge": { "minimum": 50, "maximum": 20, "shape": { "peak": "middle", "mostWithin": 9 } },
@@ -686,6 +690,14 @@ public sealed class GameDataTests
 			OurResources.DataValueMissing.FormatCurrentCulture("properties.age"),
 			OurResources.DataValueMissing.FormatCurrentCulture("female"),
 			OurResources.DataValueMissing.FormatCurrentCulture("homemaker"),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("relationships.score.minimum", -5, 0),
+			OurResources.DataNumberTooLarge.FormatCurrentCulture("relationships.score.maximum", 120, 100),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("relationships.familyBonus", -1, 0),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("relationships.spouseBonus", -2, 0),
+			OurResources.DataNumberTooLarge.FormatCurrentCulture("relationships.friendScore", 101, 100),
+			OurResources.RelationshipLevelOutOfOrder.FormatCurrentCulture("relationships.levels[0]", 10),
+			OurResources.DataValueMissing.FormatCurrentCulture("relationships.levels[1].title"),
+			OurResources.RelationshipLevelOutOfOrder.FormatCurrentCulture("relationships.levels[1]", 5),
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("familyCount.minimum", -1, 0),
 			OurResources.IntegerRangeInvalid.FormatCurrentCulture("headAge", 20, 50),
 			OurResources.IntegerRangeInvalid.FormatCurrentCulture("wifeAgeDifference", -10, 4),

@@ -9,9 +9,9 @@ using OperaEtDies.Time;
 namespace OperaEtDies.Controls.Locations;
 
 /// <summary>
-/// A person who can be examined to see a description of them, such as someone in the player's location, with what
+/// A person who can be examined to open a view focused on them, such as someone in the player's location, with what
 /// they're doing, and how they're related to the player if they're in the player's household. In the player's location,
-/// the player can follow them. In the list of villagers, the player is labeled, and developers can go to where anyone
+/// the player can talk with them and follow them. In the list of villagers, the player is labeled, and developers can go to where anyone
 /// else is.
 /// </summary>
 public sealed class LocationPersonViewModel : ViewModelBase
@@ -19,11 +19,12 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	/// <summary>
 	/// Creates the view model. With the family settings, the player is labeled as the player, and members of their household
 	/// with how they're related to the player. If there's a way to go to people or
-	/// to follow them, it's offered for everyone but the player. With the developer calendar, developers are shown where
+	/// to follow them, it's offered for everyone but the player. If there's a way to examine people, it's offered for
+	/// everyone. With the developer calendar, developers are shown where
 	/// everyone but the player is going and why.
 	/// </summary>
 	public LocationPersonViewModel(Person person, PortraitRenderer? portraitRenderer, ScheduleSettings? schedules = null, FamilySettings? labelRelations = null,
-		Action<Person>? goTo = null, Action<Person>? toggleFollow = null, GameCalendar? developerCalendar = null)
+		Action<Person>? goTo = null, Action<Person>? toggleFollow = null, GameCalendar? developerCalendar = null, Action<Person>? examine = null, Action<Person>? talk = null)
 	{
 		Person = person;
 		m_portraitRenderer = portraitRenderer;
@@ -31,6 +32,8 @@ public sealed class LocationPersonViewModel : ViewModelBase
 		m_developerCalendar = person.IsPlayer ? null : developerCalendar;
 		m_goTo = person.IsPlayer ? null : goTo;
 		m_toggleFollow = person.IsPlayer ? null : toggleFollow;
+		m_examine = examine;
+		m_talk = person.IsPlayer ? null : talk;
 		IsYou = labelRelations is not null && person.IsPlayer;
 		PlayerLabel = labelRelations is null ? null : IsYou ? OurResources.ThisIsYou :
 			person.Family.Members.Any(x => x.IsPlayer) && labelRelations.GetPlayerRelation(person.Traits.GetValueId) is { } relation ? OurResources.ThisIsYourRelation.FormatCurrentCulture(relation) : null;
@@ -40,8 +43,7 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// The person, whose description and portrait are only shown once they've been examined. The description is bound
-	/// to directly, so it updates when the person's work changes.
+	/// The person. Their description is bound to directly, so it updates when the person's work changes.
 	/// </summary>
 	public Person Person { get; }
 
@@ -68,12 +70,6 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	/// A picture of the person where they are, or null if there's no portrait data.
 	/// </summary>
 	public ImageSource? Portrait => VerifyAccess(m_portraitRenderer?.GetPortrait(Person.Traits, Person.PortraitPlace));
-
-	public bool IsExamined
-	{
-		get => VerifyAccess(m_isExamined);
-		private set => SetPropertyField(value, ref m_isExamined);
-	}
 
 	/// <summary>
 	/// Whether to label the person as the player.
@@ -109,12 +105,32 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	/// </summary>
 	public string FollowText => IsFollowed ? OurResources.StopFollowing : OurResources.FollowPerson;
 
-	public bool CanExamine() => !m_isExamined;
+	/// <summary>
+	/// Whether the player can talk with the person.
+	/// </summary>
+	public bool CanTalk => m_talk is not null;
 
+	/// <summary>
+	/// Starts a conversation with the person.
+	/// </summary>
+	public void Talk()
+	{
+		VerifyAccess();
+		m_talk?.Invoke(Person);
+	}
+
+	/// <summary>
+	/// Whether the person can be examined, which opens a view focused on them.
+	/// </summary>
+	public bool CanExamine() => m_examine is not null;
+
+	/// <summary>
+	/// Opens a view focused on the person.
+	/// </summary>
 	public void Examine()
 	{
 		VerifyAccess();
-		IsExamined = true;
+		m_examine?.Invoke(Person);
 	}
 
 	/// <summary>
@@ -136,7 +152,7 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Describes what the person is doing: walking to the next place on their way, or the activity of the need they're
+	/// Describes what the person is doing: walking to the next place on their way, talking with someone, or the activity of the need they're
 	/// spending time on (or of being idle). Time at home after a trip has the need's home activity, if it has one.
 	/// </summary>
 	private string? GetActivity()
@@ -145,6 +161,14 @@ public sealed class LocationPersonViewModel : ViewModelBase
 		if (Person.CurrentTask is TravelTask travel)
 		{
 			activity = OurResources.PersonTraveling.FormatCurrentCulture(travel.Destination.Title);
+		}
+		else if (Person.CurrentTask is TalkTask talk)
+		{
+			activity = OurResources.PersonTalking.FormatCurrentCulture(talk.With.FullName);
+		}
+		else if (Person.CurrentTask is WaitTask wait)
+		{
+			activity = OurResources.PersonWaitingFor.FormatCurrentCulture(wait.For.FullName);
 		}
 		else if (Person.CurrentTask is BusyTask)
 		{
@@ -205,8 +229,22 @@ public sealed class LocationPersonViewModel : ViewModelBase
 			GoalChoiceResult.NoTime => OurResources.DeveloperGoalNoTime.FormatCurrentCulture(time, title),
 			_ => OurResources.DeveloperGoalNothingUrgent.FormatCurrentCulture(time),
 		};
+
+		// Someone seeking a friend chose who and where from a clue.
+		if (choice.Seeking is { } seeking)
+		{
+			var clue = seeking.Clue switch
+			{
+				SeekClue.Workplace => OurResources.DeveloperSeekWorkplace,
+				SeekClue.Home => OurResources.DeveloperSeekHome,
+				SeekClue.Sighting => OurResources.DeveloperSeekSighting,
+				_ => OurResources.DeveloperSeekGathering,
+			};
+			result = OurResources.DeveloperGoalSeeking.FormatCurrentCulture(result, seeking.Friend.FullName, seeking.Place.Title, clue);
+		}
+
 		var urgencies = choice.Urgencies.Count == 0 ? OurResources.DeveloperNoUrgencies :
-			string.Join(OurResources.DeveloperUrgencySeparator, choice.Urgencies.Select(x => schedules.IsGoalCandidate(x.Urgency)
+			string.Join(OurResources.DeveloperUrgencySeparator, choice.Urgencies.Select(x => schedules.IsGoalCandidate(x.Need, x.Urgency)
 				? OurResources.DeveloperUrgency.FormatCurrentCulture(x.Need.Title, x.Urgency, choice.GetChance(x, schedules))
 				: OurResources.DeveloperUrgencyTooLow.FormatCurrentCulture(x.Need.Title, x.Urgency, schedules.MinimumUrgency)));
 		return OurResources.DeveloperGoalReason.FormatCurrentCulture(result, urgencies);
@@ -227,6 +265,7 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	private readonly GameCalendar? m_developerCalendar;
 	private readonly Action<Person>? m_goTo;
 	private readonly Action<Person>? m_toggleFollow;
-	private bool m_isExamined;
+	private readonly Action<Person>? m_examine;
+	private readonly Action<Person>? m_talk;
 	private bool m_isFollowed;
 }

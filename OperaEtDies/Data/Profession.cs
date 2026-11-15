@@ -57,7 +57,7 @@ public sealed class Profession : IIdentified
 	/// <summary>
 	/// Whether any business setting is given, which only businesses may have.
 	/// </summary>
-	public bool HasBusinessSettings => Wealth is not null || MaxBusinesses is not null || Helpers is not null || HelperWhen is not null || WorksFromHome || ForHouseholdElders;
+	public bool HasBusinessSettings => Wealth is not null || MaxBusinesses is not null || Helpers is not null || HelperWhen is not null || WorksFromHome || ForHouseholdElders || WorkHours is not null;
 
 	/// <summary>
 	/// Creates the character property value for the profession.
@@ -107,7 +107,24 @@ public sealed class Profession : IIdentified
 	public bool ForHouseholdElders { get; init; }
 
 	/// <summary>
+	/// The hours people in this profession work, in place of the hours of the needs met at the workplace, or null to use
+	/// those needs' hours.
+	/// </summary>
+	public WorkHours? WorkHours { get; init; }
+
+	/// <summary>
 	/// Whether the town can have another business in this profession, given how many it has.
 	/// </summary>
 	public bool HasRoomForBusiness(int businessCount) => MaxBusinesses is not { } max || businessCount < max;
+}
+
+/// <summary>
+/// The hours of a working day, from the start hour up to the end hour. An end of 24 means midnight, and an end before the
+/// start means working past midnight.
+/// </summary>
+public sealed class WorkHours
+{
+	public required int Start { get; init; }
+
+	public required int End { get; init; }
 }

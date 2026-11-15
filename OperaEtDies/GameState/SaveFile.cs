@@ -18,7 +18,7 @@ public sealed record SaveFile(int Version, string GameTitle, string DataHash, IR
 	/// The version of the save format this version of the game writes and reads. Increase it when old saves can no
 	/// longer load.
 	/// </summary>
-	public const int CurrentVersion = 3;
+	public const int CurrentVersion = 4;
 
 	public const string Extension = ".json";
 

@@ -61,6 +61,8 @@ public sealed class ProfessionList : IValidatedData
 			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.helpers", profession.Helpers, 0);
 		if (profession.ForHouseholdElders && !profession.WorksFromHome)
 			yield return OurResources.ProfessionElderTradeNotFromHome.FormatCurrentCulture(profession.Id);
+		if (profession.WorkHours is { } hours && (hours.Start is < 0 or > 23 || hours.End is < 1 or > 24 || hours.End == hours.Start))
+			yield return OurResources.ProfessionWorkHoursInvalid.FormatCurrentCulture(profession.Id, hours.Start, hours.End);
 		foreach (var (propertyId, values) in profession.Defaults ?? new Dictionary<string, IReadOnlyList<WeightedString>>())
 		{
 			foreach (var error in DataValidation.ValidateWeightedStrings($"{path}.defaults.{propertyId}", values))

@@ -37,15 +37,15 @@ public sealed class SchedulerTests
 			starts.Add((e.Person, e.Person.Goal?.Id, e.Task, e.Person.Location.QuarterKind));
 			if (e.Task is TravelTask travel)
 				Assert.That(e.Person.Location.Connections, Does.Contain(travel.Destination));
-			else if (e.Person.Goal?.Id == "work")
+			else if (e.Task is BusyTask && e.Person.Goal?.Id == "work")
 				Assert.That((e.Person.Location, e.Person.IsAtWork), Is.EqualTo((e.Person.Workplace, true)));
-			else
+			else if (e.Task is BusyTask)
 				Assert.That(e.Person.IsAtWork, Is.False);
 		};
 
 		world.AdvanceTime(world.GameData.Calendar.CreateTimeOffset(2, 0, 0));
 
-		Assert.That(starts.Select(x => x.Task.GetType()).Distinct(), Is.EquivalentTo(new[] { typeof(TravelTask), typeof(BusyTask) }));
+		Assert.That(starts.Select(x => x.Task.GetType()).Distinct(), Is.SubsetOf(new[] { typeof(TravelTask), typeof(BusyTask), typeof(TalkTask) }).And.Contains(typeof(TravelTask)).And.Contains(typeof(BusyTask)));
 		Assert.That(starts.Select(x => x.Goal).Distinct(), Is.SupersetOf(new[] { "fatigue", "hunger", "restlessness", "work", "upkeep" }));
 		Assert.That(starts.Where(x => x.Task is BusyTask && x.Goal == "restlessness").Select(x => x.QuarterKind).Distinct(), Is.SubsetOf(new[] { "square", "landmark" }));
 	}
@@ -138,7 +138,8 @@ public sealed class SchedulerTests
 		{
 			var size = family.Members.Count;
 			var spent = busy.Where(x => x.Person.Family == family).ToList();
-			Assert.That(spent.Where(x => x.Location != family.Home).Sum(x => x.Minutes), Is.LessThanOrEqualTo(laundry.GetVisitMinutes(size)));
+			// Someone who joins a family member at the place takes over some of the time at home, so only the total is limited.
+			Assert.That(spent.Sum(x => x.Minutes), Is.LessThanOrEqualTo(laundry.GetVisitMinutes(size) + laundry.GetHomeMinutes(size)));
 			Assert.That(spent.Where(x => x.Location == family.Home).Sum(x => x.Minutes), Is.LessThanOrEqualTo(laundry.GetHomeMinutes(size)));
 		}
 	}
@@ -264,10 +265,17 @@ public sealed class SchedulerTests
 		Assert.That(scheduler.GetUrgency(worker, work, At(12, 0)), Is.EqualTo(100));
 		Assert.That(scheduler.GetUrgency(worker, work, At(19, 0)), Is.Zero);
 
-		// Fatigue is urgent from 85, and only at night.
+		// Fatigue is urgent from 85, and only at night, for someone with no work to go to bed for.
+		var testWorld = new TestWorld(world.GameData);
+		var idle = testWorld.AddPerson(TestData.CreateTraits(world.GameData, "female", "Jane", "Smith", "homemaker", "tall", "slim", 40), testWorld.AddLocation(world.GameData.HouseTemplates[0]));
+		idle.SetLevel(fatigue, 92.5);
+		Assert.That(scheduler.GetUrgency(idle, fatigue, At(22, 0)), Is.EqualTo(50).Within(0.001));
+		Assert.That(scheduler.GetUrgency(idle, fatigue, At(12, 0)), Is.Zero);
+
+		// Someone who works also needs to be rested for it, like a deadline: at 22:00, work at 6:00 is 8 hours away, less
+		// 92.5 / 12 hours of sleep, which leaves 17.5 minutes to spare out of the hour's bedtime lead.
 		worker.SetLevel(fatigue, 92.5);
-		Assert.That(scheduler.GetUrgency(worker, fatigue, At(22, 0)), Is.EqualTo(50).Within(0.001));
-		Assert.That(scheduler.GetUrgency(worker, fatigue, At(12, 0)), Is.Zero);
+		Assert.That(scheduler.GetUrgency(worker, fatigue, At(22, 0)), Is.EqualTo(100 * (1 - (17.5 / 60))).Within(0.001));
 
 		TimePoint At(int hour, int minute) => nextDay + calendar.CreateTimeOffset(0, hour, minute);
 	}
@@ -293,6 +301,33 @@ public sealed class SchedulerTests
 		homemaker.SetLevel(fatigue, 95);
 		var night = gameData.Calendar.AddMinutes(testWorld.Time, 22 * 60);
 		Assert.That(scheduler.GetUrgency(homemaker, fatigue, night), Is.EqualTo(scheduler.GetUrgency(smith, fatigue, night)));
+	}
+
+	[Test]
+	public void AProfessionsWorkHoursReplaceTheWorkNeedsHours()
+	{
+		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
+		var gameData = world.GameData;
+		var scheduler = new Scheduler(world);
+		var testWorld = new TestWorld(gameData);
+		var home = testWorld.AddLocation(gameData.HouseTemplates[0]);
+		var workplace = testWorld.AddLocation(gameData.BusinessTemplates[0]);
+		var dayWorker = testWorld.AddPerson(TestData.CreateTraits(gameData, "male", "John", "Smith", "smith", "tall", "slim", 40), home, workplace);
+		var nightWorker = testWorld.AddPerson(TestData.CreateTraits(gameData, "male", "Tom", "Smith", "smith", "tall", "slim", 40), home);
+		var smith = gameData.Professions.Get("smith");
+		var lateSmith = new Profession { Id = smith.Id, Title = smith.Title, Wealth = smith.Wealth, WorkHours = new WorkHours { Start = 14, End = 24 } };
+		testWorld.Objects.Create(id => new Business(id, lateSmith, nightWorker, [], workplace));
+		var work = GetNeed(world, "work");
+		var day = gameData.Calendar.GetStartOfDay(testWorld.Time);
+
+		// Late in the evening, the work need's own hours are over, but the late shift still has time to work.
+		var evening = day + gameData.Calendar.CreateTimeOffset(0, 20, 0);
+		Assert.That(scheduler.GetUrgency(dayWorker, work, evening), Is.Zero);
+		Assert.That(scheduler.GetUrgency(nightWorker, work, evening), Is.GreaterThan(0));
+
+		// And in the morning, before the late shift starts, they can't work.
+		var morning = day + gameData.Calendar.CreateTimeOffset(0, 9, 0);
+		Assert.That(scheduler.GetUrgency(nightWorker, work, morning), Is.Zero);
 	}
 
 	[Test]
@@ -338,7 +373,7 @@ public sealed class SchedulerTests
 	[Test]
 	public void PlayerSleepsAtHomeUntilRestedOrForAWhile()
 	{
-		var (_, world) = GameWorldTests.CreateWorld(0, withSchedules: true);
+		var (_, world) = GameWorldTests.CreateWorld(0, withSchedules: true, isHeadless: false);
 		var calendar = world.GameData.Calendar;
 		var player = world.Player;
 		var fatigue = GetNeed(world, "fatigue");
@@ -349,7 +384,7 @@ public sealed class SchedulerTests
 		world.AdvanceTime(calendar.CreateTimeOffset(0, 10, 0));
 		var level = player.GetLevel(fatigue);
 		var minutes = world.GetPlayerActionMinutes(fatigue, options[0]);
-		Assert.That(minutes, Is.EqualTo((int) Math.Ceiling(level / 12 * 60)));
+		Assert.That(minutes, Is.EqualTo((int) Math.Ceiling(Math.Round(level / 12 * 60, 6))));
 		var start = world.Time;
 		Assert.That(world.DoPlayerAction(fatigue, minutes), Is.EqualTo(calendar.CreateTimeOffset(0, 0, minutes)));
 		Assert.That(world.Time, Is.EqualTo(calendar.AddMinutes(start, minutes)));
@@ -371,7 +406,7 @@ public sealed class SchedulerTests
 	[Test]
 	public void PlayerWorksAtTheirWorkplaceTowardTheirWorkQuota()
 	{
-		var world = Enumerable.Range(0, 50).Select(x => GameWorldTests.CreateWorld(x, withSchedules: true).World).First(x => x.Player.Business is not null);
+		var world = Enumerable.Range(0, 50).Select(x => GameWorldTests.CreateWorld(x, withSchedules: true, isHeadless: false).World).First(x => x.Player.Business is not null);
 		var player = world.Player;
 		var work = GetNeed(world, "work");
 		var options = work.PlayerAction!.Options;

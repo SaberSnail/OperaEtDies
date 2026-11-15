@@ -576,6 +576,10 @@
 		<value>&quot;{0}&quot; is &quot;{1}&quot;, but the character property &quot;{2}&quot; has no value with that id.</value>
 		<comment>{0} is the setting in the data file. {1} is the value id found. {2} is the id of the property the value should belong to.</comment>
 	</data>
+	<data name="ViewCharacter" xml:space="preserve">
+		<value>Character</value>
+		<comment>Sidebar button that shows a view focused on the player's own character.</comment>
+	</data>
 	<data name="ViewVillagers" xml:space="preserve">
 		<value>Villagers</value>
 		<comment>Sidebar button that shows everyone in the village, grouped by family.</comment>
@@ -1092,10 +1096,6 @@
 		<value>Each of the levels of &quot;{0}&quot; must have a minimum from 0 to {1} that&apos;s higher than the level before it.</value>
 		<comment>{0} is the location of the need in the data file. {1} is the highest level a need can have.</comment>
 	</data>
-	<data name="NeedHoursInvalid" xml:space="preserve">
-		<value>The need &quot;{0}&quot; runs from hour {1} to hour {2}, but it must start before it ends, from hour 0 to 24.</value>
-		<comment>{0} is the need id. {1} is the start hour. {2} is the end hour.</comment>
-	</data>
 	<data name="NeedMinutesTooLong" xml:space="preserve">
 		<value>The need &quot;{0}&quot; takes {1} minutes, but its hours only have {2}.</value>
 		<comment>{0} is the need id. {1} is the minutes it takes. {2} is the minutes between its start and end hours.</comment>
@@ -1363,5 +1363,277 @@
 	<data name="NeedStatusDone" xml:space="preserve">
 		<value>Done</value>
 		<comment>Marker on the status page for a need that is done for the day or week.</comment>
+	</data>
+	<data name="DataNumberTooLarge" xml:space="preserve">
+		<value>&quot;{0}&quot; is {1}, but it must be at most {2}.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the value found. {2} is the largest allowed value.</comment>
+	</data>
+	<data name="RelationshipLevelOutOfOrder" xml:space="preserve">
+		<value>&quot;{0}&quot; starts at {1}, but the first level must start at 0, and each level after it must start after the one before it, at no more than 100.</value>
+		<comment>{0} is the location of the relationship level in the data file. {1} is its minimum score.</comment>
+	</data>
+	<data name="SaveRelationshipInvalid" xml:space="preserve">
+		<value>The saved relationship {0} is invalid: it must be between two different people who have no other relationship, with a score from 0 to 100.</value>
+		<comment>{0} is the id of the relationship in the save file.</comment>
+	</data>
+	<data name="SaveRelationshipsMissing" xml:space="preserve">
+		<value>The save is missing relationships: everyone must have a relationship with everyone else.</value>
+		<comment>Shown when a saved game doesn&apos;t have a relationship for every two people.</comment>
+	</data>
+	<data name="RelationshipsHeader" xml:space="preserve">
+		<value>Relationships</value>
+		<comment>Header in the character view above the list of how the person gets along with everyone else.</comment>
+	</data>
+	<data name="SaveSightingInvalid" xml:space="preserve">
+		<value>Person {0} has an invalid sighting of {1}: it must be of someone else, only one per person, and have a need only when they were busy, and a destination only when they were walking or leaving.</value>
+		<comment>{0} is the id of the person in the save file, and {1} the id of the person they saw.</comment>
+	</data>
+	<data name="SightingsHeader" xml:space="preserve">
+		<value>Sightings</value>
+		<comment>For developers, the header in the character view above who the person has seen lately.</comment>
+	</data>
+	<data name="SightingsNone" xml:space="preserve">
+		<value>No one in the last day.</value>
+		<comment>For developers, in the character view when the person has seen no one lately.</comment>
+	</data>
+	<data name="SightingDoing" xml:space="preserve">
+		<value>{0}: {1} at {2}, {3}</value>
+		<comment>For developers, a sighting of someone busy. {0} is their name, {1} what they were doing (such as &quot;Washing&quot;), {2} where, and {3} the time.</comment>
+	</data>
+	<data name="SightingThere" xml:space="preserve">
+		<value>{0}: at {1}, {2}</value>
+		<comment>For developers, a sighting of someone doing nothing in particular. {0} is their name, {1} where, and {2} the time.</comment>
+	</data>
+	<data name="SightingWalking" xml:space="preserve">
+		<value>{0}: walking from {1} to {2}, {3}</value>
+		<comment>For developers, a sighting of someone setting off along a path. {0} is their name, {1} where they were, {2} the next place on their way, and {3} the time.</comment>
+	</data>
+	<data name="SightingLeft" xml:space="preserve">
+		<value>{0}: left {1} for {2}, {3}</value>
+		<comment>For developers, a sighting of someone leaving. {0} is their name, {1} where they left, {2} where they went, and {3} the time.</comment>
+	</data>
+	<data name="SightingToldBy" xml:space="preserve">
+		<value>{0} (told by {1})</value>
+		<comment>For developers, a sighting learned from someone else. {0} is the sighting, and {1} the name of who told them.</comment>
+	</data>
+	<data name="SightingIdle" xml:space="preserve">
+		<value>Idle</value>
+		<comment>For developers, what someone idle was doing in a sighting, when the data gives no activity for being idle.</comment>
+	</data>
+	<data name="StatusHeaderPerson" xml:space="preserve">
+		<value>Status of {0}</value>
+		<comment>Header of the status page when a developer looks at someone other than the player. {0} is their name.</comment>
+	</data>
+	<data name="ViewPersonStatus" xml:space="preserve">
+		<value>Status</value>
+		<comment>For developers, the button in someone&apos;s character view that shows their needs.</comment>
+	</data>
+	<data name="PersonTalking" xml:space="preserve">
+		<value>Talking with {0}</value>
+		<comment>What someone is doing while talking with someone. {0} is the other person&apos;s name.</comment>
+	</data>
+	<data name="SightingTalking" xml:space="preserve">
+		<value>Talking</value>
+		<comment>For developers, what someone was doing in a sighting while talking with someone.</comment>
+	</data>
+	<data name="ScheduleSocializeNeedInvalid" xml:space="preserve">
+		<value>The talking setting &quot;socializeNeed&quot; is &quot;{0}&quot;, but it must be the id of a level need.</value>
+		<comment>{0} is the need id found.</comment>
+	</data>
+	<data name="TalkToPerson" xml:space="preserve">
+		<value>Talk</value>
+		<comment>The button beside someone in the player&apos;s location that starts a conversation with them.</comment>
+	</data>
+	<data name="ConversationHeader" xml:space="preserve">
+		<value>Talking with {0}</value>
+		<comment>Header of the conversation view. {0} is the name of the person being talked with.</comment>
+	</data>
+	<data name="ConversationAskDoing" xml:space="preserve">
+		<value>What are you doing? ({0})</value>
+		<comment>Button in the conversation view that asks the person where they&apos;re going and why. {0} is how long it takes, such as &quot;5 minutes&quot;.</comment>
+	</data>
+	<data name="ConversationAskAbout" xml:space="preserve">
+		<value>Ask ({0})</value>
+		<comment>Button in the conversation view, beside the list of people, that asks whether the person has seen the chosen one. {0} is how long it takes, such as &quot;1 minute&quot;.</comment>
+	</data>
+	<data name="ConversationAskAboutLabel" xml:space="preserve">
+		<value>Have you seen</value>
+		<comment>Label in the conversation view before the list of people the player can ask about.</comment>
+	</data>
+	<data name="ConversationSocialize" xml:space="preserve">
+		<value>Chat ({0})</value>
+		<comment>Button in the conversation view that socializes with the person. {0} is how long it takes, such as &quot;30 minutes&quot;.</comment>
+	</data>
+	<data name="ConversationAskedDoing" xml:space="preserve">
+		<value>You ask {0} what they&apos;re doing.</value>
+		<comment>A line in the conversation view after the player asks what someone is doing. {0} is their name.</comment>
+	</data>
+	<data name="ConversationAskedAbout" xml:space="preserve">
+		<value>You ask {0} whether they&apos;ve seen {1}.</value>
+		<comment>A line in the conversation view after the player asks about someone. {0} is the name of the person asked, and {1} the name of the person asked about.</comment>
+	</data>
+	<data name="ConversationSocialized" xml:space="preserve">
+		<value>You chat with {0} for {1}.</value>
+		<comment>A line in the conversation view after the player socializes with someone. {0} is their name, and {1} how long, such as &quot;30 minutes&quot;.</comment>
+	</data>
+	<data name="ConversationNotHere" xml:space="preserve">
+		<value>{0} isn&apos;t here anymore.</value>
+		<comment>Shown in the conversation view when the person has left. {0} is their name.</comment>
+	</data>
+	<data name="ConversationTooBusy" xml:space="preserve">
+		<value>{0} is too busy to talk right now.</value>
+		<comment>Shown in the conversation view when the person refuses to talk because their goal is too urgent. {0} is their name.</comment>
+	</data>
+	<data name="TalkPlanWalkingIdle" xml:space="preserve">
+		<value>“I&apos;m just on my way to {0}.”</value>
+		<comment>What someone says they&apos;re doing while walking somewhere with no goal. {0} is where their walk ends.</comment>
+	</data>
+	<data name="TalkPlanIdle" xml:space="preserve">
+		<value>“Nothing in particular.”</value>
+		<comment>What someone says they&apos;re doing while idle.</comment>
+	</data>
+	<data name="TalkNotSeen" xml:space="preserve">
+		<value>“I haven&apos;t seen {0} lately.”</value>
+		<comment>What someone says when asked about a person they haven&apos;t seen. {0} is the name of the person asked about.</comment>
+	</data>
+	<data name="TalkSeen" xml:space="preserve">
+		<value>I saw {0} {1}, around {2}.</value>
+		<comment>What someone says (inside TalkQuote) when asked about a person they saw. {0} is the name of the person seen, {1} where and what they were doing (such as &quot;at The Ford, washing&quot;), and {2} when (such as &quot;7:15&quot;).</comment>
+	</data>
+	<data name="TalkHeard" xml:space="preserve">
+		<value>{3} told me {0} was {1}, around {2}.</value>
+		<comment>What someone says (inside TalkQuote) when asked about a person they heard about. {0} is the name of the person seen, {1} where and what they were doing (such as &quot;at The Ford, washing&quot;), {2} when (such as &quot;7:15&quot;), and {3} who told them.</comment>
+	</data>
+	<data name="TalkSourceYou" xml:space="preserve">
+		<value>You</value>
+		<comment>In a secondhand sighting someone describes, when it was the player who told them.</comment>
+	</data>
+	<data name="TalkSeenYesterday" xml:space="preserve">
+		<value>{0} yesterday</value>
+		<comment>When something was seen, if it was the day before. {0} is the time, such as &quot;21:00&quot;.</comment>
+	</data>
+	<data name="TalkSeenAt" xml:space="preserve">
+		<value>at {0}</value>
+		<comment>Where someone was seen doing nothing in particular. {0} is the place.</comment>
+	</data>
+	<data name="TalkSeenBusy" xml:space="preserve">
+		<value>at {0}, {1}</value>
+		<comment>Where someone was seen and what they were doing. {0} is the place, and {1} what they were doing, starting with a lowercase letter, such as &quot;washing&quot;.</comment>
+	</data>
+	<data name="TalkSeenWalking" xml:space="preserve">
+		<value>at {0}, heading for {1}</value>
+		<comment>Where someone was seen setting off along a path. {0} is the place, and {1} the next place on their way.</comment>
+	</data>
+	<data name="TalkSeenLeaving" xml:space="preserve">
+		<value>leaving {0} for {1}</value>
+		<comment>Someone seen leaving a place. {0} is the place, and {1} where they went.</comment>
+	</data>
+	<data name="TalkSeenTalking" xml:space="preserve">
+		<value>at {0}, talking with someone</value>
+		<comment>Where someone was seen talking. {0} is the place.</comment>
+	</data>
+	<data name="TalkToldWalkingIdle" xml:space="preserve">
+		<value>{0} said they were just on their way to {1}.</value>
+		<comment>Added to a sighting when the person seen said they were walking somewhere with no goal. {0} is their name, and {1} where their walk ended.</comment>
+	</data>
+	<data name="TalkToldIdle" xml:space="preserve">
+		<value>{0} said they weren&apos;t doing anything in particular.</value>
+		<comment>Added to a sighting when the person seen said they were idle. {0} is their name.</comment>
+	</data>
+	<data name="TalkQuote" xml:space="preserve">
+		<value>“{0}”</value>
+		<comment>Something someone says, in quotation marks. {0} is what they say.</comment>
+	</data>
+	<data name="TalkPlanWalking" xml:space="preserve">
+		<value>“I&apos;m on my way to {0}, where I&apos;ll be {1}.”</value>
+		<comment>What someone says they&apos;re doing while walking somewhere for a need. {0} is where their walk ends, and {1} what they&apos;ll be doing there, starting with a lowercase letter, such as &quot;washing clothes&quot;.</comment>
+	</data>
+	<data name="TalkPlanWalkingHome" xml:space="preserve">
+		<value>“I&apos;m on my way home, where I&apos;ll be {0}.”</value>
+		<comment>What someone says they&apos;re doing while walking home for a need. {0} is what they&apos;ll be doing there, starting with a lowercase letter, such as &quot;eating&quot;.</comment>
+	</data>
+	<data name="TalkPlanWalkingIdleHome" xml:space="preserve">
+		<value>“I&apos;m just on my way home.”</value>
+		<comment>What someone says they&apos;re doing while walking home with no goal.</comment>
+	</data>
+	<data name="TalkPlanBusy" xml:space="preserve">
+		<value>“I&apos;m {0}.”</value>
+		<comment>What someone says they&apos;re doing while busy with a need. {0} is what they&apos;re doing, starting with a lowercase letter, such as &quot;eating&quot;.</comment>
+	</data>
+	<data name="TalkToldWalking" xml:space="preserve">
+		<value>{0} said they were on their way to {1}, where they&apos;d be {2}.</value>
+		<comment>Added to a sighting when the person seen said they were walking somewhere for a need. {0} is their name, {1} where their walk ended, and {2} what they&apos;d be doing there, starting with a lowercase letter, such as &quot;washing clothes&quot;.</comment>
+	</data>
+	<data name="TalkToldWalkingHome" xml:space="preserve">
+		<value>{0} said they were on their way home, where they&apos;d be {1}.</value>
+		<comment>Added to a sighting when the person seen said they were walking home for a need. {0} is their name, and {1} what they&apos;d be doing there, starting with a lowercase letter, such as &quot;eating&quot;.</comment>
+	</data>
+	<data name="TalkToldWalkingIdleHome" xml:space="preserve">
+		<value>{0} said they were just on their way home.</value>
+		<comment>Added to a sighting when the person seen said they were walking home with no goal. {0} is their name.</comment>
+	</data>
+	<data name="TalkToldBusy" xml:space="preserve">
+		<value>{0} said they were {1}.</value>
+		<comment>Added to a sighting when the person seen said they were busy with a need. {0} is their name, and {1} what they were doing, starting with a lowercase letter, such as &quot;eating&quot;.</comment>
+	</data>
+	<data name="DeveloperSeekWorkplace" xml:space="preserve">
+		<value>their workplace, during work hours</value>
+		<comment>For developers, why someone looks for a friend at a place: it&apos;s the friend&apos;s workplace.</comment>
+	</data>
+	<data name="DeveloperSeekHome" xml:space="preserve">
+		<value>their home</value>
+		<comment>For developers, why someone looks for a friend at a place: it&apos;s the friend&apos;s home.</comment>
+	</data>
+	<data name="DeveloperSeekSighting" xml:space="preserve">
+		<value>where they were last seen or said they were going</value>
+		<comment>For developers, why someone looks for a friend at a place: a recent sighting.</comment>
+	</data>
+	<data name="DeveloperSeekGathering" xml:space="preserve">
+		<value>where people gather today</value>
+		<comment>For developers, why someone looks for a friend at a place: people gather there today, such as on market day.</comment>
+	</data>
+	<data name="DeveloperGoalSeeking" xml:space="preserve">
+		<value>{0}, looking for {1} at {2} ({3})</value>
+		<comment>For developers, how someone chose to seek out a friend. {0} is how they chose their goal (such as &quot;At 7:15, chose Socializing&quot;), {1} the friend&apos;s name, {2} where they&apos;re looking, and {3} why (such as &quot;their workplace&quot;).</comment>
+	</data>
+	<data name="TalkPlanWalkingAt" xml:space="preserve">
+		<value>“I&apos;m on my way to {0}, where I&apos;ll be {1} at {2}.”</value>
+		<comment>What someone says they&apos;re doing while walking to a building for a need. {0} is the quarter it&apos;s in, {1} what they&apos;ll be doing there, starting with a lowercase letter, such as &quot;working&quot;, and {2} the building, such as &quot;The Forge&quot;.</comment>
+	</data>
+	<data name="TalkToldWalkingAt" xml:space="preserve">
+		<value>{0} said they were on their way to {1}, where they&apos;d be {2} at {3}.</value>
+		<comment>Added to a sighting when the person seen said they were walking to a building for a need. {0} is their name, {1} the quarter it&apos;s in, {2} what they&apos;d be doing there, starting with a lowercase letter, and {3} the building.</comment>
+	</data>
+	<data name="TalkPromptText" xml:space="preserve">
+		<value>{0} would like to chat.</value>
+		<comment>Shown when someone asks the player to chat. {0} is their name.</comment>
+	</data>
+	<data name="TalkPromptAccept" xml:space="preserve">
+		<value>Chat ({0})</value>
+		<comment>The button that agrees to chat with someone who asked. {0} is how long chatting takes, such as &quot;30 minutes&quot;.</comment>
+	</data>
+	<data name="TalkPromptDecline" xml:space="preserve">
+		<value>Not now</value>
+		<comment>The button that turns down someone who asked the player to chat.</comment>
+	</data>
+	<data name="TalkPromptChatted" xml:space="preserve">
+		<value>You chatted with {0} for {1}.</value>
+		<comment>Shown in the player&apos;s location after chatting with someone who asked. {0} is their name, and {1} how long, such as &quot;35 minutes&quot;.</comment>
+	</data>
+	<data name="TalkPromptGone" xml:space="preserve">
+		<value>{0} couldn&apos;t chat after all.</value>
+		<comment>Shown in the player&apos;s location when someone who asked to chat has left or is busy by the time the player agrees. {0} is their name.</comment>
+	</data>
+	<data name="PersonWaitingFor" xml:space="preserve">
+		<value>Waiting for {0}</value>
+		<comment>What someone is doing while waiting for someone who called out to them. {0} is that person&apos;s name.</comment>
+	</data>
+	<data name="NeedHoursInvalid" xml:space="preserve">
+		<value>The need &quot;{0}&quot; runs from hour {1} to hour {2}, but it must start at an hour from 0 to 23 and end at a different hour from 1 to 24. Ending before it starts means running past midnight.</value>
+		<comment>{0} is the need id. {1} is the start hour. {2} is the end hour.</comment>
+	</data>
+	<data name="ProfessionWorkHoursInvalid" xml:space="preserve">
+		<value>The work hours of the profession &quot;{0}&quot; are from {1} to {2}, but they must start at an hour from 0 to 23 and end at a different hour from 1 to 24. Ending before they start means working past midnight.</value>
+		<comment>{0} is the profession id, {1} the start hour, and {2} the end hour.</comment>
 	</data>
 </root>

@@ -1348,6 +1348,15 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Character.
+        /// </summary>
+        public static string ViewCharacter {
+            get {
+                return ResourceManager.GetString("ViewCharacter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Villagers.
         /// </summary>
         public static string ViewVillagers {
@@ -2554,15 +2563,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The need "{0}" runs from hour {1} to hour {2}, but it must start before it ends, from hour 0 to 24..
-        /// </summary>
-        public static string NeedHoursInvalid {
-            get {
-                return ResourceManager.GetString("NeedHoursInvalid", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to The need "{0}" takes {1} minutes, but its hours only have {2}..
         /// </summary>
         public static string NeedMinutesTooLong {
@@ -3162,6 +3162,618 @@ namespace OperaEtDies {
         public static string NeedStatusDone {
             get {
                 return ResourceManager.GetString("NeedStatusDone", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is {1}, but it must be at most {2}..
+        /// </summary>
+        public static string DataNumberTooLarge {
+            get {
+                return ResourceManager.GetString("DataNumberTooLarge", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" starts at {1}, but the first level must start at 0, and each level after it must start after the one before it, at no more than 100..
+        /// </summary>
+        public static string RelationshipLevelOutOfOrder {
+            get {
+                return ResourceManager.GetString("RelationshipLevelOutOfOrder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The saved relationship {0} is invalid: it must be between two different people who have no other relationship, with a score from 0 to 100..
+        /// </summary>
+        public static string SaveRelationshipInvalid {
+            get {
+                return ResourceManager.GetString("SaveRelationshipInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The save is missing relationships: everyone must have a relationship with everyone else..
+        /// </summary>
+        public static string SaveRelationshipsMissing {
+            get {
+                return ResourceManager.GetString("SaveRelationshipsMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Relationships.
+        /// </summary>
+        public static string RelationshipsHeader {
+            get {
+                return ResourceManager.GetString("RelationshipsHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Person {0} has an invalid sighting of {1}: it must be of someone else, only one per person, and have a need only when they were busy, and a destination only when they were walking or leaving..
+        /// </summary>
+        public static string SaveSightingInvalid {
+            get {
+                return ResourceManager.GetString("SaveSightingInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sightings.
+        /// </summary>
+        public static string SightingsHeader {
+            get {
+                return ResourceManager.GetString("SightingsHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No one in the last day..
+        /// </summary>
+        public static string SightingsNone {
+            get {
+                return ResourceManager.GetString("SightingsNone", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}: {1} at {2}, {3}.
+        /// </summary>
+        public static string SightingDoing {
+            get {
+                return ResourceManager.GetString("SightingDoing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}: at {1}, {2}.
+        /// </summary>
+        public static string SightingThere {
+            get {
+                return ResourceManager.GetString("SightingThere", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}: walking from {1} to {2}, {3}.
+        /// </summary>
+        public static string SightingWalking {
+            get {
+                return ResourceManager.GetString("SightingWalking", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}: left {1} for {2}, {3}.
+        /// </summary>
+        public static string SightingLeft {
+            get {
+                return ResourceManager.GetString("SightingLeft", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} (told by {1}).
+        /// </summary>
+        public static string SightingToldBy {
+            get {
+                return ResourceManager.GetString("SightingToldBy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Idle.
+        /// </summary>
+        public static string SightingIdle {
+            get {
+                return ResourceManager.GetString("SightingIdle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Status of {0}.
+        /// </summary>
+        public static string StatusHeaderPerson {
+            get {
+                return ResourceManager.GetString("StatusHeaderPerson", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Status.
+        /// </summary>
+        public static string ViewPersonStatus {
+            get {
+                return ResourceManager.GetString("ViewPersonStatus", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Talking with {0}.
+        /// </summary>
+        public static string PersonTalking {
+            get {
+                return ResourceManager.GetString("PersonTalking", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Talking.
+        /// </summary>
+        public static string SightingTalking {
+            get {
+                return ResourceManager.GetString("SightingTalking", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The talking setting "socializeNeed" is "{0}", but it must be the id of a level need..
+        /// </summary>
+        public static string ScheduleSocializeNeedInvalid {
+            get {
+                return ResourceManager.GetString("ScheduleSocializeNeedInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Talk.
+        /// </summary>
+        public static string TalkToPerson {
+            get {
+                return ResourceManager.GetString("TalkToPerson", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Talking with {0}.
+        /// </summary>
+        public static string ConversationHeader {
+            get {
+                return ResourceManager.GetString("ConversationHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to What are you doing? ({0}).
+        /// </summary>
+        public static string ConversationAskDoing {
+            get {
+                return ResourceManager.GetString("ConversationAskDoing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Ask ({0}).
+        /// </summary>
+        public static string ConversationAskAbout {
+            get {
+                return ResourceManager.GetString("ConversationAskAbout", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Have you seen.
+        /// </summary>
+        public static string ConversationAskAboutLabel {
+            get {
+                return ResourceManager.GetString("ConversationAskAboutLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Chat ({0}).
+        /// </summary>
+        public static string ConversationSocialize {
+            get {
+                return ResourceManager.GetString("ConversationSocialize", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You ask {0} what they're doing..
+        /// </summary>
+        public static string ConversationAskedDoing {
+            get {
+                return ResourceManager.GetString("ConversationAskedDoing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You ask {0} whether they've seen {1}..
+        /// </summary>
+        public static string ConversationAskedAbout {
+            get {
+                return ResourceManager.GetString("ConversationAskedAbout", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You chat with {0} for {1}..
+        /// </summary>
+        public static string ConversationSocialized {
+            get {
+                return ResourceManager.GetString("ConversationSocialized", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} isn't here anymore..
+        /// </summary>
+        public static string ConversationNotHere {
+            get {
+                return ResourceManager.GetString("ConversationNotHere", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} is too busy to talk right now..
+        /// </summary>
+        public static string ConversationTooBusy {
+            get {
+                return ResourceManager.GetString("ConversationTooBusy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to “I'm just on my way to {0}.”.
+        /// </summary>
+        public static string TalkPlanWalkingIdle {
+            get {
+                return ResourceManager.GetString("TalkPlanWalkingIdle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to “Nothing in particular.”.
+        /// </summary>
+        public static string TalkPlanIdle {
+            get {
+                return ResourceManager.GetString("TalkPlanIdle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to “I haven't seen {0} lately.”.
+        /// </summary>
+        public static string TalkNotSeen {
+            get {
+                return ResourceManager.GetString("TalkNotSeen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to I saw {0} {1}, around {2}..
+        /// </summary>
+        public static string TalkSeen {
+            get {
+                return ResourceManager.GetString("TalkSeen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {3} told me {0} was {1}, around {2}..
+        /// </summary>
+        public static string TalkHeard {
+            get {
+                return ResourceManager.GetString("TalkHeard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You.
+        /// </summary>
+        public static string TalkSourceYou {
+            get {
+                return ResourceManager.GetString("TalkSourceYou", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} yesterday.
+        /// </summary>
+        public static string TalkSeenYesterday {
+            get {
+                return ResourceManager.GetString("TalkSeenYesterday", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to at {0}.
+        /// </summary>
+        public static string TalkSeenAt {
+            get {
+                return ResourceManager.GetString("TalkSeenAt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to at {0}, {1}.
+        /// </summary>
+        public static string TalkSeenBusy {
+            get {
+                return ResourceManager.GetString("TalkSeenBusy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to at {0}, heading for {1}.
+        /// </summary>
+        public static string TalkSeenWalking {
+            get {
+                return ResourceManager.GetString("TalkSeenWalking", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to leaving {0} for {1}.
+        /// </summary>
+        public static string TalkSeenLeaving {
+            get {
+                return ResourceManager.GetString("TalkSeenLeaving", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to at {0}, talking with someone.
+        /// </summary>
+        public static string TalkSeenTalking {
+            get {
+                return ResourceManager.GetString("TalkSeenTalking", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} said they were just on their way to {1}..
+        /// </summary>
+        public static string TalkToldWalkingIdle {
+            get {
+                return ResourceManager.GetString("TalkToldWalkingIdle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} said they weren't doing anything in particular..
+        /// </summary>
+        public static string TalkToldIdle {
+            get {
+                return ResourceManager.GetString("TalkToldIdle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to “{0}”.
+        /// </summary>
+        public static string TalkQuote {
+            get {
+                return ResourceManager.GetString("TalkQuote", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to “I'm on my way to {0}, where I'll be {1}.”.
+        /// </summary>
+        public static string TalkPlanWalking {
+            get {
+                return ResourceManager.GetString("TalkPlanWalking", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to “I'm on my way home, where I'll be {0}.”.
+        /// </summary>
+        public static string TalkPlanWalkingHome {
+            get {
+                return ResourceManager.GetString("TalkPlanWalkingHome", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to “I'm just on my way home.”.
+        /// </summary>
+        public static string TalkPlanWalkingIdleHome {
+            get {
+                return ResourceManager.GetString("TalkPlanWalkingIdleHome", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to “I'm {0}.”.
+        /// </summary>
+        public static string TalkPlanBusy {
+            get {
+                return ResourceManager.GetString("TalkPlanBusy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} said they were on their way to {1}, where they'd be {2}..
+        /// </summary>
+        public static string TalkToldWalking {
+            get {
+                return ResourceManager.GetString("TalkToldWalking", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} said they were on their way home, where they'd be {1}..
+        /// </summary>
+        public static string TalkToldWalkingHome {
+            get {
+                return ResourceManager.GetString("TalkToldWalkingHome", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} said they were just on their way home..
+        /// </summary>
+        public static string TalkToldWalkingIdleHome {
+            get {
+                return ResourceManager.GetString("TalkToldWalkingIdleHome", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} said they were {1}..
+        /// </summary>
+        public static string TalkToldBusy {
+            get {
+                return ResourceManager.GetString("TalkToldBusy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to their workplace, during work hours.
+        /// </summary>
+        public static string DeveloperSeekWorkplace {
+            get {
+                return ResourceManager.GetString("DeveloperSeekWorkplace", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to their home.
+        /// </summary>
+        public static string DeveloperSeekHome {
+            get {
+                return ResourceManager.GetString("DeveloperSeekHome", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to where they were last seen or said they were going.
+        /// </summary>
+        public static string DeveloperSeekSighting {
+            get {
+                return ResourceManager.GetString("DeveloperSeekSighting", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to where people gather today.
+        /// </summary>
+        public static string DeveloperSeekGathering {
+            get {
+                return ResourceManager.GetString("DeveloperSeekGathering", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}, looking for {1} at {2} ({3}).
+        /// </summary>
+        public static string DeveloperGoalSeeking {
+            get {
+                return ResourceManager.GetString("DeveloperGoalSeeking", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to “I'm on my way to {0}, where I'll be {1} at {2}.”.
+        /// </summary>
+        public static string TalkPlanWalkingAt {
+            get {
+                return ResourceManager.GetString("TalkPlanWalkingAt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} said they were on their way to {1}, where they'd be {2} at {3}..
+        /// </summary>
+        public static string TalkToldWalkingAt {
+            get {
+                return ResourceManager.GetString("TalkToldWalkingAt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} would like to chat..
+        /// </summary>
+        public static string TalkPromptText {
+            get {
+                return ResourceManager.GetString("TalkPromptText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Chat ({0}).
+        /// </summary>
+        public static string TalkPromptAccept {
+            get {
+                return ResourceManager.GetString("TalkPromptAccept", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Not now.
+        /// </summary>
+        public static string TalkPromptDecline {
+            get {
+                return ResourceManager.GetString("TalkPromptDecline", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You chatted with {0} for {1}..
+        /// </summary>
+        public static string TalkPromptChatted {
+            get {
+                return ResourceManager.GetString("TalkPromptChatted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} couldn't chat after all..
+        /// </summary>
+        public static string TalkPromptGone {
+            get {
+                return ResourceManager.GetString("TalkPromptGone", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Waiting for {0}.
+        /// </summary>
+        public static string PersonWaitingFor {
+            get {
+                return ResourceManager.GetString("PersonWaitingFor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" runs from hour {1} to hour {2}, but it must start at an hour from 0 to 23 and end at a different hour from 1 to 24. Ending before it starts means running past midnight..
+        /// </summary>
+        public static string NeedHoursInvalid {
+            get {
+                return ResourceManager.GetString("NeedHoursInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The work hours of the profession "{0}" are from {1} to {2}, but they must start at an hour from 0 to 23 and end at a different hour from 1 to 24. Ending before they start means working past midnight..
+        /// </summary>
+        public static string ProfessionWorkHoursInvalid {
+            get {
+                return ResourceManager.GetString("ProfessionWorkHoursInvalid", resourceCulture);
             }
         }
     }

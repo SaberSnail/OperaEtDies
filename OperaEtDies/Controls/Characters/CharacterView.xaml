@@ -1,0 +1,199 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:local="clr-namespace:OperaEtDies.Controls.Characters"
+	xmlns:operaEtDies="clr-namespace:OperaEtDies"
+	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
+
+	<!--  A relationship: the other person's name, what it's called (in bold for a friend), and for developers, a slider that changes
+		its score, with the score beside it.  -->
+	<DataTemplate x:Key="CharacterRelationshipTemplate" DataType="{x:Type local:CharacterRelationshipViewModel}">
+		<Grid Margin="0,0,0,4">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="220" />
+				<ColumnDefinition Width="140" />
+				<ColumnDefinition Width="Auto" />
+			</Grid.ColumnDefinitions>
+			<TextBlock
+				Grid.Column="0"
+				Text="{Binding Name}"
+				TextTrimming="CharacterEllipsis" />
+			<TextBlock Grid.Column="1" Text="{Binding Level}">
+				<TextBlock.Style>
+					<Style TargetType="TextBlock">
+						<Setter Property="Foreground" Value="{DynamicResource FontLightBrush}" />
+						<Style.Triggers>
+							<DataTrigger Binding="{Binding IsFriend}" Value="True">
+								<Setter Property="Foreground" Value="{DynamicResource FontBrush}" />
+								<Setter Property="FontWeight" Value="Bold" />
+							</DataTrigger>
+						</Style.Triggers>
+					</Style>
+				</TextBlock.Style>
+			</TextBlock>
+			<Border
+				Grid.Column="2"
+				Style="{DynamicResource DeveloperBorderStyle}"
+				Visibility="{Binding IsDeveloper, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+				<StackPanel Orientation="Horizontal">
+					<Slider
+						Width="200"
+						VerticalAlignment="Center"
+						IsSnapToTickEnabled="True"
+						Maximum="100"
+						Minimum="0"
+						TickFrequency="1"
+						Value="{Binding Score}" />
+					<TextBlock
+						Width="32"
+						Margin="8,0,0,0"
+						VerticalAlignment="Center"
+						Text="{Binding Score}"
+						TextAlignment="Right" />
+				</StackPanel>
+			</Border>
+		</Grid>
+	</DataTemplate>
+
+	<!--  One person: their name and how they're related to the player, what they're doing, their portrait beside their
+		description, their relationships if they're the player, and for developers, where they're going and why,
+		everyone's relationships, and who they've seen lately.  -->
+	<DataTemplate DataType="{x:Type local:CharacterViewModel}">
+		<Grid Margin="24">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="*" />
+			</Grid.RowDefinitions>
+
+			<DockPanel Grid.Row="0" LastChildFill="True">
+				<Button
+					Width="120"
+					Height="32"
+					VerticalAlignment="Center"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Close}"
+					Content="{x:Static operaEtDies:OurResources.CloseView}"
+					DockPanel.Dock="Right" />
+				<!--  For developers, a way to see and change the person's needs.  -->
+				<Border
+					Margin="0,0,8,0"
+					VerticalAlignment="Center"
+					DockPanel.Dock="Right"
+					Style="{DynamicResource DeveloperBorderStyle}"
+					Visibility="{Binding CanViewStatus, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+					<Button
+						Width="120"
+						Height="32"
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ViewStatus}"
+						Content="{x:Static operaEtDies:OurResources.ViewPersonStatus}" />
+				</Border>
+				<TextBlock
+					FontSize="{DynamicResource TitleFontSize}"
+					Text="{Binding Person.Name}"
+					TextWrapping="Wrap" />
+			</DockPanel>
+
+			<ScrollViewer
+				Grid.Row="1"
+				Margin="0,12,0,0"
+				HorizontalScrollBarVisibility="Disabled"
+				VerticalScrollBarVisibility="Auto">
+				<StackPanel>
+					<StackPanel DataContext="{Binding Person}">
+						<TextBlock
+							Margin="0,0,0,4"
+							FontWeight="Bold"
+							Text="{Binding PlayerLabel}"
+							Visibility="{Binding PlayerLabel, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+						<TextBlock
+							Foreground="{DynamicResource FontLightBrush}"
+							Text="{Binding Activity}"
+							Visibility="{Binding Activity, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+
+						<!--  For developers, where the person is going and why they chose to.  -->
+						<Border
+							Margin="0,8,0,0"
+							Style="{DynamicResource DeveloperBorderStyle}"
+							Visibility="{Binding DeveloperGoal, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
+							<StackPanel>
+								<TextBlock Text="{Binding DeveloperGoal}" TextWrapping="Wrap" />
+								<TextBlock
+									Foreground="{DynamicResource FontLightBrush}"
+									Text="{Binding DeveloperGoalReason}"
+									TextWrapping="Wrap" />
+							</StackPanel>
+						</Border>
+
+						<DockPanel Margin="0,12,0,0" LastChildFill="True">
+							<Image
+								Width="200"
+								Margin="0,0,12,0"
+								VerticalAlignment="Top"
+								DockPanel.Dock="Left"
+								Source="{Binding Portrait}"
+								Stretch="Uniform"
+								Visibility="{Binding Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+							<TextBlock
+								Foreground="{DynamicResource FontLightBrush}"
+								Text="{Binding Person.Description}"
+								TextWrapping="Wrap" />
+						</DockPanel>
+					</StackPanel>
+
+					<!--  The player's own relationships, or for developers, anyone's.  -->
+					<StackPanel Visibility="{Binding IsRelationshipsShown, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+						<TextBlock
+							Margin="0,16,0,8"
+							FontSize="{DynamicResource LargeFontSize}"
+							FontWeight="Bold"
+							Text="{x:Static operaEtDies:OurResources.RelationshipsHeader}" />
+						<ItemsControl ItemTemplate="{StaticResource CharacterRelationshipTemplate}" ItemsSource="{Binding Relationships}" />
+					</StackPanel>
+					<Border
+						Margin="0,16,0,0"
+						HorizontalAlignment="Left"
+						Style="{DynamicResource DeveloperBorderStyle}"
+						Visibility="{Binding IsRelationshipsDeveloperOnly, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+						<StackPanel>
+							<TextBlock
+								Margin="0,0,0,8"
+								FontSize="{DynamicResource LargeFontSize}"
+								FontWeight="Bold"
+								Text="{x:Static operaEtDies:OurResources.RelationshipsHeader}" />
+							<ItemsControl ItemTemplate="{StaticResource CharacterRelationshipTemplate}" ItemsSource="{Binding Relationships}" />
+						</StackPanel>
+					</Border>
+
+					<!--  For developers, who the person has seen lately.  -->
+					<Border
+						Margin="0,16,0,0"
+						HorizontalAlignment="Left"
+						Style="{DynamicResource DeveloperBorderStyle}"
+						Visibility="{Binding Sightings, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
+						<StackPanel>
+							<TextBlock
+								Margin="0,0,0,8"
+								FontSize="{DynamicResource LargeFontSize}"
+								FontWeight="Bold"
+								Text="{x:Static operaEtDies:OurResources.SightingsHeader}" />
+							<TextBlock
+								Foreground="{DynamicResource FontLightBrush}"
+								Text="{x:Static operaEtDies:OurResources.SightingsNone}"
+								Visibility="{Binding IsSightingsEmpty, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+							<ItemsControl ItemsSource="{Binding Sightings}">
+								<ItemsControl.ItemTemplate>
+									<DataTemplate>
+										<TextBlock
+											Margin="0,0,0,4"
+											Text="{Binding}"
+											TextWrapping="Wrap" />
+									</DataTemplate>
+								</ItemsControl.ItemTemplate>
+							</ItemsControl>
+						</StackPanel>
+					</Border>
+				</StackPanel>
+			</ScrollViewer>
+		</Grid>
+	</DataTemplate>
+
+</ResourceDictionary>

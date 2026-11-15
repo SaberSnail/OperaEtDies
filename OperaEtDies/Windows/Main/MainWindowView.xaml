@@ -29,9 +29,9 @@
 			BorderBrush="{DynamicResource ControlBorderBaseBrush}"
 			BorderThickness="0,0,1,0">
 			<StackPanel Margin="12">
-				<!--  The player's portrait and name, as wide as the mini-map.  -->
+				<!--  The player's portrait, and their name as wide as the mini-map.  -->
 				<Image
-					Width="204"
+					Width="136"
 					Source="{Binding Player.Portrait}"
 					Stretch="Uniform"
 					Visibility="{Binding Player.Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
@@ -80,6 +80,13 @@
 				<Button
 					Width="120"
 					Height="32"
+					HorizontalAlignment="Left"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=TogglePlayerCharacter}"
+					Content="{x:Static operaEtDies:OurResources.ViewCharacter}" />
+				<Button
+					Width="120"
+					Height="32"
+					Margin="0,8,0,0"
 					HorizontalAlignment="Left"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleVillagers}"
 					Content="{x:Static operaEtDies:OurResources.ViewVillagers}" />
@@ -133,10 +140,18 @@
 			</StackPanel>
 		</Border>
 
+		<!--  The current view, with any character view (or for developers, someone's needs) on top of it. The current view is
+			only hidden, not removed, so it comes back as it was (such as scrolled to the same place) when the view on top closes.  -->
 		<ContentControl
 			Grid.Column="1"
 			Content="{Binding CurrentView}"
-			Focusable="False" />
+			Focusable="False"
+			Visibility="{Binding Overlay, Converter={x:Static utility:CommonConverters.IsNotNullToVisibility}}" />
+		<ContentControl
+			Grid.Column="1"
+			Content="{Binding Overlay}"
+			Focusable="False"
+			Visibility="{Binding Overlay, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 	</Grid>
 
 </Window>

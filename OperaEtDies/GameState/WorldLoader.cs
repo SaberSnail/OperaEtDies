@@ -74,6 +74,23 @@ public sealed class WorldLoader
 		catalog.Find(id) ?? throw new SaveLoadException(OurResources.SaveDataNotFound.FormatCurrentCulture(kind, id));
 
 	/// <summary>
+	/// Reads a saved time, failing to load if it isn't a valid time in the calendar.
+	/// </summary>
+	public TimePoint LoadTime(string text) => LoadTime(GameData, text);
+
+	internal static TimePoint LoadTime(GameData gameData, string text)
+	{
+		try
+		{
+			return gameData.Calendar.LoadFromString(text);
+		}
+		catch (Exception e) when (e is FormatException or ArgumentOutOfRangeException)
+		{
+			throw new SaveLoadException(OurResources.SaveTimeInvalid.FormatCurrentCulture(text, e.Message), e);
+		}
+	}
+
+	/// <summary>
 	/// Runs an action once every object has been created, for references that go in a circle.
 	/// </summary>
 	public void Defer(Action action) => m_deferred.Add(action);

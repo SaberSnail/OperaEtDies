@@ -27,6 +27,7 @@ public interface IWorldObject
 [JsonDerivedType(typeof(PersonRecord), "person")]
 [JsonDerivedType(typeof(FamilyRecord), "family")]
 [JsonDerivedType(typeof(BusinessRecord), "business")]
+[JsonDerivedType(typeof(RelationshipRecord), "relationship")]
 public abstract record WorldObjectRecord(WorldId Id)
 {
 	/// <summary>

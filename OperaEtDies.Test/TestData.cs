@@ -14,9 +14,9 @@ internal static class TestData
 	/// <summary>
 	/// Creates game data for tests. Without schedules, people have no needs, so they stay at home.
 	/// </summary>
-	public static GameData CreateGameData(LayoutShape shape = LayoutShape.Radial, bool withFeatures = false, bool withSchedules = false) =>
+	public static GameData CreateGameData(LayoutShape shape = LayoutShape.Radial, bool withFeatures = false, bool withSchedules = false, double napBelow = 0) =>
 		new(CreateCharacterData(), CreateLocationList(shape, withFeatures), CreateProfessionList(), CreateFamilySettings(), CreateCalendarSettings(),
-			schedules: withSchedules ? CreateScheduleSettings() : null);
+			schedules: withSchedules ? CreateScheduleSettings(napBelow) : null);
 
 	/// <summary>
 	/// Creates schedules for the test data: fatigue met at home at night, hunger met at home, restlessness met in the
@@ -25,18 +25,24 @@ internal static class TestData
 	/// day with time at home afterward (overdue if it's missed), and a trip to the square on the sixth day. Everyone wakes within a few minutes of six, the infirm walk at half speed, and
 	/// homemakers find chores three times as urgent. Water comes from the nearest square or landmark.
 	/// </summary>
-	public static ScheduleSettings CreateScheduleSettings() => new()
+	public static ScheduleSettings CreateScheduleSettings(double napBelow = 0) => new()
 	{
 		MinimumUrgency = 40,
+		SightingHours = 24,
+		Sleep = new SleepSettings { NapBelow = napBelow, NapMinutes = Range(30, 30), BedtimeLead = 60 },
+		Talking = new TalkingSettings { RefuseUrgency = 95, WakeLevel = 6, AskAboutMinutes = 1, AskDoingMinutes = 5, SocializeMinutes = 30, SocializeNeed = "socializing" },
+		Socializing = new SocializingSettings { ChatUrgency = 25, ChatGoalWeight = 0.5, WakeUrgency = 90, NearMinutes = 15, SeekFactor = 0.6, SeekMinutes = 15, RecentHours = 12, AskPlayerAgainHours = 4, Clues = new SeekClues { Workplace = 3, Home = 2, Sighting = 4, Gathering = 2 } },
 		UrgencyPower = 2,
 		Needs =
 		[
 			new Need { Id = "fatigue", Title = "Fatigue", Activity = "Sleeping", Kind = NeedKind.Level, Place = NeedPlace.Home, PerHour = 6, SatisfyPerHour = 12, UrgentFrom = 85, Start = 21, End = 4,
 				Levels = [new NeedLevel { Minimum = 0, Title = "Rested" }, new NeedLevel { Minimum = 50, Title = "Tired" }],
 				PlayerAction = new PlayerAction { Title = "Sleep", Result = "You slept", Options = [new PlayerActionOption { Title = "Until rested", UntilMet = true }, new PlayerActionOption { Title = "Until dawn", UntilHour = 6 }, new PlayerActionOption { Minutes = 60 }] } },
-			new Need { Id = "hunger", Title = "Hunger", Kind = NeedKind.Level, Place = NeedPlace.Home, PerHour = 10, SatisfyPerHour = 200, Start = 5, End = 22, StartLevel = Range(10, 40) },
+			new Need { Id = "hunger", Title = "Hunger", Kind = NeedKind.Level, Place = NeedPlace.Home, PerHour = 10, SatisfyPerHour = 200, WakeUrgency = 90, Start = 5, End = 22, StartLevel = Range(10, 40) },
 			new Need { Id = "restlessness", Title = "Restlessness", Kind = NeedKind.Level, Place = NeedPlace.Quarter, PerHour = 5, SatisfyPerHour = 60, PausedBy = ["fatigue"], Start = 9, End = 22,
 				QuarterKinds = [new QuarterChoice { QuarterKind = "square" }, new QuarterChoice { QuarterKind = "landmark" }], StartLevel = Range(0, 50) },
+			new Need { Id = "socializing", Title = "Socializing", Activity = "Chatting", Kind = NeedKind.Level, Place = NeedPlace.Quarter, PerHour = 2, SatisfyPerHour = 60, PausedBy = ["fatigue"], Start = 7, End = 21,
+				QuarterKinds = [new QuarterChoice { QuarterKind = "square" }] },
 			new Need { Id = "work", Title = "Work", Kind = NeedKind.Quota, Place = NeedPlace.Workplace, AtWork = true, Days = ["day1", "day2", "day3", "day4", "day5", "day6"], OnSpecialDays = false,
 				Start = 6, End = 19, Minutes = 480, Shift = 120, Lead = 300,
 				PlayerAction = new PlayerAction { Title = "Work", Result = "You worked", Options = [new PlayerActionOption { Title = "Until done", UntilMet = true }, new PlayerActionOption { Minutes = 120 }] } },
@@ -455,6 +461,17 @@ internal static class TestData
 			new PlayerRelation { When = Both("headRelation", ["son", "daughter", "sonInLaw", "daughterInLaw"], "gender", "male"), Title = "father" },
 			new PlayerRelation { When = Both("headRelation", ["son", "daughter", "sonInLaw", "daughterInLaw"], "gender", "female"), Title = "mother" },
 		],
+		Relationships = new RelationshipSettings
+		{
+			Score = new IntegerRange { Minimum = 0, Maximum = 100, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 15 } },
+			FamilyBonus = 20,
+			SpouseBonus = 30,
+			ElderBonus = 15,
+			ElderInLawBonus = 10,
+			NeighborBonus = 10,
+			FriendScore = 70,
+			Levels = [new RelationshipLevel { Minimum = 0, Title = "Cold" }, new RelationshipLevel { Minimum = 40, Title = "Friendly" }, new RelationshipLevel { Minimum = 70, Title = "Friend" }],
+		},
 		FemaleHeadChance = 10,
 		FemaleHeadMinWealth = WealthLevel.Low,
 		HeadAge = new IntegerRange { Minimum = 25, Maximum = 60, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 6 } },

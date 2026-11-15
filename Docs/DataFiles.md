@@ -314,6 +314,14 @@ The professions: the values of the profession property, and how their businesses
 | `helperWhen` | Condition | Optional. Businesses only. Can't use `hidden`. A condition on Characters.json properties that a character must meet to help. Without it, a helper must be allowed to have the profession (by the profession value's `when`). |
 | `worksFromHome` | boolean | Optional (defaults to false). Businesses only. Whether the business has no place of its own. If false, at least one business in Locations.json must be for the profession; if true, none can be. |
 | `forHouseholdElders` | boolean | Optional (defaults to false). Businesses only. Only allowed if `worksFromHome` is true. Whether a household elder can take up the profession as their own business. |
+| `workHours` | Work Hours | Optional. Businesses only. The hours people in the profession work, used in place of the `start` and `end` of each need met at the workplace in Schedules.json. Without it, those needs' hours are used. |
+
+**Work Hours**
+
+| Property | Type | Notes |
+|---|---|---|
+| `start` | integer | From 0 to 23. The hour work starts. |
+| `end` | integer | From 1 to 24 (midnight), and different from `start`. The hour work ends. If it's before `start`, work runs past midnight, as two stretches of each day: from midnight to `end`, and from `start` to midnight. |
 
 ## Families.json
 
@@ -337,6 +345,7 @@ How households are generated. A **chance** is a percentage from 0 to 100. A **we
 | `unmarried` | string | Filled in. Id of the married property's value for someone who isn't married. |
 | `familyCount` | Integer Range | The minimum is at least 0. How many households the town has besides the player's. |
 | `playerRelations` | list of Player Relation | Optional (defaults to empty). Can be empty. How each member of the player's household is related to the player, who is its head: the first relation whose `when` the member meets is shown. |
+| `relationships` | Relationships | How the relationship between every two characters (including the player) is chosen when a game starts, and what relationship scores mean. A relationship has a score from 0 to 100, the same both ways. |
 | `femaleHeadChance` | number | Chance. The chance that the head of a household is a woman. |
 | `femaleHeadMinWealth` | string | Wealth level. The lowest wealth a woman at the head of a household can have from her profession. |
 | `headAge` | Integer Range | Within the age property's range for non-player characters. The maximum must be at least the youngest age at which the player can have an adult child: the youngest age in that range plus `minParentAge`. The age of the head of a household. The player's age uses the part of this range from that youngest age up, with the same weights. |
@@ -404,6 +413,28 @@ Ids of the head relation property's values, each saying what the head of a house
 |---|---|---|
 | `when` | Condition | Can't use `hidden`. |
 | `title` | string | Filled in. Shown to the player, such as in "This is your {title}". |
+
+**Relationships**
+
+A relationship's score is chosen from `score`, plus a bonus for two members of the same household and `neighborBonus` for two characters in different households whose houses are on the same quarter, up to 100. Two members of a household are related as worked out from their head relation values (named in `headRelations`): the head and the head's wife, or two household elders who are both parents of the head or both parents of the head's wife, are a couple (`spouseBonus`); a household elder and their own child or any child of the head are an elder and their family (`elderBonus`); a household elder and their child's spouse are an elder and an in-law (`elderInLawBonus`); and any other two are family (`familyBonus`).
+
+| Property | Type | Notes |
+|---|---|---|
+| `score` | Integer Range | The minimum is at least 0, and the maximum is at most 100. |
+| `familyBonus` | integer | At least 0. |
+| `spouseBonus` | integer | At least 0. |
+| `elderBonus` | integer | At least 0. |
+| `elderInLawBonus` | integer | At least 0. |
+| `neighborBonus` | integer | At least 0. |
+| `friendScore` | integer | From 0 to 100. Two characters whose score is at least this are friends. |
+| `levels` | list of Relationship Level | At least one. In order of `minimum`: the first's is 0, and each one after it is more than the one before it and at most 100. A score is shown to the player as the title of the last level whose minimum it reaches. |
+
+**Relationship Level**
+
+| Property | Type | Notes |
+|---|---|---|
+| `minimum` | integer | The lowest score with this title. |
+| `title` | string | Filled in. Shown to the player, such as "Friend". |
 
 **Gender Ages**
 
@@ -516,11 +547,55 @@ How people decide what to do. Everyone works through a list of tasks toward a go
 |---|---|---|
 | `minimumUrgency` | number | At least 0. Needs less urgent than this aren't chosen. |
 | `urgencyPower` | number | More than 0. |
+| `sightingHours` | integer | At least 1. How many hours people remember the last time they saw each other person. |
+| `sleep` | Sleep | Naps, and going to bed in time for work. |
+| `talking` | Talking | When people refuse to talk, and what waking someone to talk costs them. |
+| `socializing` | Socializing | How people stop to chat with friends they meet, and seek them out when they're lonely. |
 | `needs` | list of Need | Each need needs a filled-in `id` and `title`. |
 | `idle` | Idle | What people do when no need is chosen. |
 | `start` | Start | How everyone starts a new game. |
 | `travelTimeFactors` | list of Travel Time Factor | Optional (defaults to empty). Can be empty. |
 | `urgencyFactors` | list of Urgency Factor | Optional (defaults to empty). Can be empty. |
+
+**Talking**
+
+Talking with someone interrupts what they were doing: it's paused (with no progress toward their goal) until the talk is over, and then carries on with the time it had left. If their goal is a quota need that's outside its hours or already done by then, they choose a new goal instead.
+
+| Property | Type | Notes |
+|---|---|---|
+| `refuseUrgency` | number | At least 0. Someone whose goal is at least this urgent refuses to talk. |
+| `wakeLevel` | number | From 0 to 100. How much someone woken up to talk has the level of the `start` need rise. |
+| `askAboutMinutes` | integer | At least 1. How long it takes to ask someone whether they've seen a person. |
+| `askDoingMinutes` | integer | At least 1. How long it takes to ask someone what they're doing. |
+| `socializeMinutes` | integer | At least 1. How long socializing with someone takes. |
+| `socializeNeed` | string | Optional. The id of a level need. While two people socialize, it's met (at its `satisfyPerHour`) for each of them whose relationship with the other is at least `friendScore` in Families.json. That's the only way it's met: looking for a friend doesn't meet it. It's chosen as a goal like other needs, but with its urgency multiplied by `seekFactor` in `socializing`, and only by someone with at least one friend. |
+
+**Socializing**
+
+When someone starts a task, they and each friend where they are (someone whose relationship with them is at least `friendScore` in Families.json) may stop to socialize, for the `socializeMinutes` in `talking`. Someone is willing to start a chat by their urgency for the socializing need, times their relationship score out of 100, less their goal's urgency times `chatGoalWeight` (unless their goal is the socializing need). The most willing of the two, if at least `chatUrgency`, starts it. Neither can already be talking, the one starting it can't be asleep, and the other can't be too busy to talk (see Talking), or asleep unless the socializing need is at least `wakeUrgency` for the one starting it. Unless they were told what the friend is doing since the friend chose their goal, they first ask, which adds `askDoingMinutes` in `talking`. Someone who chooses to chat with the player asks them first, and time stops, along with whatever the player was doing, until the player answers. They don't ask the player while someone else is waiting for an answer, or for `askPlayerAgainHours` after the player turns them down.
+
+When the socializing need is chosen as a goal, the person chooses a friend to look for and where, at random from clues to where each friend might be, each weighing the clue's weight in `clues`: the friend's workplace while one of their needs met at work is within its hours, or their home otherwise; where they were last seen, or said they were going, weighing less as the sighting gets older (nothing once it's `sightingHours` old); and for each need met at a quarter only on some `days`, within its hours and not yet done by the friend, a place for it. Each clue's weight is divided by 1 plus the walk there in minutes over `nearMinutes`, and multiplied by how long ago they last talked in hours over that plus `recentHours` (1 if they haven't talked). The place the person is in is never chosen. They walk there and look around for `seekMinutes`, then choose a goal again. As they set off along a path, if the friend they're looking for is in the place the path leads to and is walking away from it, they call out: the friend waits there for as long as the walk takes and a minute more, and they chat once the seeker arrives. If no friend is there when they start looking around, they ask someone else there (other than a friend or the player, and anyone asleep, talking, or too busy to talk) about their friends, for the `askAboutMinutes` in `talking`, and learn what that person has seen of them.
+
+| Property | Type | Notes |
+|---|---|---|
+| `chatUrgency` | number | At least 0. |
+| `chatGoalWeight` | number | At least 0. |
+| `wakeUrgency` | number | At least 0. |
+| `seekFactor` | number | More than 0. |
+| `seekMinutes` | integer | At least 1. |
+| `recentHours` | number | More than 0. |
+| `nearMinutes` | number | More than 0. |
+| `askPlayerAgainHours` | number | More than 0. |
+| `clues` | Seek Clues | |
+
+**Seek Clues**
+
+| Property | Type | Notes |
+|---|---|---|
+| `workplace` | number | At least 0. |
+| `home` | number | At least 0. |
+| `sighting` | number | At least 0. |
+| `gathering` | number | At least 0. |
 
 **Need**
 
@@ -549,13 +624,14 @@ Each stretch or trip is shorter if less of the quota is left, or if less of toda
 | `satisfyPerHour` | number | Level needs only, and required. More than 0. |
 | `pausedBy` | list of string | Optional. Level needs only. Ids of needs in `needs`. |
 | `urgentFrom` | number | Optional (defaults to 0). Level needs only. At least 0 and less than 100. |
+| `wakeUrgency` | number | Optional. Level needs only. At least 0. Someone asleep (meeting the `start` need, and decided for by the game rather than the player) wakes once this need's urgency is at least this, and more than the sleep need's urgency is by then, unless the sleep need pauses it. When that happens is worked out as they start sleeping, from how their needs will change, five minutes at a time. Without it, the need never wakes anyone. |
 | `startLevel` | Integer Range | Optional (defaults to 0). Level needs only. From 0 to 100. The level at the start of a new game. |
 | `levels` | list of Level | Optional. Level needs only. Must not be empty. The words for how high the need is. Needs with `levels` are shown to the player. |
 | `period` | string | Optional (defaults to `day`). Quota needs only. `day` or `week`. |
 | `days` | list of string | Optional (defaults to every day). Quota needs only. Ids of days in Calendar.json, each filled in and listed once. The days of the week the need can be met on. |
 | `onSpecialDays` | boolean | Optional (defaults to true). Quota needs only. Whether the need can be met on special days. |
 | `start` | integer | Required for quota needs, optional for level needs. The hour the need can be met from. |
-| `end` | integer | Required for quota needs, and for level needs with a `start`. The hour the need can be met until. For a quota need, `start` must be from 0 to 23, `end` must be after it and at most 24, and the quota for one person must fit in the hours of its period (one day, or each of its days in a week). For a level need, both are from 0 to 23 and must be different, and the hours run past midnight if `start` is after `end`. |
+| `end` | integer | Required for quota needs, and for level needs with a `start`. The hour the need can be met until. For a quota need, `start` must be from 0 to 23 and `end` from 1 to 24, and they must be different. If `end` is before `start`, the hours run past midnight, as two stretches of each day: from midnight to `end`, and from `start` to midnight. The quota for one person must fit in the hours of its period (one day, or each of its days in a week). For a level need, both are from 0 to 23 and must be different, and the hours run past midnight if `start` is after `end`. |
 | `minutes` | integer | Quota needs measured in time only. At least 0. Required unless there's `minutesPerMember`. |
 | `minutesPerMember` | integer | Optional. Quota needs measured in time and shared by the family only. At least 0. |
 | `shift` | integer | Quota needs measured in time only, and required for them. More than 0. |
@@ -635,9 +711,21 @@ Someone who doesn't choose a need goes to the place and waits there for a number
 | `minutes` | Integer Range | The minimum is at least 1. |
 | `activity` | string | Optional. Filled in. What someone idle is shown to be doing. Without it, nothing is shown. |
 
+**Sleep**
+
+The sleep need is the `start` need. Choosing it while its level is below `napBelow` is a nap, lasting `napMinutes` rather than until the level reaches 0, unless it's bedtime (below). Someone only naps once between sleeps that aren't naps, so they can't choose sleep again as a nap until then.
+
+The sleep need's urgency is the higher of its usual urgency and its bedtime urgency. Bedtime urgency applies to someone with a quota need met at their workplace (see `place`) whose level is above the sleep need's `urgentFrom`: it's worked out like a quota need's urgency, from the minutes until their work hours next start on a day they can work, less the minutes of sleep they need to reach 0. It's 0 while that leaves at least `bedtimeLead` minutes to spare, and rises to 100 as the time to spare runs out.
+
+| Property | Type | Notes |
+|---|---|---|
+| `napBelow` | number | From 0 to 100. |
+| `napMinutes` | Integer Range | The minimum is at least 1. |
+| `bedtimeLead` | integer | At least 1. |
+
 **Start**
 
-A new game starts at midnight on the first day of a random week of the start year. Everyone is at home, meeting `need`, with each level need at its `startLevel`. Each person wakes `wakeMinutes` from `wakeHour`, at least a minute after midnight, and the level of `need` is set to what's met by then. Time runs until the player wakes.
+A new game starts at midnight on the first day of a random week of the start year. Everyone is at home, meeting `need`, with each level need at its `startLevel`, except anyone other than the player whose work hours (a quota need met at their workplace) include midnight on a day they work: they start awake at their workplace instead. Each person asleep wakes `wakeMinutes` from `wakeHour`, at least a minute after midnight, and the level of `need` is set to what's met by then. Time runs until the player wakes.
 
 | Property | Type | Notes |
 |---|---|---|

@@ -5,7 +5,8 @@
 	xmlns:operaEtDies="clr-namespace:OperaEtDies"
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
 
-	<!--  The player's needs, each with how they're doing, whether it's done, and any note beside it.  -->
+	<!--  Someone's needs (usually the player's), each with how they're doing, whether it's done, and any note beside it. For
+		developers, each also has a slider that changes it.  -->
 	<DataTemplate DataType="{x:Type local:StatusViewModel}">
 		<Grid Margin="24">
 			<Grid.RowDefinitions>
@@ -23,7 +24,7 @@
 					DockPanel.Dock="Right" />
 				<TextBlock
 					FontSize="{DynamicResource TitleFontSize}"
-					Text="{x:Static operaEtDies:OurResources.StatusHeader}"
+					Text="{Binding Title}"
 					TextWrapping="Wrap" />
 			</DockPanel>
 
@@ -48,6 +49,10 @@
 										<ColumnDefinition Width="Auto" />
 										<ColumnDefinition Width="*" />
 									</Grid.ColumnDefinitions>
+									<Grid.RowDefinitions>
+										<RowDefinition Height="Auto" />
+										<RowDefinition Height="Auto" />
+									</Grid.RowDefinitions>
 									<TextBlock Grid.Column="0" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
 									<TextBlock Grid.Column="1" Margin="12,0,0,0" Text="{Binding Value}" />
 									<!--  A need that's done for the day or week is marked, so it stands out from the ones still to do.  -->
@@ -69,6 +74,33 @@
 										Foreground="{DynamicResource FontLightBrush}"
 										Text="{Binding Note}"
 										TextWrapping="Wrap" />
+
+									<!--  For developers, a slider that changes how far along the need is, with the amount beside it.  -->
+									<Border
+										Grid.Row="1"
+										Grid.Column="1"
+										Grid.ColumnSpan="3"
+										Margin="12,4,0,0"
+										HorizontalAlignment="Left"
+										Style="{DynamicResource DeveloperBorderStyle}"
+										Visibility="{Binding IsDeveloper, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+										<StackPanel Orientation="Horizontal">
+											<Slider
+												Width="240"
+												VerticalAlignment="Center"
+												IsSnapToTickEnabled="True"
+												Maximum="{Binding Maximum}"
+												Minimum="0"
+												TickFrequency="1"
+												Value="{Binding Amount}" />
+											<TextBlock
+												MinWidth="40"
+												Margin="8,0,0,0"
+												VerticalAlignment="Center"
+												Text="{Binding Amount}"
+												TextAlignment="Right" />
+										</StackPanel>
+									</Border>
 								</Grid>
 							</DataTemplate>
 						</ItemsControl.ItemTemplate>

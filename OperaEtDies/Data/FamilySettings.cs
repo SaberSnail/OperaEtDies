@@ -110,6 +110,11 @@ public sealed class FamilySettings : IValidatedData
 	public string? GetPlayerRelation(Func<string, string?> getValueId) => PlayerRelations.FirstOrDefault(x => CharacterCondition.IsMet(x.When, getValueId))?.Title;
 
 	/// <summary>
+	/// How the relationships between characters are chosen, and what their scores mean.
+	/// </summary>
+	public required RelationshipSettings Relationships { get; init; }
+
+	/// <summary>
 	/// The chance that the head of a household is a widow rather than a man.
 	/// </summary>
 	public required double FemaleHeadChance { get; init; }
@@ -309,6 +314,7 @@ public sealed class FamilySettings : IValidatedData
 		if (string.IsNullOrWhiteSpace(Unmarried))
 			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("unmarried"));
 
+		errors.AddRange(Relationships.Validate("relationships"));
 		errors.AddRange(CharacterData.ValidateRange("familyCount", FamilyCount));
 		if (FamilyCount.Minimum < 0)
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("familyCount.minimum", FamilyCount.Minimum, 0));
@@ -559,8 +565,79 @@ public sealed class HeadRelations
 		("headRelations.daughterInLaw", DaughterInLaw),
 	];
 
+	/// <summary>
+	/// Gets how two members of the same household are related, from how each is related to its head.
+	/// </summary>
+	public FamilyTie GetFamilyTie(string? first, string? second)
+	{
+		var (a, b) = (GetPlace(first), GetPlace(second));
+		return (a, b) switch
+		{
+			(HouseholdPlace.Head, HouseholdPlace.Wife) or (HouseholdPlace.Wife, HouseholdPlace.Head) => FamilyTie.Spouse,
+
+			// Two elders on the same side of the family are a couple.
+			(HouseholdPlace.HeadParent, HouseholdPlace.HeadParent) or (HouseholdPlace.SpouseParent, HouseholdPlace.SpouseParent) => FamilyTie.Spouse,
+
+			// An elder is a parent of the head or of the head's spouse, and a grandparent of the children. They're an in-law to
+			// the head's spouse or to the head.
+			(HouseholdPlace.Head, HouseholdPlace.HeadParent) or (HouseholdPlace.HeadParent, HouseholdPlace.Head) => FamilyTie.Elder,
+			(HouseholdPlace.Wife, HouseholdPlace.SpouseParent) or (HouseholdPlace.SpouseParent, HouseholdPlace.Wife) => FamilyTie.Elder,
+			(HouseholdPlace.Child, HouseholdPlace.HeadParent or HouseholdPlace.SpouseParent) or (HouseholdPlace.HeadParent or HouseholdPlace.SpouseParent, HouseholdPlace.Child) => FamilyTie.Elder,
+			(HouseholdPlace.Head, HouseholdPlace.SpouseParent) or (HouseholdPlace.SpouseParent, HouseholdPlace.Head) => FamilyTie.ElderInLaw,
+			(HouseholdPlace.Wife, HouseholdPlace.HeadParent) or (HouseholdPlace.HeadParent, HouseholdPlace.Wife) => FamilyTie.ElderInLaw,
+			_ => FamilyTie.Other,
+		};
+	}
+
+	private HouseholdPlace GetPlace(string? relation) =>
+		relation == Self ? HouseholdPlace.Head :
+		relation == Husband ? HouseholdPlace.Wife :
+		relation == Father || relation == Mother ? HouseholdPlace.Child :
+		relation == Son || relation == Daughter ? HouseholdPlace.HeadParent :
+		relation == SonInLaw || relation == DaughterInLaw ? HouseholdPlace.SpouseParent :
+		HouseholdPlace.Unknown;
+
 	internal IEnumerable<string> Validate() =>
 		GetAll().Where(x => string.IsNullOrWhiteSpace(x.ValueId)).Select(x => OurResources.DataValueMissing.FormatCurrentCulture(x.Name));
+}
+
+/// <summary>
+/// How two members of the same household are related.
+/// </summary>
+public enum FamilyTie
+{
+	/// <summary>
+	/// Any other relation, such as a parent and child, or siblings.
+	/// </summary>
+	Other,
+
+	/// <summary>
+	/// A married couple.
+	/// </summary>
+	Spouse,
+
+	/// <summary>
+	/// A household elder and their child or grandchild.
+	/// </summary>
+	Elder,
+
+	/// <summary>
+	/// A household elder and their child's spouse.
+	/// </summary>
+	ElderInLaw,
+}
+
+/// <summary>
+/// Where someone is in a household, from how they're related to its head.
+/// </summary>
+internal enum HouseholdPlace
+{
+	Unknown,
+	Head,
+	Wife,
+	Child,
+	HeadParent,
+	SpouseParent,
 }
 
 /// <summary>

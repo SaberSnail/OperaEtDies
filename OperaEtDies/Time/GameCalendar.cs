@@ -159,7 +159,7 @@ public sealed class GameCalendar : CalendarBase
 		m_settings.YearFormat.Replace(CalendarSettings.YearPlaceholder, year.ToString(CultureInfo.CurrentCulture), StringComparison.Ordinal);
 
 	/// <summary>
-	/// Shows the date of a time, with its year, such as "Thursday, Mid Winter, 227 CR".
+	/// Shows the date of a time, with its year, such as "Aftday, Mid Winter, 227 CR".
 	/// </summary>
 	public string FormatDate(TimePoint point)
 	{

@@ -1,0 +1,154 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:local="clr-namespace:OperaEtDies.Controls.Conversation"
+	xmlns:operaEtDies="clr-namespace:OperaEtDies"
+	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
+
+	<!--  Talking with someone: their portrait and what they're doing, what was said, why they can't talk (if they can't), and
+		the things the player can say, each with how long it takes.  -->
+	<DataTemplate DataType="{x:Type local:ConversationViewModel}">
+		<Grid Margin="24">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="*" />
+				<RowDefinition Height="Auto" />
+			</Grid.RowDefinitions>
+
+			<DockPanel Grid.Row="0" LastChildFill="True">
+				<Button
+					Width="120"
+					Height="32"
+					VerticalAlignment="Center"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Close}"
+					Content="{x:Static operaEtDies:OurResources.CloseView}"
+					DockPanel.Dock="Right" />
+				<TextBlock
+					FontSize="{DynamicResource TitleFontSize}"
+					Text="{Binding Title}"
+					TextWrapping="Wrap" />
+			</DockPanel>
+
+			<DockPanel
+				Grid.Row="1"
+				Margin="0,12,0,0"
+				DataContext="{Binding Person}"
+				LastChildFill="True">
+				<Image
+					Width="96"
+					Margin="0,0,12,0"
+					VerticalAlignment="Top"
+					DockPanel.Dock="Left"
+					Source="{Binding Portrait}"
+					Stretch="Uniform"
+					Visibility="{Binding Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+				<TextBlock
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{Binding Activity}"
+					TextWrapping="Wrap" />
+			</DockPanel>
+
+			<!--  What was said, in order.  -->
+			<ScrollViewer
+				Grid.Row="2"
+				Margin="0,12,0,0"
+				HorizontalScrollBarVisibility="Disabled"
+				VerticalScrollBarVisibility="Auto">
+				<ItemsControl ItemsSource="{Binding Lines}">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate>
+							<TextBlock
+								Margin="0,0,0,8"
+								Text="{Binding}"
+								TextWrapping="Wrap" />
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+			</ScrollViewer>
+
+			<!--  What the player can say. Why the person can't talk is shown below, so the buttons don't move.  -->
+			<StackPanel Grid.Row="3" Margin="0,12,0,0">
+				<StackPanel Orientation="Horizontal">
+					<Button
+						MinWidth="160"
+						Height="32"
+						Padding="12,0"
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AskWhatDoing}"
+						Content="{Binding AskWhatDoingText}" />
+					<Button
+						MinWidth="120"
+						Height="32"
+						Margin="8,0,0,0"
+						Padding="12,0"
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Socialize}"
+						Content="{Binding SocializeText}" />
+				</StackPanel>
+				<StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+					<TextBlock VerticalAlignment="Center" Text="{x:Static operaEtDies:OurResources.ConversationAskAboutLabel}" />
+					<ComboBox
+						Width="220"
+						Margin="8,0,0,0"
+						VerticalAlignment="Center"
+						DisplayMemberPath="FullName"
+						ItemsSource="{Binding Subjects}"
+						SelectedItem="{Binding SelectedSubject}" />
+					<Button
+						MinWidth="100"
+						Height="32"
+						Margin="8,0,0,0"
+						Padding="12,0"
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AskAbout}"
+						Content="{Binding AskAboutText}" />
+				</StackPanel>
+				<TextBlock
+					Margin="0,8,0,0"
+					FontWeight="Bold"
+					Text="{Binding Unavailable}"
+					Visibility="{Binding Unavailable, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+			</StackPanel>
+		</Grid>
+	</DataTemplate>
+
+
+	<!--  Someone asking the player to chat, with their portrait, and buttons to agree or turn them down.  -->
+	<DataTemplate DataType="{x:Type local:TalkPromptViewModel}">
+		<StackPanel Margin="24">
+			<DockPanel DataContext="{Binding Asker}" LastChildFill="True">
+				<Image
+					Width="96"
+					Margin="0,0,12,0"
+					VerticalAlignment="Top"
+					DockPanel.Dock="Left"
+					Source="{Binding Portrait}"
+					Stretch="Uniform"
+					Visibility="{Binding Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+				<TextBlock
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{Binding Activity}"
+					TextWrapping="Wrap" />
+			</DockPanel>
+			<TextBlock
+				Margin="0,12,0,0"
+				FontSize="{DynamicResource LargeFontSize}"
+				Text="{Binding Text}"
+				TextWrapping="Wrap" />
+			<StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+				<Button
+					MinWidth="120"
+					Height="32"
+					Padding="12,0"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Accept}"
+					Content="{Binding AcceptText}" />
+				<Button
+					MinWidth="120"
+					Height="32"
+					Margin="8,0,0,0"
+					Padding="12,0"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Decline}"
+					Content="{x:Static operaEtDies:OurResources.TalkPromptDecline}" />
+			</StackPanel>
+		</StackPanel>
+	</DataTemplate>
+
+</ResourceDictionary>

@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
+using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Calendar;
+using OperaEtDies.Data;
 
 namespace OperaEtDies.GameState;
 
@@ -8,6 +10,12 @@ namespace OperaEtDies.GameState;
 /// </summary>
 public abstract record PersonTask
 {
+	/// <summary>
+	/// For a task that was interrupted, the minutes it had left, which it takes when it starts again, or null if it wasn't
+	/// interrupted.
+	/// </summary>
+	public int? ResumeMinutes { get; init; }
+
 	internal abstract PersonTaskRecord CreateRecord();
 }
 
@@ -16,7 +24,7 @@ public abstract record PersonTask
 /// </summary>
 public sealed record TravelTask(Location Destination) : PersonTask
 {
-	internal override PersonTaskRecord CreateRecord() => new TravelTaskRecord(Destination.Id);
+	internal override PersonTaskRecord CreateRecord() => new TravelTaskRecord(Destination.Id) { ResumeMinutes = ResumeMinutes };
 }
 
 /// <summary>
@@ -25,7 +33,7 @@ public sealed record TravelTask(Location Destination) : PersonTask
 /// </summary>
 public sealed record BusyTask(int? Minutes) : PersonTask
 {
-	internal override PersonTaskRecord CreateRecord() => new BusyTaskRecord(Minutes);
+	internal override PersonTaskRecord CreateRecord() => new BusyTaskRecord(Minutes) { ResumeMinutes = ResumeMinutes };
 }
 
 /// <summary>
@@ -37,6 +45,24 @@ public sealed record AtWorkTask(bool IsAtWork) : PersonTask
 }
 
 /// <summary>
+/// Talks with someone, which interrupts whatever the person was doing until it's over, meeting the given level need while
+/// it lasts, if there is one, such as when socializing with a friend.
+/// </summary>
+public sealed record TalkTask(Person With, int Minutes, Need? Need = null) : PersonTask
+{
+	internal override PersonTaskRecord CreateRecord() => new TalkTaskRecord(With.Id, Minutes, Need?.Id) { ResumeMinutes = ResumeMinutes };
+}
+
+/// <summary>
+/// Waits where the person is for someone who called out to them, which interrupts whatever the person was doing until
+/// it's over.
+/// </summary>
+public sealed record WaitTask(Person For, int Minutes) : PersonTask
+{
+	internal override PersonTaskRecord CreateRecord() => new WaitTaskRecord(For.Id, Minutes) { ResumeMinutes = ResumeMinutes };
+}
+
+/// <summary>
 /// The saved form of a task. Each kind of task has its own record, listed here so save files can say which kind each
 /// record is.
 /// </summary>
@@ -44,24 +70,43 @@ public sealed record AtWorkTask(bool IsAtWork) : PersonTask
 [JsonDerivedType(typeof(TravelTaskRecord), "travel")]
 [JsonDerivedType(typeof(BusyTaskRecord), "busy")]
 [JsonDerivedType(typeof(AtWorkTaskRecord), "atWork")]
+[JsonDerivedType(typeof(TalkTaskRecord), "talk")]
+[JsonDerivedType(typeof(WaitTaskRecord), "wait")]
 public abstract record PersonTaskRecord
 {
+	/// <summary>
+	/// For a task that was interrupted, the minutes it had left.
+	/// </summary>
+	public int? ResumeMinutes { get; init; }
+
 	internal abstract PersonTask Create(WorldLoader loader);
 }
 
 public sealed record TravelTaskRecord(WorldId Destination) : PersonTaskRecord
 {
-	internal override PersonTask Create(WorldLoader loader) => new TravelTask(loader.Get<Location>(Destination));
+	internal override PersonTask Create(WorldLoader loader) => new TravelTask(loader.Get<Location>(Destination)) { ResumeMinutes = ResumeMinutes };
 }
 
 public sealed record BusyTaskRecord(int? Minutes) : PersonTaskRecord
 {
-	internal override PersonTask Create(WorldLoader loader) => new BusyTask(Minutes);
+	internal override PersonTask Create(WorldLoader loader) => new BusyTask(Minutes) { ResumeMinutes = ResumeMinutes };
 }
 
 public sealed record AtWorkTaskRecord(bool IsAtWork) : PersonTaskRecord
 {
 	internal override PersonTask Create(WorldLoader loader) => new AtWorkTask(IsAtWork);
+}
+
+public sealed record TalkTaskRecord(WorldId With, int Minutes, string? Need = null) : PersonTaskRecord
+{
+	internal override PersonTask Create(WorldLoader loader) =>
+		new TalkTask(loader.Get<Person>(With), Minutes, Need is null ? null : loader.GameData.Schedules.Needs.FirstOrDefault(x => x.Id == Need && x.Kind == NeedKind.Level)
+			?? throw new SaveLoadException(OurResources.SaveDataNotFound.FormatCurrentCulture("level need", Need))) { ResumeMinutes = ResumeMinutes };
+}
+
+public sealed record WaitTaskRecord(WorldId For, int Minutes) : PersonTaskRecord
+{
+	internal override PersonTask Create(WorldLoader loader) => new WaitTask(loader.Get<Person>(For), Minutes) { ResumeMinutes = ResumeMinutes };
 }
 
 /// <summary>

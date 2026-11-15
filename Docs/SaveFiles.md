@@ -15,7 +15,7 @@ Saved games are kept in `%LocalAppData%\Golden Anvil\<game title>\Saves`, where 
 
 | Property | Type | Notes |
 |---|---|---|
-| `version` | number | The save format version. Must be 3. |
+| `version` | number | The save format version. Must be 4. |
 | `gameTitle` | string | The title of the game it was saved from. Must match the loaded game's title. |
 | `dataHash` | string | A hash of every file in the data folder, including their paths within it. |
 | `modsHash` | string | Optional (defaults to empty). A hash of every file in each mod folder, in order, including their paths within their folders. Empty if the game was saved without mods. |
@@ -28,7 +28,7 @@ Saved games are kept in `%LocalAppData%\Golden Anvil\<game title>\Saves`, where 
 
 If either hash doesn't match the loaded data or mods, the player is asked whether to load the save anyway.
 
-There must be exactly one player, everyone must be in exactly one family, and no one can own or help in more than one business.
+There must be exactly one player, everyone must be in exactly one family, and no one can own or help in more than one business. Every two people must have exactly one relationship.
 
 ## World Objects
 
@@ -36,7 +36,7 @@ Every world object has these properties:
 
 | Property | Type | Notes |
 |---|---|---|
-| `kind` | string | `feature`, `location`, `person`, `family`, or `business`. Must come first. |
+| `kind` | string | `feature`, `location`, `person`, `family`, `business`, or `relationship`. Must come first. |
 | `id` | world id | |
 
 **Feature** (`feature`)
@@ -92,6 +92,9 @@ A quarter, house, or business's place.
 | `progress` | object | The minutes spent at the place on quota needs this day or week (as each need's period says), keyed by need id, as of `time`. Each key must be the id of a quota need in Schedules.json, and each value must be a whole number of at least 0. A quota need that isn't listed has had no time spent on it. |
 | `pendingTrip` | string | Optional. The id of a quota need in Schedules.json measured in trips that return home, whose trip the person has been to the place for but hasn't finished at home yet. Missing or `null` if there isn't one. Only the player has one. |
 | `goalChoice` | Goal Choice | Optional. How the person last chose their goal from their needs. Missing or `null` if their plan was last set some other way, as for the player. |
+| `sightings` | list of Sighting | Optional. The last time the person saw each other person, or heard about them, in the last `sightingHours` hours (from Schedules.json). Missing or `null` if there are none. At most one for each other person, and none of the person themselves. |
+| `talkRequest` | world id | Optional. For the player, someone who asked them to chat and is waiting for an answer, or `null` if no one is. Must be a person. |
+| `hasNapped` | boolean | Optional (defaults to false). Whether the person has napped since they last slept until rested. |
 
 **Family** (`family`)
 
@@ -111,6 +114,18 @@ A quarter, house, or business's place.
 | `helpers` | list of world id | Each must be a person. |
 | `location` | world id | Optional. The place the business is run from, or `null` if it's run from the owner's home. Must be a location. |
 
+**Relationship** (`relationship`)
+
+How two people get along, which is the same both ways.
+
+| Property | Type | Notes |
+|---|---|---|
+| `first` | world id | Must be a person. |
+| `second` | world id | Must be a person other than `first`. |
+| `score` | number | A whole number from 0 to 100. |
+| `lastTalked` | string | Optional. When the two last talked, written the same way as `time`, or `null` if they haven't talked since the game started. |
+| `lastDeclined` | string | Optional. When the player last turned down a request to chat from the other one, written the same way as `time`, or `null` if they haven't. |
+
 **Goal Choice**
 
 | Property | Type | Notes |
@@ -119,6 +134,15 @@ A quarter, house, or business's place.
 | `urgencies` | list of Need Urgency | Each need that was at all urgent then, with how urgent it was. Can be empty. |
 | `need` | string | Optional. The id of the need in Schedules.json chosen from the ones urgent enough, or `null` if none were. |
 | `result` | string | `chosen` if the need became the goal, or why the person went idle instead: `nothingUrgent`, `noPlace` (nowhere to meet the need), or `noTime` (no time left for it). |
+| `seeking` | Seek Choice | Optional. For the socializing need, which friend the person chose to look for, where, and why, or `null` otherwise. |
+
+**Seek Choice**
+
+| Property | Type | Notes |
+|---|---|---|
+| `friend` | world id | The friend being looked for. Must be a person. |
+| `place` | world id | Where they're looking. Must be a location. |
+| `clue` | string | Why they're looking there: `workplace` (the friend's workplace, during their work hours), `home` (the friend's home), `sighting` (where the friend was last seen or said they were going), or `gathering` (where people gather today). |
 
 **Need Urgency**
 
@@ -127,16 +151,39 @@ A quarter, house, or business's place.
 | `need` | string | The id of a need in Schedules.json. |
 | `urgency` | number | At least 0. |
 
+**Sighting**
+
+| Property | Type | Notes |
+|---|---|---|
+| `person` | world id | The person seen. Must be a person. |
+| `location` | world id | Where they were seen. Must be a location. |
+| `time` | string | When they were last seen, written the same way as `time`. |
+| `activity` | string | What they were doing: `none` (nothing in particular), `idle`, `busy` (spending time on `need`), `walking` (setting off along a path to `destination`), `left` (leaving for `destination`), or `talking`. |
+| `need` | string | The id of a need in Schedules.json for `busy`, and `null` otherwise. |
+| `destination` | world id | The next place on their way for `walking` and `left`, and `null` otherwise. Must be a location. |
+| `source` | world id | Optional. Who told the person about the sighting, or `null` if they saw it themselves. Must be a person. |
+| `plan` | Sighting Plan | Optional. What the person seen said they were doing, if they were asked, or `null` if they weren't. |
+
+**Sighting Plan**
+
+| Property | Type | Notes |
+|---|---|---|
+| `goal` | string | The id of a need in Schedules.json, or `null` if they were idle. |
+| `destination` | world id | Where their walk ended, or `null` if they weren't walking. Must be a location. |
+
 **Task**
 
-One step toward a person's goal. Each task's `kind` property says which kind it is, and must come first.
+One step toward a person's goal. Each task's `kind` property says which kind it is, and must come first. A talk or wait task can come before the person's other tasks, since it interrupts them.
 
 | Kind | Other properties | Notes |
 |---|---|---|
 | `travel` | `destination` (world id) | Walks to a location next to the person's. Must be a location. |
 | `busy` | `minutes` (number, optional) | Spends time where the person is. Without `minutes` (or with `null`), it lasts until the goal's level need reaches 0. |
 | `atWork` | `isAtWork` (boolean) | Starts or stops work, which takes no time. |
+| `talk` | `with` (world id), `minutes` (number), `need` (string, optional) | Talks with someone for that many minutes, interrupting what the person was doing. `with` must be a person. `need`, if given, is the id of a level need in Schedules.json met while they talk, such as when socializing with a friend. |
+| `wait` | `for` (world id), `minutes` (number) | Waits where the person is for someone who called out to them, for that many minutes, interrupting what the person was doing. `for` must be a person. |
 
+A `travel`, `busy`, `talk`, or `wait` task that was interrupted has `resumeMinutes` (number), the minutes it had left, which it takes when it starts again. It's missing or `null` for a task that wasn't interrupted.
 **Rect**
 
 | Property | Type | Notes |

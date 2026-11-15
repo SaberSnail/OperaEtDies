@@ -66,7 +66,7 @@ public sealed class PlayerActionViewModel : ViewModelBase
 	public IReadOnlyList<PlayerActionOptionViewModel> Options { get; }
 
 	/// <summary>
-	/// When the action is open, such as "Open on Saturday from 7:00 to 14:00", shown in place of the options while it's
+	/// When the action is open, such as "Open on Moonday from 7:00 to 14:00", shown in place of the options while it's
 	/// closed, or null when it isn't closed.
 	/// </summary>
 	public string? OpeningHours { get; }

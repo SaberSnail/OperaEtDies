@@ -5,9 +5,9 @@
 	xmlns:operaEtDies="clr-namespace:OperaEtDies"
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
 
-	<!--  A person who can be examined, with what they're doing at the end of the row, so it doesn't move the buttons. In the
-		player's location, they can be followed. Also used by the list of villagers, where the player is labeled, and developers
-		can go to where anyone else is.  -->
+	<!--  A person who can be examined (opening a view focused on them), with what they're doing at the end of the row, so it
+		doesn't move the buttons. In the player's location, they can be talked with and followed. Also used by the list of
+		villagers, where the player is labeled, and developers can go to where anyone else is.  -->
 	<DataTemplate DataType="{x:Type local:LocationPersonViewModel}">
 		<Grid Margin="0,0,0,8">
 			<Grid.ColumnDefinitions>
@@ -17,11 +17,9 @@
 			<Grid.RowDefinitions>
 				<RowDefinition Height="Auto" />
 				<RowDefinition Height="Auto" />
-				<RowDefinition Height="Auto" />
 			</Grid.RowDefinitions>
 
-			<!--  A small portrait beside the name, no taller than the buttons, hidden (keeping its space so the name doesn't move)
-				once the full portrait is shown.  -->
+			<!--  A small portrait beside the name, no taller than the buttons.  -->
 			<DockPanel Grid.Row="0" Grid.Column="0">
 				<Image
 					Width="32"
@@ -29,8 +27,7 @@
 					Margin="0,0,8,0"
 					DockPanel.Dock="Left"
 					Source="{Binding Portrait}"
-					Stretch="Uniform"
-					Visibility="{Binding IsExamined, Converter={x:Static utility:CommonConverters.BooleanNotToVisibilityWithHidden}}" />
+					Stretch="Uniform" />
 				<TextBlock
 					VerticalAlignment="Center"
 					Text="{Binding Name}"
@@ -46,6 +43,13 @@
 					Height="32"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
 					Content="{x:Static operaEtDies:OurResources.ExamineCharacter}" />
+				<Button
+					Width="80"
+					Height="32"
+					Margin="8,0,0,0"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Talk}"
+					Content="{x:Static operaEtDies:OurResources.TalkToPerson}"
+					Visibility="{Binding CanTalk, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
 				<Button
 					Width="130"
 					Height="32"
@@ -91,28 +95,6 @@
 						TextWrapping="Wrap" />
 				</StackPanel>
 			</Border>
-
-			<!--  The portrait and description, shown once the character has been examined. The portrait lines up with the name.  -->
-			<DockPanel
-				Grid.Row="2"
-				Grid.Column="0"
-				Grid.ColumnSpan="2"
-				Margin="0,8,0,0"
-				LastChildFill="True"
-				Visibility="{Binding IsExamined, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
-				<Image
-					Width="160"
-					Margin="0,0,12,0"
-					VerticalAlignment="Top"
-					DockPanel.Dock="Left"
-					Source="{Binding Portrait}"
-					Stretch="Uniform"
-					Visibility="{Binding Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
-				<TextBlock
-					Foreground="{DynamicResource FontLightBrush}"
-					Text="{Binding Person.Description}"
-					TextWrapping="Wrap" />
-			</DockPanel>
 		</Grid>
 	</DataTemplate>
 

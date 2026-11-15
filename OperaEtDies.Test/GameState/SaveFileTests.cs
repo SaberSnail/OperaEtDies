@@ -52,7 +52,48 @@ public sealed class SaveFileTests
 			Assert.That(CreateSave(loaded).Serialize(), Is.EqualTo(json), $"Seed {seed}");
 			Assert.That(loaded.Npcs.Where(x => x.Goal is not null), Is.Not.Empty);
 			Assert.That(loaded.Npcs.Where(x => x.GoalChoice is { Urgencies.Count: > 0 }), Is.Not.Empty);
+			Assert.That(loaded.People.Where(x => x.Sightings.Count > 0), Is.Not.Empty);
 		}
+	}
+
+	[Test]
+	public void TalkingSavesAndLoads()
+	{
+		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
+		world.AdvanceTime(world.GameData.Calendar.CreateTimeOffset(0, 3, 0));
+		var (first, second) = (world.Npcs.First(x => x.CurrentTask is not null), world.Npcs.Last(x => x.CurrentTask is not null));
+		first.GetRelationship(second).Score = 100;
+		world.StartTalking(first, second, 15, world.Time, isSocializing: true);
+		first.See(second, new Sighting(second.Location, world.Time, SightingActivity.Talking, Plan: new SightingPlan(second.Goal, world.Locations[0])));
+
+		var json = CreateSave(world).Serialize();
+		var loaded = SaveFile.Deserialize(json).Load(world.GameData, GameTitle, new Random(0));
+
+		AssertSameWorld(loaded, world);
+		Assert.That(CreateSave(loaded).Serialize(), Is.EqualTo(json));
+		var talk = (TalkTask) loaded.Objects.Get<Person>(first.Id).CurrentTask!;
+		Assert.That((talk.With.Id, talk.Minutes), Is.EqualTo((second.Id, 15)));
+		Assert.That(loaded.Objects.Get<Person>(first.Id).Tasks[1].ResumeMinutes, Is.Not.Null);
+		Assert.That(talk.Need?.Id, Is.EqualTo(world.GameData.Schedules.Talking.SocializeNeed));
+		Assert.That(loaded.Objects.Get<Person>(first.Id).Sightings.Values.Count(x => x.Plan is not null), Is.EqualTo(1));
+	}
+
+	[Test]
+	public void SeekingSavesAndLoads()
+	{
+		var (world, person) = TalkingTests.CreateWorldWithSomeoneHere();
+		var socializing = world.GameData.Schedules.Needs.Single(x => x.Id == world.GameData.Schedules.Talking.SocializeNeed);
+		foreach (var need in world.GameData.Schedules.Needs.Where(x => x.Kind == NeedKind.Level))
+			person.SetLevel(need, 0);
+		person.SetLevel(socializing, OperaEtDies.Data.Need.MaximumLevel);
+		world.CancelGoal(person);
+		Assert.That(person.GoalChoice!.Seeking, Is.Not.Null);
+
+		var json = CreateSave(world).Serialize();
+		var loaded = SaveFile.Deserialize(json).Load(world.GameData, GameTitle, new Random(0));
+
+		AssertSameWorld(loaded, world);
+		Assert.That(CreateSave(loaded).Serialize(), Is.EqualTo(json));
 	}
 
 	[Test]
@@ -91,6 +132,17 @@ public sealed class SaveFileTests
 		AssertLoadFails(With(person with { GoalChoice = choice with { Urgencies = [new NeedUrgencyRecord("flying", 50)] } }), world.GameData, "flying");
 		AssertLoadFails(With(person with { GoalChoice = choice with { Urgencies = [new NeedUrgencyRecord("hunger", -1)] } }), world.GameData, "hunger");
 		AssertLoadFails(With(person with { GoalChoice = choice with { Time = "never" } }), world.GameData, "never");
+
+		var other = save.Objects.OfType<PersonRecord>().Last();
+		var location = save.Objects.OfType<LocationRecord>().First();
+		var sighting = new SightingRecord(other.Id, location.Id, save.Time, SightingActivity.Busy, "fatigue", null, null);
+		AssertLoadFails(With(person with { Sightings = [sighting with { Need = "flying" }] }), world.GameData, "flying");
+		AssertLoadFails(With(person with { Sightings = [sighting with { Need = null }] }), world.GameData, "sighting");
+		AssertLoadFails(With(person with { Sightings = [sighting with { Activity = SightingActivity.Left }] }), world.GameData, "sighting");
+		AssertLoadFails(With(person with { Sightings = [sighting with { Person = person.Id }] }), world.GameData, "sighting");
+		AssertLoadFails(With(person with { Sightings = [sighting, sighting] }), world.GameData, "sighting");
+		AssertLoadFails(With(person with { Sightings = [sighting with { Time = "never" }] }), world.GameData, "never");
+		AssertLoadFails(With(person with { Sightings = [sighting with { Plan = new SightingPlanRecord("flying", null) }] }), world.GameData, "flying");
 	}
 
 	[Test]
@@ -233,6 +285,21 @@ public sealed class SaveFileTests
 		AssertLoadFails(Replace(save, player, player with { IsPlayer = false }), world.GameData, "player");
 	}
 
+	[Test]
+	public void LoadFailsForInvalidRelationships()
+	{
+		var (_, world) = GameWorldTests.CreateWorld();
+		var save = CreateSave(world);
+		var relationship = save.Objects.OfType<RelationshipRecord>().First();
+		var other = save.Objects.OfType<RelationshipRecord>().Last();
+
+		AssertLoadFails(save with { Objects = save.Objects.Where(x => x != relationship).ToList() }, world.GameData, "relationships");
+		AssertLoadFails(Replace(save, relationship, relationship with { Score = 101 }), world.GameData, relationship.Id.ToString().TrimStart('#'));
+		AssertLoadFails(Replace(save, relationship, relationship with { Second = relationship.First }), world.GameData, relationship.Id.ToString().TrimStart('#'));
+		AssertLoadFails(Replace(save, other, other with { First = relationship.First, Second = relationship.Second }), world.GameData, other.Id.ToString().TrimStart('#'));
+		AssertLoadFails(Replace(save, relationship, relationship with { LastTalked = "never" }), world.GameData, "never");
+	}
+
 	[TestCase("tuesday")]
 	[TestCase("")]
 	[TestCase("-60")]
@@ -266,6 +333,8 @@ public sealed class SaveFileTests
 		var random = new Random(1);
 		foreach (var person in world.People.Where((_, index) => index % 3 == 0))
 			person.Location = world.Locations[random.Next(world.Locations.Count)];
+		foreach (var relationship in world.Relationships.Where((_, index) => index % 5 == 0))
+			relationship.LastTalked = world.Time;
 		world.AdvanceTime(world.GameData.Calendar.CreateTimeOffset(9, 7, 45));
 	}
 
@@ -309,12 +378,19 @@ public sealed class SaveFileTests
 			Assert.That(person.TaskEnd, Is.EqualTo(other.TaskEnd));
 			Assert.That((person.GoalChoice?.Time, person.GoalChoice?.Need, person.GoalChoice?.Result), Is.EqualTo((other.GoalChoice?.Time, other.GoalChoice?.Need, other.GoalChoice?.Result)));
 			Assert.That(person.GoalChoice?.Urgencies, Is.EqualTo(other.GoalChoice?.Urgencies));
+			Assert.That((person.GoalChoice?.Seeking?.Friend.Id, person.GoalChoice?.Seeking?.Place.Id, person.GoalChoice?.Seeking?.Clue), Is.EqualTo((other.GoalChoice?.Seeking?.Friend.Id, other.GoalChoice?.Seeking?.Place.Id, other.GoalChoice?.Seeking?.Clue)));
+			Assert.That(person.Sightings.Select(x => (x.Key.Id, x.Value.Location.Id, x.Value.Time, x.Value.Activity, x.Value.Need, x.Value.Destination?.Id, x.Value.Source?.Id, x.Value.Plan?.Goal, x.Value.Plan?.Destination?.Id)),
+				Is.EqualTo(other.Sightings.Select(x => (x.Key.Id, x.Value.Location.Id, x.Value.Time, x.Value.Activity, x.Value.Need, x.Value.Destination?.Id, x.Value.Source?.Id, x.Value.Plan?.Goal, x.Value.Plan?.Destination?.Id))));
 			foreach (var need in actual.GameData.Schedules.Needs)
 			{
 				Assert.That(person.GetLevel(need), Is.EqualTo(other.GetLevel(need)));
 				Assert.That(person.GetProgress(need), Is.EqualTo(other.GetProgress(need)));
 			}
 		}
+
+		Assert.That(actual.Relationships.Select(x => (x.First.Id, x.Second.Id, x.Score, x.LastTalked)), Is.EqualTo(expected.Relationships.Select(x => (x.First.Id, x.Second.Id, x.Score, x.LastTalked))));
+		foreach (var person in actual.People)
+			Assert.That(person.Relationships.Keys.Select(x => x.Id), Is.EquivalentTo(actual.People.Where(x => x != person).Select(x => x.Id)));
 
 		foreach (var (business, other) in actual.Businesses.Zip(expected.Businesses))
 		{

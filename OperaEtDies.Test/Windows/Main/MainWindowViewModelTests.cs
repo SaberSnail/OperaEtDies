@@ -124,22 +124,23 @@ public sealed class MainWindowViewModelTests
 	}
 
 	[Test]
-	public void ExaminePersonShowsDescription()
+	public void ExaminePersonAsksToExamineThem()
 	{
 		var gameData = TestData.CreateGameData();
 		var world = new TestWorld(gameData);
 		var person = world.AddPerson(TestData.CreatePlayerTraits(gameData), world.AddLocation(gameData.HouseTemplates[0]));
-		var viewModel = new LocationPersonViewModel(person, gameData.PortraitRenderer);
+		var examined = new List<Person>();
 
+		Assert.That(new LocationPersonViewModel(person, gameData.PortraitRenderer).CanExamine(), Is.False);
+
+		var viewModel = new LocationPersonViewModel(person, gameData.PortraitRenderer, examine: examined.Add);
 		Assert.That(viewModel.Name, Is.EqualTo("John Smith"));
 		Assert.That(viewModel.Person, Is.SameAs(person));
-		Assert.That(viewModel.IsExamined, Is.False);
 		Assert.That(viewModel.CanExamine(), Is.True);
 
 		viewModel.Examine();
 
-		Assert.That(viewModel.IsExamined, Is.True);
-		Assert.That(viewModel.CanExamine(), Is.False);
+		Assert.That(examined, Is.EqualTo(new[] { person }));
 	}
 
 	[Test]
@@ -334,6 +335,18 @@ public sealed class MainWindowViewModelTests
 		viewModel.ToggleMap();
 		viewModel.ToggleMap();
 		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
+
+		// The player's character view opens on top of the current view, and the same button closes it. With it open, a
+		// view's button shows that view instead of closing it.
+		viewModel.ToggleVillagers();
+		viewModel.TogglePlayerCharacter();
+		Assert.That(viewModel.Character!.Person.Person, Is.SameAs(viewModel.World.Player));
+		viewModel.TogglePlayerCharacter();
+		Assert.That(viewModel.Character, Is.Null);
+		viewModel.TogglePlayerCharacter();
+		viewModel.ToggleVillagers();
+		Assert.That(viewModel.Character, Is.Null);
+		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Villagers));
 	}
 
 	[Test]
@@ -469,8 +482,6 @@ public sealed class MainWindowViewModelTests
 		for (var wait = 0; wait < 30; wait++)
 		{
 			var before = screen.People.Select(x => x.Person).ToList();
-			var examined = screen.People.Count == 0 ? null : screen.People[0];
-			examined?.Examine();
 			var start = world.Time;
 
 			screen.Wait();
@@ -480,6 +491,8 @@ public sealed class MainWindowViewModelTests
 			Assert.That(world.Time, Is.GreaterThan(start).And.LessThanOrEqualTo(calendar.GetNextDayPartStart(start)));
 			if (!after.SequenceEqual(before))
 				changes++;
+			else if (viewModel.TalkPrompt is { } prompt)
+				prompt.Decline();
 			else
 			{
 				Assert.That(world.Time, Is.EqualTo(calendar.GetNextDayPartStart(start)));
@@ -487,8 +500,6 @@ public sealed class MainWindowViewModelTests
 				Assert.That(screen.WaitResult, Does.EndWith(dayPart.Announcement ?? OurResources.DayPartStarted.FormatCurrentCulture(dayPart.Title)));
 				dayParts.Add(dayPart.Id);
 			}
-			if (examined is not null && after.Contains(examined.Person))
-				Assert.That(screen.People.Single(x => x.Person == examined.Person).IsExamined, Is.True);
 			Assert.That(screen.WaitResult, Is.Not.Null);
 		}
 
@@ -497,18 +508,41 @@ public sealed class MainWindowViewModelTests
 	}
 
 	[Test]
-	public void ExamineVillagerShowsDescription()
+	public void ExamineVillagerOpensTheirCharacterViewAndClosingItReturnsToVillagers()
 	{
 		using var viewModel = CreateViewModel();
 		viewModel.ShowVillagers();
-		var person = viewModel.Villagers!.Families[1].People[0];
-
-		Assert.That(person.IsExamined, Is.False);
+		var villagers = viewModel.Villagers;
+		var person = villagers!.Families[1].People[0];
 
 		person.Examine();
 
-		Assert.That(person.IsExamined, Is.True);
-		Assert.That(person.Person.Description, Is.Not.Empty);
+		Assert.That(viewModel.Character!.Person.Person, Is.SameAs(person.Person));
+		Assert.That(viewModel.Character.Person.Person.Description, Is.Not.Empty);
+		Assert.That(viewModel.CurrentView, Is.SameAs(villagers));
+
+		viewModel.Character.Close();
+
+		Assert.That(viewModel.Character, Is.Null);
+		Assert.That(viewModel.Villagers, Is.SameAs(villagers));
+		Assert.That(viewModel.CurrentView, Is.SameAs(villagers));
+	}
+
+	[Test]
+	public void ExaminePersonAtTheLocationOpensTheirCharacterView()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		var person = viewModel.CurrentLocation.People[0];
+
+		person.Examine();
+
+		Assert.That(viewModel.Character!.Person.Person, Is.SameAs(person.Person));
+		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
+
+		// Opening another view from the sidebar closes the character view.
+		viewModel.ToggleStatus();
+		Assert.That(viewModel.Character, Is.Null);
+		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Status));
 	}
 
 	[Test]
@@ -730,6 +764,106 @@ public sealed class MainWindowViewModelTests
 			Assert.That(viewModel.TimeOfDay, Is.EqualTo("Night, 22:05"));
 			Assert.That(viewModel.SpecialDay, Is.Null);
 		});
+	}
+
+	[Test]
+	public void TalkingToSomeoneOpensAConversationThatEndsWhenThePlayerLeaves()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		var target = viewModel.CurrentLocation.People[0];
+
+		Assert.That(target.CanTalk, Is.True);
+		target.Talk();
+		Assert.That(viewModel.Conversation!.Person.Person, Is.SameAs(target.Person));
+		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.Conversation));
+
+		viewModel.Conversation.Close();
+		Assert.That((viewModel.Conversation, viewModel.Overlay), Is.EqualTo(((object?) null, (object?) null)));
+
+		target.Talk();
+		viewModel.CurrentLocation.Connections[0].Travel();
+		Assert.That(viewModel.Conversation, Is.Null);
+
+		// The player can't talk with themselves.
+		Assert.That(viewModel.CurrentLocation.People.Any(x => x.Person.IsPlayer && x.CanTalk), Is.False);
+	}
+
+	[Test]
+	public void SidebarViewsOpenOnTopOfAConversation()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		viewModel.CurrentLocation.People[0].Talk();
+
+		viewModel.ToggleMap();
+
+		Assert.That(viewModel.Conversation, Is.Null);
+		Assert.That(viewModel.Overlay, Is.Null);
+		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Map));
+	}
+
+	[Test]
+	public void SomeoneAskingThePlayerToChatShowsAPromptOnTop()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		var world = viewModel.World;
+		var asker = viewModel.CurrentLocation.People[0].Person;
+		viewModel.CurrentLocation.People[0].Talk();
+
+		world.Player.TalkRequest = asker;
+		Assert.That(viewModel.TalkPrompt!.Text, Is.EqualTo(OurResources.TalkPromptText.FormatCurrentCulture(asker.FullName)));
+		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.TalkPrompt));
+
+		// Turning them down closes the prompt, and they don't ask again for a while.
+		viewModel.TalkPrompt.Decline();
+		Assert.That((viewModel.TalkPrompt, world.Player.TalkRequest), Is.EqualTo(((object?) null, (object?) null)));
+		Assert.That(asker.GetRelationship(world.Player).LastDeclined, Is.EqualTo(world.Time));
+		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.Conversation));
+
+		// Agreeing chats with them, and says so.
+		var start = world.Time;
+		world.Player.TalkRequest = asker;
+		viewModel.TalkPrompt!.Accept();
+		Assert.That(viewModel.TalkPrompt, Is.Null);
+		Assert.That(world.Time, Is.GreaterThan(start));
+		Assert.That(viewModel.CurrentLocation.WaitResult, Does.StartWith(OurResources.TalkPromptChatted.FormatCurrentCulture(asker.FullName, "")[..^2]));
+	}
+
+	[Test]
+	public void DevelopersCanSeeSomeonesStatusFromTheirCharacterView()
+	{
+		using var viewModel = CreateViewModel(isDeveloper: true, withSchedules: true);
+		var person = viewModel.World.Npcs[0];
+		viewModel.ShowCharacter(person);
+		var character = viewModel.Character!;
+
+		Assert.That(character.CanViewStatus, Is.True);
+		character.ViewStatus();
+		Assert.That(viewModel.CharacterStatus!.Person, Is.SameAs(person));
+		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.CharacterStatus));
+
+		// Closing it without changing anything shows the character view again, and leaves the person's plan alone.
+		var choice = person.GoalChoice;
+		viewModel.CharacterStatus.Close();
+		Assert.That(viewModel.CharacterStatus, Is.Null);
+		Assert.That(viewModel.Overlay, Is.SameAs(character));
+		Assert.That(person.GoalChoice, Is.SameAs(choice));
+
+		// After a change, the person chooses a new goal now.
+		character.ViewStatus();
+		var fatigue = viewModel.CharacterStatus!.Needs.Single(x => x.Title == "Fatigue");
+		Assert.That(viewModel.CharacterStatus.IsChanged, Is.False);
+		fatigue.Amount = fatigue.Amount > 50 ? 0 : 100;
+		Assert.That(viewModel.CharacterStatus.IsChanged, Is.True);
+		viewModel.CharacterStatus.Close();
+		Assert.That(person.GoalChoice, Is.Not.SameAs(choice));
+		Assert.That(person.GoalChoice!.Time, Is.EqualTo(viewModel.World.Time));
+
+		// The player's own character view has no status button, and neither does anyone's for non-developers.
+		viewModel.ShowCharacter(viewModel.World.Player);
+		Assert.That(viewModel.Character!.CanViewStatus, Is.False);
+		using var player = CreateViewModel(withSchedules: true);
+		player.ShowCharacter(player.World.Npcs[0]);
+		Assert.That(player.Character!.CanViewStatus, Is.False);
 	}
 
 	private static MainWindowViewModel CreateViewModel(int seed = 0, bool isDeveloper = false, bool withSchedules = false)

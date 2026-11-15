@@ -181,7 +181,9 @@ public sealed class VillageReport : ILogDestination
 			var random = new Random(seed);
 			var player = CharacterRandomizer.CreateRandomPlayer(gameData, random);
 			var town = TownGenerator.Generate(gameData, player, random);
+			// No one plays, so the player lives their life like everyone else.
 			var world = GameWorld.CreateFromTown(gameData, town, random);
+			world.IsHeadless = true;
 			if (m_simulateDays > 0)
 				Simulate(village, world);
 
@@ -226,16 +228,20 @@ public sealed class VillageReport : ILogDestination
 	{
 		var settings = new SaveSettings(nameof(VillageReport), "", "", [], "");
 		var json = SaveFile.Create(world, settings, DateTimeOffset.UnixEpoch).Serialize();
-		return SaveFile.Deserialize(json).Load(gameData, settings.GameTitle, random);
+		var loaded = SaveFile.Deserialize(json).Load(gameData, settings.GameTitle, random);
+		loaded.IsHeadless = world.IsHeadless;
+		return loaded;
 	}
 
 	private void WriteHeaders(GameData gameData)
 	{
 		WriteRecord("#village", "village", "seed", "households", "people", "businesses", "quarters", "houses", "businessLocations", "reusedTemplates", "shape", "landmarks", "paths", "deadEnds", "landmarkDeadEnds", "maxExits", "features", "crossings", "time", "season");
 		WriteRecord("#household", "village", "household", "lastName", "members", "wealth", "fortune", "wealthLevel", "house", "quarter", "quarterKind");
-		WriteRecord(["#person", "village", "household", "member", "role", "isPlayer", "work", "businessProfession", "fullName", "location", "place", "portraitLayers", "goal", "task", "taskEnd", "pendingTrip",
+		WriteRecord(["#person", "village", "household", "member", "role", "isPlayer", "work", "businessProfession", "fullName", "location", "place", "portraitLayers", "goal", "task", "taskEnd", "pendingTrip", "friends",
 			.. gameData.Schedules.Needs.Select(x => x.Id), .. gameData.CharacterProperties.Select(x => x.Id)]);
 		WriteRecord("#activity", "village", "time", "day", "household", "member", "goal", "task", "minutes", "location", "destination");
+		WriteRecord("#relationship", "village", "household", "member", "otherHousehold", "otherMember", "score", "isFriend", "familyTie", "isNeighbor", "lastTalked");
+		WriteRecord("#sighting", "village", "household", "member", "otherHousehold", "otherMember", "location", "time", "activity", "need", "destination", "source", "toldGoal", "toldDestination");
 		WriteRecord("#business", "village", "household", "profession", "ownerRole", "helpers", "location", "quarter", "quarterKind");
 		WriteRecord("#location", "village", "id", "template", "type", "quarterKind", "wealth", "connections", "landmark", "x", "y", "width", "height", "borders");
 		WriteRecord("#exit", "village", "from", "to", "direction", "path", "crossing");
@@ -253,6 +259,7 @@ public sealed class VillageReport : ILogDestination
 		var families = world.Families.Select((family, index) => (family, index)).ToDictionary(x => x.family, x => x.index);
 		var quarters = world.Locations.Where(x => x.Template is QuarterTemplate).ToList();
 		var names = GetLocationNames(world.Locations);
+		var relationships = gameData.Families.Relationships;
 
 		// Paths between quarters are the exits with a direction. Each path has an exit at both ends.
 		var pathCounts = quarters.ToDictionary(x => x, x => x.Exits.Count(exit => exit.Direction is not null));
@@ -293,11 +300,34 @@ public sealed class VillageReport : ILogDestination
 
 				var portraitLayers = gameData.PortraitRenderer?.GetLayerIds(person.Traits, person.PortraitPlace) ?? [];
 				WriteRecord(["person", village, index, member, person.Role, person.IsPlayer, work, person.Business?.Profession.Id,
-					startTraits.GetFullName(gameData.CharacterTemplates), names[startLocation], startPlace, string.Join(" ", portraitLayers), goal, task, taskEnd, person.PendingTrip?.Id, .. needs,
+					startTraits.GetFullName(gameData.CharacterTemplates), names[startLocation], startPlace, string.Join(" ", portraitLayers), goal, task, taskEnd, person.PendingTrip?.Id, person.Relationships.Values.Count(x => relationships.IsFriend(x.Score)), .. needs,
 					.. gameData.CharacterProperties.Select(x => FormatValue(startTraits.Values.GetValueOrDefault(x.Id)))]);
 
 				if (m_portraitFolder is not null && gameData.PortraitRenderer is { } portraitRenderer)
 					WritePortrait(portraitRenderer, person.Traits, person.PortraitPlace, Path.Combine(m_portraitFolder, FormattableString.Invariant($"{village}-{index}-{member}.png")));
+			}
+		}
+
+		// People are named by their household and member numbers, as in the person records.
+		foreach (var relationship in world.Relationships)
+		{
+			var (first, second) = (relationship.First, relationship.Second);
+			WriteRecord("relationship", village, families[first.Family], first.Family.Members.ToList().IndexOf(first), families[second.Family], second.Family.Members.ToList().IndexOf(second),
+				relationship.Score, relationships.IsFriend(relationship.Score), GetFamilyTie(gameData, first, second), first.Home.Quarter is { } quarter && quarter == second.Home.Quarter,
+				relationship.LastTalked is { } lastTalked ? gameData.Calendar.FormatTime(lastTalked, TimeFormat.Long) : null);
+		}
+
+		// What each person last saw of everyone else, with whoever told them, if anyone, as "household-member".
+		var members = world.Families.SelectMany((family, index) => family.Members.Select((person, member) => (person, index, member))).ToDictionary(x => x.person, x => (x.index, x.member));
+		foreach (var person in world.People)
+		{
+			foreach (var (other, sighting) in person.Sightings.OrderBy(x => members[x.Key]))
+			{
+				WriteRecord("sighting", village, members[person].index, members[person].member, members[other].index, members[other].member, names[sighting.Location],
+					gameData.Calendar.FormatTime(sighting.Time, TimeFormat.Long), JsonNamingPolicy.CamelCase.ConvertName(sighting.Activity.ToString()), sighting.Need?.Id,
+					sighting.Destination is { } destination ? names[destination] : null,
+					sighting.Source is { } source ? FormattableString.Invariant($"{members[source].index}-{members[source].member}") : null,
+					sighting.Plan is null ? null : sighting.Plan.Goal?.Id ?? "idle", sighting.Plan?.Destination is { } told ? names[told] : null);
 			}
 		}
 
@@ -336,6 +366,16 @@ public sealed class VillageReport : ILogDestination
 	/// Names each location after its template, with a number added for each use of a template after the first, so the
 	/// names are readable and the same each time a village is generated. World ids aren't used, since they're a black box.
 	/// </summary>
+	/// <summary>
+	/// Gets how two people are related if they're in the same household, such as "spouse", or null if they aren't.
+	/// </summary>
+	private static string? GetFamilyTie(GameData gameData, Person first, Person second)
+	{
+		var families = gameData.Families;
+		var headRelation = families.Properties.HeadRelation;
+		return first.Family != second.Family ? null : JsonNamingPolicy.CamelCase.ConvertName(families.HeadRelations.GetFamilyTie(first.Traits.GetValueId(headRelation), second.Traits.GetValueId(headRelation)).ToString());
+	}
+
 	private static Dictionary<Location, string> GetLocationNames(IReadOnlyList<Location> locations)
 	{
 		var uses = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -354,6 +394,8 @@ public sealed class VillageReport : ILogDestination
 	{
 		TravelTask => "travel",
 		BusyTask => "busy",
+		TalkTask => "talk",
+		WaitTask => "wait",
 		AtWorkTask { IsAtWork: true } => "startWork",
 		_ => "stopWork",
 	};

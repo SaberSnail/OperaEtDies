@@ -46,6 +46,16 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	public event EventHandler<GenericEventArgs<Location>>? Followed;
 
 	/// <summary>
+	/// Raised when the player examines someone here, to open a view focused on them.
+	/// </summary>
+	public event EventHandler<GenericEventArgs<Person>>? ExamineRequested;
+
+	/// <summary>
+	/// Raised when the player starts talking with someone here.
+	/// </summary>
+	public event EventHandler<GenericEventArgs<Person>>? TalkRequested;
+
+	/// <summary>
 	/// The person the player is following, or null if they aren't following anyone.
 	/// </summary>
 	public Person? Following => VerifyAccess(m_following);
@@ -148,7 +158,7 @@ public sealed class LocationScreenViewModel : ViewModelBase
 		var waited = calendar.FormatOffsetFrom(start, m_world.Time - start, TimeFormat.Long);
 		if (following is not null && following.Location != Location)
 			Followed.Raise(this, new GenericEventArgs<Location>(following.Location));
-		else if (isChanged)
+		else if (isChanged || m_world.Player.TalkRequest is not null)
 			WaitResult = OurResources.WaitResultChanged.FormatCurrentCulture(waited);
 		else
 			WaitResult = OurResources.WaitResultDayPart.FormatCurrentCulture(waited, GetDayPartAnnouncement(calendar.GetDayPart(m_world.Time)));
@@ -187,7 +197,8 @@ public sealed class LocationScreenViewModel : ViewModelBase
 
 	private LocationPersonViewModel CreatePerson(Person person) =>
 		new(person, m_world.GameData.PortraitRenderer, m_world.GameData.Schedules, m_world.GameData.Families, toggleFollow: ToggleFollow,
-			developerCalendar: m_isDeveloper ? m_world.GameData.Calendar : null) { IsFollowed = person == m_following };
+			developerCalendar: m_isDeveloper ? m_world.GameData.Calendar : null, examine: x => ExamineRequested.Raise(this, new GenericEventArgs<Person>(x)),
+			talk: x => TalkRequested.Raise(this, new GenericEventArgs<Person>(x))) { IsFollowed = person == m_following };
 
 	/// <summary>
 	/// Spends time on a need here, through its player action, and shows how long it took. After the part of a trip at

@@ -160,6 +160,10 @@ public sealed class ScheduleSettingsTests
 		{
 			MinimumUrgency = valid.MinimumUrgency,
 			UrgencyPower = valid.UrgencyPower,
+			SightingHours = valid.SightingHours,
+			Sleep = valid.Sleep,
+			Talking = WithoutSocializing(valid.Talking),
+			Socializing = valid.Socializing,
 			Needs = [.. valid.Needs, atHome],
 			Idle = valid.Idle,
 			Start = valid.Start,
@@ -196,13 +200,16 @@ public sealed class ScheduleSettingsTests
 	{
 		var overnight = new Need { Id = "overnight", Title = "Overnight", Kind = NeedKind.Level, Place = NeedPlace.Home, PerHour = 1, SatisfyPerHour = 1, Start = 21, End = 4 };
 		var halfHours = new Need { Id = "halfHours", Title = "Half", Kind = NeedKind.Level, Place = NeedPlace.Home, PerHour = 1, SatisfyPerHour = 1, Start = 21 };
-		var backward = new Need { Id = "backward", Title = "Backward", Kind = NeedKind.Quota, Place = NeedPlace.Home, Start = 12, End = 6, Minutes = 60, Shift = 60, Lead = 60 };
+		var pastMidnight = new Need { Id = "pastMidnight", Title = "Past midnight", Kind = NeedKind.Quota, Place = NeedPlace.Home, Start = 22, End = 2, Minutes = 240, Shift = 60, Lead = 60 };
+		var lateLong = new Need { Id = "lateLong", Title = "Late and long", Kind = NeedKind.Quota, Place = NeedPlace.Home, Start = 23, End = 1, Minutes = 180, Shift = 60, Lead = 60 };
+		var never = new Need { Id = "never", Title = "Never", Kind = NeedKind.Quota, Place = NeedPlace.Home, Start = 12, End = 12, Minutes = 60, Shift = 60, Lead = 60 };
 		var tooLong = new Need { Id = "tooLong", Title = "Too long", Kind = NeedKind.Quota, Place = NeedPlace.Home, Start = 6, End = 7, Minutes = 90, Shift = 60, Lead = 60 };
 
-		Assert.That(With(overnight, halfHours, backward, tooLong).Validate(), Is.EquivalentTo(new[]
+		Assert.That(With(overnight, halfHours, pastMidnight, lateLong, never, tooLong).Validate(), Is.EquivalentTo(new[]
 		{
 			OurResources.NeedSettingMissing.FormatCurrentCulture("halfHours", "end", "level"),
-			OurResources.NeedHoursInvalid.FormatCurrentCulture("backward", 12, 6),
+			OurResources.NeedMinutesTooLong.FormatCurrentCulture("lateLong", 180, 120),
+			OurResources.NeedHoursInvalid.FormatCurrentCulture("never", 12, 12),
 			OurResources.NeedMinutesTooLong.FormatCurrentCulture("tooLong", 90, 60),
 		}));
 	}
@@ -229,6 +236,10 @@ public sealed class ScheduleSettingsTests
 		{
 			MinimumUrgency = valid.MinimumUrgency,
 			UrgencyPower = valid.UrgencyPower,
+			SightingHours = valid.SightingHours,
+			Sleep = valid.Sleep,
+			Talking = WithoutSocializing(valid.Talking),
+			Socializing = valid.Socializing,
 			Needs = valid.Needs,
 			Idle = valid.Idle,
 			Start = new ScheduleStart { Need = "work", WakeHour = 6, WakeMinutes = valid.Start.WakeMinutes },
@@ -258,7 +269,7 @@ public sealed class ScheduleSettingsTests
 			Id = "outing", Title = "Outing", Kind = NeedKind.Quota, Place = NeedPlace.Quarter, QuarterKinds = [new QuarterChoice { QuarterKind = "beach" }], Days = ["someday"],
 			When = TestData.Condition("profession", "pirate"), Start = 6, End = 12, Minutes = 60, Shift = 60, Lead = 60,
 		};
-		var schedules = new ScheduleSettings { MinimumUrgency = 0, UrgencyPower = 1, Needs = [.. valid.Needs, outing], Idle = valid.Idle, Start = valid.Start };
+		var schedules = new ScheduleSettings { MinimumUrgency = 0, UrgencyPower = 1, SightingHours = 24, Sleep = valid.Sleep, Talking = WithoutSocializing(valid.Talking), Socializing = valid.Socializing, Needs = [.. valid.Needs, outing], Idle = valid.Idle, Start = valid.Start };
 
 		var errors = GameDataValidation.Validate("data", TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(),
 			TestData.CreateCalendarSettings(), schedules);
@@ -275,6 +286,15 @@ public sealed class ScheduleSettingsTests
 	private static ScheduleSettings With(params Need[] needs)
 	{
 		var valid = TestData.CreateScheduleSettings();
-		return new ScheduleSettings { MinimumUrgency = valid.MinimumUrgency, UrgencyPower = valid.UrgencyPower, Needs = needs, Idle = valid.Idle, Start = new ScheduleStart { Need = needs[0].Id, WakeHour = 6, WakeMinutes = valid.Start.WakeMinutes } };
+		return new ScheduleSettings { MinimumUrgency = valid.MinimumUrgency, UrgencyPower = valid.UrgencyPower, SightingHours = valid.SightingHours, Sleep = valid.Sleep, Talking = WithoutSocializing(valid.Talking), Socializing = valid.Socializing, Needs = needs, Idle = valid.Idle, Start = new ScheduleStart { Need = needs[0].Id, WakeHour = 6, WakeMinutes = valid.Start.WakeMinutes } };
 	}
+
+	private static TalkingSettings WithoutSocializing(TalkingSettings talking) => new()
+	{
+		RefuseUrgency = talking.RefuseUrgency,
+		WakeLevel = talking.WakeLevel,
+		AskAboutMinutes = talking.AskAboutMinutes,
+		AskDoingMinutes = talking.AskDoingMinutes,
+		SocializeMinutes = talking.SocializeMinutes,
+	};
 }

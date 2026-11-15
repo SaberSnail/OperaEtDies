@@ -20,6 +20,10 @@ public sealed class ScheduleSettings : IValidatedData
 	{
 		MinimumUrgency = 0,
 		UrgencyPower = 1,
+		SightingHours = 24,
+		Sleep = new SleepSettings { NapBelow = 0, NapMinutes = new IntegerRange { Minimum = 30, Maximum = 30, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } }, BedtimeLead = 60 },
+		Talking = new TalkingSettings { RefuseUrgency = 100, WakeLevel = 0, AskAboutMinutes = 1, AskDoingMinutes = 5, SocializeMinutes = 30 },
+		Socializing = new SocializingSettings { ChatUrgency = 100, ChatGoalWeight = 1, WakeUrgency = 100, NearMinutes = 15, SeekFactor = 1, SeekMinutes = 15, RecentHours = 12, AskPlayerAgainHours = 4, Clues = new SeekClues { Workplace = 1, Home = 1, Sighting = 1, Gathering = 1 } },
 		Needs = [],
 		Idle = new IdleSettings { Place = NeedPlace.Home, Minutes = new IntegerRange { Minimum = 60, Maximum = 60, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } } },
 		Start = new ScheduleStart { Need = "", WakeHour = 6, WakeMinutes = new IntegerRange { Minimum = 0, Maximum = 0, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } } },
@@ -44,9 +48,43 @@ public sealed class ScheduleSettings : IValidatedData
 	public required double UrgencyPower { get; init; }
 
 	/// <summary>
+	/// How many hours people remember the last time they saw someone.
+	/// </summary>
+	public required int SightingHours { get; init; }
+
+	/// <summary>
+	/// How naps work, and how people go to bed in time for work. The sleep need is the start need.
+	/// </summary>
+	public required SleepSettings Sleep { get; init; }
+
+	/// <summary>
+	/// When people refuse to talk, and what waking someone to talk costs them.
+	/// </summary>
+	public required TalkingSettings Talking { get; init; }
+
+	/// <summary>
+	/// How people stop to chat with friends they meet, and seek them out when they're lonely.
+	/// </summary>
+	public required SocializingSettings Socializing { get; init; }
+
+	/// <summary>
 	/// Whether a need this urgent is considered when choosing a goal.
 	/// </summary>
 	public bool IsGoalCandidate(double urgency) => urgency >= MinimumUrgency && urgency > 0;
+
+	/// <summary>
+	/// Whether a need this urgent is considered when choosing a goal. The need met by socializing counts for less, by
+	/// <see cref="SocializingSettings.SeekFactor"/>.
+	/// </summary>
+	public bool IsGoalCandidate(Need need, double urgency) => IsGoalCandidate(GetGoalUrgency(need, urgency));
+
+	/// <summary>
+	/// How heavily a need this urgent weighs when choosing a goal at random among the candidates. The need met by
+	/// socializing counts for less, by <see cref="SocializingSettings.SeekFactor"/>.
+	/// </summary>
+	public double GetGoalWeight(Need need, double urgency) => GetGoalWeight(GetGoalUrgency(need, urgency));
+
+	private double GetGoalUrgency(Need need, double urgency) => need.Id == Talking.SocializeNeed ? urgency * Socializing.SeekFactor : urgency;
 
 	/// <summary>
 	/// How heavily a need this urgent weighs when choosing a goal at random among the candidates.
@@ -89,6 +127,24 @@ public sealed class ScheduleSettings : IValidatedData
 		var needIds = needs.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
 		foreach (var need in needs)
 			errors.AddRange(need.Validate(needIds));
+
+		if (SightingHours < 1)
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("sightingHours", SightingHours, 1));
+		if (!(Talking.RefuseUrgency >= 0) || !double.IsFinite(Talking.RefuseUrgency))
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("talking.refuseUrgency", Talking.RefuseUrgency, 0));
+		if (!(Talking.WakeLevel >= 0))
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("talking.wakeLevel", Talking.WakeLevel, 0));
+		else if (Talking.WakeLevel > Need.MaximumLevel)
+			errors.Add(OurResources.DataNumberTooLarge.FormatCurrentCulture("talking.wakeLevel", Talking.WakeLevel, Need.MaximumLevel));
+		foreach (var (name, minutes) in new[] { ("talking.askAboutMinutes", Talking.AskAboutMinutes), ("talking.askDoingMinutes", Talking.AskDoingMinutes), ("talking.socializeMinutes", Talking.SocializeMinutes) })
+		{
+			if (minutes < 1)
+				errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture(name, minutes, 1));
+		}
+		errors.AddRange(Socializing.Validate());
+		errors.AddRange(Sleep.Validate());
+		if (Talking.SocializeNeed is { } socializeNeed && needs.FirstOrDefault(x => x.Id == socializeNeed) is not { Kind: NeedKind.Level })
+			errors.Add(OurResources.ScheduleSocializeNeedInvalid.FormatCurrentCulture(socializeNeed));
 
 		errors.AddRange(ValidatePlace("idle", Idle.Place, Idle.QuarterKinds));
 		if (Idle.Activity is not null && string.IsNullOrWhiteSpace(Idle.Activity))
@@ -234,6 +290,12 @@ public sealed class Need : IIdentified
 	/// <see cref="MaximumLevel"/>. Defaults to 0.
 	/// </summary>
 	public double? UrgentFrom { get; init; }
+
+	/// <summary>
+	/// For a level need, how urgent it must get to wake someone who's asleep, if it's also more urgent than sleep is by then.
+	/// Without it, the need never wakes anyone.
+	/// </summary>
+	public double? WakeUrgency { get; init; }
 
 	/// <summary>
 	/// For a level need, the words for how high it is, shown to the player. Without them, the need isn't shown.
@@ -413,7 +475,7 @@ public sealed class Need : IIdentified
 		{
 			("perHour", PerHour is not null), ("satisfyPerHour", SatisfyPerHour is not null), ("pausedBy", PausedBy is not null),
 			("startLevel", StartLevel is not null), ("levels", Levels is not null), ("urgentFrom", UrgentFrom is not null),
-			("start", Start is not null), ("end", End is not null),
+			("start", Start is not null), ("end", End is not null), ("wakeUrgency", WakeUrgency is not null),
 		};
 		var quotaSettings = new (string Name, bool IsSet)[]
 		{
@@ -480,6 +542,8 @@ public sealed class Need : IIdentified
 
 			if (UrgentFrom is < 0 or >= MaximumLevel)
 				yield return OurResources.NeedUrgentFromOutOfRange.FormatCurrentCulture($"{path}.urgentFrom", UrgentFrom, MaximumLevel);
+			if (WakeUrgency is { } wakeUrgency && !(wakeUrgency >= 0))
+				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.wakeUrgency", wakeUrgency, 0);
 			if (Start is null != End is null)
 				yield return OurResources.NeedSettingMissing.FormatCurrentCulture(Id, Start is null ? "start" : "end", kind);
 			else if (Start is { } levelStart && End is { } levelEnd && (levelStart is < 0 or > 23 || levelEnd is < 0 or > 23 || levelStart == levelEnd))
@@ -515,12 +579,14 @@ public sealed class Need : IIdentified
 		}
 		else if (Start is { } start && End is { } end)
 		{
-			// With one person in the family, the quota must fit in the hours the need can be met.
+			// With one person in the family, the quota must fit in the hours the need can be met. Hours that end before they
+			// start run past midnight.
 			var days = Period == NeedPeriod.Week ? Days?.Count ?? 7 : 1;
-			if (start < 0 || end > 24 || start >= end)
+			var hours = start < end ? end - start : 24 - start + end;
+			if (start is < 0 or > 23 || end is < 1 or > 24 || start == end)
 				yield return OurResources.NeedHoursInvalid.FormatCurrentCulture(Id, start, end);
-			else if (GetQuotaMinutes(1) > (end - start) * 60 * days)
-				yield return OurResources.NeedMinutesTooLong.FormatCurrentCulture(Id, GetQuotaMinutes(1), (end - start) * 60 * days);
+			else if (GetQuotaMinutes(1) > hours * 60 * days)
+				yield return OurResources.NeedMinutesTooLong.FormatCurrentCulture(Id, GetQuotaMinutes(1), hours * 60 * days);
 
 			if (Minutes is < 0)
 				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.minutes", Minutes, 0);
@@ -783,6 +849,173 @@ public sealed class IdleSettings
 	/// What someone idle is shown to be doing, such as "Resting". Without it, nothing is shown.
 	/// </summary>
 	public string? Activity { get; init; }
+}
+
+/// <summary>
+/// How naps work, and how people go to bed in time for work.
+/// </summary>
+public sealed class SleepSettings
+{
+	/// <summary>
+	/// Sleep chosen while the sleep need is below this level is a nap, unless it's bedtime: it lasts for
+	/// <see cref="NapMinutes"/> rather than until rested. Someone only naps once between full sleeps.
+	/// </summary>
+	public required double NapBelow { get; init; }
+
+	/// <summary>
+	/// How long a nap lasts.
+	/// </summary>
+	public required IntegerRange NapMinutes { get; init; }
+
+	/// <summary>
+	/// Sleep grows urgent once the time before someone's next work hours, less the sleep they still need, drops below this
+	/// many minutes, and is fully urgent when there's no time to spare.
+	/// </summary>
+	public required int BedtimeLead { get; init; }
+
+	internal IEnumerable<string> Validate()
+	{
+		if (!(NapBelow >= 0) || NapBelow > Need.MaximumLevel)
+			yield return OurResources.NeedLevelOutOfRange.FormatCurrentCulture("sleep.napBelow", Need.MaximumLevel);
+		foreach (var error in CharacterData.ValidateRange("sleep.napMinutes", NapMinutes))
+			yield return error;
+		if (NapMinutes.Minimum < 1)
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture("sleep.napMinutes.minimum", NapMinutes.Minimum, 1);
+		if (BedtimeLead < 1)
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture("sleep.bedtimeLead", BedtimeLead, 1);
+	}
+}
+
+/// <summary>
+/// How people stop to chat with friends they meet, and seek them out when they're lonely.
+/// </summary>
+public sealed class SocializingSettings
+{
+	/// <summary>
+	/// How willing someone must be to stop and chat with a friend they meet: their socializing urgency, times their
+	/// relationship score out of 100, less their current goal's urgency times <see cref="ChatGoalWeight"/>.
+	/// </summary>
+	public required double ChatUrgency { get; init; }
+
+	/// <summary>
+	/// How much the urgency of what someone is doing holds them back from stopping to chat.
+	/// </summary>
+	public required double ChatGoalWeight { get; init; }
+
+	/// <summary>
+	/// How urgent socializing must be for someone to wake a friend to chat.
+	/// </summary>
+	public required double WakeUrgency { get; init; }
+
+	/// <summary>
+	/// A place this many minutes away is half as likely to be chosen to look for a friend as one close by.
+	/// </summary>
+	public required double NearMinutes { get; init; }
+
+	/// <summary>
+	/// What socializing's urgency is multiplied by when choosing a goal, so seeking out friends gives way to other goals.
+	/// </summary>
+	public required double SeekFactor { get; init; }
+
+	/// <summary>
+	/// How long someone seeking a friend looks around a place before choosing what to do again.
+	/// </summary>
+	public required int SeekMinutes { get; init; }
+
+	/// <summary>
+	/// Someone talked with this many hours ago is half as likely to be sought out as someone not talked with lately.
+	/// </summary>
+	public required double RecentHours { get; init; }
+
+	/// <summary>
+	/// After the player turns down someone's request to chat, that person doesn't ask again for this many hours.
+	/// </summary>
+	public required double AskPlayerAgainHours { get; init; }
+
+	/// <summary>
+	/// How much each kind of clue to where a friend is weighs when choosing where to look.
+	/// </summary>
+	public required SeekClues Clues { get; init; }
+
+	internal IEnumerable<string> Validate()
+	{
+		foreach (var (name, value) in new[] { ("chatUrgency", ChatUrgency), ("chatGoalWeight", ChatGoalWeight), ("wakeUrgency", WakeUrgency), ("clues.workplace", Clues.Workplace), ("clues.home", Clues.Home), ("clues.sighting", Clues.Sighting), ("clues.gathering", Clues.Gathering) })
+		{
+			if (!(value >= 0) || !double.IsFinite(value))
+				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"socializing.{name}", value, 0);
+		}
+		foreach (var (name, value) in new[] { ("seekFactor", SeekFactor), ("recentHours", RecentHours), ("nearMinutes", NearMinutes), ("askPlayerAgainHours", AskPlayerAgainHours) })
+		{
+			if (!(value > 0) || !double.IsFinite(value))
+				yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"socializing.{name}", value);
+		}
+		if (SeekMinutes < 1)
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture("socializing.seekMinutes", SeekMinutes, 1);
+	}
+}
+
+/// <summary>
+/// How much each kind of clue to where a friend is weighs when someone chooses where to look for them.
+/// </summary>
+public sealed class SeekClues
+{
+	/// <summary>
+	/// The friend's workplace, while they're within their work hours.
+	/// </summary>
+	public required double Workplace { get; init; }
+
+	/// <summary>
+	/// The friend's home, outside their work hours.
+	/// </summary>
+	public required double Home { get; init; }
+
+	/// <summary>
+	/// Where the friend was last seen, or said they were going, for a fresh sighting. It counts for less as the sighting
+	/// gets older.
+	/// </summary>
+	public required double Sighting { get; init; }
+
+	/// <summary>
+	/// A place the friend may be gathering with others today, for a need only met on some days, such as market day.
+	/// </summary>
+	public required double Gathering { get; init; }
+}
+
+/// <summary>
+/// When people refuse to talk, and what waking someone to talk costs them.
+/// </summary>
+public sealed class TalkingSettings
+{
+	/// <summary>
+	/// Someone whose goal is at least this urgent refuses to stop and talk.
+	/// </summary>
+	public required double RefuseUrgency { get; init; }
+
+	/// <summary>
+	/// How much someone woken up to talk has their sleep need (the start need) rise.
+	/// </summary>
+	public required double WakeLevel { get; init; }
+
+	/// <summary>
+	/// How long it takes to ask someone whether they've seen a person.
+	/// </summary>
+	public required int AskAboutMinutes { get; init; }
+
+	/// <summary>
+	/// How long it takes to ask someone what they're doing.
+	/// </summary>
+	public required int AskDoingMinutes { get; init; }
+
+	/// <summary>
+	/// How long socializing with someone takes.
+	/// </summary>
+	public required int SocializeMinutes { get; init; }
+
+	/// <summary>
+	/// The id of the level need met by socializing with a friend, or null if there isn't one. It's only met that way, so it's
+	/// never chosen as a goal.
+	/// </summary>
+	public string? SocializeNeed { get; init; }
 }
 
 /// <summary>

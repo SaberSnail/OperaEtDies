@@ -11,7 +11,8 @@ namespace OperaEtDies.GameState;
 /// <param name="Urgencies">Each need that was at all urgent then, with its urgency, in the order of the needs in the data.</param>
 /// <param name="Need">The need chosen at random from the ones urgent enough, or null if none were.</param>
 /// <param name="Result">Whether the chosen need became the goal, or why the person went idle instead.</param>
-public sealed record GoalChoice(TimePoint Time, IReadOnlyList<NeedUrgency> Urgencies, Need? Need, GoalChoiceResult Result)
+/// <param name="Seeking">For socializing, which friend the person chose to look for, where, and why, or null otherwise.</param>
+public sealed record GoalChoice(TimePoint Time, IReadOnlyList<NeedUrgency> Urgencies, Need? Need, GoalChoiceResult Result, SeekChoice? Seeking = null)
 {
 	/// <summary>
 	/// Gets the chance each need had of being chosen, from 0 to 1, with the given settings: 0 for a need that wasn't urgent
@@ -19,18 +20,50 @@ public sealed record GoalChoice(TimePoint Time, IReadOnlyList<NeedUrgency> Urgen
 	/// </summary>
 	public double GetChance(NeedUrgency urgency, ScheduleSettings settings)
 	{
-		var total = Urgencies.Where(x => settings.IsGoalCandidate(x.Urgency)).Sum(x => settings.GetGoalWeight(x.Urgency));
-		return total > 0 && settings.IsGoalCandidate(urgency.Urgency) ? settings.GetGoalWeight(urgency.Urgency) / total : 0;
+		var total = Urgencies.Where(x => settings.IsGoalCandidate(x.Need, x.Urgency)).Sum(x => settings.GetGoalWeight(x.Need, x.Urgency));
+		return total > 0 && settings.IsGoalCandidate(urgency.Need, urgency.Urgency) ? settings.GetGoalWeight(urgency.Need, urgency.Urgency) / total : 0;
 	}
 
 	internal GoalChoiceRecord CreateRecord() =>
-		new(Time.SaveToString(), Urgencies.Select(x => new NeedUrgencyRecord(x.Need.Id, x.Urgency)).ToList(), Need?.Id, Result);
+		new(Time.SaveToString(), Urgencies.Select(x => new NeedUrgencyRecord(x.Need.Id, x.Urgency)).ToList(), Need?.Id, Result,
+			Seeking is { } seeking ? new SeekChoiceRecord(seeking.Friend.Id, seeking.Place.Id, seeking.Clue) : null);
 }
 
 /// <summary>
 /// How urgent a need was when someone chose their goal.
 /// </summary>
 public sealed record NeedUrgency(Need Need, double Urgency);
+
+/// <summary>
+/// Which friend someone chose to look for, where, and the clue that led them there.
+/// </summary>
+public sealed record SeekChoice(Person Friend, Location Place, SeekClue Clue);
+
+/// <summary>
+/// What led someone to look for a friend somewhere.
+/// </summary>
+public enum SeekClue
+{
+	/// <summary>
+	/// It's the friend's workplace, during their work hours.
+	/// </summary>
+	Workplace,
+
+	/// <summary>
+	/// It's the friend's home, outside their work hours.
+	/// </summary>
+	Home,
+
+	/// <summary>
+	/// The friend was seen there, or said they were going there.
+	/// </summary>
+	Sighting,
+
+	/// <summary>
+	/// People gather there today, for a need only met on some days, such as market day.
+	/// </summary>
+	Gathering,
+}
 
 /// <summary>
 /// What came of choosing a goal.
@@ -61,7 +94,12 @@ public enum GoalChoiceResult
 /// <summary>
 /// The saved form of a goal choice, with the needs by id.
 /// </summary>
-public sealed record GoalChoiceRecord(string Time, IReadOnlyList<NeedUrgencyRecord> Urgencies, string? Need, GoalChoiceResult Result);
+public sealed record GoalChoiceRecord(string Time, IReadOnlyList<NeedUrgencyRecord> Urgencies, string? Need, GoalChoiceResult Result, SeekChoiceRecord? Seeking = null);
+
+/// <summary>
+/// The saved form of which friend someone chose to look for.
+/// </summary>
+public sealed record SeekChoiceRecord(WorldId Friend, WorldId Place, SeekClue Clue);
 
 /// <summary>
 /// The saved form of a need's urgency in a goal choice.

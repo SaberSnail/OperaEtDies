@@ -1,8 +1,11 @@
 using System.ComponentModel;
 using System.IO;
 using GoldenAnvil.Utility;
+using GoldenAnvil.Utility.Calendar;
 using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
+using OperaEtDies.Controls.Characters;
+using OperaEtDies.Controls.Conversation;
 using OperaEtDies.Controls.Locations;
 using OperaEtDies.Controls.Map;
 using OperaEtDies.Controls.Status;
@@ -24,6 +27,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		m_currentLocation = CreateLocationScreen(world.Player.Location);
 		m_miniMap = CreateMiniMap(world.Player.Location);
 		World.PropertyChanged += OnWorldPropertyChanged;
+		World.Player.PropertyChanged += OnPlayerPropertyChanged;
+		UpdateTalkPrompt();
 	}
 
 	public string Title { get; }
@@ -44,7 +49,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	public LocationPersonViewModel Player { get; }
 
 	/// <summary>
-	/// Today's date, such as "Thursday, Mid Winter, 227 CR".
+	/// Today's date, such as "Aftday, Mid Winter, 227 CR".
 	/// </summary>
 	public string Date => VerifyAccess(World.GameData.Calendar.FormatDate(World.Time));
 
@@ -141,11 +146,147 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	public ViewModelBase CurrentView => VerifyAccess((ViewModelBase?) m_villagers ?? (ViewModelBase?) m_map ?? (ViewModelBase?) m_status ?? m_currentLocation);
 
 	/// <summary>
-	/// Opens the player's status page from the sidebar, or closes it if it's already open.
+	/// The view focused on one person, shown on top of <see cref="CurrentView"/>, or null if it isn't open. Closing it shows
+	/// the view it was opened from again.
+	/// </summary>
+	public CharacterViewModel? Character
+	{
+		get => VerifyAccess(m_character);
+		private set => SetPropertyField([nameof(Character), nameof(Overlay)], value, ref m_character);
+	}
+
+	/// <summary>
+	/// For developers, someone's needs, shown on top of their character view, or null if they aren't shown. Closing it
+	/// shows the character view again, and if any of the person's needs were changed, they choose a new goal.
+	/// </summary>
+	public StatusViewModel? CharacterStatus
+	{
+		get => VerifyAccess(m_characterStatus);
+		private set => SetPropertyField([nameof(CharacterStatus), nameof(Overlay)], value, ref m_characterStatus);
+	}
+
+	/// <summary>
+	/// What's shown on top of <see cref="CurrentView"/>: someone asking the player to chat, someone's needs, their character view,
+	/// or a conversation, or null if nothing is.
+	/// </summary>
+	public ViewModelBase? Overlay => VerifyAccess((ViewModelBase?) m_talkPrompt ?? (ViewModelBase?) m_characterStatus ?? (ViewModelBase?) m_character ?? m_conversation);
+
+	/// <summary>
+	/// Someone asking the player to chat, shown on top of everything until the player answers, or null if no one is.
+	/// </summary>
+	public TalkPromptViewModel? TalkPrompt
+	{
+		get => VerifyAccess(m_talkPrompt);
+		private set => SetPropertyField([nameof(TalkPrompt), nameof(Overlay)], value, ref m_talkPrompt);
+	}
+
+	/// <summary>
+	/// The conversation the player is having with someone in their location, shown on top of it, or null if there isn't one.
+	/// </summary>
+	public ConversationViewModel? Conversation
+	{
+		get => VerifyAccess(m_conversation);
+		private set => SetPropertyField([nameof(Conversation), nameof(Overlay)], value, ref m_conversation);
+	}
+
+	/// <summary>
+	/// Starts a conversation with someone in the player's location, replacing any other.
+	/// </summary>
+	public void ShowConversation(Person person)
+	{
+		VerifyAccess();
+		CloseConversation();
+		var conversation = new ConversationViewModel(person, World);
+		conversation.CloseRequested += OnConversationCloseRequested;
+		Conversation = conversation;
+	}
+
+	/// <summary>
+	/// Ends the conversation, showing the player's location again.
+	/// </summary>
+	public void CloseConversation()
+	{
+		VerifyAccess();
+		if (m_conversation is { } conversation)
+		{
+			conversation.CloseRequested -= OnConversationCloseRequested;
+			Conversation = null;
+		}
+	}
+
+	/// <summary>
+	/// Opens the player's own character view from the sidebar, or closes it if it's already open.
+	/// </summary>
+	public void TogglePlayerCharacter()
+	{
+		if (m_character?.Person.Person == World.Player)
+			CloseCharacter();
+		else
+			ShowCharacter(World.Player);
+	}
+
+	/// <summary>
+	/// Opens a view focused on a person on top of the current view, replacing any other person's.
+	/// </summary>
+	public void ShowCharacter(Person person)
+	{
+		VerifyAccess();
+		CloseCharacter();
+		var character = new CharacterViewModel(person, World, IsDeveloper);
+		character.CloseRequested += OnCharacterCloseRequested;
+		character.StatusRequested += OnCharacterStatusRequested;
+		Character = character;
+	}
+
+	/// <summary>
+	/// For developers, shows someone's needs on top of their character view.
+	/// </summary>
+	public void ShowCharacterStatus(Person person)
+	{
+		VerifyAccess();
+		CloseCharacterStatus();
+		var status = new StatusViewModel(World, person, IsDeveloper);
+		status.CloseRequested += OnCharacterStatusCloseRequested;
+		CharacterStatus = status;
+	}
+
+	/// <summary>
+	/// Closes someone's needs, showing their character view again. If any of their needs were changed, they choose a new
+	/// goal.
+	/// </summary>
+	public void CloseCharacterStatus()
+	{
+		VerifyAccess();
+		if (m_characterStatus is { } status)
+		{
+			status.CloseRequested -= OnCharacterStatusCloseRequested;
+			CharacterStatus = null;
+			if (status.IsChanged)
+				World.CancelGoal(status.Person);
+		}
+	}
+
+	/// <summary>
+	/// Closes the view focused on a person, showing the view it was opened from again.
+	/// </summary>
+	public void CloseCharacter()
+	{
+		VerifyAccess();
+		CloseCharacterStatus();
+		if (m_character is { } character)
+		{
+			character.CloseRequested -= OnCharacterCloseRequested;
+			character.StatusRequested -= OnCharacterStatusRequested;
+			Character = null;
+		}
+	}
+
+	/// <summary>
+	/// Opens the player's status page from the sidebar, or closes it if it's already open and nothing is on top of it.
 	/// </summary>
 	public void ToggleStatus()
 	{
-		if (m_status is null)
+		if (m_status is null || Overlay is not null)
 			ShowStatus();
 		else
 			CloseStatus();
@@ -157,11 +298,13 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	public void ShowStatus()
 	{
 		VerifyAccess();
+		CloseCharacter();
+		CloseConversation();
 		CloseVillagers();
 		CloseMap();
 		if (m_status is null)
 		{
-			var status = new StatusViewModel(World);
+			var status = new StatusViewModel(World, IsDeveloper);
 			status.CloseRequested += OnStatusCloseRequested;
 			Status = status;
 		}
@@ -181,11 +324,11 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Opens the list of villagers from the sidebar, or closes it if it's already open.
+	/// Opens the list of villagers from the sidebar, or closes it if it's already open and nothing is on top of it.
 	/// </summary>
 	public void ToggleVillagers()
 	{
-		if (m_villagers is null)
+		if (m_villagers is null || Overlay is not null)
 			ShowVillagers();
 		else
 			CloseVillagers();
@@ -197,6 +340,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	public void ShowVillagers()
 	{
 		VerifyAccess();
+		CloseCharacter();
+		CloseConversation();
 		CloseMap();
 		CloseStatus();
 		if (m_villagers is null)
@@ -204,6 +349,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 			var villagers = new VillagersViewModel(World.Families, IsDeveloper, World.GameData.PortraitRenderer, World.GameData.Schedules, World.GameData.Families, World.GameData.Calendar);
 			villagers.CloseRequested += OnVillagersCloseRequested;
 			villagers.TravelRequested += OnVillagersTravelRequested;
+			villagers.ExamineRequested += OnExamineRequested;
 			Villagers = villagers;
 		}
 	}
@@ -218,16 +364,17 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		{
 			villagers.CloseRequested -= OnVillagersCloseRequested;
 			villagers.TravelRequested -= OnVillagersTravelRequested;
+			villagers.ExamineRequested -= OnExamineRequested;
 			Villagers = null;
 		}
 	}
 
 	/// <summary>
-	/// Opens the map from the sidebar, or closes it if it's already open.
+	/// Opens the map from the sidebar, or closes it if it's already open and nothing is on top of it.
 	/// </summary>
 	public void ToggleMap()
 	{
-		if (m_map is null)
+		if (m_map is null || Overlay is not null)
 			ShowMap();
 		else
 			CloseMap();
@@ -239,6 +386,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	public void ShowMap()
 	{
 		VerifyAccess();
+		CloseCharacter();
+		CloseConversation();
 		if (m_map is null)
 		{
 			CloseVillagers();
@@ -307,7 +456,10 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	{
 		VerifyAccess();
 		World.AdvanceTime(World.GetTravelTime(World.Player.Location, location));
-		MoveTo(location);
+
+		// Someone asking the player to chat on the way stops them where they are.
+		if (World.Player.TalkRequest is null)
+			MoveTo(location);
 	}
 
 	/// <summary>
@@ -323,10 +475,14 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		var player = World.Player;
 		Log.Info($"Traveling from {player.Location.Title} ({player.Location.Id}) to {location.Title} ({location.Id})");
 
-		player.Location = location;
+		World.MovePlayer(location);
 		SaveStatus = null;
+		CloseCharacter();
+		CloseConversation();
 		m_currentLocation.TravelRequested -= OnTravelRequested;
 		m_currentLocation.Followed -= OnFollowed;
+		m_currentLocation.ExamineRequested -= OnExamineRequested;
+		m_currentLocation.TalkRequested -= OnTalkRequested;
 		CurrentLocation = CreateLocationScreen(location, following);
 		MiniMap = CreateMiniMap(location);
 	}
@@ -334,12 +490,21 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	public void Dispose()
 	{
 		World.PropertyChanged -= OnWorldPropertyChanged;
+		World.Player.PropertyChanged -= OnPlayerPropertyChanged;
+		if (m_talkPrompt is not null)
+		{
+			m_talkPrompt.Accepted -= OnTalkPromptAccepted;
+			m_talkPrompt.Declined -= OnTalkPromptDeclined;
+		}
 		m_currentLocation.TravelRequested -= OnTravelRequested;
 		m_currentLocation.Followed -= OnFollowed;
+		m_currentLocation.ExamineRequested -= OnExamineRequested;
+		m_currentLocation.TalkRequested -= OnTalkRequested;
 		if (m_villagers is not null)
 		{
 			m_villagers.CloseRequested -= OnVillagersCloseRequested;
 			m_villagers.TravelRequested -= OnVillagersTravelRequested;
+			m_villagers.ExamineRequested -= OnExamineRequested;
 		}
 		if (m_map is not null)
 		{
@@ -348,6 +513,15 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		}
 		if (m_status is not null)
 			m_status.CloseRequested -= OnStatusCloseRequested;
+		if (m_character is not null)
+		{
+			m_character.CloseRequested -= OnCharacterCloseRequested;
+			m_character.StatusRequested -= OnCharacterStatusRequested;
+		}
+		if (m_characterStatus is not null)
+			m_characterStatus.CloseRequested -= OnCharacterStatusCloseRequested;
+		if (m_conversation is not null)
+			m_conversation.CloseRequested -= OnConversationCloseRequested;
 		DisposableUtility.Dispose(ref m_taskGroup);
 	}
 
@@ -356,6 +530,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		var viewModel = new LocationScreenViewModel(location, World, following, IsDeveloper);
 		viewModel.TravelRequested += OnTravelRequested;
 		viewModel.Followed += OnFollowed;
+		viewModel.ExamineRequested += OnExamineRequested;
+		viewModel.TalkRequested += OnTalkRequested;
 		return viewModel;
 	}
 
@@ -392,6 +568,59 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
 	private void OnStatusCloseRequested(object? sender, EventArgs e) => CloseStatus();
 
+	private void OnCharacterCloseRequested(object? sender, EventArgs e) => CloseCharacter();
+
+	private void OnCharacterStatusRequested(object? sender, GenericEventArgs<Person> e) => ShowCharacterStatus(e.Value);
+
+	private void OnCharacterStatusCloseRequested(object? sender, EventArgs e) => CloseCharacterStatus();
+
+	private void OnExamineRequested(object? sender, GenericEventArgs<Person> e) => ShowCharacter(e.Value);
+
+	private void OnTalkRequested(object? sender, GenericEventArgs<Person> e) => ShowConversation(e.Value);
+
+	private void OnPlayerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (e.PropertyName is nameof(Person.TalkRequest) or null or "")
+			UpdateTalkPrompt();
+	}
+
+	/// <summary>
+	/// Shows the prompt while someone is asking the player to chat, and closes it once they've answered.
+	/// </summary>
+	private void UpdateTalkPrompt()
+	{
+		if (m_talkPrompt is { } prompt)
+		{
+			prompt.Accepted -= OnTalkPromptAccepted;
+			prompt.Declined -= OnTalkPromptDeclined;
+			TalkPrompt = null;
+		}
+
+		if (World.Player.TalkRequest is { } asker)
+		{
+			var newPrompt = new TalkPromptViewModel(asker, World);
+			newPrompt.Accepted += OnTalkPromptAccepted;
+			newPrompt.Declined += OnTalkPromptDeclined;
+			TalkPrompt = newPrompt;
+		}
+	}
+
+	private void OnTalkPromptAccepted(object? sender, EventArgs e)
+	{
+		if (World.Player.TalkRequest is { } asker)
+		{
+			var start = World.Time;
+			var passed = World.AcceptTalk();
+			m_currentLocation.ShowWaitResult(passed is { } time
+				? OurResources.TalkPromptChatted.FormatCurrentCulture(asker.FullName, World.GameData.Calendar.FormatOffsetFrom(start, time, TimeFormat.Long))
+				: OurResources.TalkPromptGone.FormatCurrentCulture(asker.FullName));
+		}
+	}
+
+	private void OnTalkPromptDeclined(object? sender, EventArgs e) => World.DeclineTalk();
+
+	private void OnConversationCloseRequested(object? sender, EventArgs e) => CloseConversation();
+
 	private void OnMapTravelRequested(object? sender, GenericEventArgs<Location> e)
 	{
 		CloseMap();
@@ -411,6 +640,10 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	private VillagersViewModel? m_villagers;
 	private TownMapViewModel? m_map;
 	private StatusViewModel? m_status;
+	private CharacterViewModel? m_character;
+	private StatusViewModel? m_characterStatus;
+	private ConversationViewModel? m_conversation;
+	private TalkPromptViewModel? m_talkPrompt;
 	private TownMapViewModel m_miniMap;
 	private string? m_saveStatus;
 }
