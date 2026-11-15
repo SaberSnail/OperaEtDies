@@ -63,3 +63,11 @@ Mods are experimental. Never read mod files (the files in any mod folder, includ
 When running the application, always pass the `--no-mods` command line argument so mods aren't loaded, unless I explicitly ask you to run it with mods.
 
 The same goes for the portrait editor (`Tools/PortraitEditor`): never run it without `--no-mods` unless I specifically ask you to.
+
+## AI-Written Text
+
+Every long text field in the data (one that typically holds a full sentence or more, not a title or short fragment) is an object holding the `text` and a required `ai` flag (see `Docs/DataFiles.md`).
+
+* When you create a long text field, set `ai` to true.
+* When you make a significant change to one (anything more than an isolated short phrase), set `ai` to true.
+* If a field's `ai` is false, ask me to confirm before changing its text and setting the flag to true. Don't change it until I say so.

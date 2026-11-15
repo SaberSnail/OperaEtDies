@@ -8,10 +8,10 @@ public sealed class CalendarSettingsTests
 	[Test]
 	public void LoadsShippedCalendar()
 	{
-		var result = CalendarSettings.Load(JsonDataLoader.DefaultDataDirectory);
+		var result = GameData.Load(JsonDataLoader.DefaultDataDirectory);
 
 		Assert.That(result.Errors, Is.Empty);
-		Assert.That(result.Value!.Days, Is.Not.Empty);
+		Assert.That(result.Value!.Calendar.Days, Is.Not.Empty);
 	}
 
 	[Test]
@@ -62,8 +62,8 @@ public sealed class CalendarSettingsTests
 	[Test]
 	public void DayPartAnnouncementsMustBeFilledIn()
 	{
-		var settings = With(dayParts: [DayPart("morning", 6), new CalendarDayPart { Id = "night", Title = "Night", Start = 21, Announcement = " " }]);
-		Assert.That(settings.Validate(), Has.Exactly(1).Contains("dayParts.night.announcement"));
+		var settings = With(dayParts: [DayPart("morning", 6), new CalendarDayPart { Id = "night", Title = "Night", Start = 21, Announcement = TestData.Text(" ") }]);
+		Assert.That(settings.Validate(), Has.Exactly(1).Contains("dayParts[night].announcement"));
 	}
 
 	[Test]

@@ -141,9 +141,9 @@ public sealed class ItemEditorViewModel : ViewModelBase
 		set => SetString("gradient", value);
 	}
 
-	public IReadOnlyList<string> ScaleOptions => ["", .. m_owner.GetIds("scales")];
+	public IReadOnlyList<string> ScaleOptions => ["", .. m_owner.GetIds("portraitScales")];
 
-	public IReadOnlyList<string> OffsetOptions => ["", .. m_owner.GetIds("offsets")];
+	public IReadOnlyList<string> OffsetOptions => ["", .. m_owner.GetIds("portraitOffsets")];
 
 	public string Scale
 	{

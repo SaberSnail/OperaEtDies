@@ -69,7 +69,7 @@ public sealed class SleepTests
 		var workplace = testWorld.AddLocation(gameData.BusinessTemplates[0]);
 		var worker = testWorld.AddPerson(TestData.CreateTraits(gameData, "male", "Tom", "Smith", "smith", "tall", "slim", 40), home);
 		var smith = gameData.Professions.Get("smith");
-		var nightSmith = new Profession { Id = smith.Id, Title = smith.Title, Wealth = smith.Wealth, WorkHours = new WorkHours { Start = 20, End = 4 } };
+		var nightSmith = new Profession { Id = smith.Id, Title = smith.Title, Business = new ProfessionBusiness { Wealth = smith.Wealth!.Value, Hours = new Hours { Start = 20, End = 4 } } };
 		testWorld.Objects.Create(id => new Business(id, nightSmith, worker, [], workplace));
 		var work = Need(gameData, "work");
 		var day = gameData.Calendar.GetStartOfDay(testWorld.Time);

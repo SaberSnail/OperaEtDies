@@ -27,7 +27,7 @@ public sealed class GameInfoTests
 
 		Assert.That(result.Errors, Is.Empty);
 		Assert.That(result.Value!.Title, Is.Not.Empty);
-		Assert.That(result.Value.Description, Is.Not.Empty);
+		Assert.That(result.Value.Description.Text, Is.Not.Empty);
 		if (result.Value.GetIconPath(JsonDataLoader.DefaultDataDirectory) is { } iconPath)
 			Assert.That(File.Exists(iconPath), Is.True);
 	}
@@ -35,7 +35,7 @@ public sealed class GameInfoTests
 	[Test]
 	public void IconIsOptional()
 	{
-		WriteGameInfo("""{ "title": "Test Title", "description": "Test description." }""");
+		WriteGameInfo("""{ "title": "Test Title", "description": { "text": "Test description.", "ai": true } }""");
 
 		var result = GameInfo.Load(m_directory);
 
@@ -47,7 +47,7 @@ public sealed class GameInfoTests
 	[Test]
 	public void IconPathIsRelativeToDataDirectory()
 	{
-		WriteGameInfo("""{ "title": "Test Title", "description": "Test description.", "icon": "Images/Icon.ico" }""");
+		WriteGameInfo("""{ "title": "Test Title", "description": { "text": "Test description.", "ai": true }, "icon": "Images/Icon.ico" }""");
 
 		var result = GameInfo.Load(m_directory);
 
@@ -61,7 +61,7 @@ public sealed class GameInfoTests
 	[TestCase(@"\\Icon.ico")]
 	public void InvalidIconPathReportsError(string icon)
 	{
-		WriteGameInfo($$"""{ "title": "Test Title", "description": "Test description.", "icon": "{{icon}}" }""");
+		WriteGameInfo($$"""{ "title": "Test Title", "description": { "text": "Test description.", "ai": true }, "icon": "{{icon}}" }""");
 
 		var result = GameInfo.Load(m_directory);
 
@@ -76,7 +76,7 @@ public sealed class GameInfoTests
 			{
 				// A comment
 				"title": "Test Title",
-				"description": "Test description.",
+				"description": { "text": "Test description.", "ai": true },
 			}
 			""");
 
@@ -84,7 +84,7 @@ public sealed class GameInfoTests
 
 		Assert.That(result.Succeeded, Is.True);
 		Assert.That(result.Value!.Title, Is.EqualTo("Test Title"));
-		Assert.That(result.Value.Description, Is.EqualTo("Test description."));
+		Assert.That(result.Value.Description.Text, Is.EqualTo("Test description."));
 	}
 
 	[Test]
@@ -93,7 +93,7 @@ public sealed class GameInfoTests
 		var result = GameInfo.Load(m_directory);
 
 		Assert.That(result.Succeeded, Is.False);
-		Assert.That(result.Errors.Single().Message, Is.EqualTo(OurResources.DataFileNotFound));
+		Assert.That(result.Errors.Single().Message, Is.EqualTo(OurResources.DataSectionMissing.FormatCurrentCulture("game")));
 	}
 
 	[Test]
@@ -102,7 +102,7 @@ public sealed class GameInfoTests
 		var result = GameInfo.Load(Path.Combine(m_directory, "DoesNotExist"));
 
 		Assert.That(result.Succeeded, Is.False);
-		Assert.That(result.Errors.Single().Message, Is.EqualTo(OurResources.DataFileNotFound));
+		Assert.That(result.Errors.Single().Message, Is.EqualTo(OurResources.DataFolderNotFound.FormatCurrentCulture(Path.Combine(m_directory, "DoesNotExist"))));
 	}
 
 	[TestCase("{ \"title\": ")]
@@ -122,7 +122,7 @@ public sealed class GameInfoTests
 	[Test]
 	public void NullJsonReportsEmptyError()
 	{
-		WriteGameInfo("null");
+		File.WriteAllText(Path.Combine(m_directory, "Game.json"), "null");
 
 		var result = GameInfo.Load(m_directory);
 
@@ -133,7 +133,7 @@ public sealed class GameInfoTests
 	[Test]
 	public void BlankValuesReportValidationErrors()
 	{
-		WriteGameInfo("""{ "title": " ", "description": "" }""");
+		WriteGameInfo("""{ "title": " ", "description": { "text": "", "ai": true } }""");
 
 		var result = GameInfo.Load(m_directory);
 
@@ -141,7 +141,7 @@ public sealed class GameInfoTests
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[] { OurResources.GameInfoTitleMissing, OurResources.GameInfoDescriptionMissing }));
 	}
 
-	private void WriteGameInfo(string json) => File.WriteAllText(Path.Combine(m_directory, GameInfo.FileName), json);
+	private void WriteGameInfo(string json) => File.WriteAllText(Path.Combine(m_directory, "Game.json"), $"{{ \"game\": {json} }}");
 
 	private string m_directory = "";
 }

@@ -1,28 +1,17 @@
-using System.IO;
 using GoldenAnvil.Utility;
 
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// The shape of the game's calendar and the names of its parts, loaded from Calendar.json. A year is made of seasons,
+/// The shape of the game's calendar and the names of its parts. A year is made of seasons,
 /// each season of weeks, and each week of days. A day always has 24 hours of 60 minutes.
 /// </summary>
 public sealed class CalendarSettings : IValidatedData
 {
-	public const string FileName = "Calendar.json";
-
 	/// <summary>
 	/// Where the year's number goes in <see cref="YearFormat"/>.
 	/// </summary>
 	public const string YearPlaceholder = "{year}";
-
-	public static DataLoadResult<CalendarSettings> Load(string dataDirectory) => Load(dataDirectory, []);
-
-	/// <summary>
-	/// Loads the file from the data folder, with the changes from the mod folders applied in order.
-	/// </summary>
-	public static DataLoadResult<CalendarSettings> Load(string dataDirectory, IReadOnlyList<string> modDirectories) =>
-		JsonDataLoader.Load<CalendarSettings>(Path.Combine(dataDirectory, FileName), modDirectories, []);
 
 	/// <summary>
 	/// The days of the week, in order.
@@ -88,8 +77,8 @@ public sealed class CalendarSettings : IValidatedData
 		{
 			if (dayPart.Start <= previousStart || dayPart.Start >= 24)
 				yield return OurResources.CalendarDayPartStartOutOfOrder.FormatCurrentCulture(dayPart.Id, dayPart.Start);
-			if (dayPart.Announcement is not null && string.IsNullOrWhiteSpace(dayPart.Announcement))
-				yield return OurResources.DataValueMissing.FormatCurrentCulture($"dayParts.{dayPart.Id}.announcement");
+			if (dayPart.Announcement is not null && string.IsNullOrWhiteSpace(dayPart.Announcement.Text))
+				yield return OurResources.DataValueMissing.FormatCurrentCulture($"dayParts[{dayPart.Id}].announcement");
 			previousStart = Math.Max(previousStart, dayPart.Start);
 		}
 	}
@@ -153,7 +142,7 @@ public sealed class CalendarDayPart : IIdentified
 	/// What the player notices when the part of the day starts while they wait, such as a bell ringing, or null to say
 	/// only which part of the day it is.
 	/// </summary>
-	public string? Announcement { get; init; }
+	public LongText? Announcement { get; init; }
 }
 
 /// <summary>
@@ -179,4 +168,20 @@ public sealed class CalendarSpecialDay : IIdentified
 	/// The id of the day of the week it's on.
 	/// </summary>
 	public required string Day { get; init; }
+}
+
+/// <summary>
+/// The calendar section of the data: the calendar's settings other than its lists.
+/// </summary>
+public sealed class CalendarSection
+{
+	/// <summary>
+	/// The year a new game starts in.
+	/// </summary>
+	public required int StartYear { get; init; }
+
+	/// <summary>
+	/// How a year is shown, with "{year}" where its number goes.
+	/// </summary>
+	public required string YearFormat { get; init; }
 }

@@ -536,14 +536,6 @@
 		<value>The location &quot;{0}&quot; uses the quarter kind &quot;{1}&quot;, but it isn&apos;t in the &quot;quarterKinds&quot; list.</value>
 		<comment>{0} is the location&apos;s id. {1} is the quarter kind.</comment>
 	</data>
-	<data name="QuarterHousesWithoutWealth" xml:space="preserve">
-		<value>The quarter &quot;{0}&quot; has houses, so it must have a &quot;wealth&quot;.</value>
-		<comment>{0} is the quarter&apos;s id.</comment>
-	</data>
-	<data name="QuarterWealthWithoutHouses" xml:space="preserve">
-		<value>The quarter &quot;{0}&quot; has a &quot;wealth&quot;, but it has no houses.</value>
-		<comment>{0} is the quarter&apos;s id.</comment>
-	</data>
 	<data name="HouseWealthMissing" xml:space="preserve">
 		<value>There must be at least one house with a &quot;wealth&quot; of &quot;{0}&quot;.</value>
 		<comment>{0} is the wealth level.</comment>
@@ -559,14 +551,6 @@
 	<data name="BusinessProfessionWorksFromHome" xml:space="preserve">
 		<value>The location &quot;{0}&quot; is for the profession &quot;{1}&quot;, which works from home, so it can&apos;t have business locations.</value>
 		<comment>{0} is the location&apos;s id. {1} is the profession&apos;s id.</comment>
-	</data>
-	<data name="BusinessProfessionUnknown" xml:space="preserve">
-		<value>The location &quot;{0}&quot; is for the profession &quot;{1}&quot;, which isn&apos;t in Professions.json.</value>
-		<comment>{0} is the location&apos;s id. {1} is the profession&apos;s id.</comment>
-	</data>
-	<data name="ProfessionLocationsMissing" xml:space="preserve">
-		<value>The profession &quot;{0}&quot; must have at least one location in &quot;businesses&quot; in Locations.json, unless it works from home.</value>
-		<comment>{0} is the profession&apos;s id.</comment>
 	</data>
 	<data name="FamilyPropertyInvalid" xml:space="preserve">
 		<value>&quot;{0}&quot; is &quot;{1}&quot;, but there is no {2} character property with that id.</value>
@@ -603,10 +587,6 @@
 	<data name="FamilyHeadAgeOutOfRange" xml:space="preserve">
 		<value>&quot;headAge&quot; goes from {0} to {1}, which isn&apos;t within the range of the character property &quot;{2}&quot; for non-player characters ({3} to {4}).</value>
 		<comment>{0} and {1} are the head age range. {2} is the age property&apos;s id. {3} and {4} are that property&apos;s range for non-player characters.</comment>
-	</data>
-	<data name="ProfessionNotBusiness" xml:space="preserve">
-		<value>The profession &quot;{0}&quot; is the &quot;{1}&quot; value in Families.json, which isn&apos;t a business, so it can&apos;t have business settings.</value>
-		<comment>{0} is the profession&apos;s id. {1} is the name of the setting in Families.json.</comment>
 	</data>
 	<data name="ShapePeakInvalid" xml:space="preserve">
 		<value>A shape&apos;s peak must be &quot;low&quot;, &quot;middle&quot;, or &quot;high&quot;, optionally followed by &quot;+&quot;, &quot;++&quot;, &quot;-&quot;, or &quot;--&quot;.</value>
@@ -695,26 +675,6 @@
 	<data name="FamilyInheritedPropertyNotAllowed" xml:space="preserve">
 		<value>&quot;{0}&quot; is &quot;{1}&quot;, which is one of the properties in &quot;properties&quot;, so it can&apos;t be inherited.</value>
 		<comment>{0} is the location of the setting in the data file. {1} is the property id.</comment>
-	</data>
-	<data name="ValuesFromUnknown" xml:space="preserve">
-		<value>The property &quot;{0}&quot; takes its values from &quot;{1}&quot;, but the only source is &quot;{2}&quot;.</value>
-		<comment>{0} is the property id, {1} is the source given, {2} is the only allowed source.</comment>
-	</data>
-	<data name="ValuesAndValuesFrom" xml:space="preserve">
-		<value>The property &quot;{0}&quot; can&apos;t have both &quot;values&quot; and &quot;valuesFrom&quot;.</value>
-		<comment>{0} is the property id.</comment>
-	</data>
-	<data name="ValuesFromNotLoaded" xml:space="preserve">
-		<value>The property &quot;{0}&quot; takes its values from &quot;{1}&quot;, which didn&apos;t load.</value>
-		<comment>{0} is the property id, {1} is the source.</comment>
-	</data>
-	<data name="FamilyProfessionValuesNotFromProfessions" xml:space="preserve">
-		<value>The profession property &quot;{0}&quot; must have &quot;valuesFrom&quot;: &quot;{1}&quot;.</value>
-		<comment>{0} is the property id, {1} is the professions source.</comment>
-	</data>
-	<data name="ProfessionWealthMissing" xml:space="preserve">
-		<value>The profession &quot;{0}&quot; is a business, so it needs a &quot;wealth&quot;.</value>
-		<comment>{0} is the profession id.</comment>
 	</data>
 	<data name="ProfessionDefaultsPropertyInvalid" xml:space="preserve">
 		<value>The profession &quot;{0}&quot; has defaults for &quot;{1}&quot;, but that isn&apos;t a string property whose defaults are keyed by &quot;{2}&quot; without their own &quot;valuesByKey&quot;.</value>
@@ -1064,17 +1024,9 @@
 		<value>({0})</value>
 		<comment>Shown beside a path or place the player can go to. {0} is how long it takes to get there, such as &quot;2 minutes&quot;.</comment>
 	</data>
-	<data name="ScheduleStartNeedInvalid" xml:space="preserve">
-		<value>&quot;start.need&quot; is &quot;{0}&quot;, but it must be the id of a level need.</value>
-		<comment>{0} is the need id found.</comment>
-	</data>
 	<data name="ScheduleHourInvalid" xml:space="preserve">
 		<value>&quot;{0}&quot; is {1}, but it must be from 0 to {2}.</value>
 		<comment>{0} is the location of the setting in the data file. {1} is the value found. {2} is the largest allowed hour.</comment>
-	</data>
-	<data name="ScheduleQuarterKindsNotAllowed" xml:space="preserve">
-		<value>&quot;{0}.quarterKinds&quot; can only be set when the place is &quot;quarter&quot;.</value>
-		<comment>{0} is the location of the setting in the data file.</comment>
 	</data>
 	<data name="NeedSettingMissing" xml:space="preserve">
 		<value>The need &quot;{0}&quot; needs &quot;{1}&quot;, since it&apos;s a {2} need.</value>
@@ -1116,10 +1068,6 @@
 		<value>&quot;{0}&quot; is {1}, but it must be at least 0 and less than {2}.</value>
 		<comment>{0} is the location of the setting in the data file. {1} is the value found. {2} is the highest level a need can have.</comment>
 	</data>
-	<data name="NeedLevelHoursInvalid" xml:space="preserve">
-		<value>The need &quot;{0}&quot; runs from hour {1} to hour {2}, but its hours must be different, from 0 to 23.</value>
-		<comment>{0} is the need id. {1} is the start hour. {2} is the end hour.</comment>
-	</data>
 	<data name="Wait" xml:space="preserve">
 		<value>Wait</value>
 		<comment>The button that waits in the player&apos;s location.</comment>
@@ -1152,28 +1100,12 @@
 		<value>The quarter kind &quot;{0}&quot; has &quot;optionalWith&quot;, but only unique kinds can be optional.</value>
 		<comment>{0} is the quarter kind id.</comment>
 	</data>
-	<data name="NeedQuotaMixed" xml:space="preserve">
-		<value>The need &quot;{0}&quot; can measure its quota in time (&quot;minutes&quot;, &quot;minutesPerMember&quot;, and &quot;shift&quot;) or in trips (&quot;visits&quot;, &quot;visitsPerMember&quot;, and &quot;visitMinutes&quot;), but not both.</value>
-		<comment>{0} is the need id.</comment>
-	</data>
 	<data name="NeedPerMemberNotShared" xml:space="preserve">
 		<value>The need &quot;{0}&quot; has an amount for each family member, but it isn&apos;t shared by the family.</value>
 		<comment>{0} is the need id.</comment>
 	</data>
-	<data name="NeedHomeMinutesWithoutReturn" xml:space="preserve">
-		<value>The need &quot;{0}&quot; has time at home after each trip, but it doesn&apos;t return home.</value>
-		<comment>{0} is the need id.</comment>
-	</data>
 	<data name="NeedVisitMinutesNotPositive" xml:space="preserve">
 		<value>The need &quot;{0}&quot; is measured in trips, so each trip must take at least a minute at the place for one person.</value>
-		<comment>{0} is the need id.</comment>
-	</data>
-	<data name="NeedOverdueNotAllowed" xml:space="preserve">
-		<value>The need &quot;{0}&quot; has &quot;overdueUrgency&quot;, but only quota needs measured by the week with a list of days can have it.</value>
-		<comment>{0} is the need id.</comment>
-	</data>
-	<data name="NeedHomeActivityWithoutHomeMinutes" xml:space="preserve">
-		<value>The need &quot;{0}&quot; has &quot;homeActivity&quot;, but no time at home after its trips.</value>
 		<comment>{0} is the need id.</comment>
 	</data>
 	<data name="PersonTraveling" xml:space="preserve">
@@ -1436,10 +1368,6 @@
 		<value>Talking</value>
 		<comment>For developers, what someone was doing in a sighting while talking with someone.</comment>
 	</data>
-	<data name="ScheduleSocializeNeedInvalid" xml:space="preserve">
-		<value>The talking setting &quot;socializeNeed&quot; is &quot;{0}&quot;, but it must be the id of a level need.</value>
-		<comment>{0} is the need id found.</comment>
-	</data>
 	<data name="TalkToPerson" xml:space="preserve">
 		<value>Talk</value>
 		<comment>The button beside someone in the player&apos;s location that starts a conversation with them.</comment>
@@ -1628,12 +1556,91 @@
 		<value>Waiting for {0}</value>
 		<comment>What someone is doing while waiting for someone who called out to them. {0} is that person&apos;s name.</comment>
 	</data>
-	<data name="NeedHoursInvalid" xml:space="preserve">
-		<value>The need &quot;{0}&quot; runs from hour {1} to hour {2}, but it must start at an hour from 0 to 23 and end at a different hour from 1 to 24. Ending before it starts means running past midnight.</value>
-		<comment>{0} is the need id. {1} is the start hour. {2} is the end hour.</comment>
+	<data name="DataFileNotObject" xml:space="preserve">
+		<value>The file must contain an object whose properties are sections of the data.</value>
 	</data>
-	<data name="ProfessionWorkHoursInvalid" xml:space="preserve">
-		<value>The work hours of the profession &quot;{0}&quot; are from {1} to {2}, but they must start at an hour from 0 to 23 and end at a different hour from 1 to 24. Ending before they start means working past midnight.</value>
-		<comment>{0} is the profession id, {1} the start hour, and {2} the end hour.</comment>
+	<data name="DataFolderNotFound" xml:space="preserve">
+		<value>The data folder "{0}" doesn't exist.</value>
+	</data>
+	<data name="ModFileInvalid" xml:space="preserve">
+		<value>The file must contain a list of operations, or an object holding data.</value>
+	</data>
+	<data name="DataIdDefinedTwice" xml:space="preserve">
+		<value>"{0}" is already the id of an item in "{1}", in {2}.</value>
+	</data>
+	<data name="DataSettingDefinedTwice" xml:space="preserve">
+		<value>"{0}" is already set in {1}.</value>
+	</data>
+	<data name="DataSectionKindMismatch" xml:space="preserve">
+		<value>"{0}" is a list in one file and an object in another.</value>
+	</data>
+	<data name="DataSectionInvalid" xml:space="preserve">
+		<value>"{0}" must be a list or an object.</value>
+	</data>
+	<data name="DataSectionMissing" xml:space="preserve">
+		<value>The data has no "{0}" section.</value>
+	</data>
+	<data name="DataStringListInvalid" xml:space="preserve">
+		<value>Expected a string or a list of strings.</value>
+	</data>
+	<data name="FamilyAmountInvalid" xml:space="preserve">
+		<value>Expected a number, or an object with "base", "perMember", or both.</value>
+	</data>
+	<data name="SchedulePlaceInvalid" xml:space="preserve">
+		<value>Expected "home", "workplace", or an object with "quarterKinds".</value>
+	</data>
+	<data name="DataNumberNotWhole" xml:space="preserve">
+		<value>"{0}" is {1}, but it must be a whole number.</value>
+	</data>
+	<data name="HoursInvalid" xml:space="preserve">
+		<value>"{0}" runs from hour {1} to hour {2}, but it must start at an hour from 0 to 23 and end at a different hour from 1 to 24. Ending before it starts means running past midnight.</value>
+	</data>
+	<data name="HoursSettingNotAllowed" xml:space="preserve">
+		<value>"{0}" isn't allowed here. Only "start" and "end" are.</value>
+	</data>
+	<data name="NeedKindInvalid" xml:space="preserve">
+		<value>The need "{0}" must have exactly one of "level" and "quota".</value>
+	</data>
+	<data name="NeedQuotaMeasureInvalid" xml:space="preserve">
+		<value>The quota of the need "{0}" must have exactly one of "time" and "trips".</value>
+	</data>
+	<data name="RoleUnknown" xml:space="preserve">
+		<value>"{0}" has the role "{1}", but the only roles allowed there are {2}.</value>
+	</data>
+	<data name="RoleDuplicate" xml:space="preserve">
+		<value>More than one item in "{0}" has the role "{1}": {2}.</value>
+	</data>
+	<data name="RoleMissing" xml:space="preserve">
+		<value>One item in "{0}" must have the role "{1}".</value>
+	</data>
+	<data name="RoleWrongType" xml:space="preserve">
+		<value>"{0}" has the role "{1}", so it must be a {2}.</value>
+	</data>
+	<data name="NeedOverdueNotAllowed" xml:space="preserve">
+		<value>The need "{0}" has "quota.overdueUrgency", but only quota needs with a "period" of "week" and "hours.days" can have it.</value>
+	</data>
+	<data name="NeedHomeMinutesWithoutReturn" xml:space="preserve">
+		<value>The need "{0}" has time at home after each trip, but it doesn't return home.</value>
+	</data>
+	<data name="ProfessionNotBusiness" xml:space="preserve">
+		<value>The profession "{0}" has the "{1}" role, so it can't have "business".</value>
+	</data>
+	<data name="ProfessionPlayerNotBusiness" xml:space="preserve">
+		<value>The profession "{0}" isn't a business, so it must have "player" set to false, since the player always runs a business.</value>
+	</data>
+	<data name="BusinessProfessionUnknown" xml:space="preserve">
+		<value>The location "{0}" is for the profession "{1}", which isn't a business in "professions".</value>
+	</data>
+	<data name="ProfessionLocationsMissing" xml:space="preserve">
+		<value>The profession "{0}" must have at least one location in "businesses", unless it works from home.</value>
+	</data>
+	<data name="RoleNotAllowed" xml:space="preserve">
+		<value>"{0}" has the role "{1}", but it can't have a role.</value>
+	</data>
+	<data name="ProfessionPropertyValuesNotAllowed" xml:space="preserve">
+		<value>The property "{0}" has the profession role, so its values are the professions and it can't have "values".</value>
+	</data>
+	<data name="ValueGroupIsValue" xml:space="preserve">
+		<value>"{0}" has the group "{1}", but that's the id of a value of "{2}".</value>
 	</data>
 </root>

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using OperaEtDies.Utility.Random;
 
 namespace OperaEtDies.Data;
@@ -21,15 +22,21 @@ public sealed class QuarterKind : IIdentified
 	public bool Unique { get; init; }
 
 	/// <summary>
-	/// For a unique kind, the id of a map feature that makes the quarter optional: a town with the feature only has a
-	/// quarter of this kind <see cref="OptionalChance"/> percent of the time, such as a well in a town with a river.
+	/// For a unique kind, what makes the quarter optional, such as a well in a town with a river.
 	/// </summary>
-	public string? OptionalWith { get; init; }
+	public QuarterKindOptional? Optional { get; init; }
+
+	/// <summary>
+	/// The id of the map feature that makes a quarter of this kind optional, or null if it isn't optional.
+	/// </summary>
+	[JsonIgnore]
+	public string? OptionalWith => Optional?.With;
 
 	/// <summary>
 	/// The percentage chance that a town with <see cref="OptionalWith"/> still has a quarter of this kind.
 	/// </summary>
-	public double OptionalChance { get; init; } = 50;
+	[JsonIgnore]
+	public double OptionalChance => Optional?.Chance ?? 50;
 
 	/// <summary>
 	/// What a path to or from a quarter of this kind is called, such as "lane" or "track".
@@ -61,8 +68,10 @@ public enum MapArea
 /// <summary>
 /// One of the shapes a town can be laid out in, chosen by frequency.
 /// </summary>
-public sealed class TownLayoutChoice : IHasFrequency
+public sealed class TownLayoutChoice : IIdentified, IHasFrequency
 {
+	public required string Id { get; init; }
+
 	/// <summary>
 	/// The shape, which is built by code in the engine.
 	/// </summary>
@@ -110,4 +119,20 @@ public sealed class QuarterSize
 	public int Length { get; init; } = 1;
 
 	public int Width { get; init; } = 1;
+}
+
+/// <summary>
+/// What makes a unique kind of quarter optional: a town with the feature only has a quarter of the kind some of the time.
+/// </summary>
+public sealed class QuarterKindOptional
+{
+	/// <summary>
+	/// The id of the map feature that makes the quarter optional.
+	/// </summary>
+	public required string With { get; init; }
+
+	/// <summary>
+	/// The percentage chance that a town with the feature still has a quarter of this kind.
+	/// </summary>
+	public double Chance { get; init; } = 50;
 }

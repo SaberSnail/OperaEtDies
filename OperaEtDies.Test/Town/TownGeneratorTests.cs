@@ -52,7 +52,7 @@ public sealed class TownGeneratorTests
 		for (var seed = 0; seed < 200; seed++)
 		{
 			var town = TownGenerator.Generate(gameData, TestData.CreatePlayerTraits(gameData), new Random(seed));
-			Assert.That(town.Households.Count - 1, Is.InRange(settings.FamilyCount.Minimum, settings.FamilyCount.Maximum));
+			Assert.That(town.Households.Count - 1, Is.InRange(gameData.Village.FamilyCount.Minimum, gameData.Village.FamilyCount.Maximum));
 
 			foreach (var household in town.Households)
 			{
@@ -63,10 +63,10 @@ public sealed class TownGeneratorTests
 
 				Assert.That(head.Role, Is.EqualTo(FamilyRole.Head));
 				if (!head.IsPlayer)
-					Assert.That(GetAge(head), Is.InRange(settings.HeadAge.Minimum, settings.HeadAge.Maximum));
+					Assert.That(GetAge(head), Is.InRange(settings.Head.Age.Minimum, settings.Head.Age.Maximum));
 				Assert.That(household.Members.Skip(1).Select(x => x.Role), Is.Not.Contains(FamilyRole.Head));
 				Assert.That(elders, Has.Count.LessThanOrEqualTo(1));
-				Assert.That(children, Has.Count.LessThanOrEqualTo(settings.ChildCount.Maximum));
+				Assert.That(children, Has.Count.LessThanOrEqualTo(settings.Children.Count.Maximum));
 
 				if (IsFemale(head))
 				{
@@ -74,21 +74,21 @@ public sealed class TownGeneratorTests
 					Assert.That(household.Members.Where(x => !x.IsPlayer).All(IsFemale), Is.True, "A widow's household has no men.");
 					Assert.That(wife, Is.Null);
 					if (!head.IsPlayer && head.Business is { } business)
-						Assert.That(business.Profession.GetWealthAmount(), Is.GreaterThanOrEqualTo(settings.FemaleHeadMinWealth.GetAmount()), "A widow at the head of a household has a trade that pays enough.");
+						Assert.That(business.Profession.GetWealthAmount(), Is.GreaterThanOrEqualTo(settings.Head.FemaleMinWealth.GetAmount()), "A widow at the head of a household has a trade that pays enough.");
 				}
 
 				if (wife is not null)
 				{
 					Assert.That(IsFemale(wife), Is.True);
-					Assert.That(GetAge(wife) - GetAge(head), Is.InRange(settings.WifeAgeDifference.Minimum, settings.WifeAgeDifference.Maximum));
+					Assert.That(GetAge(wife) - GetAge(head), Is.InRange(settings.Wife.AgeDifference.Minimum, settings.Wife.AgeDifference.Maximum));
 					Assert.That(wife.Traits.GetString("lastName"), Is.EqualTo(household.LastName));
 				}
 
 				foreach (var elder in elders)
 				{
 					sawElder = true;
-					var olderThanHead = GetAge(elder) - GetAge(head) >= settings.MinParentAge;
-					var olderThanWife = wife is not null && GetAge(elder) - GetAge(wife) >= settings.MinParentAge;
+					var olderThanHead = GetAge(elder) - GetAge(head) >= settings.ParentAge.Minimum;
+					var olderThanWife = wife is not null && GetAge(elder) - GetAge(wife) >= settings.ParentAge.Minimum;
 					Assert.That(olderThanHead || olderThanWife, Is.True);
 					Assert.That(GetAge(elder), Is.GreaterThanOrEqualTo(settings.GetHouseholdElderMinAge(IsFemale(elder))));
 
@@ -108,7 +108,7 @@ public sealed class TownGeneratorTests
 					sawElderTrade |= elder.IsBusinessOwner;
 				}
 
-				Assert.That(household.Fortune, Is.InRange(settings.HouseholdFortune.Minimum, settings.HouseholdFortune.Maximum));
+				Assert.That(household.Fortune, Is.InRange(settings.Wealth.Fortune.Minimum, settings.Wealth.Fortune.Maximum));
 				Assert.That(household.Wealth, Is.EqualTo(GetExpectedWealth(household, settings)).Within(0.0001));
 
 				// Children are listed from oldest to youngest, and are young enough to be children of both parents.
@@ -117,9 +117,9 @@ public sealed class TownGeneratorTests
 				foreach (var child in children)
 				{
 					Assert.That(child.Traits.GetString("lastName"), Is.EqualTo(household.LastName));
-					Assert.That(GetAge(head) - GetAge(child), Is.InRange(settings.MinParentAge, settings.GetMaxParentAge(IsFemale(head))));
+					Assert.That(GetAge(head) - GetAge(child), Is.InRange(settings.ParentAge.Minimum, settings.GetMaxParentAge(IsFemale(head))));
 					if (wife is not null)
-						Assert.That(GetAge(wife) - GetAge(child), Is.InRange(settings.MinParentAge, settings.MaxMotherAge));
+						Assert.That(GetAge(wife) - GetAge(child), Is.InRange(settings.ParentAge.Minimum, settings.ParentAge.MaxMother));
 				}
 
 				foreach (var person in household.Members.Where(x => !x.IsPlayer))
@@ -476,7 +476,7 @@ public sealed class TownGeneratorTests
 			var player = new CharacterRandomizer(gameData, new Random(seed), CharacterRole.Player).GetTraits();
 			var town = TownGenerator.Generate(gameData, player, new Random(seed));
 
-			Assert.That(town.Households.Count - 1, Is.InRange(settings.FamilyCount.Minimum, settings.FamilyCount.Maximum));
+			Assert.That(town.Households.Count - 1, Is.InRange(gameData.Village.FamilyCount.Minimum, gameData.Village.FamilyCount.Maximum));
 			Assert.That(town.Households.Select(x => x.House), Has.All.Not.Null);
 			Assert.That(town.Businesses.Where(x => !x.Profession.WorksFromHome).Select(x => x.Location), Has.All.Not.Null);
 			Assert.That(town.Households.Select(x => x.LastName), Is.Unique);
@@ -510,11 +510,11 @@ public sealed class TownGeneratorTests
 	private static double GetExpectedWealth(Household household, FamilySettings settings)
 	{
 		var total = household.Members.Sum(x => x.Business is { } business
-			? business.Profession.GetWealthAmount() * (x.IsBusinessOwner ? 1 : settings.HelperWealth * Math.Pow(settings.HelperWealthFalloff, business.Helpers.ToList().IndexOf(x)))
-			: x.Traits.GetValueId("profession") == settings.Homemaker ? settings.HomemakerWealth : settings.InfirmWealth);
+			? business.Profession.GetWealthAmount() * (x.IsBusinessOwner ? 1 : settings.Wealth.Helper * Math.Pow(settings.Wealth.HelperFalloff, business.Helpers.ToList().IndexOf(x)))
+			: x.Traits.GetValueId("profession") == settings.Roles.Homemaker ? settings.Wealth.Homemaker : settings.Wealth.Infirm);
 		var headAge = GetAge(household.Head);
 		var ageGroup = headAge < 30 ? "young" : headAge < 50 ? "adult" : headAge < 70 ? "old" : "veryOld";
-		return total * settings.HeadAgeWealth.GetValueOrDefault(ageGroup, 100) / 100 * household.Fortune / 100;
+		return total * settings.Wealth.HeadAge.GetValueOrDefault(ageGroup, 100) / 100 * household.Fortune / 100;
 	}
 
 	private static bool IsFemale(TownPerson person) => person.Traits.GetValueId("gender") == "female";

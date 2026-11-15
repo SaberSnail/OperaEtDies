@@ -1,17 +1,32 @@
+using System.Text.Json.Serialization;
 using OperaEtDies.Utility.Random;
 
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// A profession, loaded from Professions.json: the value a character can have for the property whose values come from
-/// the professions, and how its businesses work. A profession without business settings, such as keeping house, isn't
-/// a business.
+/// A profession, from the professions section of the data: a value of the property with the profession role, and how its
+/// businesses work. A profession without <see cref="Business"/>, such as keeping house, isn't a business.
 /// </summary>
 public sealed class Profession : IIdentified
 {
 	public required string Id { get; init; }
 
 	public required string Title { get; init; }
+
+	/// <summary>
+	/// What the engine uses the profession for, such as the homemaker role, or null for none.
+	/// </summary>
+	public string? Role { get; init; }
+
+	/// <summary>
+	/// The groups the profession is in, which conditions can name in place of listing professions.
+	/// </summary>
+	public IReadOnlyList<string>? Groups { get; init; }
+
+	/// <summary>
+	/// Whether the player can choose the profession.
+	/// </summary>
+	public bool Player { get; init; } = true;
 
 	/// <summary>
 	/// How common the profession is when chosen at random.
@@ -45,9 +60,21 @@ public sealed class Profession : IIdentified
 	public IReadOnlyDictionary<string, IReadOnlyList<WeightedString>>? Defaults { get; init; }
 
 	/// <summary>
-	/// How much a business in this profession earns. Every business has one.
+	/// How the profession's businesses work, or null if it isn't a business.
 	/// </summary>
-	public ProfessionWealth? Wealth { get; init; }
+	public ProfessionBusiness? Business { get; init; }
+
+	/// <summary>
+	/// Whether the profession is a business.
+	/// </summary>
+	[JsonIgnore]
+	public bool IsBusiness => Business is not null;
+
+	/// <summary>
+	/// How much a business in this profession earns, or null if it isn't a business.
+	/// </summary>
+	[JsonIgnore]
+	public ProfessionWealth? Wealth => Business?.Wealth;
 
 	/// <summary>
 	/// Gets the amount a business in this profession earns, or 0 if it isn't a business.
@@ -55,9 +82,51 @@ public sealed class Profession : IIdentified
 	public double GetWealthAmount() => Wealth?.GetAmount() ?? 0;
 
 	/// <summary>
-	/// Whether any business setting is given, which only businesses may have.
+	/// The most businesses in this profession the village can have, or null for no limit.
 	/// </summary>
-	public bool HasBusinessSettings => Wealth is not null || MaxBusinesses is not null || Helpers is not null || HelperWhen is not null || WorksFromHome || ForHouseholdElders || WorkHours is not null;
+	[JsonIgnore]
+	public int? MaxBusinesses => Business?.MaxBusinesses;
+
+	/// <summary>
+	/// The most members of the owner's household that can help in each business, or null for no limit.
+	/// </summary>
+	[JsonIgnore]
+	public int? Helpers => Business?.Helpers;
+
+	/// <summary>
+	/// A condition a character must meet to help in a business of this profession, or null if anyone can help.
+	/// </summary>
+	[JsonIgnore]
+	public CharacterCondition? HelperWhen => Business?.HelperWhen;
+
+	/// <summary>
+	/// Whether the business has no place of its own, because the work is done at home or in other people's homes.
+	/// </summary>
+	[JsonIgnore]
+	public bool WorksFromHome => Business?.WorksFromHome ?? false;
+
+	/// <summary>
+	/// Whether a household elder can take up this profession as their own business.
+	/// </summary>
+	[JsonIgnore]
+	public bool ForHouseholdElders => Business?.ForHouseholdElders ?? false;
+
+	/// <summary>
+	/// The hours people in this profession work, in place of the hours of the needs met at the workplace, or null to use
+	/// those needs' hours.
+	/// </summary>
+	[JsonIgnore]
+	public Hours? WorkHours => Business?.Hours;
+
+	/// <summary>
+	/// Whether a business in this profession can have another helper, given how many it has.
+	/// </summary>
+	public bool HasRoomForHelper(int helperCount) => Helpers is not { } max || helperCount < max;
+
+	/// <summary>
+	/// Whether the village can have another business in this profession, given how many it has.
+	/// </summary>
+	public bool HasRoomForBusiness(int businessCount) => MaxBusinesses is not { } max || businessCount < max;
 
 	/// <summary>
 	/// Creates the character property value for the profession.
@@ -66,15 +135,29 @@ public sealed class Profession : IIdentified
 	{
 		Id = Id,
 		Title = Title,
+		Role = Role,
+		Groups = Groups,
 		Frequency = Frequency,
 		FrequencyWhen = FrequencyWhen,
 		Text = Text,
 		When = When,
 		Prominence = Prominence,
+		IsPlayerAllowed = Player,
 	};
+}
+
+/// <summary>
+/// How the businesses of a profession work.
+/// </summary>
+public sealed class ProfessionBusiness
+{
+	/// <summary>
+	/// How much a business in this profession earns.
+	/// </summary>
+	public required ProfessionWealth Wealth { get; init; }
 
 	/// <summary>
-	/// The most businesses in this profession the town can have, or null for no limit.
+	/// The most businesses in this profession the village can have, or null for no limit.
 	/// </summary>
 	public int? MaxBusinesses { get; init; }
 
@@ -84,13 +167,7 @@ public sealed class Profession : IIdentified
 	public int? Helpers { get; init; }
 
 	/// <summary>
-	/// Whether a business in this profession can have another helper, given how many it has.
-	/// </summary>
-	public bool HasRoomForHelper(int helperCount) => Helpers is not { } max || helperCount < max;
-
-	/// <summary>
-	/// A condition a character must meet to help in a business of this profession. Without it, a helper must be
-	/// allowed to have the profession.
+	/// A condition a character must meet to help in a business of this profession. Without it, anyone can help.
 	/// </summary>
 	public CharacterCondition? HelperWhen { get; init; }
 
@@ -107,24 +184,8 @@ public sealed class Profession : IIdentified
 	public bool ForHouseholdElders { get; init; }
 
 	/// <summary>
-	/// The hours people in this profession work, in place of the hours of the needs met at the workplace, or null to use
-	/// those needs' hours.
+	/// The hours people in this profession work, in place of the hours of the needs met at the workplace. Only the start
+	/// and end are used.
 	/// </summary>
-	public WorkHours? WorkHours { get; init; }
-
-	/// <summary>
-	/// Whether the town can have another business in this profession, given how many it has.
-	/// </summary>
-	public bool HasRoomForBusiness(int businessCount) => MaxBusinesses is not { } max || businessCount < max;
-}
-
-/// <summary>
-/// The hours of a working day, from the start hour up to the end hour. An end of 24 means midnight, and an end before the
-/// start means working past midnight.
-/// </summary>
-public sealed class WorkHours
-{
-	public required int Start { get; init; }
-
-	public required int End { get; init; }
+	public Hours? Hours { get; init; }
 }

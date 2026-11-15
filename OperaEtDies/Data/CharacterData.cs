@@ -1,30 +1,13 @@
-using System.IO;
 using GoldenAnvil.Utility;
 using OperaEtDies.Utility.Random;
 
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// The properties that describe a character, and the templates used to name and describe characters, loaded from Characters.json.
+/// The properties that describe a character, and the templates used to name and describe characters, from the properties, templates, and obscurers in the data.
 /// </summary>
 public sealed class CharacterData : IValidatedData
 {
-	public const string FileName = "Characters.json";
-
-	public static DataLoadResult<CharacterData> Load(string dataDirectory) => Load(dataDirectory, []);
-
-	/// <summary>
-	/// Loads the file from the data folder, with the changes from the mod folders applied in order.
-	/// </summary>
-	public static DataLoadResult<CharacterData> Load(string dataDirectory, IReadOnlyList<string> modDirectories) => Load(dataDirectory, modDirectories, null);
-
-	/// <summary>
-	/// Loads the file from the data folder, with the changes from the mod folders applied in order. A property whose
-	/// values come from the professions gets their values, if they loaded.
-	/// </summary>
-	public static DataLoadResult<CharacterData> Load(string dataDirectory, IReadOnlyList<string> modDirectories, IReadOnlyList<Profession>? professions) =>
-		JsonDataLoader.Load<CharacterData>(Path.Combine(dataDirectory, FileName), modDirectories, [], x => x.WithProfessions(professions));
-
 	/// <summary>
 	/// The id of the template that creates a character's full name.
 	/// </summary>
@@ -34,6 +17,11 @@ public sealed class CharacterData : IValidatedData
 	/// The id of the template that creates a description of a character.
 	/// </summary>
 	public const string DescriptionTemplateId = "description";
+
+	/// <summary>
+	/// The role of the property whose values are the professions.
+	/// </summary>
+	public const string ProfessionRole = "profession";
 
 	/// <summary>
 	/// The most combinations of condition values that validation checks for each role.
@@ -62,7 +50,7 @@ public sealed class CharacterData : IValidatedData
 	/// Fills in the values of the properties whose values come from the professions, and the defaults of string
 	/// properties keyed by them. Without professions, those properties are left without values.
 	/// </summary>
-	private CharacterData WithProfessions(IReadOnlyList<Profession>? professions)
+	internal CharacterData WithProfessions(IReadOnlyList<Profession>? professions)
 	{
 		var data = this;
 		if (professions is not null && Properties.Any(TakesProfessions))
@@ -87,7 +75,7 @@ public sealed class CharacterData : IValidatedData
 	/// that takes its values from the professions. Anything else is reported when the data is checked.
 	/// </summary>
 	private static bool TakesProfessions(CharacterProperty? property) =>
-		property is { Type: CharacterPropertyType.ValueList, Values: null, ValuesFrom: CharacterProperty.ProfessionsSource };
+		property is { Type: CharacterPropertyType.ValueList, Values: null, Role: ProfessionRole };
 
 	/// <summary>
 	/// A percentage chance. Any value that has this chance or less of being chosen is reported as a warning when the
@@ -119,9 +107,9 @@ public sealed class CharacterData : IValidatedData
 		if (cycle.Count != 0)
 			errors.Add(OurResources.PropertyDependencyCycle.FormatCurrentCulture(string.Join(", ", cycle.Select(x => $"\"{x.Id}\""))));
 
+
+		errors.AddRange(ValidateValueGroups(properties));
 		errors.AddRange(ValidateObscurers(allProperties));
-		if (LowChanceWarning is { } lowChanceWarning && !(lowChanceWarning >= 0 && lowChanceWarning < 100))
-			errors.Add(OurResources.LowChanceWarningInvalid.FormatCurrentCulture(lowChanceWarning));
 		errors.AddRange(ValidateTemplates(allProperties));
 
 		// Checking every combination of condition values only works once the conditions themselves are valid.
@@ -130,6 +118,163 @@ public sealed class CharacterData : IValidatedData
 
 		return errors;
 	}
+
+	/// <summary>
+	/// Gets every condition in the character data: those of the properties, their values, their values' frequency
+	/// overrides, and the template variants.
+	/// </summary>
+	internal IEnumerable<CharacterCondition?> GetConditions() =>
+		Properties.Where(x => x is not null).SelectMany(property => new[] { property.When }
+				.Concat((property.Values ?? []).Where(x => x is not null).SelectMany(value => new[] { value.When }.Concat((value.FrequencyWhen ?? []).Select(x => x?.When)))))
+			.Concat(Templates.Where(x => x?.Variants is not null).SelectMany(x => x.Variants!).Select(x => x?.When));
+
+	/// <summary>
+	/// The roles a property can have, what kind of property each must be, and the roles its values must have. The engine
+	/// finds the properties and values it depends on by these roles.
+	/// </summary>
+	internal static IReadOnlyList<PropertyRoleDefinition> PropertyRoles { get; } =
+	[
+		new("gender", CharacterPropertyType.ValueList, false, ["male", "female"]),
+		new("age", CharacterPropertyType.Integer, false, []),
+		new(ProfessionRole, CharacterPropertyType.ValueList, false, []),
+		new("lastName", CharacterPropertyType.String, false, []),
+		new("workRole", CharacterPropertyType.ValueList, true, ["independent", "helper"]),
+		new("householdRole", CharacterPropertyType.ValueList, true, ["head", "member"]),
+		new("headRelation", CharacterPropertyType.ValueList, true, ["self", "husband", "father", "mother", "son", "daughter", "sonInLaw", "daughterInLaw"]),
+		new("headName", CharacterPropertyType.String, true, []),
+		new("atWork", CharacterPropertyType.ValueList, true, ["atWork", "notAtWork"]),
+		new("married", CharacterPropertyType.ValueList, true, ["married", "unmarried"]),
+	];
+
+	/// <summary>
+	/// Gets the property with the given role, or null if there's none.
+	/// </summary>
+	public CharacterProperty? FindRole(string role) => Properties.FirstOrDefault(x => x?.Role == role);
+
+	/// <summary>
+	/// Gets the properties and values the family generator depends on, found by their roles. Any that are missing are empty.
+	/// </summary>
+	internal FamilyRoles GetFamilyRoles()
+	{
+		string? Property(string role) => FindRole(role)?.Id;
+		string? Value(string propertyRole, string valueRole) => FindRole(propertyRole)?.Values?.FirstOrDefault(x => x?.Role == valueRole)?.Id;
+
+		var properties = new FamilyProperties
+		{
+			Gender = Property("gender") ?? "",
+			Age = Property("age") ?? "",
+			Profession = Property(ProfessionRole) ?? "",
+			LastName = Property("lastName") ?? "",
+			WorkRole = Property("workRole") ?? "",
+			HouseholdRole = Property("householdRole") ?? "",
+			HeadRelation = Property("headRelation") ?? "",
+			HeadName = Property("headName") ?? "",
+			AtWork = Property("atWork") ?? "",
+			Married = Property("married") ?? "",
+		};
+
+		var roles = new FamilyRoles
+		{
+			Properties = properties,
+			Male = Value("gender", "male") ?? "",
+			Female = Value("gender", "female") ?? "",
+			Homemaker = Value(ProfessionRole, ProfessionList.HomemakerRole) ?? "",
+			Infirm = Value(ProfessionRole, ProfessionList.InfirmRole) ?? "",
+			Independent = Value("workRole", "independent") ?? "",
+			Helper = Value("workRole", "helper") ?? "",
+			Head = Value("householdRole", "head") ?? "",
+			Member = Value("householdRole", "member") ?? "",
+			HeadRelations = new HeadRelations
+			{
+				Self = Value("headRelation", "self") ?? "",
+				Husband = Value("headRelation", "husband") ?? "",
+				Father = Value("headRelation", "father") ?? "",
+				Mother = Value("headRelation", "mother") ?? "",
+				Son = Value("headRelation", "son") ?? "",
+				Daughter = Value("headRelation", "daughter") ?? "",
+				SonInLaw = Value("headRelation", "sonInLaw") ?? "",
+				DaughterInLaw = Value("headRelation", "daughterInLaw") ?? "",
+			},
+			AtWork = Value("atWork", "atWork") ?? "",
+			NotAtWork = Value("atWork", "notAtWork") ?? "",
+			Married = Value("married", "married") ?? "",
+			Unmarried = Value("married", "unmarried") ?? "",
+		};
+
+		return roles;
+	}
+
+	/// <summary>
+	/// Checks the roles of the properties and their values: every role must be used once, by a property of the right
+	/// kind, and a property with a role must have a value for each of its value roles.
+	/// </summary>
+	internal IEnumerable<string> ValidateRoles()
+	{
+		var properties = Properties.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)).ToList();
+		var errors = new List<string>();
+		errors.AddRange(DataValidation.ValidateRoles("properties", properties, x => x.Id, x => x.Role, PropertyRoles.Select(x => x.Role).ToList()));
+		foreach (var definition in PropertyRoles)
+		{
+			var property = properties.FirstOrDefault(x => x.Role == definition.Role);
+			if (property is null)
+			{
+				errors.Add(OurResources.RoleMissing.FormatCurrentCulture("properties", definition.Role));
+			}
+			else if (property.Type != definition.Type)
+			{
+				errors.Add(OurResources.RoleWrongType.FormatCurrentCulture($"properties[{property.Id}]", definition.Role, $"{JsonNamingPolicyName(definition.Type)} property"));
+			}
+			else
+			{
+				if (definition.SetByGame && !property.SetByGame)
+					errors.Add(OurResources.FamilyPropertyNotSetByGame.FormatCurrentCulture(property.Id));
+
+				// The professions' roles are checked with the professions.
+				if (definition.Role != ProfessionRole)
+				{
+					var values = (property.Values ?? []).Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)).ToList();
+					var listName = $"properties[{property.Id}].values";
+					errors.AddRange(DataValidation.ValidateRoles(listName, values, x => x.Id, x => x.Role, definition.ValueRoles));
+					foreach (var role in definition.ValueRoles.Where(role => !values.Any(x => x.Role == role)))
+						errors.Add(OurResources.RoleMissing.FormatCurrentCulture(listName, role));
+				}
+			}
+		}
+
+		// Values can only have roles in the properties whose roles give their values roles.
+		foreach (var property in properties.Where(x => x.Role is null || PropertyRoles.All(definition => definition.Role != x.Role)))
+		{
+			foreach (var value in (property.Values ?? []).Where(x => x?.Role is not null))
+				errors.Add(OurResources.RoleNotAllowed.FormatCurrentCulture($"properties[{property.Id}].values[{value.Id}]", value.Role));
+		}
+
+		return errors;
+	}
+
+	/// <summary>
+	/// Checks the groups values are in: each must be filled in, and must not be the id of one of the property's values.
+	/// </summary>
+	private static IEnumerable<string> ValidateValueGroups(IReadOnlyList<CharacterProperty> properties)
+	{
+		foreach (var property in properties)
+		{
+			var values = (property.Values ?? []).Where(x => x is not null).ToList();
+			var valueIds = values.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+			foreach (var value in values)
+			{
+				var path = $"properties[{property.Id}].values[{value.Id}].groups";
+				foreach (var group in value.Groups ?? [])
+				{
+					if (string.IsNullOrWhiteSpace(group))
+						yield return OurResources.DataListItemBlank.FormatCurrentCulture(path);
+					else if (valueIds.Contains(group))
+						yield return OurResources.ValueGroupIsValue.FormatCurrentCulture(path, group, property.Id);
+				}
+			}
+		}
+	}
+
+	private static string JsonNamingPolicyName(CharacterPropertyType type) => System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(type.ToString());
 
 	private static IEnumerable<string> ValidateProperty(CharacterProperty property, IReadOnlyDictionary<string, CharacterProperty> allProperties)
 	{
@@ -150,23 +295,14 @@ public sealed class CharacterData : IValidatedData
 				yield return OurResources.PropertyFollowsUnknown.FormatCurrentCulture(id, follows);
 		}
 
-		if (property.ValuesFrom is { } valuesFrom)
-		{
-			if (type != CharacterPropertyType.ValueList)
-				yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, "valuesFrom");
-			else if (valuesFrom != CharacterProperty.ProfessionsSource)
-				yield return OurResources.ValuesFromUnknown.FormatCurrentCulture(id, valuesFrom, CharacterProperty.ProfessionsSource);
-			else if (property.Values is not null && !property.HasSourceValues)
-				yield return OurResources.ValuesAndValuesFrom.FormatCurrentCulture(id);
-			else if (property.Values is null)
-				yield return OurResources.ValuesFromNotLoaded.FormatCurrentCulture(id, valuesFrom);
-		}
+		if (property.Role == ProfessionRole && property.Values is not null && !property.HasSourceValues)
+			yield return OurResources.ProfessionPropertyValuesNotAllowed.FormatCurrentCulture(id);
 
 		if (type == CharacterPropertyType.ValueList)
 		{
 			if (property.Values is null)
 			{
-				if (property.ValuesFrom is null)
+				if (property.Role != ProfessionRole)
 					yield return OurResources.CharacterSettingMissing.FormatCurrentCulture(id, "values");
 			}
 			else
@@ -443,7 +579,7 @@ public sealed class CharacterData : IValidatedData
 	{
 		if (range.Maximum < range.Minimum)
 			yield return OurResources.IntegerRangeInvalid.FormatCurrentCulture(path, range.Maximum, range.Minimum);
-		foreach (var error in range.Shape.Validate($"{path}.shape"))
+		foreach (var error in range.Shape?.Validate($"{path}.shape") ?? [])
 			yield return error;
 	}
 
@@ -1016,3 +1152,9 @@ public sealed class CharacterData : IValidatedData
 	private static readonly CharacterRole[] s_roles = [CharacterRole.Player, CharacterRole.Npc];
 	private static readonly string[] s_requiredTemplateIds = [FullNameTemplateId, DescriptionTemplateId];
 }
+
+/// <summary>
+/// A role a character property can have: the kind of property it must be, whether the game must set it, and the roles its
+/// values must have.
+/// </summary>
+internal sealed record PropertyRoleDefinition(string Role, CharacterPropertyType Type, bool SetByGame, IReadOnlyList<string> ValueRoles);

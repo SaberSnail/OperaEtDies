@@ -236,7 +236,7 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 		m_gameData = gameData;
 		m_modListStore = modListStore;
 		Title = gameInfo?.Title ?? OurResources.EngineName;
-		Description = gameInfo?.Description ?? "";
+		Description = gameInfo?.Description.Text ?? "";
 		LoadErrors = loadErrors.Select(x => x.ToString()).ToList();
 	}
 

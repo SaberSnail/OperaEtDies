@@ -4,7 +4,7 @@ using OperaEtDies.Town;
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// How the relationships between characters are chosen when a game starts, and what their scores mean, from Families.json.
+/// How the relationships between characters are chosen when a game starts, and what their scores mean, from the relationships section of the data.
 /// Every two characters (including the player) share one score from 0 to <see cref="MaximumScore"/>.
 /// </summary>
 public sealed class RelationshipSettings
@@ -13,6 +13,11 @@ public sealed class RelationshipSettings
 	/// The highest a relationship score can be.
 	/// </summary>
 	public const int MaximumScore = 100;
+
+	/// <summary>
+	/// The name of the data section the settings are read from.
+	/// </summary>
+	public const string SectionName = "relationships";
 
 	/// <summary>
 	/// The score every two characters start with, before the bonuses.
@@ -56,6 +61,17 @@ public sealed class RelationshipSettings
 	public required IReadOnlyList<RelationshipLevel> Levels { get; init; }
 
 	/// <summary>
+	/// How members of the player's household are related to the player, who is its head, such as "son". The first
+	/// whose condition a member meets is used.
+	/// </summary>
+	public IReadOnlyList<PlayerRelation> PlayerRelations { get; init; } = [];
+
+	/// <summary>
+	/// Gets how a member of the player's household is related to the player, or null if no relation fits.
+	/// </summary>
+	public string? GetPlayerRelation(Func<string, string?> getValueId) => PlayerRelations.FirstOrDefault(x => CharacterCondition.IsMet(x.When, getValueId))?.Title;
+
+	/// <summary>
 	/// Whether two characters with the given score are friends.
 	/// </summary>
 	public bool IsFriend(int score) => score >= FriendScore;
@@ -84,8 +100,17 @@ public sealed class RelationshipSettings
 		_ => FamilyBonus,
 	};
 
-	internal IEnumerable<string> Validate(string path)
+	internal IEnumerable<string> Validate()
 	{
+		const string path = SectionName;
+		for (var index = 0; index < PlayerRelations.Count; index++)
+		{
+			if (PlayerRelations[index] is not { } relation)
+				yield return OurResources.DataListItemEmpty.FormatCurrentCulture($"{path}.playerRelations");
+			else if (string.IsNullOrWhiteSpace(relation.Title))
+				yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.playerRelations[{index}].title");
+		}
+
 		foreach (var error in CharacterData.ValidateRange($"{path}.score", Score))
 			yield return error;
 		if (Score.Minimum < 0)
@@ -134,6 +159,16 @@ public sealed class RelationshipSettings
 public sealed class RelationshipLevel
 {
 	public required int Minimum { get; init; }
+
+	public required string Title { get; init; }
+}
+
+/// <summary>
+/// How a member of the player's household who meets a condition is related to the player, such as "son".
+/// </summary>
+public sealed class PlayerRelation
+{
+	public required CharacterCondition When { get; init; }
 
 	public required string Title { get; init; }
 }

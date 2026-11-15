@@ -91,7 +91,7 @@ public sealed class FrequencyOverrideTests
 	[Test]
 	public void ConditionsCanUseGroups()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
 				"templates": [ { "id": "fullName", "template": "{age}" }, { "id": "description", "template": "{age}" } ],
 				"properties": [
@@ -112,8 +112,6 @@ public sealed class FrequencyOverrideTests
 			}
 			""");
 
-		var result = CharacterData.Load(m_directory);
-
 		// Ages 10 to 17 are in no group, and young characters have no hair values either.
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[] { "player", "npc" }.SelectMany(role => new[]
 		{
@@ -128,7 +126,7 @@ public sealed class FrequencyOverrideTests
 	[TestCase("rare+-", false)]
 	public void DataFilesReadFrequencySteps(string frequency, bool isValid)
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), $$"""
+		var result = TestData.LoadCharacterData($$"""
 			{
 				"templates": [ { "id": "fullName", "template": "{hair}" }, { "id": "description", "template": "{hair}" } ],
 				"properties": [
@@ -142,15 +140,13 @@ public sealed class FrequencyOverrideTests
 			}
 			""");
 
-		var result = CharacterData.Load(m_directory);
-
 		Assert.That(result.Errors.Select(x => x.Message), isValid ? Is.Empty : Has.Exactly(1).Contains(OurResources.FrequencyLevelInvalid));
 	}
 
 	[Test]
 	public void InvalidGroupsAndOverridesReportErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
 				"templates": [ { "id": "fullName", "template": "{age}" }, { "id": "description", "variants": [ { "when": { "values": { "age": [ "young" ] } }, "template": "{age}" } ] } ],
 				"properties": [
@@ -181,8 +177,6 @@ public sealed class FrequencyOverrideTests
 				]
 			}
 			""");
-
-		var result = CharacterData.Load(m_directory);
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
@@ -240,7 +234,7 @@ public sealed class FrequencyOverrideTests
 					},
 				],
 			},
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings());
 	}
 
 	private string m_directory = "";

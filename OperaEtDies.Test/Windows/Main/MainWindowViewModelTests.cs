@@ -497,7 +497,7 @@ public sealed class MainWindowViewModelTests
 			{
 				Assert.That(world.Time, Is.EqualTo(calendar.GetNextDayPartStart(start)));
 				var dayPart = calendar.GetDayPart(world.Time);
-				Assert.That(screen.WaitResult, Does.EndWith(dayPart.Announcement ?? OurResources.DayPartStarted.FormatCurrentCulture(dayPart.Title)));
+				Assert.That(screen.WaitResult, Does.EndWith(dayPart.Announcement?.Text ?? OurResources.DayPartStarted.FormatCurrentCulture(dayPart.Title)));
 				dayParts.Add(dayPart.Id);
 			}
 			Assert.That(screen.WaitResult, Is.Not.Null);

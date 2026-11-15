@@ -18,10 +18,10 @@ public sealed class CharacterViewModel : ViewModelBase
 	{
 		var gameData = world.GameData;
 		CanViewStatus = isDeveloper && !person.IsPlayer;
-		Person = new LocationPersonViewModel(person, gameData.PortraitRenderer, gameData.Schedules, gameData.Families, developerCalendar: isDeveloper ? gameData.Calendar : null);
+		Person = new LocationPersonViewModel(person, gameData.PortraitRenderer, gameData.Schedules, gameData.Relationships, developerCalendar: isDeveloper ? gameData.Calendar : null);
 
 		// Relationships are listed from the closest down.
-		var settings = gameData.Families.Relationships;
+		var settings = gameData.Relationships;
 		if (person.IsPlayer || isDeveloper)
 		{
 			Relationships = person.Relationships

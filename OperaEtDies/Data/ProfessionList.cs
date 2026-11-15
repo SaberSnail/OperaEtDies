@@ -1,52 +1,42 @@
-using System.IO;
 using GoldenAnvil.Utility;
 
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// The professions, loaded from Professions.json: the values of the profession character property, and how the
-/// businesses of each profession work.
+/// The professions, from the professions section of the data: the values of the property with the profession role, and
+/// how the businesses of each profession work.
 /// </summary>
-public sealed class ProfessionList : IValidatedData
+public sealed class ProfessionList
 {
-	public const string FileName = "Professions.json";
-
-	public static DataLoadResult<ProfessionList> Load(string dataDirectory) => Load(dataDirectory, []);
+	/// <summary>
+	/// The role of the profession for a household elder who keeps house.
+	/// </summary>
+	public const string HomemakerRole = "homemaker";
 
 	/// <summary>
-	/// Loads the file from the data folder, with the changes from the mod folders applied in order.
+	/// The role of the profession for a household elder who is too frail to work.
 	/// </summary>
-	public static DataLoadResult<ProfessionList> Load(string dataDirectory, IReadOnlyList<string> modDirectories) =>
-		JsonDataLoader.Load<ProfessionList>(Path.Combine(dataDirectory, FileName), modDirectories, []);
+	public const string InfirmRole = "infirm";
 
 	public required IReadOnlyList<Profession> Professions { get; init; }
 
 	public IEnumerable<string> Validate()
 	{
 		var errors = new List<string>();
-		if (Professions.Count == 0)
-			errors.Add(OurResources.DataListEmpty.FormatCurrentCulture("professions"));
+		errors.AddRange(DataValidation.ValidateIdentifiedItems("professions", Professions, x => x.Id, x => x.Title));
+		var professions = Professions.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)).ToList();
+		foreach (var profession in professions)
+			errors.AddRange(ValidateProfession(profession));
 
-		var ids = new HashSet<string>(StringComparer.Ordinal);
-		foreach (var profession in Professions)
+		// The homemaker and infirm professions are only given to household elders by the family generator.
+		errors.AddRange(DataValidation.ValidateRoles("professions", professions, x => x.Id, x => x.Role, [HomemakerRole, InfirmRole]));
+		foreach (var role in new[] { HomemakerRole, InfirmRole })
 		{
-			// JSON deserialization doesn't stop null list items, even when the type is non-nullable.
+			var profession = professions.FirstOrDefault(x => x.Role == role);
 			if (profession is null)
-			{
-				errors.Add(OurResources.DataListItemEmpty.FormatCurrentCulture("professions"));
-			}
-			else if (string.IsNullOrWhiteSpace(profession.Id))
-			{
-				errors.Add(OurResources.DataListItemIdMissing.FormatCurrentCulture("professions"));
-			}
-			else
-			{
-				if (!ids.Add(profession.Id))
-					errors.Add(OurResources.DataListItemIdDuplicate.FormatCurrentCulture(profession.Id, "professions"));
-				if (string.IsNullOrWhiteSpace(profession.Title))
-					errors.Add(OurResources.DataListItemTitleMissing.FormatCurrentCulture(profession.Id, "professions"));
-				errors.AddRange(ValidateProfession(profession));
-			}
+				errors.Add(OurResources.RoleMissing.FormatCurrentCulture("professions", role));
+			else if (profession.IsBusiness)
+				errors.Add(OurResources.ProfessionNotBusiness.FormatCurrentCulture(profession.Id, role));
 		}
 
 		return errors;
@@ -55,14 +45,32 @@ public sealed class ProfessionList : IValidatedData
 	private static IEnumerable<string> ValidateProfession(Profession profession)
 	{
 		var path = $"professions[{profession.Id}]";
-		if (profession.MaxBusinesses is < 1)
-			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.maxBusinesses", profession.MaxBusinesses, 1);
-		if (profession.Helpers is < 0)
-			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.helpers", profession.Helpers, 0);
-		if (profession.ForHouseholdElders && !profession.WorksFromHome)
-			yield return OurResources.ProfessionElderTradeNotFromHome.FormatCurrentCulture(profession.Id);
-		if (profession.WorkHours is { } hours && (hours.Start is < 0 or > 23 || hours.End is < 1 or > 24 || hours.End == hours.Start))
-			yield return OurResources.ProfessionWorkHoursInvalid.FormatCurrentCulture(profession.Id, hours.Start, hours.End);
+
+		// The player always heads a household, and every head runs a business.
+		if (profession.Player && !profession.IsBusiness)
+			yield return OurResources.ProfessionPlayerNotBusiness.FormatCurrentCulture(profession.Id);
+
+		foreach (var group in profession.Groups ?? [])
+		{
+			if (string.IsNullOrWhiteSpace(group))
+				yield return OurResources.DataListItemBlank.FormatCurrentCulture($"{path}.groups");
+		}
+
+		if (profession.Business is { } business)
+		{
+			if (business.MaxBusinesses is < 1)
+				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.business.maxBusinesses", business.MaxBusinesses, 1);
+			if (business.Helpers is < 0)
+				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.business.helpers", business.Helpers, 0);
+			if (business.ForHouseholdElders && !business.WorksFromHome)
+				yield return OurResources.ProfessionElderTradeNotFromHome.FormatCurrentCulture(profession.Id);
+			if (business.Hours is { } hours)
+			{
+				foreach (var error in hours.Validate($"{path}.business.hours", allowDays: false))
+					yield return error;
+			}
+		}
+
 		foreach (var (propertyId, values) in profession.Defaults ?? new Dictionary<string, IReadOnlyList<WeightedString>>())
 		{
 			foreach (var error in DataValidation.ValidateWeightedStrings($"{path}.defaults.{propertyId}", values))

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using GoldenAnvil.Utility;
 using OperaEtDies.Utility.Random;
 
@@ -17,19 +18,27 @@ public abstract class LocationTemplate : IIdentified, IHasFrequency
 	public string? Title { get; init; }
 
 	/// <summary>
+	/// The descriptions of the location.
+	/// </summary>
+	public required LocationDescription Description { get; init; }
+
+	/// <summary>
 	/// One sentence, used when the location is listed as a place to go.
 	/// </summary>
-	public required string ShortDescription { get; init; }
+	[JsonIgnore]
+	public string ShortDescription => Description.Short.Text;
 
 	/// <summary>
 	/// One paragraph, shown when arriving at the location.
 	/// </summary>
-	public required string MediumDescription { get; init; }
+	[JsonIgnore]
+	public string MediumDescription => Description.Medium.Text;
 
 	/// <summary>
 	/// Several paragraphs, shown when examining the location.
 	/// </summary>
-	public required IReadOnlyList<string> LongDescription { get; init; }
+	[JsonIgnore]
+	public IReadOnlyList<string> LongDescription => Description.Long.Select(x => x?.Text ?? "").ToList();
 
 	/// <summary>
 	/// How likely the template is to be chosen, compared to the other templates that could be used.
@@ -42,11 +51,11 @@ public abstract class LocationTemplate : IIdentified, IHasFrequency
 	internal IEnumerable<string> ValidateDescriptions()
 	{
 		if (string.IsNullOrWhiteSpace(ShortDescription))
-			yield return OurResources.LocationDescriptionMissing.FormatCurrentCulture(Id, "shortDescription");
+			yield return OurResources.LocationDescriptionMissing.FormatCurrentCulture(Id, "description.short");
 		if (string.IsNullOrWhiteSpace(MediumDescription))
-			yield return OurResources.LocationDescriptionMissing.FormatCurrentCulture(Id, "mediumDescription");
+			yield return OurResources.LocationDescriptionMissing.FormatCurrentCulture(Id, "description.medium");
 		if (LongDescription.Count == 0)
-			yield return OurResources.LocationDescriptionMissing.FormatCurrentCulture(Id, "longDescription");
+			yield return OurResources.LocationDescriptionMissing.FormatCurrentCulture(Id, "description.long");
 		else if (LongDescription.Any(string.IsNullOrWhiteSpace))
 			yield return OurResources.LocationDescriptionParagraphBlank.FormatCurrentCulture(Id);
 	}
@@ -64,14 +73,16 @@ public sealed class QuarterTemplate : LocationTemplate
 	public required string Kind { get; init; }
 
 	/// <summary>
-	/// How wealthy the households living in the quarter are. Required if the quarter has houses.
+	/// How many houses the quarter holds, and how wealthy the households living in them are. Optional; without it, nobody
+	/// lives in the quarter.
 	/// </summary>
-	public WealthLevel? Wealth { get; init; }
+	public QuarterHouses? Houses { get; init; }
 
 	/// <summary>
-	/// How many houses the quarter holds. Optional; without it, nobody lives in the quarter.
+	/// How wealthy the households living in the quarter are, or null if it has no houses.
 	/// </summary>
-	public CountRange? Houses { get; init; }
+	[JsonIgnore]
+	public WealthLevel? Wealth => Houses?.Wealth;
 
 	/// <summary>
 	/// The most businesses the quarter holds.
@@ -98,7 +109,7 @@ public sealed class QuarterTemplate : LocationTemplate
 	/// Sentences used instead of a map feature's own text when the quarter borders it, by feature id. Each is a template
 	/// whose only placeholder is the direction the feature is in.
 	/// </summary>
-	public IReadOnlyDictionary<string, string>? FeatureText { get; init; }
+	public IReadOnlyDictionary<string, LongText>? FeatureText { get; init; }
 
 	/// <summary>
 	/// The most houses the quarter holds.
@@ -139,11 +150,39 @@ public sealed class BusinessTemplate : LocationTemplate
 }
 
 /// <summary>
-/// A range of whole numbers, without weights.
+/// How many houses a quarter holds, and how wealthy the households living in them are.
 /// </summary>
-public sealed class CountRange
+public sealed class QuarterHouses
 {
 	public required int Minimum { get; init; }
 
 	public required int Maximum { get; init; }
+
+	/// <summary>
+	/// Weights how many houses the quarter is planned to have, or null to lean toward fewer.
+	/// </summary>
+	public WeightShape? Shape { get; init; }
+
+	public required WealthLevel Wealth { get; init; }
+}
+
+/// <summary>
+/// The descriptions of a location.
+/// </summary>
+public sealed class LocationDescription
+{
+	/// <summary>
+	/// One sentence, used when the location is listed as a place to go.
+	/// </summary>
+	public required LongText Short { get; init; }
+
+	/// <summary>
+	/// One paragraph, shown when arriving at the location.
+	/// </summary>
+	public required LongText Medium { get; init; }
+
+	/// <summary>
+	/// Several paragraphs, shown when examining the location.
+	/// </summary>
+	public required IReadOnlyList<LongText> Long { get; init; }
 }

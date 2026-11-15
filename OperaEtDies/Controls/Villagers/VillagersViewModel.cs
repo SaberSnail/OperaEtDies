@@ -15,12 +15,12 @@ namespace OperaEtDies.Controls.Villagers;
 /// </summary>
 public sealed class VillagersViewModel : ViewModelBase
 {
-	public VillagersViewModel(IEnumerable<Family> families, bool isDeveloper, PortraitRenderer? portraitRenderer = null, ScheduleSettings? schedules = null, FamilySettings? familySettings = null, GameCalendar? calendar = null)
+	public VillagersViewModel(IEnumerable<Family> families, bool isDeveloper, PortraitRenderer? portraitRenderer = null, ScheduleSettings? schedules = null, RelationshipSettings? relationships = null, GameCalendar? calendar = null)
 	{
 		IsDeveloper = isDeveloper;
 		Families = families
 			.OrderBy(x => x.LastName, StringComparer.CurrentCulture)
-			.Select(x => new VillagerFamilyViewModel(x, isDeveloper, VisitHome, VisitPerson, ExaminePerson, portraitRenderer, schedules, familySettings, calendar))
+			.Select(x => new VillagerFamilyViewModel(x, isDeveloper, VisitHome, VisitPerson, ExaminePerson, portraitRenderer, schedules, relationships, calendar))
 			.ToList();
 	}
 
@@ -61,14 +61,14 @@ public sealed class VillagersViewModel : ViewModelBase
 /// </summary>
 public sealed class VillagerFamilyViewModel : ViewModelBase
 {
-	public VillagerFamilyViewModel(Family family, bool isDeveloper, Action<Family> visitHome, Action<Person> visitPerson, Action<Person> examinePerson, PortraitRenderer? portraitRenderer = null, ScheduleSettings? schedules = null, FamilySettings? familySettings = null, GameCalendar? calendar = null)
+	public VillagerFamilyViewModel(Family family, bool isDeveloper, Action<Family> visitHome, Action<Person> visitPerson, Action<Person> examinePerson, PortraitRenderer? portraitRenderer = null, ScheduleSettings? schedules = null, RelationshipSettings? relationships = null, GameCalendar? calendar = null)
 	{
 		Family = family;
 		IsDeveloper = isDeveloper;
 		m_visitHome = visitHome;
 		Title = OurResources.FamilyTitle.FormatCurrentCulture(family.LastName);
 		Wealth = OurResources.VillagerFamilyWealth.FormatCurrentCulture(family.WealthLevel.GetDataName());
-		People = family.Members.Select(x => new LocationPersonViewModel(x, portraitRenderer, schedules, familySettings, isDeveloper ? visitPerson : null, developerCalendar: isDeveloper ? calendar : null, examine: examinePerson)).ToList();
+		People = family.Members.Select(x => new LocationPersonViewModel(x, portraitRenderer, schedules, relationships, isDeveloper ? visitPerson : null, developerCalendar: isDeveloper ? calendar : null, examine: examinePerson)).ToList();
 	}
 
 	public Family Family { get; }

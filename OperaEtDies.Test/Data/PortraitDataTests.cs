@@ -40,7 +40,7 @@ public sealed class PortraitDataTests
 	[Test]
 	public void WithoutPortraitFileThereAreNoPortraits()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
+		CopyShippedDataWithoutPortraits();
 
 		var result = GameData.Load(m_directory);
 
@@ -51,27 +51,26 @@ public sealed class PortraitDataTests
 	[Test]
 	public void InvalidPortraitsReportErrors()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
-		File.WriteAllText(Path.Combine(m_directory, PortraitData.FileName), """
+		CopyShippedDataWithoutPortraits();
+		File.WriteAllText(Path.Combine(m_directory, "Portraits.json"), """
 			{
-				"width": 0,
-				"height": 100,
-				"colors": [
+				"portraits": { "width": 0, "height": 100 },
+				"portraitColors": [
 					{ "id": "skin", "color": "later" },
 					{ "id": "later", "color": "#FFFFFF", "mix": "#000000" },
 					{ "id": "shade", "color": "skin", "mix": "#000000", "amount": 2, "variants": [ { "when": { "values": { "nothing": [ "x" ] } }, "color": "#12345" } ] }
 				],
-				"scales": [
+				"portraitScales": [
 					{ "id": "wide", "x": 0, "variants": [] },
-					{ "id": "wide", "variants": [ { "when": { "values": { "gender": [ "gender_male" ] } }, "y": -1 } ] }
+					{ "id": "wide2", "variants": [ { "when": { "values": { "gender": [ "gender_male" ] } }, "y": -1 } ] }
 				],
-				"offsets": [
+				"portraitOffsets": [
 					{ "id": "up", "variants": [] },
-					{ "id": "up", "y": -10 }
+					{ "id": "up2", "y": -10 }
 				],
-				"layers": [
+				"portraitLayers": [
 					{ "id": "a", "scale": "narrow", "offset": "down", "shapes": [ { "path": "M0,0 L10,10 Q" , "fill": "skin", "scale": "tall" } ] },
-					{ "id": "a", "when": { "values": { "gender": [ "gender_unknown" ] } }, "shapes": [ { "path": "M0,0 H10", "opacity": 1.5 } ] },
+					{ "id": "a2", "when": { "values": { "gender": [ "gender_unknown" ] } }, "shapes": [ { "path": "M0,0 H10", "opacity": 1.5 } ] },
 					{ "id": "b", "shapes": [ { "path": "M0,0 H10", "stroke": "skin", "strokeWidth": 0, "gradient": "radial", "fillTo": "#000000" } ] },
 					{ "id": "c", "shapes": [ { "path": "M0,0 H10", "fill": "skin", "fillTo": "#000000" } ] },
 					{ "id": "d", "at": {}, "shapes": [ { "path": "M0,0 H10", "stroke": "#000000" } ] },
@@ -83,44 +82,40 @@ public sealed class PortraitDataTests
 		var result = GameData.Load(m_directory);
 
 		Assert.That(result.Succeeded, Is.False);
-		var messages = result.Errors.Where(x => Path.GetFileName(x.FilePath) == PortraitData.FileName).Select(x => x.Message).ToList();
-		Assert.That(messages, Does.Contain(OurResources.DataNumberNotPositive.FormatCurrentCulture("width", 0)));
-		Assert.That(messages, Does.Contain(OurResources.PortraitColorUnknown.FormatCurrentCulture("colors[skin].color", "later")));
-		Assert.That(messages, Does.Contain(OurResources.PortraitColorMixIncomplete.FormatCurrentCulture("colors[later]")));
-		Assert.That(messages, Does.Contain(OurResources.PortraitColorUnknown.FormatCurrentCulture("colors[shade].variants[0].color", "#12345")));
-		Assert.That(messages, Does.Contain(OurResources.DataFractionInvalid.FormatCurrentCulture("colors[shade].amount", 2)));
-		Assert.That(messages.Any(x => x.StartsWith(OurResources.PortraitPathInvalid.FormatCurrentCulture("layers[a].shapes[0].path", ""), StringComparison.Ordinal)), Is.True);
-		Assert.That(messages, Does.Contain(OurResources.DataListItemIdDuplicate.FormatCurrentCulture("a", "layers")));
-		Assert.That(messages, Does.Contain(OurResources.PortraitShapeNotDrawn.FormatCurrentCulture("layers[a].shapes[0]")));
-		Assert.That(messages, Does.Contain(OurResources.DataFractionInvalid.FormatCurrentCulture("layers[a].shapes[0].opacity", 1.5)));
-		Assert.That(messages, Does.Contain(OurResources.DataNumberNotPositive.FormatCurrentCulture("layers[b].shapes[0].strokeWidth", 0)));
-		Assert.That(messages, Does.Contain(OurResources.PortraitGradientWithoutFill.FormatCurrentCulture("layers[b].shapes[0]")));
-		Assert.That(messages, Does.Contain(OurResources.PortraitFillToWithoutGradient.FormatCurrentCulture("layers[c].shapes[0]")));
-		Assert.That(messages, Does.Contain(OurResources.PortraitPlaceEmpty.FormatCurrentCulture("layers[d].at")));
-		Assert.That(messages, Does.Contain(OurResources.DataListEmpty.FormatCurrentCulture("layers[e].at.quarterKinds")));
-		Assert.That(messages, Does.Contain(OurResources.DataNumberNotPositive.FormatCurrentCulture("scales[wide].x", 0)));
-		Assert.That(messages, Does.Contain(OurResources.DataListEmpty.FormatCurrentCulture("scales[wide].variants")));
-		Assert.That(messages, Does.Contain(OurResources.DataNumberNotPositive.FormatCurrentCulture("scales[wide].variants[0].y", -1)));
-		Assert.That(messages, Does.Contain(OurResources.DataListItemIdDuplicate.FormatCurrentCulture("wide", "scales")));
-		Assert.That(messages, Does.Contain(OurResources.PortraitScaleUnknown.FormatCurrentCulture("layers[a].scale", "narrow")));
-		Assert.That(messages, Does.Contain(OurResources.PortraitScaleUnknown.FormatCurrentCulture("layers[a].shapes[0].scale", "tall")));
-		Assert.That(messages, Does.Contain(OurResources.DataListEmpty.FormatCurrentCulture("offsets[up].variants")));
-		Assert.That(messages, Does.Contain(OurResources.DataListItemIdDuplicate.FormatCurrentCulture("up", "offsets")));
-		Assert.That(messages, Does.Contain(OurResources.PortraitOffsetUnknown.FormatCurrentCulture("layers[a].offset", "down")));
+		var messages = result.Errors.Where(x => Path.GetFileName(x.FilePath) == "Portraits.json").Select(x => x.Message).ToList();
+		Assert.That(messages, Does.Contain(OurResources.DataNumberNotPositive.FormatCurrentCulture("portraits.width", 0)));
+		Assert.That(messages, Does.Contain(OurResources.PortraitColorUnknown.FormatCurrentCulture("portraitColors[skin].color", "later")));
+		Assert.That(messages, Does.Contain(OurResources.PortraitColorMixIncomplete.FormatCurrentCulture("portraitColors[later]")));
+		Assert.That(messages, Does.Contain(OurResources.PortraitColorUnknown.FormatCurrentCulture("portraitColors[shade].variants[0].color", "#12345")));
+		Assert.That(messages, Does.Contain(OurResources.DataFractionInvalid.FormatCurrentCulture("portraitColors[shade].amount", 2)));
+		Assert.That(messages.Any(x => x.StartsWith(OurResources.PortraitPathInvalid.FormatCurrentCulture("portraitLayers[a].shapes[0].path", ""), StringComparison.Ordinal)), Is.True);
+		Assert.That(messages, Does.Contain(OurResources.PortraitShapeNotDrawn.FormatCurrentCulture("portraitLayers[a2].shapes[0]")));
+		Assert.That(messages, Does.Contain(OurResources.DataFractionInvalid.FormatCurrentCulture("portraitLayers[a2].shapes[0].opacity", 1.5)));
+		Assert.That(messages, Does.Contain(OurResources.DataNumberNotPositive.FormatCurrentCulture("portraitLayers[b].shapes[0].strokeWidth", 0)));
+		Assert.That(messages, Does.Contain(OurResources.PortraitGradientWithoutFill.FormatCurrentCulture("portraitLayers[b].shapes[0]")));
+		Assert.That(messages, Does.Contain(OurResources.PortraitFillToWithoutGradient.FormatCurrentCulture("portraitLayers[c].shapes[0]")));
+		Assert.That(messages, Does.Contain(OurResources.PortraitPlaceEmpty.FormatCurrentCulture("portraitLayers[d].at")));
+		Assert.That(messages, Does.Contain(OurResources.DataListEmpty.FormatCurrentCulture("portraitLayers[e].at.quarterKinds")));
+		Assert.That(messages, Does.Contain(OurResources.DataNumberNotPositive.FormatCurrentCulture("portraitScales[wide].x", 0)));
+		Assert.That(messages, Does.Contain(OurResources.DataListEmpty.FormatCurrentCulture("portraitScales[wide].variants")));
+		Assert.That(messages, Does.Contain(OurResources.DataNumberNotPositive.FormatCurrentCulture("portraitScales[wide2].variants[0].y", -1)));
+		Assert.That(messages, Does.Contain(OurResources.PortraitScaleUnknown.FormatCurrentCulture("portraitLayers[a].scale", "narrow")));
+		Assert.That(messages, Does.Contain(OurResources.PortraitScaleUnknown.FormatCurrentCulture("portraitLayers[a].shapes[0].scale", "tall")));
+		Assert.That(messages, Does.Contain(OurResources.DataListEmpty.FormatCurrentCulture("portraitOffsets[up].variants")));
+		Assert.That(messages, Does.Contain(OurResources.PortraitOffsetUnknown.FormatCurrentCulture("portraitLayers[a].offset", "down")));
 	}
 
 	[Test]
 	public void ConditionsMustUseCharacterProperties()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
-		File.WriteAllText(Path.Combine(m_directory, PortraitData.FileName), """
+		CopyShippedDataWithoutPortraits();
+		File.WriteAllText(Path.Combine(m_directory, "Portraits.json"), """
 			{
-				"width": 10,
-				"height": 10,
-				"colors": [ { "id": "skin", "color": "#FFFFFF", "variants": [ { "when": { "values": { "nothing": [ "x" ] } }, "color": "#000000" } ] } ],
-				"scales": [ { "id": "wide", "variants": [ { "when": { "values": { "gender": [ "gender_unknown" ] } }, "x": 2 } ] } ],
-				"offsets": [ { "id": "up", "variants": [ { "when": { "values": { "height": [ "height_unknown" ] } }, "y": -10 } ] } ],
-				"layers": [
+				"portraits": { "width": 10, "height": 10 },
+				"portraitColors": [ { "id": "skin", "color": "#FFFFFF", "variants": [ { "when": { "values": { "nothing": [ "x" ] } }, "color": "#000000" } ] } ],
+				"portraitScales": [ { "id": "wide", "variants": [ { "when": { "values": { "gender": [ "gender_unknown" ] } }, "x": 2 } ] } ],
+				"portraitOffsets": [ { "id": "up", "variants": [ { "when": { "values": { "height": [ "height_unknown" ] } }, "y": -10 } ] } ],
+				"portraitLayers": [
 					{ "id": "a", "when": { "values": { "gender": [ "gender_unknown" ] } }, "shapes": [ { "path": "M0,0 H10", "stroke": "skin", "when": { "hidden": [ "gender" ] } } ] }
 				]
 			}
@@ -130,23 +125,22 @@ public sealed class PortraitDataTests
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
-			OurResources.ConditionPropertyWithoutValues.FormatCurrentCulture("colors[skin].variants[0].when.values", "nothing"),
-			OurResources.ConditionValueUnknown.FormatCurrentCulture("scales[wide].variants[0].when.values.gender", "gender_unknown", "gender"),
-			OurResources.ConditionValueUnknown.FormatCurrentCulture("offsets[up].variants[0].when.values.height", "height_unknown", "height"),
-			OurResources.ConditionValueUnknown.FormatCurrentCulture("layers[a].when.values.gender", "gender_unknown", "gender"),
-			OurResources.ConditionHiddenNotAllowed.FormatCurrentCulture("layers[a].shapes[0].when"),
+			OurResources.ConditionPropertyWithoutValues.FormatCurrentCulture("portraitColors[skin].variants[0].when.values", "nothing"),
+			OurResources.ConditionValueUnknown.FormatCurrentCulture("portraitScales[wide].variants[0].when.values.gender", "gender_unknown", "gender"),
+			OurResources.ConditionValueUnknown.FormatCurrentCulture("portraitOffsets[up].variants[0].when.values.height", "height_unknown", "height"),
+			OurResources.ConditionValueUnknown.FormatCurrentCulture("portraitLayers[a].when.values.gender", "gender_unknown", "gender"),
+			OurResources.ConditionHiddenNotAllowed.FormatCurrentCulture("portraitLayers[a].shapes[0].when"),
 		}));
 	}
 
 	[Test]
 	public void PlacesMustBeQuarterKindsAndProfessions()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
-		File.WriteAllText(Path.Combine(m_directory, PortraitData.FileName), """
+		CopyShippedDataWithoutPortraits();
+		File.WriteAllText(Path.Combine(m_directory, "Portraits.json"), """
 			{
-				"width": 10,
-				"height": 10,
-				"layers": [
+				"portraits": { "width": 10, "height": 10 },
+				"portraitLayers": [
 					{ "id": "a", "at": { "home": true, "quarterKinds": [ "square", "office" ], "workplaces": [ "profession_baker", "profession_knight" ] }, "shapes": [ { "path": "M0,0 H10", "stroke": "#000000" } ] }
 				]
 			}
@@ -156,8 +150,8 @@ public sealed class PortraitDataTests
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
-			OurResources.PortraitQuarterKindUnknown.FormatCurrentCulture("layers[a].at.quarterKinds", "office"),
-			OurResources.PortraitWorkplaceUnknown.FormatCurrentCulture("layers[a].at.workplaces", "profession_knight", "profession"),
+			OurResources.PortraitQuarterKindUnknown.FormatCurrentCulture("portraitLayers[a].at.quarterKinds", "office"),
+			OurResources.PortraitWorkplaceUnknown.FormatCurrentCulture("portraitLayers[a].at.workplaces", "profession_knight", "profession"),
 		}));
 	}
 
@@ -262,14 +256,14 @@ public sealed class PortraitDataTests
 				new PortraitLayer { Id = "street", At = new PortraitPlaceCondition { QuarterKinds = ["lane", "square"] }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#808080" }] },
 			],
 		};
-		var gameData = new GameData(TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings(), portraits: portraits);
+		var gameData = new GameData(TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings(), portraits: portraits);
 		return (gameData, gameData.PortraitRenderer!);
 	}
 
-	private void CopyShippedFiles(params string[] fileNames)
+	private void CopyShippedDataWithoutPortraits()
 	{
-		foreach (var fileName in fileNames)
-			File.Copy(Path.Combine(JsonDataLoader.DefaultDataDirectory, fileName), Path.Combine(m_directory, fileName));
+		foreach (var path in Directory.GetFiles(JsonDataLoader.DefaultDataDirectory, "*.json").Where(x => Path.GetFileName(x) != "Portraits.json"))
+			File.Copy(path, Path.Combine(m_directory, Path.GetFileName(path)));
 	}
 
 	private string m_directory = "";

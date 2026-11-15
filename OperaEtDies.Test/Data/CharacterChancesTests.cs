@@ -26,8 +26,7 @@ public sealed class CharacterChancesTests
 	[Test]
 	public void ShippedDataHasNoLowChanceValues()
 	{
-		var gameInfo = GameInfo.Load(JsonDataLoader.DefaultDataDirectory).Value!;
-		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory, gameInfo.FrequencyChances).Value!;
+		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
 
 		Assert.That(gameData.GetLowChanceWarnings(), Is.Empty);
 	}
@@ -89,10 +88,10 @@ public sealed class CharacterChancesTests
 	public void RangeStartingLaterKeepsTheCurve()
 	{
 		var range = new IntegerRange { Minimum = 20, Maximum = 60, Shape = new WeightShape { Peak = new PeakLevel(ShapePeak.Middle, -2), MostWithin = 8 } };
-		var full = range.Shape.GetChances(41);
+		var full = range.Shape!.GetChances(41);
 
 		var later = range.StartingAt(36);
-		var chances = later.Shape.GetChances(later.Maximum - later.Minimum + 1);
+		var chances = later.Shape!.GetChances(later.Maximum - later.Minimum + 1);
 
 		// The ages that are left keep their weights compared to each other.
 		Assert.That(later.Minimum, Is.EqualTo(36));
@@ -119,7 +118,7 @@ public sealed class CharacterChancesTests
 					},
 				],
 			},
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings());
 		var randomizer = new CharacterRandomizer(gameData, new Random(0), CharacterRole.Npc);
 
 		var mediumCount = 0;
@@ -137,9 +136,8 @@ public sealed class CharacterChancesTests
 	[Test]
 	public void InvalidShapesReportErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
-				"lowChanceWarning": 100,
 				"templates": [ { "id": "fullName", "template": "{age}" }, { "id": "description", "template": "{age}" } ],
 				"properties": [
 					{
@@ -160,8 +158,6 @@ public sealed class CharacterChancesTests
 			}
 			""");
 
-		var result = CharacterData.Load(m_directory);
-
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
 			OurResources.ShapeMostWithinInvalid.FormatCurrentCulture("age.range.shape.mostWithin", -1),
@@ -169,7 +165,6 @@ public sealed class CharacterChancesTests
 			OurResources.ShapePeakOutOfRange.FormatCurrentCulture("size.shape.peak", "high+"),
 			OurResources.ShapeMostWithinInvalid.FormatCurrentCulture("size.shape.mostWithin", 0),
 			OurResources.ShapeFrequencyNotAllowed.FormatCurrentCulture("large", "size"),
-			OurResources.LowChanceWarningInvalid.FormatCurrentCulture(100),
 		}));
 	}
 
@@ -207,7 +202,7 @@ public sealed class CharacterChancesTests
 					},
 				],
 			},
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings());
 
 		// Numbers 4 to 9 are at or below 5%, and 9 is the least likely.
 		var lowestNumberChance = numberShape.GetChances(9)[8].ToString("G3", CultureInfo.CurrentCulture);
@@ -225,7 +220,7 @@ public sealed class CharacterChancesTests
 		var conditional = TestData.CreateConditionalGameData();
 		var gameData = new GameData(
 			new CharacterData { LowChanceWarning = 20, Templates = TestData.CreateTemplates("{gender}", "{gender}"), Properties = conditional.CharacterProperties },
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings());
 
 		// No beard is uncommon, so it has a 20% chance among men. Wiry is uncommon too, but men can't have the slender
 		// build, so wiry has a third of the chance among them, and isn't reported.

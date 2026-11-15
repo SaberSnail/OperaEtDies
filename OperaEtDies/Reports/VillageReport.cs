@@ -259,7 +259,7 @@ public sealed class VillageReport : ILogDestination
 		var families = world.Families.Select((family, index) => (family, index)).ToDictionary(x => x.family, x => x.index);
 		var quarters = world.Locations.Where(x => x.Template is QuarterTemplate).ToList();
 		var names = GetLocationNames(world.Locations);
-		var relationships = gameData.Families.Relationships;
+		var relationships = gameData.Relationships;
 
 		// Paths between quarters are the exits with a direction. Each path has an exit at both ends.
 		var pathCounts = quarters.ToDictionary(x => x, x => x.Exits.Count(exit => exit.Direction is not null));
@@ -372,8 +372,8 @@ public sealed class VillageReport : ILogDestination
 	private static string? GetFamilyTie(GameData gameData, Person first, Person second)
 	{
 		var families = gameData.Families;
-		var headRelation = families.Properties.HeadRelation;
-		return first.Family != second.Family ? null : JsonNamingPolicy.CamelCase.ConvertName(families.HeadRelations.GetFamilyTie(first.Traits.GetValueId(headRelation), second.Traits.GetValueId(headRelation)).ToString());
+		var headRelation = families.Roles.Properties.HeadRelation;
+		return first.Family != second.Family ? null : JsonNamingPolicy.CamelCase.ConvertName(families.Roles.HeadRelations.GetFamilyTie(first.Traits.GetValueId(headRelation), second.Traits.GetValueId(headRelation)).ToString());
 	}
 
 	private static Dictionary<Location, string> GetLocationNames(IReadOnlyList<Location> locations)

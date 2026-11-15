@@ -44,7 +44,7 @@ public sealed class PortraitDocument
 	public bool CanRedo => m_redo.Count != 0;
 
 	/// <summary>
-	/// Gets a top level list, such as "layers", from the data or from the data as it was loaded.
+	/// Gets a top level list, such as "portraitLayers", from the data or from the data as it was loaded.
 	/// </summary>
 	public static JsonArray? GetList(JsonObject root, string name) => root.GetProperty(name) as JsonArray;
 

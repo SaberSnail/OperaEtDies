@@ -83,7 +83,9 @@ internal sealed class TownLayout
 		{
 			var quarter = AddQuarter(ChooseTemplate(templates, $"{wealth.GetDataName()} wealth quarters"));
 			var fewest = Math.Max(quarter.Template.MinHouses, 1);
-			planned[quarter] = Math.Min(m_random.Next(fewest, quarter.Template.MaxHouses + 1), m_random.Next(fewest, quarter.Template.MaxHouses + 1));
+			planned[quarter] = quarter.Template.Houses?.Shape is { } shape
+				? m_random.NextShaped(shape, fewest, quarter.Template.MaxHouses, _ => true) ?? fewest
+				: Math.Min(m_random.Next(fewest, quarter.Template.MaxHouses + 1), m_random.Next(fewest, quarter.Template.MaxHouses + 1));
 		}
 
 		var houses = m_gameData.HouseTemplates.Where(x => x.Wealth == wealth).ToList();
@@ -248,7 +250,7 @@ internal sealed class TownLayout
 				: quarter.Rect.GetSharedEdge(feature.Bounds) is { } edge ? TownMap.GetDirectionsToward(quarter.Rect, edge)[0] : null;
 			if (direction is { } facing)
 			{
-				var text = quarter.Template.FeatureText?.GetValueOrDefault(feature.Feature.Id) ?? m_random.NextItem(feature.Feature.Text);
+				var text = (quarter.Template.FeatureText?.GetValueOrDefault(feature.Feature.Id) ?? m_random.NextItem(feature.Feature.Text)).Text;
 				var directionName = facing.GetTitle().ToLower(CultureInfo.CurrentCulture);
 				surroundings.Add(new TownSurrounding(feature.Feature, facing, TextTemplate.Parse(text).Format(_ => directionName)));
 			}

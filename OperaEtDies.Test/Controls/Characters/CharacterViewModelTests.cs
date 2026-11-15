@@ -12,7 +12,7 @@ public sealed class CharacterViewModelTests
 	public void ThePlayerSeesTheirOwnRelationshipsFromTheClosestDown()
 	{
 		var (_, world) = GameWorldTests.CreateWorld();
-		var settings = world.GameData.Families.Relationships;
+		var settings = world.GameData.Relationships;
 		var player = world.Player;
 
 		var viewModel = new CharacterViewModel(player, world, isDeveloper: false);
@@ -115,7 +115,7 @@ public sealed class CharacterViewModelTests
 	[Test]
 	public void HouseholdTiesComeFromRelationsToTheHead()
 	{
-		var relations = TestData.CreateFamilySettings().HeadRelations;
+		var relations = TestData.CreateGameData().Families.Roles.HeadRelations;
 
 		Assert.That(relations.GetFamilyTie("self", "husband"), Is.EqualTo(FamilyTie.Spouse));
 		Assert.That(relations.GetFamilyTie("son", "son"), Is.EqualTo(FamilyTie.Spouse));

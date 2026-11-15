@@ -78,7 +78,7 @@ public sealed class InterruptTests
 		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
 		var calendar = world.GameData.Calendar;
 		var schedules = world.GameData.Schedules;
-		var fatigue = Need(world, schedules.Start.Need);
+		var fatigue = Need(world, schedules.SleepNeed!);
 		world.AdvanceTime(calendar.GetStartOfDay(world.Time) + calendar.CreateTimeOffset(0, 23, 0) - world.Time);
 		var person = world.Npcs[0];
 		person.SetLevel(fatigue, 50);

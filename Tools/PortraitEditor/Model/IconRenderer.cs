@@ -26,7 +26,7 @@ public static class IconRenderer
 	public static IReadOnlyList<string> Save(string dataDirectory, string iconPath, string? previewDirectory)
 	{
 		var data = EditorData.Load(dataDirectory, areModsEnabled: false);
-		var portraits = data.Portraits is { } json ? JsonDataLoader.Deserialize<PortraitData>(data.PortraitsFilePath, json, null) : null;
+		var portraits = data.Portraits is { } json ? PortraitDataReader.Read(json, data.PortraitsFilePath) : null;
 		var errors = data.Errors.Select(x => x.ToString()).Concat(portraits?.Errors.Select(x => x.ToString()) ?? []).ToList();
 		if (data.GameData is { } gameData && portraits?.Value is { } portraitData)
 		{

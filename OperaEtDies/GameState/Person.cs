@@ -20,11 +20,11 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	internal Person(WorldId id, GameData gameData, CharacterTraits traits, FamilyRole role, bool isPlayer, Location location, TimePoint time)
 	{
 		var families = gameData.Families;
-		var atWorkProperty = gameData.CharacterProperties.Get(families.Properties.AtWork);
+		var atWorkProperty = gameData.CharacterProperties.Get(families.Roles.Properties.AtWork);
 		m_gameData = gameData;
 		m_atWorkPropertyId = atWorkProperty.Id;
-		m_atWork = atWorkProperty.Values!.First(x => x.Id == families.AtWork);
-		m_notAtWork = atWorkProperty.Values!.First(x => x.Id == families.NotAtWork);
+		m_atWork = atWorkProperty.Values!.First(x => x.Id == families.Roles.AtWork);
+		m_notAtWork = atWorkProperty.Values!.First(x => x.Id == families.Roles.NotAtWork);
 
 		Id = id;
 		Role = role;
@@ -67,7 +67,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	/// <summary>
 	/// The id of the person's profession, or null if they have none.
 	/// </summary>
-	public string? Profession => m_traits.GetValueId(m_gameData.Families.Properties.Profession);
+	public string? Profession => m_traits.GetValueId(m_gameData.Families.Roles.Properties.Profession);
 
 	/// <summary>
 	/// The family the person lives with.
@@ -236,7 +236,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	/// </summary>
 	internal Need? ActiveNeed => CurrentTask switch
 	{
-		BusyTask => m_goal?.Id == m_gameData.Schedules.Talking.SocializeNeed ? null : m_goal,
+		BusyTask => m_goal?.Id == m_gameData.Schedules.SocializeNeed ? null : m_goal,
 		TalkTask talk => talk.Need,
 		_ => null,
 	};
@@ -273,7 +273,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	/// <summary>
 	/// Whether the person is asleep: spending time on the need people meet while asleep.
 	/// </summary>
-	public bool IsAsleep => CurrentTask is BusyTask && m_goal is { } goal && goal.Id == m_gameData.Schedules.Start.Need;
+	public bool IsAsleep => CurrentTask is BusyTask && m_goal is { } goal && goal.Id == m_gameData.Schedules.SleepNeed;
 
 	/// <summary>
 	/// Remembers seeing someone, replacing any earlier sighting of them. What they said they were doing is kept while
@@ -490,7 +490,7 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 		}
 
 		var traits = new CharacterTraits(values);
-		var atWorkProperty = gameData.Families.Properties.AtWork;
+		var atWorkProperty = gameData.Families.Roles.Properties.AtWork;
 		if (!traits.HasValue(atWorkProperty))
 			throw new SaveLoadException(OurResources.SaveTraitValueInvalid.FormatCurrentCulture(Id, "", atWorkProperty));
 

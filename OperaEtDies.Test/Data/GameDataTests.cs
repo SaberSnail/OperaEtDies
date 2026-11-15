@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json;
 using GoldenAnvil.Utility;
 using OperaEtDies.Data;
 using OperaEtDies.Utility.Random;
@@ -41,7 +42,7 @@ public sealed class GameDataTests
 		Assert.That(gameData.HouseTemplates, Is.Not.Empty);
 		// Every profession value is a business, except homemaker and infirm.
 		var families = gameData.Families;
-		Assert.That(gameData.Professions.Select(x => x.Id).Append(families.Homemaker).Append(families.Infirm), Is.EquivalentTo(gameData.CharacterProperties.Get(families.Properties.Profession).Values!.Select(x => x.Id)));
+		Assert.That(gameData.Professions.Select(x => x.Id).Append(families.Roles.Homemaker).Append(families.Roles.Infirm), Is.EquivalentTo(gameData.CharacterProperties.Get(families.Roles.Properties.Profession).Values!.Select(x => x.Id)));
 		Assert.That(gameData.BusinessTemplates, Is.Not.Empty);
 		Assert.That(gameData.QuarterTemplates.Select(x => x.Id).Concat(gameData.HouseTemplates.Select(x => x.Id)).Concat(gameData.BusinessTemplates.Select(x => x.Id)), Is.Unique);
 		foreach (var profession in gameData.Professions)
@@ -49,20 +50,20 @@ public sealed class GameDataTests
 	}
 
 	[Test]
-	public void ReportsErrorsFromEveryFile()
+	public void ReportsMissingSections()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """{ "templates": [], "properties": [] }""");
+		File.WriteAllText(Path.Combine(m_directory, "Characters.json"), """{ "templates": [], "properties": [] }""");
 
 		var result = GameData.Load(m_directory);
 
 		Assert.That(result.Succeeded, Is.False);
-		Assert.That(result.Errors.Select(x => Path.GetFileName(x.FilePath)).Distinct(), Is.EquivalentTo(new[] { CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName }));
+		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[] { "game", "village", "families", "relationships", "calendar" }.Select(x => OurResources.DataSectionMissing.FormatCurrentCulture(x))));
 	}
 
 	[Test]
 	public void InvalidCharacterPropertiesReportErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
 				"templates": [ { "id": "fullName", "template": "{firstName}" }, { "id": "description", "template": "{age}" } ],
 				"properties": [
@@ -92,8 +93,6 @@ public sealed class GameDataTests
 			}
 			""");
 
-		var result = CharacterData.Load(m_directory);
-
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
 			OurResources.CharacterOptionTextBlank.FormatCurrentCulture("female", "gender", "pronoun"),
@@ -115,7 +114,7 @@ public sealed class GameDataTests
 	[Test]
 	public void InvalidTemplatesReportErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
 				"templates": [
 					{ "id": "fullName", "template": "{nobody} {age.text} {gender.pronoun:shout} {description.x}" },
@@ -133,8 +132,6 @@ public sealed class GameDataTests
 				]
 			}
 			""");
-
-		var result = CharacterData.Load(m_directory);
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
@@ -155,14 +152,12 @@ public sealed class GameDataTests
 	[Test]
 	public void RequiredTemplatesMustExist()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
 				"templates": [ { "id": "other", "template": "{age}" } ],
 				"properties": [ { "id": "age", "title": "Age", "type": "integer", "range": { "minimum": 1, "maximum": 5, "shape": { "peak": "low", "mostWithin": 2 } } } ]
 			}
 			""");
-
-		var result = CharacterData.Load(m_directory);
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
@@ -204,7 +199,7 @@ public sealed class GameDataTests
 	[Test]
 	public void InvalidConditionsReportErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
 				"templates": [
 					{ "id": "fullName", "template": "{age}", "variants": [ { "template": "{age}" } ] },
@@ -232,8 +227,6 @@ public sealed class GameDataTests
 			}
 			""");
 
-		var result = CharacterData.Load(m_directory);
-
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
 			OurResources.PropertyDependencyCycle.FormatCurrentCulture("\"age\", \"gender\""),
@@ -255,7 +248,7 @@ public sealed class GameDataTests
 	[Test]
 	public void ConditionCombinationsReportErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
 				"templates": [
 					{ "id": "fullName", "template": "{beard}" },
@@ -275,8 +268,6 @@ public sealed class GameDataTests
 			}
 			""");
 
-		var result = CharacterData.Load(m_directory);
-
 		// The player is always male, so only non-player characters can be female.
 		var female = OurResources.ConditionCombinationValue.FormatCurrentCulture("gender", "female");
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
@@ -294,7 +285,7 @@ public sealed class GameDataTests
 		// allowed count, so the frequency overrides on "weighted" don't need to be checked.
 		static string Values(string prefix) => string.Join(", ", Enumerable.Range(0, 30).Select(x => $$"""{ "id": "{{prefix}}{{x}}", "title": "{{prefix}}{{x}}" }"""));
 		const string all = """{ "values": { "a": [ "a0" ], "b": [ "b0" ], "c": [ "c0" ] } }""";
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), $$"""
+		var result = TestData.LoadCharacterData($$"""
 			{
 				"templates": [ { "id": "fullName", "template": "{a}" }, { "id": "description", "template": "{a}" } ],
 				"properties": [
@@ -307,8 +298,6 @@ public sealed class GameDataTests
 			}
 			""");
 
-		var result = CharacterData.Load(m_directory);
-
 		var sizes = "a (30), b (30), c (30)";
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
@@ -320,7 +309,7 @@ public sealed class GameDataTests
 	[Test]
 	public void TemplateTextMustExistOnEveryValue()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
 				"templates": [ { "id": "fullName", "template": "{gender.pronoun} {gender.pronoun}" }, { "id": "description", "template": "{gender}" } ],
 				"properties": [
@@ -333,8 +322,6 @@ public sealed class GameDataTests
 				]
 			}
 			""");
-
-		var result = CharacterData.Load(m_directory);
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EqualTo(new[] { OurResources.TemplateFieldMissing.FormatCurrentCulture("fullName", "gender", "pronoun", "female") }));
 	}
@@ -360,7 +347,7 @@ public sealed class GameDataTests
 	[Test]
 	public void InvalidObscuringReportsErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
 				"templates": [
 					{ "id": "fullName", "template": "{age}" },
@@ -377,8 +364,6 @@ public sealed class GameDataTests
 				]
 			}
 			""");
-
-		var result = CharacterData.Load(m_directory);
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
@@ -397,7 +382,7 @@ public sealed class GameDataTests
 	[Test]
 	public void TemplatesMustHandleObscuredValues()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
 				"templates": [
 					{ "id": "fullName", "template": "{name}" },
@@ -417,8 +402,6 @@ public sealed class GameDataTests
 			}
 			""");
 
-		var result = CharacterData.Load(m_directory);
-
 		// Stubble can be hidden, so the template must handle a hidden beard. No hat is prominent enough to hide.
 		var hidden = OurResources.ConditionCombinationHidden.FormatCurrentCulture("beard");
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
@@ -431,11 +414,9 @@ public sealed class GameDataTests
 	[Test]
 	public void UnknownPropertyTypeReportsError()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{ "templates": [ { "id": "fullName", "template": "{a}" }, { "id": "description", "template": "{a}" } ], "properties": [ { "id": "a", "title": "A", "type": "boolean" } ] }
 			""");
-
-		var result = CharacterData.Load(m_directory);
 
 		Assert.That(result.Succeeded, Is.False);
 		Assert.That(result.Errors, Has.Count.EqualTo(1));
@@ -483,70 +464,65 @@ public sealed class GameDataTests
 	[Test]
 	public void InvalidLocationsReportErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, LocationList.FileName), """
+		var errors = ValidateLocations("""
 			{
-				"buildingTravelTime": -1,
+				"village": {
+					"familyCount": { "minimum": -1, "maximum": 5 },
+					"buildingTravelTime": -1,
+					"landmarkCount": { "minimum": -1, "maximum": 2, "shape": { "peak": "low", "mostWithin": 1 } },
+					"houseTitle": "The {lastName Home"
+				},
 				"quarterKinds": [
 					{ "id": "lane", "area": "village", "path": "lane", "travelTime": 2 },
 					{ "id": "lane", "area": "village", "path": "lane", "travelTime": 2 },
 					{ "id": "plaza", "area": "village", "unique": true, "path": " ", "travelTime": -1 }
 				],
-				"landmarkCount": { "minimum": -1, "maximum": 2, "shape": { "peak": "low", "mostWithin": 1 } },
-				"layouts": [ { "shape": "radial", "center": "lane" } ],
-				"houseTitle": "The {lastName Home",
+				"layouts": [ { "id": "layout", "shape": "radial", "center": "lane" } ],
 				"quarters": [
 					{
 						"id": "lane",
 						"title": "Lane",
-						"shortDescription": "",
-						"mediumDescription": " ",
-						"longDescription": [],
+						"description": { "short": { "text": "", "ai": true }, "medium": { "text": " ", "ai": true }, "long": [] },
 						"kind": "nowhere",
-						"houses": { "minimum": 3, "maximum": 2 }
+						"houses": { "minimum": 3, "maximum": 2, "wealth": "veryLow" }
 					},
 					{
 						"id": "square",
 						"title": "Square",
-						"shortDescription": "Short.",
-						"mediumDescription": "Medium.",
-						"longDescription": [ "One.", " " ],
+						"description": { "short": { "text": "Short.", "ai": true }, "medium": { "text": "Medium.", "ai": true }, "long": [ { "text": "One.", "ai": true }, { "text": " ", "ai": false } ] },
 						"kind": "lane",
-						"size": { "length": 0, "width": 1 },
-						"wealth": "veryLow"
+						"size": { "length": 0, "width": 1 }
 					}
 				],
 				"houses": [
-					{ "id": "square", "title": "House", "shortDescription": "Short.", "mediumDescription": "Medium.", "longDescription": [ "One." ], "wealth": "low" }
+					{ "id": "square", "title": "House", "description": { "short": { "text": "Short.", "ai": true }, "medium": { "text": "Medium.", "ai": true }, "long": [ { "text": "One.", "ai": true } ] }, "wealth": "low" }
 				],
 				"businesses": [
-					{ "id": "square", "title": "Shop", "shortDescription": "Short.", "mediumDescription": "Medium.", "longDescription": [ "One." ], "profession": "smith", "quarterKinds": [ "lane" ] },
-					{ "id": "forge", "title": "", "shortDescription": "Short.", "mediumDescription": "", "longDescription": [ "One." ], "profession": " ", "quarterKinds": [] },
-					{ "id": "smithy", "title": "Smithy", "shortDescription": "Short.", "mediumDescription": "Medium.", "longDescription": [ "One." ], "profession": "smith", "quarterKinds": [ "nowhere" ] }
+					{ "id": "square", "title": "Shop", "description": { "short": { "text": "Short.", "ai": true }, "medium": { "text": "Medium.", "ai": true }, "long": [ { "text": "One.", "ai": true } ] }, "profession": "smith", "quarterKinds": "lane" },
+					{ "id": "forge", "title": "", "description": { "short": { "text": "Short.", "ai": true }, "medium": { "text": "", "ai": true }, "long": [ { "text": "One.", "ai": true } ] }, "profession": " ", "quarterKinds": [] },
+					{ "id": "smithy", "title": "Smithy", "description": { "short": { "text": "Short.", "ai": true }, "medium": { "text": "Medium.", "ai": true }, "long": [ { "text": "One.", "ai": true } ] }, "profession": "smith", "quarterKinds": [ "nowhere" ] }
 				]
 			}
 			""");
 
-		var result = LocationList.Load(m_directory);
-
-		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
+		Assert.That(errors, Is.EquivalentTo(new[]
 		{
 			OurResources.DataListItemIdDuplicate.FormatCurrentCulture("lane", "quarterKinds"),
 			OurResources.DataValueMissing.FormatCurrentCulture("quarterKinds[plaza].path"),
-			OurResources.DataNumberTooSmall.FormatCurrentCulture("buildingTravelTime", -1, 0),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("village.buildingTravelTime", -1, 0),
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("quarterKinds[plaza].travelTime", -1, 0),
-			OurResources.DataNumberTooSmall.FormatCurrentCulture("landmarkCount.minimum", -1, 0),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("village.familyCount.minimum", -1, 0),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("village.landmarkCount.minimum", -1, 0),
 			OurResources.LayoutCenterInvalid.FormatCurrentCulture("radial", "lane"),
 			OurResources.QuarterKindUniqueMissing.FormatCurrentCulture("plaza"),
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("quarters[square].size.length", 0, 1),
-			OurResources.LocationDescriptionMissing.FormatCurrentCulture("lane", "shortDescription"),
-			OurResources.LocationDescriptionMissing.FormatCurrentCulture("lane", "mediumDescription"),
-			OurResources.LocationDescriptionMissing.FormatCurrentCulture("lane", "longDescription"),
+			OurResources.LocationDescriptionMissing.FormatCurrentCulture("lane", "description.short"),
+			OurResources.LocationDescriptionMissing.FormatCurrentCulture("lane", "description.medium"),
+			OurResources.LocationDescriptionMissing.FormatCurrentCulture("lane", "description.long"),
 			OurResources.QuarterKindUnknown.FormatCurrentCulture("lane", "nowhere"),
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("quarters[lane].houses.maximum", 2, 3),
-			OurResources.QuarterHousesWithoutWealth.FormatCurrentCulture("lane"),
+			OurResources.WealthLevelNotAllowed.FormatCurrentCulture("quarters[lane].houses.wealth", "veryLow"),
 			OurResources.LocationDescriptionParagraphBlank.FormatCurrentCulture("square"),
-			OurResources.QuarterWealthWithoutHouses.FormatCurrentCulture("square"),
-			OurResources.WealthLevelNotAllowed.FormatCurrentCulture("quarters[square].wealth", "veryLow"),
 			OurResources.HouseWealthMissing.FormatCurrentCulture("medium"),
 			OurResources.HouseWealthMissing.FormatCurrentCulture("high"),
 			OurResources.QuarterWealthMissing.FormatCurrentCulture("low"),
@@ -554,12 +530,12 @@ public sealed class GameDataTests
 			OurResources.QuarterWealthMissing.FormatCurrentCulture("high"),
 			OurResources.BusinessQuarterMissing.FormatCurrentCulture("square"),
 			OurResources.DataListItemTitleMissing.FormatCurrentCulture("forge", "businesses"),
-			OurResources.LocationDescriptionMissing.FormatCurrentCulture("forge", "mediumDescription"),
+			OurResources.LocationDescriptionMissing.FormatCurrentCulture("forge", "description.medium"),
 			OurResources.DataValueMissing.FormatCurrentCulture("businesses[forge].profession"),
 			OurResources.DataListEmpty.FormatCurrentCulture("businesses[forge].quarterKinds"),
 			OurResources.QuarterKindUnknown.FormatCurrentCulture("smithy", "nowhere"),
 			OurResources.LocationIdDuplicate.FormatCurrentCulture("square"),
-			OurResources.TemplateMalformed.FormatCurrentCulture("houseTitle"),
+			OurResources.TemplateMalformed.FormatCurrentCulture("village.houseTitle"),
 			OurResources.HouseTitleNotAllowed.FormatCurrentCulture("square"),
 		}));
 	}
@@ -567,15 +543,14 @@ public sealed class GameDataTests
 	[Test]
 	public void InvalidFeaturesReportErrors()
 	{
-		CopyShippedFiles(LocationList.FileName);
-		var path = Path.Combine(m_directory, LocationList.FileName);
-		File.WriteAllText(path, File.ReadAllText(path)
+		CopyShippedData();
+		ModifyShipped("Locations.json", x => x
 			.Replace("\"crossings\": [ \"bridge\", \"ford\" ],", "\"size\": { \"length\": 2, \"width\": 1 },", StringComparison.Ordinal)
 			.Replace("\"borders\": \"river\"", "\"borders\": \"lake\"", StringComparison.Ordinal)
 			.Replace("\"To the {direction}, a reedy pond reflects the sky.\"", "\"To the {place}, a reedy pond reflects the sky.\"", StringComparison.Ordinal)
 			.Replace("\"id\": \"square\", \"area\": \"village\", \"unique\": true,", "\"id\": \"square\", \"area\": \"village\", \"unique\": true, \"borders\": \"hill\",", StringComparison.Ordinal));
 
-		var result = LocationList.Load(m_directory);
+		var result = GameData.Load(m_directory);
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
@@ -585,23 +560,23 @@ public sealed class GameDataTests
 			OurResources.FeatureUnknown.FormatCurrentCulture("quarterKinds[riverside].borders", "lake"),
 			OurResources.QuarterKindUniqueBorders.FormatCurrentCulture("square"),
 		}));
+		Assert.That(result.Errors.Select(x => Path.GetFileName(x.FilePath)), Is.All.EqualTo("Locations.json"));
 	}
 
 	[Test]
 	public void OnlyUniqueKindsCanBeOptional()
 	{
-		CopyShippedFiles(LocationList.FileName);
-		var path = Path.Combine(m_directory, LocationList.FileName);
-		File.WriteAllText(path, File.ReadAllText(path)
-			.Replace("\"optionalWith\": \"river\", \"optionalChance\": 50", "\"optionalWith\": \"lake\", \"optionalChance\": 150", StringComparison.Ordinal)
-			.Replace("\"id\": \"lane\", \"area\": \"village\",", "\"id\": \"lane\", \"area\": \"village\", \"optionalWith\": \"river\",", StringComparison.Ordinal));
+		CopyShippedData();
+		ModifyShipped("Locations.json", x => x
+			.Replace("\"optional\": { \"with\": \"river\", \"chance\": 50 }", "\"optional\": { \"with\": \"lake\", \"chance\": 150 }", StringComparison.Ordinal)
+			.Replace("\"id\": \"lane\", \"area\": \"village\",", "\"id\": \"lane\", \"area\": \"village\", \"optional\": { \"with\": \"river\" },", StringComparison.Ordinal));
 
-		var result = LocationList.Load(m_directory);
+		var result = GameData.Load(m_directory);
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
-			OurResources.FeatureUnknown.FormatCurrentCulture("quarterKinds[well].optionalWith", "lake"),
-			OurResources.DataChanceInvalid.FormatCurrentCulture("quarterKinds[well].optionalChance", 150),
+			OurResources.FeatureUnknown.FormatCurrentCulture("quarterKinds[well].optional.with", "lake"),
+			OurResources.DataChanceInvalid.FormatCurrentCulture("quarterKinds[well].optional.chance", 150),
 			OurResources.QuarterKindOptionalNotUnique.FormatCurrentCulture("lane"),
 		}));
 	}
@@ -609,87 +584,61 @@ public sealed class GameDataTests
 	[Test]
 	public void InvalidProfessionsReportErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, ProfessionList.FileName), """
-			{
-				"professions": [
-					{ "id": "smith", "title": "Smith", "wealth": "high", "maxBusinesses": 0, "helpers": -1, "forHouseholdElders": true },
-					{ "id": "smith", "title": "Smith", "wealth": "low", "worksFromHome": true },
-					{ "id": "brewer", "title": "Brewer", "wealth": "low", "workHours": { "start": 20, "end": 20 } }
-				]
-			}
-			""");
-
-		var result = ProfessionList.Load(m_directory);
-
-		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
+		var professions = new ProfessionList
 		{
-			OurResources.DataNumberTooSmall.FormatCurrentCulture("professions[smith].maxBusinesses", 0, 1),
-			OurResources.DataNumberTooSmall.FormatCurrentCulture("professions[smith].helpers", -1, 0),
+			Professions = Read<List<Profession>>("""
+				[
+					{ "id": "smith", "title": "Smith", "business": { "wealth": "high", "maxBusinesses": 0, "helpers": -1, "forHouseholdElders": true } },
+					{ "id": "smith", "title": "Smith", "business": { "wealth": "low", "worksFromHome": true } },
+					{ "id": "brewer", "title": "Brewer", "business": { "wealth": "low", "hours": { "start": 20, "end": 20, "days": "day1" } } },
+					{ "id": "keeper", "title": "Keeper", "role": "homemaker" },
+					{ "id": "sick", "title": "Sick", "role": "infirm", "player": false, "business": { "wealth": "low" } }
+				]
+				"""),
+		};
+
+		Assert.That(professions.Validate(), Is.EquivalentTo(new[]
+		{
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("professions[smith].business.maxBusinesses", 0, 1),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("professions[smith].business.helpers", -1, 0),
 			OurResources.ProfessionElderTradeNotFromHome.FormatCurrentCulture("smith"),
 			OurResources.DataListItemIdDuplicate.FormatCurrentCulture("smith", "professions"),
-			OurResources.ProfessionWorkHoursInvalid.FormatCurrentCulture("brewer", 20, 20),
+			OurResources.HoursInvalid.FormatCurrentCulture("professions[brewer].business.hours", 20, 20),
+			OurResources.HoursSettingNotAllowed.FormatCurrentCulture("professions[brewer].business.hours.days"),
+			OurResources.ProfessionPlayerNotBusiness.FormatCurrentCulture("keeper"),
+			OurResources.ProfessionNotBusiness.FormatCurrentCulture("sick", "infirm"),
 		}));
 	}
 
 	[Test]
 	public void InvalidFamilySettingsReportErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, FamilySettings.FileName), """
+		var families = Read<FamilySettings>("""
 			{
-				"properties": { "gender": "gender", "age": "", "profession": "profession", "lastName": "lastName", "workRole": "", "householdRole": "", "headRelation": "", "headName": "headName", "atWork": "", "married": "" },
-				"male": "male",
-				"female": " ",
-				"homemaker": "",
-				"infirm": "infirm",
-				"independent": "workRole_independent",
-				"helper": " ",
-				"head": "householdRole_head",
-				"member": "",
-				"headRelations": { "self": "self", "husband": "husband", "father": "father", "mother": "mother", "son": "son", "daughter": "daughter", "sonInLaw": " ", "daughterInLaw": "daughterInLaw" },
-				"atWork": "atWork_yes",
-				"notAtWork": " ",
-				"married": "married_yes",
-				"unmarried": "",
-				"familyCount": { "minimum": -1, "maximum": 5, "shape": { "peak": "middle", "mostWithin": 1 } },
-				"relationships": { "score": { "minimum": -5, "maximum": 120, "shape": { "peak": "middle", "mostWithin": 10 } }, "familyBonus": -1, "spouseBonus": -2, "elderBonus": 5, "elderInLawBonus": 5, "neighborBonus": 5, "friendScore": 101,
-					"levels": [ { "minimum": 10, "title": "Cold" }, { "minimum": 5, "title": "" } ] },
-				"femaleHeadChance": 101,
-				"femaleHeadMinWealth": "low",
-				"headAge": { "minimum": 50, "maximum": 20, "shape": { "peak": "middle", "mostWithin": 9 } },
-				"wifeChance": 80,
-				"wifeAgeDifference": { "minimum": 4, "maximum": -10, "shape": { "peak": "middle", "mostWithin": 3 } },
-				"householdElderChance": -1,
-				"femaleHouseholdElderChance": 70,
-				"householdElderAgeGap": { "peak": "low", "mostWithin": 0 },
-				"householdElderMinAge": { "male": -1, "female": 50 },
-				"infirmChance": { "age_old": 150 },
-				"householdElderHomemakerChance": 50,
-				"minParentAge": 18,
-				"maxMotherAge": 17,
-				"maxFatherAge": 55,
-				"childCount": { "minimum": 0, "maximum": 2, "shape": { "peak": "middle", "mostWithin": 1 } },
-				"childAge": { "peak": "middle", "mostWithin": 5 },
-				"siblingAgeSpread": 0,
-				"sonChance": 5,
-				"childHomemakerChance": 50,
+				"head": { "femaleChance": 101, "femaleMinWealth": "low", "age": { "minimum": 50, "maximum": 20, "shape": { "peak": "middle", "mostWithin": 9 } } },
+				"wife": { "chance": 80, "ageDifference": { "minimum": 4, "maximum": -10, "shape": { "peak": "middle", "mostWithin": 3 } } },
+				"children": { "count": { "minimum": 0, "maximum": 2 }, "age": { "peak": "middle", "mostWithin": 5 }, "siblingAgeSpread": 0, "sonChance": 5, "homemakerChance": 50 },
+				"elder": { "chance": -1, "femaleChance": 70, "ageGap": { "peak": "low", "mostWithin": 0 }, "minAge": { "male": -1, "female": 50 }, "infirmChance": { "age_old": 150 }, "homemakerChance": 50 },
+				"parentAge": { "minimum": 18, "maxMother": 17, "maxFather": 55 },
 				"helperChance": 80,
-				"helperWealth": 1.5,
-				"helperWealthFalloff": 0.7,
-				"homemakerWealth": 0.5,
-				"infirmWealth": -0.5,
-				"householdFortune": { "minimum": -10, "maximum": 140, "shape": { "peak": "middle", "mostWithin": 12 } },
-				"headAgeWealth": { "age_young": -5 },
-				"wealthThresholds": { "medium": 10, "high": 5 }
+				"wealth": {
+					"helper": 1.5, "helperFalloff": 0.7, "homemaker": 0.5, "infirm": -0.5,
+					"fortune": { "minimum": -10, "maximum": 140, "shape": { "peak": "middle", "mostWithin": 12 } },
+					"headAge": { "age_young": -5 },
+					"thresholds": { "medium": 10, "high": 5 }
+				}
+			}
+			""");
+		var relationships = Read<RelationshipSettings>("""
+			{
+				"score": { "minimum": -5, "maximum": 120, "shape": { "peak": "middle", "mostWithin": 10 } }, "familyBonus": -1, "spouseBonus": -2, "elderBonus": 5, "elderInLawBonus": 5, "neighborBonus": 5, "friendScore": 101,
+				"levels": [ { "minimum": 10, "title": "Cold" }, { "minimum": 5, "title": "" } ],
+				"playerRelations": [ { "when": { "values": { "gender": "male" } }, "title": " " } ]
 			}
 			""");
 
-		var result = FamilySettings.Load(m_directory);
-
-		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
+		Assert.That(families.Validate().Concat(relationships.Validate()), Is.EquivalentTo(new[]
 		{
-			OurResources.DataValueMissing.FormatCurrentCulture("properties.age"),
-			OurResources.DataValueMissing.FormatCurrentCulture("female"),
-			OurResources.DataValueMissing.FormatCurrentCulture("homemaker"),
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("relationships.score.minimum", -5, 0),
 			OurResources.DataNumberTooLarge.FormatCurrentCulture("relationships.score.maximum", 120, 100),
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("relationships.familyBonus", -1, 0),
@@ -698,56 +647,42 @@ public sealed class GameDataTests
 			OurResources.RelationshipLevelOutOfOrder.FormatCurrentCulture("relationships.levels[0]", 10),
 			OurResources.DataValueMissing.FormatCurrentCulture("relationships.levels[1].title"),
 			OurResources.RelationshipLevelOutOfOrder.FormatCurrentCulture("relationships.levels[1]", 5),
-			OurResources.DataNumberTooSmall.FormatCurrentCulture("familyCount.minimum", -1, 0),
-			OurResources.IntegerRangeInvalid.FormatCurrentCulture("headAge", 20, 50),
-			OurResources.IntegerRangeInvalid.FormatCurrentCulture("wifeAgeDifference", -10, 4),
-			OurResources.ShapeMostWithinInvalid.FormatCurrentCulture("householdElderAgeGap.mostWithin", 0),
-			OurResources.DataNumberTooSmall.FormatCurrentCulture("householdElderMinAge.male", -1, 0),
-			OurResources.DataNumberNotPositive.FormatCurrentCulture("siblingAgeSpread", 0),
-			OurResources.DataNumberTooSmall.FormatCurrentCulture("maxMotherAge", 17, 18),
-			OurResources.DataChanceInvalid.FormatCurrentCulture("femaleHeadChance", 101),
-			OurResources.DataChanceInvalid.FormatCurrentCulture("householdElderChance", -1),
-			OurResources.DataChanceInvalid.FormatCurrentCulture("infirmChance.age_old", 150),
-			OurResources.DataFractionInvalid.FormatCurrentCulture("helperWealth", 1.5),
-			OurResources.DataNumberTooSmall.FormatCurrentCulture("householdFortune.minimum", -10, 0),
-			OurResources.DataNumberTooSmall.FormatCurrentCulture("headAgeWealth.age_young", -5, 0),
-			OurResources.DataNumberTooSmall.FormatCurrentCulture("wealthThresholds.high", 5, 10),
-			OurResources.DataValueMissing.FormatCurrentCulture("properties.workRole"),
-			OurResources.DataValueMissing.FormatCurrentCulture("helper"),
-			OurResources.DataValueMissing.FormatCurrentCulture("member"),
-			OurResources.DataValueMissing.FormatCurrentCulture("properties.householdRole"),
-			OurResources.DataValueMissing.FormatCurrentCulture("properties.headRelation"),
-			OurResources.DataValueMissing.FormatCurrentCulture("headRelations.sonInLaw"),
-			OurResources.DataValueMissing.FormatCurrentCulture("properties.atWork"),
-			OurResources.DataValueMissing.FormatCurrentCulture("notAtWork"),
-			OurResources.DataValueMissing.FormatCurrentCulture("properties.married"),
-			OurResources.DataValueMissing.FormatCurrentCulture("unmarried"),
+			OurResources.DataValueMissing.FormatCurrentCulture("relationships.playerRelations[0].title"),
+			OurResources.IntegerRangeInvalid.FormatCurrentCulture("families.head.age", 20, 50),
+			OurResources.IntegerRangeInvalid.FormatCurrentCulture("families.wife.ageDifference", -10, 4),
+			OurResources.ShapeMostWithinInvalid.FormatCurrentCulture("families.elder.ageGap.mostWithin", 0),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("families.elder.minAge.male", -1, 0),
+			OurResources.DataNumberNotPositive.FormatCurrentCulture("families.children.siblingAgeSpread", 0),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("families.parentAge.maxMother", 17, 18),
+			OurResources.DataChanceInvalid.FormatCurrentCulture("families.head.femaleChance", 101),
+			OurResources.DataChanceInvalid.FormatCurrentCulture("families.elder.chance", -1),
+			OurResources.DataChanceInvalid.FormatCurrentCulture("families.elder.infirmChance.age_old", 150),
+			OurResources.DataFractionInvalid.FormatCurrentCulture("families.wealth.helper", 1.5),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("families.wealth.fortune.minimum", -10, 0),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("families.wealth.headAge.age_young", -5, 0),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("families.wealth.thresholds.high", 5, 10),
 		}));
 	}
 
 	[Test]
-	public void ProfessionsMustMatchTheOtherFiles()
+	public void ProfessionsMustMatchTheRestOfTheData()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
-		var professionsPath = Path.Combine(m_directory, ProfessionList.FileName);
-		File.WriteAllText(professionsPath, File.ReadAllText(professionsPath)
-			.Replace("\"wealth\": \"high-\",\n\t\t\t\"maxBusinesses\": 1,\n\t\t\t\"helperWhen\": { \"values\": { \"gender\": [ \"gender_male\", \"gender_female\" ] } }", "\"wealth\": \"high-\", \"worksFromHome\": true, \"helperWhen\": { \"values\": { \"nothing\": [ \"nothing\" ] } }", StringComparison.Ordinal)
-			.Replace("\"defaults\": { \"lastName\": [ { \"value\": \"Barber\" } ] },\n\t\t\t\"wealth\": \"medium\",", "\"defaults\": { \"lastName\": [ { \"value\": \"Barber\" } ] },", StringComparison.Ordinal)
-			.Replace("\"id\": \"profession_homemaker\",", "\"id\": \"profession_homemaker\", \"wealth\": \"low\",", StringComparison.Ordinal)
-			.Replace("\"wealth\": \"veryLow\",\n\t\t\t\"worksFromHome\": true", "\"wealth\": \"veryLow\"", StringComparison.Ordinal));
+		CopyShippedData();
+		ModifyShipped("Professions.json", x => x
+			.Replace("\"wealth\": \"high-\",\n\t\t\t\t\"maxBusinesses\": 1", "\"wealth\": \"high-\", \"worksFromHome\": true, \"helperWhen\": { \"values\": { \"nothing\": [ \"nothing\" ] } }", StringComparison.Ordinal)
+			.Replace("\"wealth\": \"veryLow\",\n\t\t\t\t\"worksFromHome\": true", "\"wealth\": \"veryLow\"", StringComparison.Ordinal));
 
 		var result = GameData.Load(m_directory);
 
 		Assert.That(result.Succeeded, Is.False);
-		Assert.That(result.Errors.Where(x => Path.GetFileName(x.FilePath) == ProfessionList.FileName).Select(x => x.Message), Is.EquivalentTo(new[]
+		Assert.That(result.Errors.Where(x => Path.GetFileName(x.FilePath) == "Professions.json").Select(x => x.Message), Is.EquivalentTo(new[]
 		{
 			OurResources.ProfessionLocationsMissing.FormatCurrentCulture("profession_spinster"),
 			OurResources.ProfessionLocationsMissing.FormatCurrentCulture("profession_dairymaid"),
-			OurResources.ConditionPropertyWithoutValues.FormatCurrentCulture("professions[profession_smith].helperWhen.values", "nothing"),
-			OurResources.ProfessionWealthMissing.FormatCurrentCulture("profession_barber"),
-			OurResources.ProfessionNotBusiness.FormatCurrentCulture("profession_homemaker", "homemaker"),
+			OurResources.ProfessionLocationsMissing.FormatCurrentCulture("profession_shepherd"),
+			OurResources.ConditionPropertyWithoutValues.FormatCurrentCulture("professions[profession_smith].business.helperWhen.values", "nothing"),
 		}));
-		Assert.That(result.Errors.Where(x => Path.GetFileName(x.FilePath) == LocationList.FileName).Select(x => x.Message), Is.EquivalentTo(new[]
+		Assert.That(result.Errors.Where(x => Path.GetFileName(x.FilePath) == "Locations.json").Select(x => x.Message), Is.EquivalentTo(new[]
 		{
 			OurResources.BusinessProfessionWorksFromHome.FormatCurrentCulture("profession_smith_forge", "profession_smith"),
 			OurResources.BusinessProfessionWorksFromHome.FormatCurrentCulture("profession_smith_smithy", "profession_smith"),
@@ -757,39 +692,55 @@ public sealed class GameDataTests
 	[Test]
 	public void ProfessionPropertyTakesItsValuesFromProfessions()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
-		var professionsPath = Path.Combine(m_directory, ProfessionList.FileName);
-		File.WriteAllText(professionsPath, File.ReadAllText(professionsPath)
-			.Replace("\"title\": \"Blacksmith\",", "\"title\": \"Smith of Smiths\",", StringComparison.Ordinal));
+		CopyShippedData();
+		ModifyShipped("Professions.json", x => x
+			.Replace("\"title\": \"Blacksmith\",", "\"title\": \"Smith of Smiths\",", StringComparison.Ordinal)
+			.Replace("\"id\": \"profession_barber\",", "\"id\": \"profession_barber\", \"player\": false,", StringComparison.Ordinal));
 
 		var result = GameData.Load(m_directory);
 
 		Assert.That(result.Errors, Is.Empty);
-		var profession = result.Value!.CharacterProperties.Get(result.Value.Families.Properties.Profession);
-		Assert.That(profession.Values!.Select(x => x.Id), Is.EqualTo(ProfessionList.Load(m_directory).Value!.Professions.Select(x => x.Id)));
+		var gameData = result.Value!;
+		var profession = gameData.CharacterProperties.Get(gameData.Families.Roles.Properties.Profession);
 		Assert.That(profession.Values!.Single(x => x.Id == "profession_smith").Title, Is.EqualTo("Smith of Smiths"));
-		Assert.That(result.Value.Professions.Select(x => x.Id), Does.Not.Contain("profession_homemaker").And.Not.Contain("profession_infirm"));
+		Assert.That(gameData.Professions.Select(x => x.Id), Does.Not.Contain("profession_homemaker").And.Not.Contain("profession_infirm"));
+
+		// Only businesses the player is allowed are offered to the player.
+		var playerOptions = profession.GetOptions(CharacterRole.Player).Select(x => x.Id).ToList();
+		Assert.That(playerOptions, Does.Not.Contain("profession_barber").And.Not.Contain("profession_homemaker").And.Contain("profession_smith"));
+		Assert.That(profession.GetOptions(CharacterRole.Npc).Select(x => x.Id), Does.Contain("profession_barber"));
+	}
+
+	[Test]
+	public void ProfessionPropertyCantHaveItsOwnValues()
+	{
+		CopyShippedData();
+		ModifyShipped("Characters.json", x => x
+			.Replace("\"role\": \"profession\",", "\"role\": \"profession\", \"values\": [ { \"id\": \"x\", \"title\": \"X\" } ],", StringComparison.Ordinal));
+
+		var result = GameData.Load(m_directory);
+
+		Assert.That(result.Errors.Select(x => x.Message), Has.Member(OurResources.ProfessionPropertyValuesNotAllowed.FormatCurrentCulture("profession")));
 	}
 
 	[Test]
 	public void ProfessionsProvideKeyedDefaults()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
-		var professionsPath = Path.Combine(m_directory, ProfessionList.FileName);
-		var original = File.ReadAllText(professionsPath);
-		File.WriteAllText(professionsPath, original
+		CopyShippedData();
+		var original = File.ReadAllText(Path.Combine(m_directory, "Professions.json"));
+		ModifyShipped("Professions.json", x => x
 			.Replace("\"defaults\": { \"lastName\": [ { \"value\": \"Barber\" } ] },", "\"defaults\": { \"lastName\": [ { \"value\": \"Barber\" } ], \"height\": [ { \"value\": \"Tall\" } ] },", StringComparison.Ordinal));
 
 		var invalid = GameData.Load(m_directory);
 
 		Assert.That(invalid.Errors.Select(x => x.Message), Is.EqualTo(new[] { OurResources.ProfessionDefaultsPropertyInvalid.FormatCurrentCulture("profession_barber", "height", "profession") }));
 
-		File.WriteAllText(professionsPath, original);
+		File.WriteAllText(Path.Combine(m_directory, "Professions.json"), original);
 		var result = GameData.Load(m_directory);
 
 		// A profession without last names of its own uses the other last names.
 		Assert.That(result.Errors, Is.Empty);
-		var defaults = result.Value!.CharacterProperties.Get(result.Value.Families.Properties.LastName).GetDefaults(CharacterRole.Npc)!;
+		var defaults = result.Value!.CharacterProperties.Get(result.Value.Families.Roles.Properties.LastName).GetDefaults(CharacterRole.Npc)!;
 		Assert.That(defaults.GetValues("profession_smith")!.Select(x => x.Value), Is.EqualTo(new[] { "Smith" }));
 		Assert.That(defaults.GetValues("profession_homemaker"), Is.SameAs(defaults.OtherValues));
 	}
@@ -797,9 +748,8 @@ public sealed class GameDataTests
 	[Test]
 	public void ProfessionsCanChangeFrequencyByCondition()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
-		var professionsPath = Path.Combine(m_directory, ProfessionList.FileName);
-		File.WriteAllText(professionsPath, File.ReadAllText(professionsPath)
+		CopyShippedData();
+		ModifyShipped("Professions.json", x => x
 			.Replace("\"title\": \"Blacksmith\",", "\"title\": \"Blacksmith\", \"frequencyWhen\": [ { \"when\": { \"values\": { \"age\": [ \"age_veryOld\" ] } }, \"frequency\": \"veryRare\" } ],", StringComparison.Ordinal)
 			.Replace("\"title\": \"Barber\",", "\"title\": \"Barber\", \"frequencyWhen\": [ { \"when\": { \"values\": { \"nothing\": [ \"x\" ] } }, \"frequency\": \"rare\" } ],", StringComparison.Ordinal));
 
@@ -808,13 +758,13 @@ public sealed class GameDataTests
 		// Conditions on professions are checked against the character properties.
 		Assert.That(invalid.Errors.Select(x => x.Message), Has.Some.Contains("\"nothing\""));
 
-		File.WriteAllText(professionsPath, File.ReadAllText(professionsPath)
+		ModifyShipped("Professions.json", x => x
 			.Replace(" \"frequencyWhen\": [ { \"when\": { \"values\": { \"nothing\": [ \"x\" ] } }, \"frequency\": \"rare\" } ],", "", StringComparison.Ordinal));
 
 		var result = GameData.Load(m_directory);
 
 		Assert.That(result.Errors, Is.Empty);
-		var property = result.Value!.CharacterProperties.Get(result.Value.Families.Properties.Profession);
+		var property = result.Value!.CharacterProperties.Get(result.Value.Families.Roles.Properties.Profession);
 		var smith = property.Values!.Single(x => x.Id == "profession_smith");
 		Assert.That(smith.GetFrequency(x => x == "age" ? "age_veryOld" : null), Is.EqualTo(new FrequencyLevel(Frequency.VeryRare)));
 		Assert.That(smith.GetFrequency(x => x == "age" ? "age_adult" : null), Is.EqualTo(new FrequencyLevel(Frequency.Common)));
@@ -822,86 +772,83 @@ public sealed class GameDataTests
 	}
 
 	[Test]
-	public void InvalidValuesFromReportsErrors()
+	public void ConditionsCanNameValueGroups()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
+		var build = gameData.CharacterProperties.Get("build");
+		var fat = build.Values!.Single(x => x.Id == "build_fat");
+
+		// The group stands for every profession in it.
+		Assert.That(fat.GetFrequency(x => x == "profession" ? "profession_baker" : null), Is.EqualTo(new FrequencyLevel(Frequency.Uncommon)));
+		Assert.That(fat.GetFrequency(x => x == "profession" ? "profession_smith" : null), Is.EqualTo(new FrequencyLevel(Frequency.Rare, 1)));
+	}
+
+	[Test]
+	public void ValueGroupsMustNotBeValueIds()
+	{
+		var result = TestData.LoadCharacterData("""
 			{
-				"templates": [ { "id": "fullName", "template": "{a}" }, { "id": "description", "template": "{a}" } ],
+				"templates": [ { "id": "fullName", "template": "{hair}" }, { "id": "description", "template": "{hair}" } ],
 				"properties": [
-					{ "id": "a", "title": "A", "type": "valueList", "valuesFrom": "professions" },
-					{ "id": "b", "title": "B", "type": "valueList", "valuesFrom": "planets" },
-					{ "id": "c", "title": "C", "type": "valueList", "valuesFrom": "professions", "values": [ { "id": "c1", "title": "C1" } ] },
-					{ "id": "d", "title": "D", "type": "string", "valuesFrom": "professions" }
+					{ "id": "hair", "title": "Hair", "type": "valueList", "values": [ { "id": "brown", "title": "Brown", "groups": [ "dark", "grey", " " ] }, { "id": "grey", "title": "Grey" } ] }
 				]
 			}
 			""");
 
-		var professions = new[] { new Profession { Id = "p1", Title = "P1" } };
-		var result = CharacterData.Load(m_directory, [], professions);
-		var withoutProfessions = CharacterData.Load(m_directory, [], null);
-
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
-			OurResources.ValuesFromUnknown.FormatCurrentCulture("b", "planets", "professions"),
-			OurResources.ValuesAndValuesFrom.FormatCurrentCulture("c"),
-			OurResources.CharacterSettingNotAllowed.FormatCurrentCulture("d", "valuesFrom"),
+			OurResources.ValueGroupIsValue.FormatCurrentCulture("properties[hair].values[brown].groups", "grey", "hair"),
+			OurResources.DataListItemBlank.FormatCurrentCulture("properties[hair].values[brown].groups"),
 		}));
-		Assert.That(withoutProfessions.Errors.Select(x => x.Message), Does.Contain(OurResources.ValuesFromNotLoaded.FormatCurrentCulture("a", "professions")));
 	}
 
 	[Test]
-	public void FamilySettingsMustMatchCharacters()
+	public void RolesMustBeValid()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
-		var familiesPath = Path.Combine(m_directory, FamilySettings.FileName);
-		File.WriteAllText(familiesPath, File.ReadAllText(familiesPath)
-			.Replace("\"age\": \"age\"", "\"age\": \"firstName\"", StringComparison.Ordinal)
-			.Replace("\"female\": \"gender_female\"", "\"female\": \"gender_other\"", StringComparison.Ordinal)
-			.Replace("\"helper\": \"workRole_helper\"", "\"helper\": \"workRole_nothing\"", StringComparison.Ordinal));
+		CopyShippedData();
+		ModifyShipped("Characters.json", x => x
+			.Replace("\"role\": \"age\",", "", StringComparison.Ordinal)
+			.Replace("\"role\": \"female\", ", "", StringComparison.Ordinal)
+			.Replace("\"role\": \"headName\",", "\"role\": \"nickname\",", StringComparison.Ordinal)
+			.Replace("\"id\": \"height\",", "\"id\": \"height\", \"role\": \"married\",", StringComparison.Ordinal));
 
 		var result = GameData.Load(m_directory);
 
-		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
+		Assert.That(result.Errors.Select(x => x.Message), Is.SupersetOf(new[]
 		{
-			OurResources.FamilyPropertyInvalid.FormatCurrentCulture("properties.age", "firstName", "integer"),
-			OurResources.FamilyValueUnknown.FormatCurrentCulture("female", "gender_other", "gender"),
-			OurResources.FamilyValueUnknown.FormatCurrentCulture("helper", "workRole_nothing", "workRole"),
+			OurResources.RoleMissing.FormatCurrentCulture("properties", "age"),
+			OurResources.RoleMissing.FormatCurrentCulture("properties[gender].values", "female"),
+			OurResources.RoleUnknown.FormatCurrentCulture("properties[headName]", "nickname", string.Join(", ", new[] { "gender", "age", "profession", "lastName", "workRole", "householdRole", "headRelation", "headName", "atWork", "married" }.Select(x => $"\"{x}\""))),
+			OurResources.RoleMissing.FormatCurrentCulture("properties", "headName"),
+			OurResources.RoleDuplicate.FormatCurrentCulture("properties", "married", "\"married\", \"height\""),
 		}));
 	}
 
 	[Test]
 	public void FamilySettingsMustMatchAgesAndProfessions()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
-		var familiesPath = Path.Combine(m_directory, FamilySettings.FileName);
-		File.WriteAllText(familiesPath, File.ReadAllText(familiesPath)
-			.Replace("\"infirm\": \"profession_infirm\"", "\"infirm\": \"profession_nothing\"", StringComparison.Ordinal)
+		CopyShippedData();
+		ModifyShipped("Families.json", x => x
 			.Replace("\"age_veryOld\":", "\"age_ancient\":", StringComparison.Ordinal)
-			.Replace("\"headAge\": { \"minimum\": 20,", "\"headAge\": { \"minimum\": 10,", StringComparison.Ordinal));
+			.Replace("\"age\": { \"minimum\": 20,", "\"age\": { \"minimum\": 10,", StringComparison.Ordinal));
 
 		var result = GameData.Load(m_directory);
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
-			OurResources.FamilyValueUnknown.FormatCurrentCulture("infirm", "profession_nothing", "profession"),
-			OurResources.FamilyAgeGroupUnknown.FormatCurrentCulture("infirmChance", "age_ancient", "age"),
+			OurResources.FamilyAgeGroupUnknown.FormatCurrentCulture("families.elder.infirmChance", "age_ancient", "age"),
 			OurResources.FamilyHeadAgeOutOfRange.FormatCurrentCulture(10, 65, "age", 18, 80),
-			// With a different infirm value, the infirm profession counts as a business.
-			OurResources.ProfessionWealthMissing.FormatCurrentCulture("profession_infirm"),
-			OurResources.ProfessionLocationsMissing.FormatCurrentCulture("profession_infirm"),
 		}));
 	}
 
 	[Test]
 	public void PlayerAgeComesFromHeadAges()
 	{
-		CopyShippedFiles(CharacterData.FileName, LocationList.FileName, ProfessionList.FileName, FamilySettings.FileName, CalendarSettings.FileName, ScheduleSettings.FileName);
-		var charactersPath = Path.Combine(m_directory, CharacterData.FileName);
-		File.WriteAllText(charactersPath, File.ReadAllText(charactersPath)
+		CopyShippedData();
+		ModifyShipped("Characters.json", x => x
 			.Replace("\"range\": { \"minimum\": 18, \"maximum\": 80,", "\"player\": { \"range\": { \"minimum\": 36, \"maximum\": 50, \"shape\": { \"peak\": \"low\", \"mostWithin\": 10 } } }, \"range\": { \"minimum\": 18, \"maximum\": 80,", StringComparison.Ordinal));
-		var familiesPath = Path.Combine(m_directory, FamilySettings.FileName);
-		File.WriteAllText(familiesPath, File.ReadAllText(familiesPath)
-			.Replace("\"headAge\": { \"minimum\": 20, \"maximum\": 65,", "\"headAge\": { \"minimum\": 20, \"maximum\": 30,", StringComparison.Ordinal));
+		ModifyShipped("Families.json", x => x
+			.Replace("\"age\": { \"minimum\": 20, \"maximum\": 65,", "\"age\": { \"minimum\": 20, \"maximum\": 30,", StringComparison.Ordinal));
 
 		var result = GameData.Load(m_directory);
 
@@ -917,18 +864,64 @@ public sealed class GameDataTests
 	public void ShippedPlayerAgesFollowTheHeadAges()
 	{
 		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
-		var age = gameData.CharacterProperties.Get(gameData.Families.Properties.Age);
+		var age = gameData.CharacterProperties.Get(gameData.Families.Roles.Properties.Age);
 
 		var range = gameData.GetRange(age, CharacterRole.Player);
 
 		Assert.That(range.Minimum, Is.EqualTo(36));
-		Assert.That(range.Maximum, Is.EqualTo(gameData.Families.HeadAge.Maximum));
+		Assert.That(range.Maximum, Is.EqualTo(gameData.Families.Head.Age.Maximum));
 	}
 
-	private void CopyShippedFiles(params string[] fileNames)
+	[Test]
+	public void UnknownPropertiesAreErrors()
 	{
-		foreach (var fileName in fileNames)
-			File.Copy(Path.Combine(JsonDataLoader.DefaultDataDirectory, fileName), Path.Combine(m_directory, fileName));
+		CopyShippedData();
+		ModifyShipped("Families.json", x => x.Replace("\"helperChance\": 85,", "\"helperChance\": 85, \"helperChanse\": 85,", StringComparison.Ordinal));
+
+		var result = GameData.Load(m_directory);
+
+		Assert.That(result.Errors.Single().Message, Does.Contain("helperChanse"));
+		Assert.That(Path.GetFileName(result.Errors.Single().FilePath), Is.EqualTo("Families.json"));
+	}
+
+	private void CopyShippedData()
+	{
+		foreach (var path in Directory.GetFiles(JsonDataLoader.DefaultDataDirectory, "*.json"))
+			File.Copy(path, Path.Combine(m_directory, Path.GetFileName(path)));
+	}
+
+	private void ModifyShipped(string fileName, Func<string, string> modify)
+	{
+		var path = Path.Combine(m_directory, fileName);
+		var text = File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal);
+		var modified = modify(text);
+		Assert.That(modified, Is.Not.EqualTo(text), "The data didn't change.");
+		File.WriteAllText(path, modified);
+	}
+
+	/// <summary>
+	/// Reads JSON as the given type, the same way the data is read.
+	/// </summary>
+	private static T Read<T>(string json) => System.Text.Json.JsonSerializer.Deserialize<T>(json, JsonDataLoader.Options)!;
+
+	/// <summary>
+	/// Reads the village and location sections from JSON and checks them on their own.
+	/// </summary>
+	private static IReadOnlyList<string> ValidateLocations(string json)
+	{
+		var root = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+		IReadOnlyList<T> List<T>(string name) => root.TryGetPropertyValue(name, out var node) ? node.Deserialize<List<T>>(JsonDataLoader.Options)! : [];
+		var locations = new LocationList
+		{
+			Village = root["village"].Deserialize<VillageSettings>(JsonDataLoader.Options)!,
+			QuarterKinds = List<QuarterKind>("quarterKinds"),
+			Layouts = List<TownLayoutChoice>("layouts"),
+			Features = List<MapFeature>("features"),
+			Quarters = List<QuarterTemplate>("quarters"),
+			Houses = List<HouseTemplate>("houses"),
+			Businesses = List<BusinessTemplate>("businesses"),
+		};
+		return locations.Validate().ToList();
 	}
 
 	private string m_directory = "";

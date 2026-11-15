@@ -41,7 +41,7 @@ public sealed class MapFeature : IIdentified, IHasFrequency
 	/// Sentences that can be added to the description of a quarter bordering the feature. Each is a template whose only
 	/// placeholder is the direction the feature is in, such as "north-east".
 	/// </summary>
-	public required IReadOnlyList<string> Text { get; init; }
+	public required IReadOnlyList<LongText> Text { get; init; }
 }
 
 /// <summary>

@@ -8,17 +8,24 @@ public sealed class GameContent
 	/// <summary>
 	/// Loads the game info and game data from the data folder, with the files from each mod folder applied in order.
 	/// Every mod folder must be valid for the game data to load. The game info without mods can be passed in if it
-	/// has already been loaded, and is used when there are no mods or the mod folders aren't valid.
+	/// has already been loaded, and is used when there are no mods or the mods can't be applied.
 	/// </summary>
 	public static GameContent Load(string dataDirectory, IReadOnlyList<string> modDirectories, DataLoadResult<GameInfo>? baseGameInfo = null)
 	{
-		baseGameInfo ??= GameInfo.Load(dataDirectory);
-
 		var modFolderErrors = ModFolders.Check(modDirectories);
-		var gameInfo = modDirectories.Count == 0 || modFolderErrors.Count != 0 ? baseGameInfo : GameInfo.Load(dataDirectory, modDirectories);
-		var gameData = modFolderErrors.Count != 0
-			? DataLoadResult<GameData>.Failure(modFolderErrors)
-			: GameData.Load(dataDirectory, modDirectories, gameInfo.Value?.FrequencyChances);
+		var document = modFolderErrors.Count != 0 ? DataLoadResult<DataDocument>.Failure(modFolderErrors) : DataDocument.Read(dataDirectory, modDirectories);
+		DataLoadResult<GameInfo> gameInfo;
+		DataLoadResult<GameData> gameData;
+		if (document.Value is { } value)
+		{
+			gameInfo = GameInfo.Read(value);
+			gameData = GameData.Load(value);
+		}
+		else
+		{
+			gameInfo = baseGameInfo ?? GameInfo.Load(dataDirectory);
+			gameData = DataLoadResult<GameData>.Failure(document.Errors);
+		}
 
 		var modsHash = modDirectories.Count == 0 ? "" : DataFolderHash.Compute(modDirectories);
 		return new GameContent(gameInfo, gameData, modDirectories, DataFolderHash.Compute([dataDirectory]), modsHash);
@@ -53,7 +60,7 @@ public sealed class GameContent
 	public string ModsHash { get; }
 
 	/// <summary>
-	/// The errors from loading both the game info and the game data.
+	/// The errors from loading the game info and the game data, without repeating the ones they share.
 	/// </summary>
-	public IReadOnlyList<DataLoadError> Errors => [.. GameInfoResult.Errors, .. GameDataResult.Errors];
+	public IReadOnlyList<DataLoadError> Errors => [.. GameInfoResult.Errors, .. GameDataResult.Errors.Except(GameInfoResult.Errors)];
 }

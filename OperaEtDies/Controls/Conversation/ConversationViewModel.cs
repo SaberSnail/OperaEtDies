@@ -20,7 +20,7 @@ public sealed class ConversationViewModel : ViewModelBase
 		var gameData = world.GameData;
 		m_world = world;
 		m_person = person;
-		Person = new LocationPersonViewModel(person, gameData.PortraitRenderer, gameData.Schedules, gameData.Families);
+		Person = new LocationPersonViewModel(person, gameData.PortraitRenderer, gameData.Schedules, gameData.Relationships);
 		Subjects = world.People
 			.Where(x => !x.IsPlayer && x != person)
 			.OrderBy(x => x.FullName, StringComparer.CurrentCulture)
@@ -31,7 +31,7 @@ public sealed class ConversationViewModel : ViewModelBase
 		var talking = gameData.Schedules.Talking;
 		AskWhatDoingText = OurResources.ConversationAskDoing.FormatCurrentCulture(FormatMinutes(talking.AskDoingMinutes));
 		AskAboutText = OurResources.ConversationAskAbout.FormatCurrentCulture(FormatMinutes(talking.AskAboutMinutes));
-		SocializeText = OurResources.ConversationSocialize.FormatCurrentCulture(FormatMinutes(talking.SocializeMinutes));
+		SocializeText = OurResources.ConversationSocialize.FormatCurrentCulture(FormatMinutes(gameData.Schedules.Socializing.ChatMinutes));
 	}
 
 	public event EventHandler? CloseRequested;

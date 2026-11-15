@@ -23,7 +23,7 @@ public sealed class SightingTests
 	{
 		var (_, world, quarter, people) = CreatePeopleTogether(3);
 		var (watcher, sleeper, worker) = (people[0], people[1], people[2]);
-		var (sleep, laundry) = (Need(world, world.GameData.Schedules.Start.Need), Need(world, "laundry"));
+		var (sleep, laundry) = (Need(world, world.GameData.Schedules.SleepNeed!), Need(world, "laundry"));
 
 		// Falling asleep, the sleeper sees everyone there.
 		Start(world, sleeper, sleep, new BusyTask(600));

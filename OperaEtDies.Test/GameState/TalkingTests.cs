@@ -42,7 +42,7 @@ public sealed class TalkingTests
 	public void BeingAskedToChatStopsWhatThePlayerIsDoing()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
-		var fatigue = Need(world, world.GameData.Schedules.Start.Need);
+		var fatigue = Need(world, world.GameData.Schedules.SleepNeed!);
 		var start = world.Time;
 		world.Player.TalkRequest = person;
 
@@ -57,7 +57,7 @@ public sealed class TalkingTests
 	public void LonelyFriendsAskThePlayerToChat()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
-		var socializing = Need(world, world.GameData.Schedules.Talking.SocializeNeed!);
+		var socializing = Need(world, world.GameData.Schedules.SocializeNeed!);
 		person.GetRelationship(world.Player).Score = RelationshipSettings.MaximumScore;
 		person.SetLevel(socializing, 90);
 
@@ -75,7 +75,7 @@ public sealed class TalkingTests
 	public void InAHeadlessWorldLonelyFriendsJustChatWithThePlayer()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
-		var socializing = Need(world, world.GameData.Schedules.Talking.SocializeNeed!);
+		var socializing = Need(world, world.GameData.Schedules.SocializeNeed!);
 		person.GetRelationship(world.Player).Score = RelationshipSettings.MaximumScore;
 		person.SetLevel(socializing, 90);
 		world.IsHeadless = true;
@@ -123,7 +123,7 @@ public sealed class TalkingTests
 	public void SocializingMeetsTheNeedOfFriends()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
-		var socializing = Need(world, world.GameData.Schedules.Talking.SocializeNeed!);
+		var socializing = Need(world, world.GameData.Schedules.SocializeNeed!);
 		var relationship = person.GetRelationship(world.Player);
 		person.SetLevel(socializing, 80);
 		world.Player.SetLevel(socializing, 80);
@@ -136,7 +136,7 @@ public sealed class TalkingTests
 		person.SetLevel(socializing, 80);
 		world.Player.SetLevel(socializing, 80);
 		world.Socialize(person);
-		var met = socializing.SatisfyPerHour!.Value * world.GameData.Schedules.Talking.SocializeMinutes / 60;
+		var met = socializing.SatisfyPerHour!.Value * world.GameData.Schedules.Socializing.ChatMinutes / 60;
 		Assert.That(person.GetLevel(socializing), Is.EqualTo(80 - met));
 		Assert.That(world.Player.GetLevel(socializing), Is.EqualTo(80 - met));
 	}
@@ -145,7 +145,7 @@ public sealed class TalkingTests
 	public void LonelyPeopleSeekOutAFriendSomewhereElse()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
-		var socializing = Need(world, world.GameData.Schedules.Talking.SocializeNeed!);
+		var socializing = Need(world, world.GameData.Schedules.SocializeNeed!);
 		foreach (var need in world.GameData.Schedules.Needs.Where(x => x.Kind == NeedKind.Level))
 			person.SetLevel(need, 0);
 		person.SetLevel(socializing, OperaEtDies.Data.Need.MaximumLevel);
@@ -168,7 +168,7 @@ public sealed class TalkingTests
 	{
 		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
 		var calendar = world.GameData.Calendar;
-		var socializing = Need(world, world.GameData.Schedules.Talking.SocializeNeed!);
+		var socializing = Need(world, world.GameData.Schedules.SocializeNeed!);
 		var (seeker, friend) = (world.Npcs[0], world.Npcs.Last(x => x.Family != world.Npcs[0].Family));
 		var here = world.Locations.First(x => x.Template is QuarterTemplate);
 		var there = here.Connections.First(x => x.Template is QuarterTemplate && x.Connections.Any(other => other != here));
@@ -197,7 +197,7 @@ public sealed class TalkingTests
 	public void SomeoneWithoutFriendsDoesntSeekAnyone()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
-		var socializing = Need(world, world.GameData.Schedules.Talking.SocializeNeed!);
+		var socializing = Need(world, world.GameData.Schedules.SocializeNeed!);
 		person.SetLevel(socializing, OperaEtDies.Data.Need.MaximumLevel);
 		foreach (var relationship in person.Relationships.Values)
 			relationship.Score = 0;
@@ -212,7 +212,7 @@ public sealed class TalkingTests
 	public void LonelyFriendsWhoMeetStopToChat()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
-		var socializing = Need(world, world.GameData.Schedules.Talking.SocializeNeed!);
+		var socializing = Need(world, world.GameData.Schedules.SocializeNeed!);
 		var friend = world.Npcs.First(x => x != person && x.Family != world.Player.Family);
 		person.GetRelationship(friend).Score = RelationshipSettings.MaximumScore;
 		person.SetLevel(socializing, 90);
@@ -226,7 +226,7 @@ public sealed class TalkingTests
 		person.StartTask(world.GameData.Calendar.AddMinutes(world.Time, 30));
 		world.OnTaskStarted(person, person.CurrentTask!, world.Time);
 
-		Assert.That(person.CurrentTask, Is.EqualTo(new TalkTask(friend, talking.SocializeMinutes + talking.AskDoingMinutes, socializing)));
+		Assert.That(person.CurrentTask, Is.EqualTo(new TalkTask(friend, world.GameData.Schedules.Socializing.ChatMinutes + talking.AskDoingMinutes, socializing)));
 		Assert.That(friend.CurrentTask, Is.InstanceOf<TalkTask>());
 		Assert.That(person.Sightings[friend].Plan, Is.Not.Null);
 	}
@@ -235,7 +235,7 @@ public sealed class TalkingTests
 	public void FriendsWhoArentLonelyDontStopToChat()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
-		var socializing = Need(world, world.GameData.Schedules.Talking.SocializeNeed!);
+		var socializing = Need(world, world.GameData.Schedules.SocializeNeed!);
 		var friend = world.Npcs.First(x => x != person && x.Family != world.Player.Family);
 		person.GetRelationship(friend).Score = RelationshipSettings.MaximumScore;
 		person.SetLevel(socializing, 0);

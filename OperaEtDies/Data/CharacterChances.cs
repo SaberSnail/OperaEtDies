@@ -51,7 +51,7 @@ public static class CharacterChances
 			foreach (var property in properties.Where(x => x.Type == CharacterPropertyType.Integer))
 			{
 				var range = getRange?.Invoke(property, role) ?? property.GetRange(role);
-				var chances = range.Shape.GetChances(range.Maximum - range.Minimum + 1);
+				var chances = range.GetChances();
 				var lowIndexes = Enumerable.Range(0, chances.Count).Where(x => chances[x] <= threshold).ToList();
 				if (lowIndexes.Count != 0)
 				{

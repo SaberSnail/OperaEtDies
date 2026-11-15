@@ -1,3 +1,4 @@
+using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Logging;
 using OperaEtDies.Characters;
 using OperaEtDies.Time;
@@ -10,44 +11,47 @@ namespace OperaEtDies.Data;
 /// </summary>
 public sealed class GameData
 {
-	public GameData(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, CalendarSettings calendar, FrequencyChances? frequencyChances = null, PortraitData? portraits = null, ScheduleSettings? schedules = null)
+	public GameData(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, RelationshipSettings relationships, CalendarSettings calendar, FrequencyChances? frequencyChances = null, PortraitData? portraits = null, ScheduleSettings? schedules = null)
 	{
 		Schedules = schedules ?? ScheduleSettings.None;
 		FrequencyChances = frequencyChances ?? new FrequencyChances();
 		Calendar = new GameCalendar(calendar);
 
+		// The properties and values the family generator depends on are found by their roles.
+		families.Roles = characters.GetFamilyRoles();
+
 		CharacterProperties = new DataCatalog<CharacterProperty>(characters.Properties);
 		PortraitRenderer = portraits is null ? null : new PortraitRenderer(portraits, CharacterProperties);
 
-		// The character file is validated on load, so the templates are always valid.
+		// The character data is validated on load, so the templates are always valid.
 		CharacterTemplates = new TextTemplateSet(characters.Templates.Select(x => KeyValuePair.Create(x.Id, x.ParseVariants())));
 		CharacterObscurers = new DataCatalog<CharacterObscurer>(characters.Obscurers);
 		CharacterLowChanceWarning = characters.LowChanceWarning;
 
+		Village = locations.Village;
 		QuarterKinds = new DataCatalog<QuarterKind>(locations.QuarterKinds);
-		LandmarkCount = locations.LandmarkCount;
-		BuildingTravelTime = locations.BuildingTravelTime;
 		Layouts = locations.Layouts;
 		MapFeatures = new DataCatalog<MapFeature>(locations.Features);
-		FeatureCount = locations.FeatureCount ?? new IntegerRange { Minimum = 0, Maximum = 0, Shape = new WeightShape { Peak = ShapePeak.Low, MostWithin = 1 } };
+		FeatureCount = locations.Village.FeatureCount ?? new IntegerRange { Minimum = 0, Maximum = 0 };
 		QuarterTemplates = new DataCatalog<QuarterTemplate>(locations.Quarters);
 		HouseTemplates = new DataCatalog<HouseTemplate>(locations.Houses);
-		HouseTitle = TextTemplate.TryParse(locations.HouseTitle ?? "", out var houseTitle) ? houseTitle : TextTemplate.Parse("");
+		HouseTitle = TextTemplate.TryParse(locations.Village.HouseTitle ?? "", out var houseTitle) ? houseTitle : TextTemplate.Parse("");
 		BusinessTemplates = new DataCatalog<BusinessTemplate>(locations.Businesses);
 		m_businessTemplatesByProfession = locations.Businesses
 			.GroupBy(x => x.Profession, StringComparer.Ordinal)
 			.ToDictionary(x => x.Key, x => (IReadOnlyList<BusinessTemplate>) x.ToList(), StringComparer.Ordinal);
 
-		// Homemaker and infirm are professions, but not businesses.
-		Professions = new DataCatalog<Profession>(professions.Professions.Where(x => x.Id != families.Homemaker && x.Id != families.Infirm));
+		// Professions without business settings, such as keeping house, aren't businesses.
+		Professions = new DataCatalog<Profession>(professions.Professions.Where(x => x.IsBusiness));
 		Families = families;
+		Relationships = relationships;
 
 		// The player heads a household, so their age comes from the head ages, from the youngest age at which they can
-		// have an adult child. Families.json is checked against the age property when the data is loaded.
-		if (CharacterProperties.Find(families.Properties.Age) is { Type: CharacterPropertyType.Integer } age)
+		// have an adult child. The family settings are checked against the age property when the data is loaded.
+		if (CharacterProperties.Find(families.Roles.Properties.Age) is { Type: CharacterPropertyType.Integer } age)
 		{
 			m_ageProperty = age;
-			m_playerAgeRange = families.HeadAge.StartingAt(GetMinPlayerAge(age, families));
+			m_playerAgeRange = families.Head.Age.StartingAt(GetMinPlayerAge(age, families));
 		}
 	}
 
@@ -55,50 +59,147 @@ public sealed class GameData
 	/// Gets the youngest age at which the player can have an adult child: the youngest age a non-player character can be,
 	/// plus the youngest age at which someone can have a child.
 	/// </summary>
-	internal static int GetMinPlayerAge(CharacterProperty age, FamilySettings families) => age.GetRange(CharacterRole.Npc).Minimum + families.MinParentAge;
+	internal static int GetMinPlayerAge(CharacterProperty age, FamilySettings families) => age.GetRange(CharacterRole.Npc).Minimum + families.ParentAge.Minimum;
 
 	/// <summary>
-	/// Loads all of the game content. Fails if any file fails, but reports the errors from every file. The frequency
-	/// chances come from the game info, and default to the standard chances if not given. Values that are too unlikely
-	/// to be chosen are logged as warnings.
+	/// Loads all of the game content from the data folder, with the files from the mod folders applied in order. The
+	/// portraits can be left out, in which case characters have no portraits. Every problem found is reported. Values
+	/// that are too unlikely to be chosen are logged as warnings.
 	/// </summary>
-	public static DataLoadResult<GameData> Load(string dataDirectory, FrequencyChances? frequencyChances = null) =>
-		Load(dataDirectory, [], frequencyChances);
-
-	/// <summary>
-	/// Loads all of the game content, with the changes from the mod folders applied in order. The portrait file can be
-	/// left out, in which case characters have no portraits.
-	/// </summary>
-	public static DataLoadResult<GameData> Load(string dataDirectory, IReadOnlyList<string> modDirectories, FrequencyChances? frequencyChances = null, bool includePortraits = true)
+	public static DataLoadResult<GameData> Load(string dataDirectory, IReadOnlyList<string>? modDirectories = null, bool includePortraits = true)
 	{
-		// The profession character property takes its values from Professions.json, so it's loaded first.
-		var professions = ProfessionList.Load(dataDirectory, modDirectories);
-		var characters = CharacterData.Load(dataDirectory, modDirectories, professions.Value?.Professions);
-		var locations = LocationList.Load(dataDirectory, modDirectories);
-		var families = FamilySettings.Load(dataDirectory, modDirectories);
-		var calendar = CalendarSettings.Load(dataDirectory, modDirectories);
-		var schedules = ScheduleSettings.Load(dataDirectory, modDirectories);
-
-		// The portrait file is optional. Without it, characters have no portraits.
-		var portraits = includePortraits ? PortraitData.Load(dataDirectory, modDirectories) : null;
-
-		if (characters.Value is null || locations.Value is null || professions.Value is null || families.Value is null || calendar.Value is null || schedules.Value is null || portraits is { Value: null })
-			return DataLoadResult<GameData>.Failure([.. characters.Errors, .. locations.Errors, .. professions.Errors, .. families.Errors, .. calendar.Errors, .. schedules.Errors, .. portraits?.Errors ?? []]);
-
-		// Each file is fine on its own, so check that they agree with each other.
-		var errors = GameDataValidation.Validate(dataDirectory, characters.Value, locations.Value, professions.Value, families.Value, calendar.Value, schedules.Value, portraits?.Value);
-		if (errors.Count != 0)
+		var document = DataDocument.Read(dataDirectory, modDirectories ?? []);
+		var result = document.Value is { } value ? Load(value, includePortraits) : DataLoadResult<GameData>.Failure(document.Errors);
+		if (document.Value is null)
 		{
-			foreach (var error in errors)
+			foreach (var error in result.Errors)
 				Log.Error(error.ToString());
-			return DataLoadResult<GameData>.Failure(errors);
 		}
 
-		var gameData = new GameData(characters.Value, locations.Value, professions.Value, families.Value, calendar.Value, frequencyChances, portraits?.Value, schedules.Value);
+		return result;
+	}
+
+	/// <summary>
+	/// Loads all of the game content from merged data. Every problem found is reported, and logged.
+	/// </summary>
+	public static DataLoadResult<GameData> Load(DataDocument document, bool includePortraits = true)
+	{
+		var errors = new List<DataLoadError>();
+		T? Section<T>(string name, bool isRequired = true)
+			where T : class
+		{
+			var section = document.ReadSection<T>(name, errors);
+			if (section is null && isRequired && document.GetSection(name) is null)
+				errors.Add(document.CreateError(OurResources.DataSectionMissing.FormatCurrentCulture(name)));
+			return section;
+		}
+
+		IReadOnlyList<T> List<T>(string name) => document.ReadSection<List<T>>(name, errors) ?? [];
+
+		var game = Section<GameInfo>(GameInfo.SectionName);
+		var professions = new ProfessionList { Professions = List<Profession>("professions") };
+		var characters = new CharacterData
+		{
+			Properties = List<CharacterProperty>("properties"),
+			Templates = List<CharacterTemplate>("templates"),
+			Obscurers = List<CharacterObscurer>("obscurers"),
+			LowChanceWarning = game?.LowChanceWarning,
+		}.WithProfessions(professions.Professions);
+
+		var village = Section<VillageSettings>(VillageSettings.SectionName);
+		var quarterKinds = List<QuarterKind>("quarterKinds");
+		var layouts = List<TownLayoutChoice>("layouts");
+		var features = List<MapFeature>("features");
+		var quarters = List<QuarterTemplate>("quarters");
+		var houses = List<HouseTemplate>("houses");
+		var businesses = List<BusinessTemplate>("businesses");
+		var families = Section<FamilySettings>(FamilySettings.SectionName);
+		var relationships = Section<RelationshipSettings>(RelationshipSettings.SectionName);
+		var calendarSection = Section<CalendarSection>("calendar");
+		var days = List<CalendarDay>("days");
+		var weeks = List<CalendarWeek>("weeks");
+		var seasons = List<CalendarSeason>("seasons");
+		var dayParts = List<CalendarDayPart>("dayParts");
+		var specialDays = List<CalendarSpecialDay>("specialDays");
+		var schedules = Section<ScheduleSettings>(ScheduleSettings.SectionName, isRequired: false) ?? (document.GetSection(ScheduleSettings.SectionName) is null ? ScheduleSettings.None : null);
+		var needs = List<Need>("needs");
+		var travelTimeFactors = List<TravelTimeFactor>("travelTimeFactors");
+		var urgencyFactors = List<UrgencyFactor>("urgencyFactors");
+
+		// Without portraits, characters have no portraits.
+		var portraitSection = includePortraits ? Section<PortraitSection>("portraits", isRequired: false) : null;
+		var portraits = portraitSection is null ? null : new PortraitData
+		{
+			Width = portraitSection.Width,
+			Height = portraitSection.Height,
+			Colors = List<PortraitColor>("portraitColors"),
+			Scales = List<PortraitScale>("portraitScales"),
+			Offsets = List<PortraitOffset>("portraitOffsets"),
+			Layers = List<PortraitLayer>("portraitLayers"),
+		};
+
+		if (errors.Count != 0 || game is null || village is null || families is null || relationships is null || calendarSection is null || schedules is null)
+			return Fail(errors);
+
+		var locations = new LocationList { Village = village, QuarterKinds = quarterKinds, Layouts = layouts, Features = features, Quarters = quarters, Houses = houses, Businesses = businesses };
+		var calendar = new CalendarSettings { Days = days, Weeks = weeks, Seasons = seasons, DayParts = dayParts, SpecialDays = specialDays, StartYear = calendarSection.StartYear, YearFormat = calendarSection.YearFormat };
+		schedules.Needs = needs;
+		schedules.TravelTimeFactors = travelTimeFactors;
+		schedules.UrgencyFactors = urgencyFactors;
+
+		// Conditions can name groups of values, which stand for every value in the group.
+		ResolveGroups(characters, professions, relationships, schedules, portraits);
+
+		var messages = new List<string>();
+		messages.AddRange(characters.Validate());
+		messages.AddRange(characters.ValidateRoles());
+		messages.AddRange(professions.Validate());
+		messages.AddRange(locations.Validate());
+		messages.AddRange(families.Validate());
+		messages.AddRange(relationships.Validate());
+		messages.AddRange(calendar.Validate());
+		messages.AddRange(schedules.Validate());
+		if (portraits is not null)
+			messages.AddRange(portraits.Validate());
+
+		// Each part is fine on its own, so check that they agree with each other.
+		if (messages.Count == 0)
+			messages.AddRange(GameDataValidation.Validate(characters, locations, professions, families, relationships, calendar, schedules, portraits));
+		if (messages.Count != 0)
+			return Fail(messages.Distinct(StringComparer.Ordinal).Select(document.CreateError).ToList());
+
+		var gameData = new GameData(characters, locations, professions, families, relationships, calendar, game.FrequencyChances, portraits, schedules);
 		foreach (var warning in gameData.GetLowChanceWarnings())
 			Log.Warn(warning);
 
 		return DataLoadResult<GameData>.Success(gameData);
+	}
+
+	private static DataLoadResult<GameData> Fail(IReadOnlyList<DataLoadError> errors)
+	{
+		foreach (var error in errors)
+			Log.Error(error.ToString());
+		return DataLoadResult<GameData>.Failure(errors);
+	}
+
+	/// <summary>
+	/// Replaces the group ids in every condition with the ids of the values in each group.
+	/// </summary>
+	private static void ResolveGroups(CharacterData characters, ProfessionList professions, RelationshipSettings relationships, ScheduleSettings schedules, PortraitData? portraits)
+	{
+		var properties = new Dictionary<string, CharacterProperty>(StringComparer.Ordinal);
+		foreach (var property in characters.Properties.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)))
+			properties.TryAdd(property.Id, property);
+
+		IReadOnlyList<string>? GetGroupValues(string propertyId, string group) => properties.GetValueOrDefault(propertyId)?.GetGroupValueIds(group);
+
+		var conditions = characters.GetConditions()
+			.Concat(professions.Professions.Where(x => x is not null).SelectMany(x => new[] { x.When, x.HelperWhen }.Concat((x.FrequencyWhen ?? []).Select(y => y?.When))))
+			.Concat(relationships.PlayerRelations.Select(x => x?.When))
+			.Concat(schedules.GetConditions().Select(x => x.Condition))
+			.Concat(portraits?.GetConditions().Select(x => x.Condition) ?? []);
+		foreach (var condition in conditions.OfType<CharacterCondition>().Distinct())
+			condition.ResolveGroups(GetGroupValues);
 	}
 
 	/// <summary>
@@ -109,7 +210,7 @@ public sealed class GameData
 	{
 		var properties = CharacterProperties.ToDictionary(x => x.Id, StringComparer.Ordinal);
 		var quarterKinds = QuarterKinds.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
-		return GameDataValidation.ValidatePortraits(portraits, properties, quarterKinds, CharacterProperties.Find(Families.Properties.Profession)).ToList();
+		return GameDataValidation.ValidatePortraits(portraits, properties, quarterKinds, CharacterProperties.Find(Families.Roles.Properties.Profession)).ToList();
 	}
 
 	/// <summary>
@@ -153,6 +254,11 @@ public sealed class GameData
 	public CharacterObscuring GetObscuring(IEnumerable<string> obscurerIds) => new(obscurerIds.Select(CharacterObscurers.Get));
 
 	/// <summary>
+	/// Settings for the village as a whole.
+	/// </summary>
+	public VillageSettings Village { get; }
+
+	/// <summary>
 	/// The kinds of quarter, by id.
 	/// </summary>
 	public DataCatalog<QuarterKind> QuarterKinds { get; }
@@ -160,12 +266,12 @@ public sealed class GameData
 	/// <summary>
 	/// How many landmark quarters a town has, including unique ones.
 	/// </summary>
-	public IntegerRange LandmarkCount { get; }
+	public IntegerRange LandmarkCount => Village.LandmarkCount;
 
 	/// <summary>
 	/// How many minutes it takes to go into or out of a house or business from its quarter.
 	/// </summary>
-	public int BuildingTravelTime { get; }
+	public int BuildingTravelTime => Village.BuildingTravelTime;
 
 	/// <summary>
 	/// The shapes a town can be laid out in, chosen by frequency.
@@ -229,6 +335,11 @@ public sealed class GameData
 	/// How households are generated.
 	/// </summary>
 	public FamilySettings Families { get; }
+
+	/// <summary>
+	/// How relationships between characters are chosen, and what their scores mean.
+	/// </summary>
+	public RelationshipSettings Relationships { get; }
 
 	/// <summary>
 	/// The percentage chance at or below which a character property value is reported as a warning, or null if

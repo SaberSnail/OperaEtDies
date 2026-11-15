@@ -24,21 +24,23 @@ public sealed class EditorData
 		errors.AddRange(missingModErrors);
 		modDirectories = modDirectories.Where(Directory.Exists).ToList();
 
-		var gameInfo = modDirectories.Count == 0 ? baseGameInfo : GameInfo.Load(dataDirectory, modDirectories);
-		if (modDirectories.Count != 0)
-			errors.AddRange(gameInfo.Errors);
+		// The portrait sections are taken out of the merged data, so they can be edited on their own.
+		var document = DataDocument.Read(dataDirectory, modDirectories);
+		errors.AddRange(document.Errors);
+		var gameData = document.Value is { } value ? GameData.Load(value, includePortraits: false) : null;
+		errors.AddRange(gameData?.Errors ?? []);
 
-		var gameData = GameData.Load(dataDirectory, modDirectories, gameInfo.Value?.FrequencyChances, includePortraits: false);
-		errors.AddRange(gameData.Errors);
+		JsonObject? portraitsObject = null;
+		var portraitsPath = dataDirectory;
+		if (document.Value is { } merged)
+		{
+			portraitsObject = new JsonObject();
+			foreach (var name in PortraitDataReader.SectionNames.Where(x => merged.GetSection(x) is not null))
+				portraitsObject[name] = merged.GetSection(name)!.DeepClone();
+			portraitsPath = merged.FindSectionFile("portraitLayers") ?? dataDirectory;
+		}
 
-		var portraitsPath = Path.Combine(dataDirectory, PortraitData.FileName);
-		var portraits = JsonDataLoader.ReadJson(portraitsPath, modDirectories, []);
-		errors.AddRange(portraits.Errors);
-		var portraitsObject = portraits.Value as JsonObject;
-		if (portraits.Value is not null && portraitsObject is null)
-			errors.Add(new DataLoadError(portraitsPath, "The file must hold a JSON object."));
-
-		return new EditorData(dataDirectory, modDirectories, gameData.Value, portraitsPath, portraitsObject, errors);
+		return new EditorData(dataDirectory, modDirectories, gameData?.Value, portraitsPath, portraitsObject, errors);
 	}
 
 	public string DataDirectory { get; }

@@ -18,9 +18,9 @@ public sealed class NewGameViewModel : ViewModelBase
 	{
 		m_character = new CharacterRandomizer(gameData, random, CharacterRole.Player);
 		m_portraitRenderer = gameData.PortraitRenderer;
-		m_atWorkPropertyId = gameData.Families.Properties.AtWork;
-		m_notAtWork = gameData.CharacterProperties.Find(m_atWorkPropertyId)?.Values?.FirstOrDefault(x => x.Id == gameData.Families.NotAtWork);
-		m_developerPropertyId = isDeveloper ? gameData.Families.Properties.Gender : null;
+		m_atWorkPropertyId = gameData.Families.Roles.Properties.AtWork;
+		m_notAtWork = gameData.CharacterProperties.Find(m_atWorkPropertyId)?.Values?.FirstOrDefault(x => x.Id == gameData.Families.Roles.NotAtWork);
+		m_developerPropertyId = isDeveloper ? gameData.Families.Roles.Properties.Gender : null;
 
 		// For developers, the properties are also checked as if the player could have any gender.
 		var developerProperties = m_developerPropertyId is { } developerPropertyId

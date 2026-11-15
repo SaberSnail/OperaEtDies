@@ -18,8 +18,8 @@ internal sealed class Scheduler
 		m_world = world;
 		m_calendar = world.GameData.Calendar;
 		m_settings = world.GameData.Schedules;
-		m_socializeNeed = m_settings.Needs.FirstOrDefault(x => x.Id == m_settings.Talking.SocializeNeed);
-		m_sleepNeed = m_settings.Needs.FirstOrDefault(x => x.Id == m_settings.Start.Need && x.Kind == NeedKind.Level);
+		m_socializeNeed = m_settings.Needs.FirstOrDefault(x => x.Id == m_settings.SocializeNeed);
+		m_sleepNeed = m_settings.Needs.FirstOrDefault(x => x.Id == m_settings.SleepNeed && x.Kind == NeedKind.Level);
 	}
 
 	/// <summary>
@@ -145,7 +145,7 @@ internal sealed class Scheduler
 		{
 			// Without an urgent need that can be met now, the person waits a while before deciding again.
 			var idle = m_settings.Idle;
-			var idlePlace = FindPlace(person, idle.Place, idle.QuarterKinds, distances, isNearest: false) ?? person.Location;
+			var idlePlace = FindPlace(person, idle.Place.Kind, idle.Place.QuarterKinds, distances, isNearest: false) ?? person.Location;
 			person.SetPlan(null, PlanTasks(person, idlePlace, distances, isAtWork: false, m_world.Random.NextInRange(idle.Minutes), returnTo: null, returnMinutes: 0), goalChoice);
 		}
 	}
@@ -201,7 +201,7 @@ internal sealed class Scheduler
 	/// </summary>
 	internal IEnumerable<Person> GetFriends(Person person)
 	{
-		var settings = m_world.GameData.Families.Relationships;
+		var settings = m_world.GameData.Relationships;
 		return person.Relationships.Where(x => settings.IsFriend(x.Value.Score)).Select(x => x.Key);
 	}
 
@@ -270,7 +270,7 @@ internal sealed class Scheduler
 		var isKnown = initiator.Sightings.GetValueOrDefault(other) is { Source: null, Plan: not null };
 		if (!isKnown)
 			initiator.See(other, GameWorld.Observe(other, time) with { Plan = GameWorld.GetPlan(other) });
-		m_world.StartTalking(initiator, other, talking.SocializeMinutes + (isKnown ? 0 : talking.AskDoingMinutes), time, isSocializing: true);
+		m_world.StartTalking(initiator, other, m_settings.Socializing.ChatMinutes + (isKnown ? 0 : talking.AskDoingMinutes), time, isSocializing: true);
 	}
 
 	/// <summary>

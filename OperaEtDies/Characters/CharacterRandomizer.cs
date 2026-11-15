@@ -156,13 +156,13 @@ public sealed class CharacterRandomizer
 	private void LinkPlayerMarriedToGender()
 	{
 		var families = m_gameData.Families;
-		var marriedValues = m_propertiesById.GetValueOrDefault(families.Properties.Married)?.Values;
-		var marriedValue = marriedValues?.FirstOrDefault(x => x.Id == families.Married);
-		var unmarriedValue = marriedValues?.FirstOrDefault(x => x.Id == families.Unmarried);
-		if (marriedValue is not null && unmarriedValue is not null && m_values.TryGetValue(families.Properties.Gender, out var gender))
+		var marriedValues = m_propertiesById.GetValueOrDefault(families.Roles.Properties.Married)?.Values;
+		var marriedValue = marriedValues?.FirstOrDefault(x => x.Id == families.Roles.Married);
+		var unmarriedValue = marriedValues?.FirstOrDefault(x => x.Id == families.Roles.Unmarried);
+		if (marriedValue is not null && unmarriedValue is not null && m_values.TryGetValue(families.Roles.Properties.Gender, out var gender))
 		{
-			var married = m_values[families.Properties.Married];
-			void Update() => married.Lock(GetValueId(families.Properties.Gender) == families.Female ? unmarriedValue : marriedValue);
+			var married = m_values[families.Roles.Properties.Married];
+			void Update() => married.Lock(GetValueId(families.Roles.Properties.Gender) == families.Roles.Female ? unmarriedValue : marriedValue);
 			gender.ValueChanged += (_, _) => Update();
 			Update();
 		}
@@ -194,7 +194,7 @@ public sealed class CharacterRandomizer
 
 	private int PickInteger(IntegerRange range)
 	{
-		var chances = range.Shape.GetChances(range.Maximum - range.Minimum + 1);
+		var chances = range.GetChances();
 		return range.Minimum + m_random.NextWeighted(Enumerable.Range(0, chances.Count).ToList(), x => chances[x]);
 	}
 

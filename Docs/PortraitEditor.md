@@ -1,6 +1,6 @@
 # Portrait Editor
 
-The portrait editor (`Tools/PortraitEditor`) is a standalone tool for working on the portrait art in `Portraits.json`. It loads the data the same way the game does, shows the portrait data, lets it be changed with the mouse or with fields, draws the changes on a set of preview characters as they're made, and copies any item as JSON to paste into a data file or a mod file. It never writes the data files.
+The portrait editor (`Tools/PortraitEditor`) is a standalone tool for working on the portrait art (the portrait sections of the data, generated into `Portraits.json`). It loads the data the same way the game does, shows the portrait data, lets it be changed with the mouse or with fields, draws the changes on a set of preview characters as they're made, and copies any item as JSON to paste into a data file or a mod file. It never writes the data files.
 
 ## Starting it
 

@@ -66,7 +66,7 @@ public sealed class CategoryItemViewModel(string name, ITreeItemHost host) : Tre
 	/// <summary>
 	/// Whether the category's items have canvas states (only the layers do).
 	/// </summary>
-	public bool HasCanvasState => Name == "layers";
+	public bool HasCanvasState => Name == "portraitLayers";
 
 	public void SetFiltered(string state) => host.SetFiltered(Enum.Parse<CanvasState>(state));
 
@@ -163,7 +163,7 @@ public sealed class DataItemViewModel : TreeItemViewModel
 	public DataItemKind Kind { get; }
 
 	/// <summary>
-	/// The name of the list the item is in, such as "layers" or "shapes".
+	/// The name of the list the item is in, such as "portraitLayers" or "shapes".
 	/// </summary>
 	public string ListName { get; }
 

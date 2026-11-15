@@ -346,7 +346,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		CloseStatus();
 		if (m_villagers is null)
 		{
-			var villagers = new VillagersViewModel(World.Families, IsDeveloper, World.GameData.PortraitRenderer, World.GameData.Schedules, World.GameData.Families, World.GameData.Calendar);
+			var villagers = new VillagersViewModel(World.Families, IsDeveloper, World.GameData.PortraitRenderer, World.GameData.Schedules, World.GameData.Relationships, World.GameData.Calendar);
 			villagers.CloseRequested += OnVillagersCloseRequested;
 			villagers.TravelRequested += OnVillagersTravelRequested;
 			villagers.ExamineRequested += OnExamineRequested;

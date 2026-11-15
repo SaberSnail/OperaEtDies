@@ -11,10 +11,10 @@ public static class DataValidation
 	/// Checks that a list has items, and that each item has a unique id and, unless there's no way to get a title, a
 	/// title.
 	/// </summary>
-	public static IEnumerable<string> ValidateIdentifiedItems<T>(string listName, IReadOnlyList<T?> items, Func<T, string?> getId, Func<T, string?>? getTitle)
+	public static IEnumerable<string> ValidateIdentifiedItems<T>(string listName, IReadOnlyList<T?> items, Func<T, string?> getId, Func<T, string?>? getTitle, bool allowEmpty = false)
 		where T : class
 	{
-		if (items.Count == 0)
+		if (items.Count == 0 && !allowEmpty)
 		{
 			yield return OurResources.DataListEmpty.FormatCurrentCulture(listName);
 			yield break;
@@ -92,5 +92,19 @@ public static class DataValidation
 			else if (string.IsNullOrWhiteSpace(value.Value))
 				yield return OurResources.WeightedValueMissing.FormatCurrentCulture(listName);
 		}
+	}
+
+	/// <summary>
+	/// Checks the roles of the items in a list: each role must be one of the allowed roles, and at most one item can have
+	/// each role.
+	/// </summary>
+	public static IEnumerable<string> ValidateRoles<T>(string listName, IEnumerable<T> items, Func<T, string> getId, Func<T, string?> getRole, IReadOnlyList<string> allowedRoles)
+	{
+		var withRoles = items.Where(x => getRole(x) is not null).ToList();
+		var allowed = string.Join(", ", allowedRoles.Select(x => $"\"{x}\""));
+		foreach (var item in withRoles.Where(x => !allowedRoles.Contains(getRole(x)!, StringComparer.Ordinal)))
+			yield return OurResources.RoleUnknown.FormatCurrentCulture($"{listName}[{getId(item)}]", getRole(item), allowed);
+		foreach (var group in withRoles.GroupBy(x => getRole(x)!, StringComparer.Ordinal).Where(x => x.Count() > 1))
+			yield return OurResources.RoleDuplicate.FormatCurrentCulture(listName, group.Key, string.Join(", ", group.Select(x => $"\"{getId(x)}\"")));
 	}
 }

@@ -62,8 +62,8 @@ public sealed class SchedulerTests
 		world.AdvanceTime(calendar.GetStartOfDay(world.Time) + calendar.CreateTimeOffset(0, 19, 0) - world.Time);
 
 		Assert.That(workers, Is.Not.Empty);
-		Assert.That(workers.All(x => x.GetProgress(work) <= work.Minutes), Is.True);
-		Assert.That(workers.Count(x => x.GetProgress(work) == work.Minutes), Is.GreaterThanOrEqualTo(workers.Count * 2 / 3));
+		Assert.That(workers.All(x => x.GetProgress(work) <= work.GetQuotaMinutes(1)), Is.True);
+		Assert.That(workers.Count(x => x.GetProgress(work) == work.GetQuotaMinutes(1)), Is.GreaterThanOrEqualTo(workers.Count * 2 / 3));
 
 		var workOnSeventhDay = 0;
 		world.AdvanceTime(calendar.CreateTimeOffset(5, 6, 0));
@@ -315,7 +315,7 @@ public sealed class SchedulerTests
 		var dayWorker = testWorld.AddPerson(TestData.CreateTraits(gameData, "male", "John", "Smith", "smith", "tall", "slim", 40), home, workplace);
 		var nightWorker = testWorld.AddPerson(TestData.CreateTraits(gameData, "male", "Tom", "Smith", "smith", "tall", "slim", 40), home);
 		var smith = gameData.Professions.Get("smith");
-		var lateSmith = new Profession { Id = smith.Id, Title = smith.Title, Wealth = smith.Wealth, WorkHours = new WorkHours { Start = 14, End = 24 } };
+		var lateSmith = new Profession { Id = smith.Id, Title = smith.Title, Business = new ProfessionBusiness { Wealth = smith.Wealth!.Value, Hours = new Hours { Start = 14, End = 24 } } };
 		testWorld.Objects.Create(id => new Business(id, lateSmith, nightWorker, [], workplace));
 		var work = GetNeed(world, "work");
 		var day = gameData.Calendar.GetStartOfDay(testWorld.Time);

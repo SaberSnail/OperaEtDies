@@ -1258,24 +1258,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The quarter &quot;{0}&quot; has houses, so it must have a &quot;wealth&quot;..
-        /// </summary>
-        public static string QuarterHousesWithoutWealth {
-            get {
-                return ResourceManager.GetString("QuarterHousesWithoutWealth", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The quarter &quot;{0}&quot; has a &quot;wealth&quot;, but it has no houses..
-        /// </summary>
-        public static string QuarterWealthWithoutHouses {
-            get {
-                return ResourceManager.GetString("QuarterWealthWithoutHouses", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to There must be at least one house with a &quot;wealth&quot; of &quot;{0}&quot;..
         /// </summary>
         public static string HouseWealthMissing {
@@ -1311,24 +1293,6 @@ namespace OperaEtDies {
             }
         }
 
-        /// <summary>
-        ///   Looks up a localized string similar to The location &quot;{0}&quot; is for the profession &quot;{1}&quot;, which isn't in Professions.json..
-        /// </summary>
-        public static string BusinessProfessionUnknown {
-            get {
-                return ResourceManager.GetString("BusinessProfessionUnknown", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to The profession &quot;{0}&quot; must have at least one location in &quot;businesses&quot; in Locations.json, unless it works from home..
-        /// </summary>
-        public static string ProfessionLocationsMissing {
-            get {
-                return ResourceManager.GetString("ProfessionLocationsMissing", resourceCulture);
-            }
-        }
-        
         /// <summary>
         ///   Looks up a localized string similar to &quot;{0}&quot; is &quot;{1}&quot;, but there is no {2} character property with that id..
         /// </summary>
@@ -1407,15 +1371,6 @@ namespace OperaEtDies {
         public static string FamilyHeadAgeOutOfRange {
             get {
                 return ResourceManager.GetString("FamilyHeadAgeOutOfRange", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The profession &quot;{0}&quot; is the &quot;{1}&quot; value in Families.json, which isn't a business, so it can't have business settings..
-        /// </summary>
-        public static string ProfessionNotBusiness {
-            get {
-                return ResourceManager.GetString("ProfessionNotBusiness", resourceCulture);
             }
         }
         
@@ -1617,51 +1572,6 @@ namespace OperaEtDies {
             }
         }
 
-        /// <summary>
-        ///   Looks up a localized string similar to The property &quot;{0}&quot; takes its values from &quot;{1}&quot;, but the only source is &quot;{2}&quot;..
-        /// </summary>
-        public static string ValuesFromUnknown {
-            get {
-                return ResourceManager.GetString("ValuesFromUnknown", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The property &quot;{0}&quot; can't have both &quot;values&quot; and &quot;valuesFrom&quot;..
-        /// </summary>
-        public static string ValuesAndValuesFrom {
-            get {
-                return ResourceManager.GetString("ValuesAndValuesFrom", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The property &quot;{0}&quot; takes its values from &quot;{1}&quot;, which didn't load..
-        /// </summary>
-        public static string ValuesFromNotLoaded {
-            get {
-                return ResourceManager.GetString("ValuesFromNotLoaded", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The profession property &quot;{0}&quot; must have &quot;valuesFrom&quot;: &quot;{1}&quot;..
-        /// </summary>
-        public static string FamilyProfessionValuesNotFromProfessions {
-            get {
-                return ResourceManager.GetString("FamilyProfessionValuesNotFromProfessions", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The profession &quot;{0}&quot; is a business, so it needs a &quot;wealth&quot;..
-        /// </summary>
-        public static string ProfessionWealthMissing {
-            get {
-                return ResourceManager.GetString("ProfessionWealthMissing", resourceCulture);
-            }
-        }
-        
         /// <summary>
         ///   Looks up a localized string similar to The profession &quot;{0}&quot; has defaults for &quot;{1}&quot;, but that isn't a string property whose defaults are keyed by &quot;{2}&quot; without their own &quot;valuesByKey&quot;..
         /// </summary>
@@ -2491,29 +2401,11 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to "start.need" is "{0}", but it must be the id of a level need..
-        /// </summary>
-        public static string ScheduleStartNeedInvalid {
-            get {
-                return ResourceManager.GetString("ScheduleStartNeedInvalid", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to "{0}" is {1}, but it must be from 0 to {2}..
         /// </summary>
         public static string ScheduleHourInvalid {
             get {
                 return ResourceManager.GetString("ScheduleHourInvalid", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to "{0}.quarterKinds" can only be set when the place is "quarter"..
-        /// </summary>
-        public static string ScheduleQuarterKindsNotAllowed {
-            get {
-                return ResourceManager.GetString("ScheduleQuarterKindsNotAllowed", resourceCulture);
             }
         }
         
@@ -2608,15 +2500,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The need "{0}" runs from hour {1} to hour {2}, but its hours must be different, from 0 to 23..
-        /// </summary>
-        public static string NeedLevelHoursInvalid {
-            get {
-                return ResourceManager.GetString("NeedLevelHoursInvalid", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Wait.
         /// </summary>
         public static string Wait {
@@ -2689,15 +2572,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The need "{0}" can measure its quota in time ("minutes", "minutesPerMember", and "shift") or in trips ("visits", "visitsPerMember", and "visitMinutes"), but not both..
-        /// </summary>
-        public static string NeedQuotaMixed {
-            get {
-                return ResourceManager.GetString("NeedQuotaMixed", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to The need "{0}" has an amount for each family member, but it isn't shared by the family..
         /// </summary>
         public static string NeedPerMemberNotShared {
@@ -2707,38 +2581,11 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The need "{0}" has time at home after each trip, but it doesn't return home..
-        /// </summary>
-        public static string NeedHomeMinutesWithoutReturn {
-            get {
-                return ResourceManager.GetString("NeedHomeMinutesWithoutReturn", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to The need "{0}" is measured in trips, so each trip must take at least a minute at the place for one person..
         /// </summary>
         public static string NeedVisitMinutesNotPositive {
             get {
                 return ResourceManager.GetString("NeedVisitMinutesNotPositive", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The need "{0}" has "overdueUrgency", but only quota needs measured by the week with a list of days can have it..
-        /// </summary>
-        public static string NeedOverdueNotAllowed {
-            get {
-                return ResourceManager.GetString("NeedOverdueNotAllowed", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The need "{0}" has "homeActivity", but no time at home after its trips..
-        /// </summary>
-        public static string NeedHomeActivityWithoutHomeMinutes {
-            get {
-                return ResourceManager.GetString("NeedHomeActivityWithoutHomeMinutes", resourceCulture);
             }
         }
         
@@ -3328,15 +3175,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The talking setting "socializeNeed" is "{0}", but it must be the id of a level need..
-        /// </summary>
-        public static string ScheduleSocializeNeedInvalid {
-            get {
-                return ResourceManager.GetString("ScheduleSocializeNeedInvalid", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Talk.
         /// </summary>
         public static string TalkToPerson {
@@ -3760,20 +3598,263 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The need "{0}" runs from hour {1} to hour {2}, but it must start at an hour from 0 to 23 and end at a different hour from 1 to 24. Ending before it starts means running past midnight..
+        ///   Looks up a localized string similar to The file must contain an object whose properties are sections of the data..
         /// </summary>
-        public static string NeedHoursInvalid {
+        public static string DataFileNotObject {
             get {
-                return ResourceManager.GetString("NeedHoursInvalid", resourceCulture);
+                return ResourceManager.GetString("DataFileNotObject", resourceCulture);
             }
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The work hours of the profession "{0}" are from {1} to {2}, but they must start at an hour from 0 to 23 and end at a different hour from 1 to 24. Ending before they start means working past midnight..
+        ///   Looks up a localized string similar to The data folder "{0}" doesn't exist..
         /// </summary>
-        public static string ProfessionWorkHoursInvalid {
+        public static string DataFolderNotFound {
             get {
-                return ResourceManager.GetString("ProfessionWorkHoursInvalid", resourceCulture);
+                return ResourceManager.GetString("DataFolderNotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The file must contain a list of operations, or an object holding data..
+        /// </summary>
+        public static string ModFileInvalid {
+            get {
+                return ResourceManager.GetString("ModFileInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is already the id of an item in "{1}", in {2}..
+        /// </summary>
+        public static string DataIdDefinedTwice {
+            get {
+                return ResourceManager.GetString("DataIdDefinedTwice", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is already set in {1}..
+        /// </summary>
+        public static string DataSettingDefinedTwice {
+            get {
+                return ResourceManager.GetString("DataSettingDefinedTwice", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is a list in one file and an object in another..
+        /// </summary>
+        public static string DataSectionKindMismatch {
+            get {
+                return ResourceManager.GetString("DataSectionKindMismatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" must be a list or an object..
+        /// </summary>
+        public static string DataSectionInvalid {
+            get {
+                return ResourceManager.GetString("DataSectionInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The data has no "{0}" section..
+        /// </summary>
+        public static string DataSectionMissing {
+            get {
+                return ResourceManager.GetString("DataSectionMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Expected a string or a list of strings..
+        /// </summary>
+        public static string DataStringListInvalid {
+            get {
+                return ResourceManager.GetString("DataStringListInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Expected a number, or an object with "base", "perMember", or both..
+        /// </summary>
+        public static string FamilyAmountInvalid {
+            get {
+                return ResourceManager.GetString("FamilyAmountInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Expected "home", "workplace", or an object with "quarterKinds"..
+        /// </summary>
+        public static string SchedulePlaceInvalid {
+            get {
+                return ResourceManager.GetString("SchedulePlaceInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is {1}, but it must be a whole number..
+        /// </summary>
+        public static string DataNumberNotWhole {
+            get {
+                return ResourceManager.GetString("DataNumberNotWhole", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" runs from hour {1} to hour {2}, but it must start at an hour from 0 to 23 and end at a different hour from 1 to 24. Ending before it starts means running past midnight..
+        /// </summary>
+        public static string HoursInvalid {
+            get {
+                return ResourceManager.GetString("HoursInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" isn't allowed here. Only "start" and "end" are..
+        /// </summary>
+        public static string HoursSettingNotAllowed {
+            get {
+                return ResourceManager.GetString("HoursSettingNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" must have exactly one of "level" and "quota"..
+        /// </summary>
+        public static string NeedKindInvalid {
+            get {
+                return ResourceManager.GetString("NeedKindInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The quota of the need "{0}" must have exactly one of "time" and "trips"..
+        /// </summary>
+        public static string NeedQuotaMeasureInvalid {
+            get {
+                return ResourceManager.GetString("NeedQuotaMeasureInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" has the role "{1}", but the only roles allowed there are {2}..
+        /// </summary>
+        public static string RoleUnknown {
+            get {
+                return ResourceManager.GetString("RoleUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to More than one item in "{0}" has the role "{1}": {2}..
+        /// </summary>
+        public static string RoleDuplicate {
+            get {
+                return ResourceManager.GetString("RoleDuplicate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to One item in "{0}" must have the role "{1}"..
+        /// </summary>
+        public static string RoleMissing {
+            get {
+                return ResourceManager.GetString("RoleMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" has the role "{1}", so it must be a {2}..
+        /// </summary>
+        public static string RoleWrongType {
+            get {
+                return ResourceManager.GetString("RoleWrongType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" has "quota.overdueUrgency", but only quota needs with a "period" of "week" and "hours.days" can have it..
+        /// </summary>
+        public static string NeedOverdueNotAllowed {
+            get {
+                return ResourceManager.GetString("NeedOverdueNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" has time at home after each trip, but it doesn't return home..
+        /// </summary>
+        public static string NeedHomeMinutesWithoutReturn {
+            get {
+                return ResourceManager.GetString("NeedHomeMinutesWithoutReturn", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The profession "{0}" has the "{1}" role, so it can't have "business"..
+        /// </summary>
+        public static string ProfessionNotBusiness {
+            get {
+                return ResourceManager.GetString("ProfessionNotBusiness", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The profession "{0}" isn't a business, so it must have "player" set to false, since the player always runs a business..
+        /// </summary>
+        public static string ProfessionPlayerNotBusiness {
+            get {
+                return ResourceManager.GetString("ProfessionPlayerNotBusiness", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The location "{0}" is for the profession "{1}", which isn't a business in "professions"..
+        /// </summary>
+        public static string BusinessProfessionUnknown {
+            get {
+                return ResourceManager.GetString("BusinessProfessionUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The profession "{0}" must have at least one location in "businesses", unless it works from home..
+        /// </summary>
+        public static string ProfessionLocationsMissing {
+            get {
+                return ResourceManager.GetString("ProfessionLocationsMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" has the role "{1}", but it can't have a role..
+        /// </summary>
+        public static string RoleNotAllowed {
+            get {
+                return ResourceManager.GetString("RoleNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The property "{0}" has the profession role, so its values are the professions and it can't have "values"..
+        /// </summary>
+        public static string ProfessionPropertyValuesNotAllowed {
+            get {
+                return ResourceManager.GetString("ProfessionPropertyValuesNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" has the group "{1}", but that's the id of a value of "{2}"..
+        /// </summary>
+        public static string ValueGroupIsValue {
+            get {
+                return ResourceManager.GetString("ValueGroupIsValue", resourceCulture);
             }
         }
     }

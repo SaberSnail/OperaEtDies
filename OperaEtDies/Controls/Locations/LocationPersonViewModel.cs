@@ -23,7 +23,7 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	/// everyone. With the developer calendar, developers are shown where
 	/// everyone but the player is going and why.
 	/// </summary>
-	public LocationPersonViewModel(Person person, PortraitRenderer? portraitRenderer, ScheduleSettings? schedules = null, FamilySettings? labelRelations = null,
+	public LocationPersonViewModel(Person person, PortraitRenderer? portraitRenderer, ScheduleSettings? schedules = null, RelationshipSettings? labelRelations = null,
 		Action<Person>? goTo = null, Action<Person>? toggleFollow = null, GameCalendar? developerCalendar = null, Action<Person>? examine = null, Action<Person>? talk = null)
 	{
 		Person = person;

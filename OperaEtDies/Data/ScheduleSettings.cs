@@ -1,41 +1,45 @@
-using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using GoldenAnvil.Utility;
 using OperaEtDies.Utility.Random;
 
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// How people decide what to do, loaded from Schedules.json. Whenever someone finishes what they were doing, they
-/// choose their next goal from how urgent each of their needs is.
+/// How people decide what to do, from the schedules, needs, urgency factors, and travel time factors in the data.
+/// Whenever someone finishes what they were doing, they choose their next goal from how urgent each of their needs is.
 /// </summary>
-public sealed class ScheduleSettings : IValidatedData
+public sealed class ScheduleSettings
 {
-	public const string FileName = "Schedules.json";
+	/// <summary>
+	/// The name of the data section the settings are read from.
+	/// </summary>
+	public const string SectionName = "schedules";
 
 	/// <summary>
-	/// Settings with no needs, where people stay at home and wake at six, for game data created without a schedule file.
+	/// The role of the need met by sleeping, which people are meeting at the start of a new game.
+	/// </summary>
+	public const string SleepRole = "sleep";
+
+	/// <summary>
+	/// The role of the level need met by socializing with friends.
+	/// </summary>
+	public const string SocializingRole = "socializing";
+
+	/// <summary>
+	/// Settings with no needs, where people stay at home and wake at six, for game data created without schedules.
 	/// </summary>
 	public static ScheduleSettings None { get; } = new()
 	{
 		MinimumUrgency = 0,
 		UrgencyPower = 1,
 		SightingHours = 24,
-		Sleep = new SleepSettings { NapBelow = 0, NapMinutes = new IntegerRange { Minimum = 30, Maximum = 30, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } }, BedtimeLead = 60 },
-		Talking = new TalkingSettings { RefuseUrgency = 100, WakeLevel = 0, AskAboutMinutes = 1, AskDoingMinutes = 5, SocializeMinutes = 30 },
-		Socializing = new SocializingSettings { ChatUrgency = 100, ChatGoalWeight = 1, WakeUrgency = 100, NearMinutes = 15, SeekFactor = 1, SeekMinutes = 15, RecentHours = 12, AskPlayerAgainHours = 4, Clues = new SeekClues { Workplace = 1, Home = 1, Sighting = 1, Gathering = 1 } },
-		Needs = [],
-		Idle = new IdleSettings { Place = NeedPlace.Home, Minutes = new IntegerRange { Minimum = 60, Maximum = 60, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } } },
-		Start = new ScheduleStart { Need = "", WakeHour = 6, WakeMinutes = new IntegerRange { Minimum = 0, Maximum = 0, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } } },
+		Sleep = new SleepSettings { NapBelow = 0, NapMinutes = new IntegerRange { Minimum = 30, Maximum = 30 }, BedtimeLead = 60 },
+		Talking = new TalkingSettings { RefuseUrgency = 100, WakeLevel = 0, AskAboutMinutes = 1, AskDoingMinutes = 5 },
+		Socializing = new SocializingSettings { ChatMinutes = 30, ChatUrgency = 100, ChatGoalWeight = 1, WakeUrgency = 100, NearMinutes = 15, SeekFactor = 1, SeekMinutes = 15, RecentHours = 12, AskPlayerAgainHours = 4, Clues = new SeekClues { Workplace = 1, Home = 1, Sighting = 1, Gathering = 1 } },
+		Idle = new IdleSettings { Place = new SchedulePlace { Kind = NeedPlace.Home }, Minutes = new IntegerRange { Minimum = 60, Maximum = 60 } },
+		Start = new ScheduleStart { WakeHour = 6, WakeMinutes = new IntegerRange { Minimum = 0, Maximum = 0 } },
 	};
-
-	public static DataLoadResult<ScheduleSettings> Load(string dataDirectory) => Load(dataDirectory, []);
-
-	/// <summary>
-	/// Loads the file from the data folder, with the changes from the mod folders applied in order.
-	/// </summary>
-	public static DataLoadResult<ScheduleSettings> Load(string dataDirectory, IReadOnlyList<string> modDirectories) =>
-		JsonDataLoader.Load<ScheduleSettings>(Path.Combine(dataDirectory, FileName), modDirectories, []);
 
 	/// <summary>
 	/// Needs less urgent than this aren't considered when choosing a goal.
@@ -53,7 +57,7 @@ public sealed class ScheduleSettings : IValidatedData
 	public required int SightingHours { get; init; }
 
 	/// <summary>
-	/// How naps work, and how people go to bed in time for work. The sleep need is the start need.
+	/// How naps work, and how people go to bed in time for work.
 	/// </summary>
 	public required SleepSettings Sleep { get; init; }
 
@@ -66,6 +70,50 @@ public sealed class ScheduleSettings : IValidatedData
 	/// How people stop to chat with friends they meet, and seek them out when they're lonely.
 	/// </summary>
 	public required SocializingSettings Socializing { get; init; }
+
+	/// <summary>
+	/// What people do when none of their needs are urgent enough.
+	/// </summary>
+	public required IdleSettings Idle { get; init; }
+
+	/// <summary>
+	/// How everyone starts a new game.
+	/// </summary>
+	public required ScheduleStart Start { get; init; }
+
+	/// <summary>
+	/// The needs, from the needs section of the data.
+	/// </summary>
+	[JsonIgnore]
+	public IReadOnlyList<Need> Needs { get; internal set; } = [];
+
+	/// <summary>
+	/// Factors that make some people slower to travel, from the travel time factors section of the data. Every factor
+	/// whose condition a person meets applies.
+	/// </summary>
+	[JsonIgnore]
+	public IReadOnlyList<TravelTimeFactor> TravelTimeFactors { get; internal set; } = [];
+
+	/// <summary>
+	/// Factors that make some needs more or less urgent for people who meet a condition, from the urgency factors section
+	/// of the data. Every factor whose condition a person meets applies to its needs.
+	/// </summary>
+	[JsonIgnore]
+	public IReadOnlyList<UrgencyFactor> UrgencyFactors { get; internal set; } = [];
+
+	/// <summary>
+	/// The id of the need met by sleeping, or null if there's none.
+	/// </summary>
+	[JsonIgnore]
+	public string? SleepNeed => FindRole(SleepRole)?.Id;
+
+	/// <summary>
+	/// The id of the level need met by socializing with a friend, or null if there's none.
+	/// </summary>
+	[JsonIgnore]
+	public string? SocializeNeed => FindRole(SocializingRole)?.Id;
+
+	private Need? FindRole(string role) => Needs.FirstOrDefault(x => x?.Role == role);
 
 	/// <summary>
 	/// Whether a need this urgent is considered when choosing a goal.
@@ -84,147 +132,169 @@ public sealed class ScheduleSettings : IValidatedData
 	/// </summary>
 	public double GetGoalWeight(Need need, double urgency) => GetGoalWeight(GetGoalUrgency(need, urgency));
 
-	private double GetGoalUrgency(Need need, double urgency) => need.Id == Talking.SocializeNeed ? urgency * Socializing.SeekFactor : urgency;
+	private double GetGoalUrgency(Need need, double urgency) => need.Role == SocializingRole ? urgency * Socializing.SeekFactor : urgency;
 
 	/// <summary>
 	/// How heavily a need this urgent weighs when choosing a goal at random among the candidates.
 	/// </summary>
 	public double GetGoalWeight(double urgency) => Math.Pow(urgency, UrgencyPower);
 
-	public required IReadOnlyList<Need> Needs { get; init; }
-
-	/// <summary>
-	/// What people do when none of their needs are urgent enough.
-	/// </summary>
-	public required IdleSettings Idle { get; init; }
-
-	/// <summary>
-	/// How everyone starts a new game.
-	/// </summary>
-	public required ScheduleStart Start { get; init; }
-
-	/// <summary>
-	/// Factors that make some people slower to travel. Every factor whose condition a person meets applies.
-	/// </summary>
-	public IReadOnlyList<TravelTimeFactor> TravelTimeFactors { get; init; } = [];
-
-	/// <summary>
-	/// Factors that make some needs more or less urgent for people who meet a condition, such as household chores for a
-	/// homemaker. Every factor whose condition a person meets applies to its needs.
-	/// </summary>
-	public IReadOnlyList<UrgencyFactor> UrgencyFactors { get; init; } = [];
-
 	public IEnumerable<string> Validate()
 	{
+		const string path = SectionName;
 		var errors = new List<string>();
 		if (MinimumUrgency < 0)
-			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("minimumUrgency", MinimumUrgency, 0));
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.minimumUrgency", MinimumUrgency, 0));
 		if (!(UrgencyPower > 0))
-			errors.Add(OurResources.DataNumberNotPositive.FormatCurrentCulture("urgencyPower", UrgencyPower));
+			errors.Add(OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.urgencyPower", UrgencyPower));
 
-		errors.AddRange(DataValidation.ValidateIdentifiedItems("needs", Needs, x => x.Id, x => x.Title));
+		if (Needs.Count != 0)
+			errors.AddRange(DataValidation.ValidateIdentifiedItems("needs", Needs, x => x.Id, x => x.Title));
 		var needs = Needs.OfType<Need>().Where(x => !string.IsNullOrWhiteSpace(x.Id)).ToList();
 		var needIds = needs.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
 		foreach (var need in needs)
 			errors.AddRange(need.Validate(needIds));
 
+		// The engine finds the sleep and socializing needs by their roles.
+		errors.AddRange(DataValidation.ValidateRoles("needs", needs, x => x.Id, x => x.Role, [SleepRole, SocializingRole]));
+		if (needs.Count != 0 && FindRole(SleepRole) is null)
+			errors.Add(OurResources.RoleMissing.FormatCurrentCulture("needs", SleepRole));
+		foreach (var need in needs.Where(x => x.Role is SleepRole or SocializingRole && x.Kind != NeedKind.Level))
+			errors.Add(OurResources.RoleWrongType.FormatCurrentCulture($"needs[{need.Id}]", need.Role, "level need"));
+
 		if (SightingHours < 1)
-			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("sightingHours", SightingHours, 1));
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.sightingHours", SightingHours, 1));
 		if (!(Talking.RefuseUrgency >= 0) || !double.IsFinite(Talking.RefuseUrgency))
-			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("talking.refuseUrgency", Talking.RefuseUrgency, 0));
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.talking.refuseUrgency", Talking.RefuseUrgency, 0));
 		if (!(Talking.WakeLevel >= 0))
-			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("talking.wakeLevel", Talking.WakeLevel, 0));
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.talking.wakeLevel", Talking.WakeLevel, 0));
 		else if (Talking.WakeLevel > Need.MaximumLevel)
-			errors.Add(OurResources.DataNumberTooLarge.FormatCurrentCulture("talking.wakeLevel", Talking.WakeLevel, Need.MaximumLevel));
-		foreach (var (name, minutes) in new[] { ("talking.askAboutMinutes", Talking.AskAboutMinutes), ("talking.askDoingMinutes", Talking.AskDoingMinutes), ("talking.socializeMinutes", Talking.SocializeMinutes) })
+			errors.Add(OurResources.DataNumberTooLarge.FormatCurrentCulture($"{path}.talking.wakeLevel", Talking.WakeLevel, Need.MaximumLevel));
+		foreach (var (name, minutes) in new[] { ("talking.askAboutMinutes", Talking.AskAboutMinutes), ("talking.askDoingMinutes", Talking.AskDoingMinutes) })
 		{
 			if (minutes < 1)
-				errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture(name, minutes, 1));
+				errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.{name}", minutes, 1));
 		}
 		errors.AddRange(Socializing.Validate());
 		errors.AddRange(Sleep.Validate());
-		if (Talking.SocializeNeed is { } socializeNeed && needs.FirstOrDefault(x => x.Id == socializeNeed) is not { Kind: NeedKind.Level })
-			errors.Add(OurResources.ScheduleSocializeNeedInvalid.FormatCurrentCulture(socializeNeed));
 
-		errors.AddRange(ValidatePlace("idle", Idle.Place, Idle.QuarterKinds));
+		errors.AddRange(Idle.Place.Validate($"{path}.idle.place"));
 		if (Idle.Activity is not null && string.IsNullOrWhiteSpace(Idle.Activity))
-			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("idle.activity"));
-		errors.AddRange(CharacterData.ValidateRange("idle.minutes", Idle.Minutes));
+			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture($"{path}.idle.activity"));
+		errors.AddRange(CharacterData.ValidateRange($"{path}.idle.minutes", Idle.Minutes));
 		if (Idle.Minutes.Minimum < 1)
-			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("idle.minutes.minimum", Idle.Minutes.Minimum, 1));
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.idle.minutes.minimum", Idle.Minutes.Minimum, 1));
 
-		if (needs.FirstOrDefault(x => x.Id == Start.Need) is not { Kind: NeedKind.Level })
-			errors.Add(OurResources.ScheduleStartNeedInvalid.FormatCurrentCulture(Start.Need));
 		if (Start.WakeHour is < 0 or > 23)
-			errors.Add(OurResources.ScheduleHourInvalid.FormatCurrentCulture("start.wakeHour", Start.WakeHour, 23));
-		errors.AddRange(CharacterData.ValidateRange("start.wakeMinutes", Start.WakeMinutes));
+			errors.Add(OurResources.ScheduleHourInvalid.FormatCurrentCulture($"{path}.start.wakeHour", Start.WakeHour, 23));
+		errors.AddRange(CharacterData.ValidateRange($"{path}.start.wakeMinutes", Start.WakeMinutes));
 
-		for (var index = 0; index < TravelTimeFactors.Count; index++)
-		{
-			if (TravelTimeFactors[index] is not { } factor)
-				errors.Add(OurResources.DataListItemEmpty.FormatCurrentCulture("travelTimeFactors"));
-			else if (!(factor.Factor > 0))
-				errors.Add(OurResources.DataNumberNotPositive.FormatCurrentCulture($"travelTimeFactors[{index}].factor", factor.Factor));
-		}
+		errors.AddRange(DataValidation.ValidateIdentifiedItems("travelTimeFactors", TravelTimeFactors, x => x.Id, null, allowEmpty: true));
+		foreach (var factor in TravelTimeFactors.OfType<TravelTimeFactor>().Where(x => !(x.Factor > 0)))
+			errors.Add(OurResources.DataNumberNotPositive.FormatCurrentCulture($"travelTimeFactors[{factor.Id}].factor", factor.Factor));
 
-		for (var index = 0; index < UrgencyFactors.Count; index++)
+		errors.AddRange(DataValidation.ValidateIdentifiedItems("urgencyFactors", UrgencyFactors, x => x.Id, null, allowEmpty: true));
+		foreach (var factor in UrgencyFactors.OfType<UrgencyFactor>())
 		{
-			var path = $"urgencyFactors[{index}]";
-			if (UrgencyFactors[index] is not { } factor)
-			{
-				errors.Add(OurResources.DataListItemEmpty.FormatCurrentCulture("urgencyFactors"));
-			}
-			else
-			{
-				if (!(factor.Factor > 0))
-					errors.Add(OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.factor", factor.Factor));
-				errors.AddRange(DataValidation.ValidateStrings($"{path}.needs", factor.Needs));
-				errors.AddRange(factor.Needs.Where(x => x is not null && !needIds.Contains(x)).Select(x => OurResources.DataIdUnknown.FormatCurrentCulture($"{path}.needs", x, "needs")));
-			}
+			var factorPath = $"urgencyFactors[{factor.Id}]";
+			if (!(factor.Factor > 0))
+				errors.Add(OurResources.DataNumberNotPositive.FormatCurrentCulture($"{factorPath}.factor", factor.Factor));
+			errors.AddRange(DataValidation.ValidateStrings($"{factorPath}.needs", factor.Needs));
+			errors.AddRange(factor.Needs.Where(x => x is not null && !needIds.Contains(x)).Select(x => OurResources.DataIdUnknown.FormatCurrentCulture($"{factorPath}.needs", x, "needs")));
 		}
 
 		return errors;
 	}
 
 	/// <summary>
-	/// Gets the conditions in the file, with where each one is, for checking against the character properties.
+	/// Gets the conditions in the schedules, with where each one is, for checking against the character properties.
 	/// </summary>
 	internal IEnumerable<(string Path, CharacterCondition Condition)> GetConditions() =>
 		Needs.OfType<Need>().Where(x => x.When is not null).Select(x => ($"needs[{x.Id}].when", x.When!))
-			.Concat(TravelTimeFactors.OfType<TravelTimeFactor>().Select((x, index) => ($"travelTimeFactors[{index}].when", x.When)))
-			.Concat(UrgencyFactors.OfType<UrgencyFactor>().Select((x, index) => ($"urgencyFactors[{index}].when", x.When)));
+			.Concat(TravelTimeFactors.OfType<TravelTimeFactor>().Select(x => ($"travelTimeFactors[{x.Id}].when", x.When)))
+			.Concat(UrgencyFactors.OfType<UrgencyFactor>().Select(x => ($"urgencyFactors[{x.Id}].when", x.When)));
 
 	/// <summary>
-	/// Gets the kinds of quarter the file names, with where each one is, for checking against Locations.json.
+	/// Gets the kinds of quarter the schedules name, with where each one is, for checking against the quarter kinds.
 	/// </summary>
 	internal IEnumerable<(string Path, string QuarterKind)> GetQuarterKinds() =>
-		Needs.OfType<Need>().SelectMany(need => (need.QuarterKinds ?? []).OfType<QuarterChoice>().Select(x => ($"needs[{need.Id}].quarterKinds", x.QuarterKind)))
-			.Concat((Idle.QuarterKinds ?? []).OfType<QuarterChoice>().Select(x => ("idle.quarterKinds", x.QuarterKind)));
+		Needs.OfType<Need>().SelectMany(need => (need.QuarterKinds ?? []).OfType<QuarterChoice>().Select(x => ($"needs[{need.Id}].place.quarterKinds", x.QuarterKind)))
+			.Concat((Idle.Place.QuarterKinds ?? []).OfType<QuarterChoice>().Select(x => ($"{SectionName}.idle.place.quarterKinds", x.QuarterKind)));
 
 	/// <summary>
-	/// Gets the days of the week the file names, with where each one is, for checking against Calendar.json.
+	/// Gets the days of the week the schedules name, with where each one is, for checking against the calendar.
 	/// </summary>
 	internal IEnumerable<(string Path, string Day)> GetDays() =>
-		Needs.OfType<Need>().SelectMany(need => (need.Days ?? []).Select(x => ($"needs[{need.Id}].days", x)));
+		Needs.OfType<Need>().SelectMany(need => (need.Days ?? []).Select(x => ($"needs[{need.Id}].hours.days", x)));
+}
 
-	internal static IEnumerable<string> ValidatePlace(string path, NeedPlace place, IReadOnlyList<QuarterChoice>? quarterKinds)
+/// <summary>
+/// Where a need is met, or where someone idle waits.
+/// </summary>
+[JsonConverter(typeof(SchedulePlaceConverter))]
+public sealed class SchedulePlace
+{
+	public required NeedPlace Kind { get; init; }
+
+	/// <summary>
+	/// For a quarter, the kinds of quarter it can be, chosen by frequency.
+	/// </summary>
+	public IReadOnlyList<QuarterChoice>? QuarterKinds { get; init; }
+
+	/// <summary>
+	/// For a quarter, whether people go to the nearest quarter of any of its kinds, rather than choosing a kind by frequency.
+	/// </summary>
+	public bool Nearest { get; init; }
+
+	internal IEnumerable<string> Validate(string path)
 	{
-		if (place == NeedPlace.Quarter)
+		if (Kind == NeedPlace.Quarter)
 		{
-			if (quarterKinds is null || quarterKinds.Count == 0)
+			if (QuarterKinds is null || QuarterKinds.Count == 0)
 				yield return OurResources.DataListEmpty.FormatCurrentCulture($"{path}.quarterKinds");
-			else if (quarterKinds.Any(x => x is null || string.IsNullOrWhiteSpace(x.QuarterKind)))
+			else if (QuarterKinds.Any(x => x is null || string.IsNullOrWhiteSpace(x.QuarterKind)))
 				yield return OurResources.DataListItemBlank.FormatCurrentCulture($"{path}.quarterKinds");
-		}
-		else if (quarterKinds is not null)
-		{
-			yield return OurResources.ScheduleQuarterKindsNotAllowed.FormatCurrentCulture(path);
 		}
 	}
 }
 
 /// <summary>
-/// Something people need, which grows more urgent until they do something about it.
+/// An amount that can grow with the size of the family: a base amount, plus an amount for each family member.
+/// </summary>
+[JsonConverter(typeof(FamilyAmountConverter))]
+public sealed class FamilyAmount
+{
+	public double Base { get; init; }
+
+	/// <summary>
+	/// The amount added for each member of the family, for a need shared by the family, or null if there's none.
+	/// </summary>
+	public double? PerMember { get; init; }
+
+	/// <summary>
+	/// Gets the amount for a family with the given number of members (0 for a need that isn't shared).
+	/// </summary>
+	public double GetAmount(int members) => Base + ((PerMember ?? 0) * members);
+
+	internal IEnumerable<string> Validate(string path, bool isWhole)
+	{
+		if (!(Base >= 0) || !double.IsFinite(Base))
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.base", Base, 0);
+		else if (isWhole && Base != Math.Floor(Base))
+			yield return OurResources.DataNumberNotWhole.FormatCurrentCulture($"{path}.base", Base);
+		if (PerMember is { } perMember)
+		{
+			if (!(perMember >= 0) || !double.IsFinite(perMember))
+				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.perMember", perMember, 0);
+			else if (isWhole && perMember != Math.Floor(perMember))
+				yield return OurResources.DataNumberNotWhole.FormatCurrentCulture($"{path}.perMember", perMember);
+		}
+	}
+}
+
+/// <summary>
+/// Something people need, which grows more urgent until they do something about it. A need is either a level need or a
+/// quota need, depending on which of <see cref="Level"/> and <see cref="Quota"/> it has.
 /// </summary>
 public sealed class Need : IIdentified
 {
@@ -237,7 +307,10 @@ public sealed class Need : IIdentified
 
 	public required string Title { get; init; }
 
-	public required NeedKind Kind { get; init; }
+	/// <summary>
+	/// What the engine uses the need for, such as <see cref="ScheduleSettings.SleepRole"/>, or null for none.
+	/// </summary>
+	public string? Role { get; init; }
 
 	/// <summary>
 	/// Who has the need. Without it, everyone does.
@@ -247,12 +320,8 @@ public sealed class Need : IIdentified
 	/// <summary>
 	/// Where the need is met.
 	/// </summary>
-	public required NeedPlace Place { get; init; }
-
-	/// <summary>
-	/// For a need met in a quarter, the kinds of quarter it can be met in, chosen by frequency.
-	/// </summary>
-	public IReadOnlyList<QuarterChoice>? QuarterKinds { get; init; }
+	[JsonPropertyName("place")]
+	public required SchedulePlace PlaceSetting { get; init; }
 
 	/// <summary>
 	/// Whether people are at work while meeting the need.
@@ -260,146 +329,26 @@ public sealed class Need : IIdentified
 	public bool AtWork { get; init; }
 
 	/// <summary>
-	/// For a need met in a quarter, whether people go to the nearest quarter of any of its kinds, rather than choosing a
-	/// kind by frequency, such as for fetching water.
-	/// </summary>
-	public bool Nearest { get; init; }
-
-	/// <summary>
-	/// For a level need, how much it grows each hour, unless it's being met or paused.
-	/// </summary>
-	public double? PerHour { get; init; }
-
-	/// <summary>
-	/// For a level need, how much it drops each hour while it's being met.
-	/// </summary>
-	public double? SatisfyPerHour { get; init; }
-
-	/// <summary>
-	/// For a level need, the needs that stop it growing while they're being met, such as sleep.
-	/// </summary>
-	public IReadOnlyList<string>? PausedBy { get; init; }
-
-	/// <summary>
-	/// For a level need, its level at the start of a new game. Defaults to 0.
-	/// </summary>
-	public IntegerRange? StartLevel { get; init; }
-
-	/// <summary>
-	/// For a level need, the level it starts to become urgent at. Its urgency rises from 0 there to fully urgent at
-	/// <see cref="MaximumLevel"/>. Defaults to 0.
-	/// </summary>
-	public double? UrgentFrom { get; init; }
-
-	/// <summary>
-	/// For a level need, how urgent it must get to wake someone who's asleep, if it's also more urgent than sleep is by then.
-	/// Without it, the need never wakes anyone.
-	/// </summary>
-	public double? WakeUrgency { get; init; }
-
-	/// <summary>
-	/// For a level need, the words for how high it is, shown to the player. Without them, the need isn't shown.
-	/// </summary>
-	public IReadOnlyList<NeedLevel>? Levels { get; init; }
-
-	/// <summary>
-	/// For a quota need, whether its quota is for each day or each week. Defaults to each day.
-	/// </summary>
-	public NeedPeriod Period { get; init; } = NeedPeriod.Day;
-
-	/// <summary>
-	/// For a quota need, the days of the week it can be met on. Defaults to every day.
-	/// </summary>
-	public IReadOnlyList<string>? Days { get; init; }
-
-	/// <summary>
-	/// For a quota need, whether it can be met on special days. Defaults to true.
-	/// </summary>
-	public bool OnSpecialDays { get; init; } = true;
-
-	/// <summary>
-	/// The hour the need can be met from. A quota need must have it. A level need can have it with <see cref="End"/>, and
-	/// its hours run past midnight if it starts after it ends.
-	/// </summary>
-	public int? Start { get; init; }
-
-	/// <summary>
-	/// The hour the need can be met until: up to 24 for a quota need, or up to 23 for a level need.
-	/// </summary>
-	public int? End { get; init; }
-
-	/// <summary>
-	/// For a quota need measured in time, how many minutes it takes each period.
-	/// </summary>
-	public int? Minutes { get; init; }
-
-	/// <summary>
-	/// For a quota need measured in time and shared by the family, the minutes it takes for each family member, added to
-	/// <see cref="Minutes"/>.
-	/// </summary>
-	public int? MinutesPerMember { get; init; }
-
-	/// <summary>
-	/// For a quota need measured in time, the most minutes spent on it at once, before deciding again what to do.
-	/// </summary>
-	public int? Shift { get; init; }
-
-	/// <summary>
-	/// For a quota need measured in trips, how many trips it takes each period.
-	/// </summary>
-	public double? Visits { get; init; }
-
-	/// <summary>
-	/// For a quota need measured in trips and shared by the family, the trips it takes for each family member, added to
-	/// <see cref="Visits"/>. The total is rounded up.
-	/// </summary>
-	public double? VisitsPerMember { get; init; }
-
-	/// <summary>
-	/// For a quota need measured in trips, how many minutes each trip takes once the person gets there.
-	/// </summary>
-	public int? VisitMinutes { get; init; }
-
-	/// <summary>
-	/// For a quota need measured in trips and shared by the family, the minutes each trip takes there for each family
-	/// member, added to <see cref="VisitMinutes"/>.
-	/// </summary>
-	public int? VisitMinutesPerMember { get; init; }
-
-	/// <summary>
-	/// For a quota need measured in trips that returns home, the minutes each trip takes at home afterward, such as hanging
-	/// up washing.
-	/// </summary>
-	public int? HomeMinutes { get; init; }
-
-	/// <summary>
-	/// For a quota need measured in trips that returns home and is shared by the family, the minutes each trip takes at
-	/// home afterward for each family member, added to <see cref="HomeMinutes"/>.
-	/// </summary>
-	public int? HomeMinutesPerMember { get; init; }
-
-	/// <summary>
-	/// For a quota need, how many minutes of spare time are left when it starts to become urgent. It's fully urgent
-	/// when there's just enough time left to meet it.
-	/// </summary>
-	public int? Lead { get; init; }
-
-	/// <summary>
-	/// For a quota need, whether it's met for the whole family by anyone in it, such as shopping.
-	/// </summary>
-	public bool SharedByFamily { get; init; }
-
-	/// <summary>
 	/// Whether people go home after meeting the need, such as to carry water back.
 	/// </summary>
 	public bool ReturnHome { get; init; }
 
 	/// <summary>
-	/// For a quota need measured by the week with a list of days, the urgency it has once those days have passed this week
-	/// and its quota still isn't met. It can then be met on any day for the rest of the week, such as laundry on a missed
-	/// wash day.
+	/// The hours and days the need can be met in. A quota need must have them. A level need can only have a start and an
+	/// end.
 	/// </summary>
-	public double? OverdueUrgency { get; init; }
+	public Hours? Hours { get; init; }
+
+	/// <summary>
+	/// The settings of a level need: a level that grows steadily over time, and drops while it's being met.
+	/// </summary>
+	public LevelNeedSettings? Level { get; init; }
+
+	/// <summary>
+	/// The settings of a quota need: a quota of time or trips to spend each day or week, which grows more urgent as time
+	/// runs out.
+	/// </summary>
+	public QuotaNeedSettings? Quota { get; init; }
 
 	/// <summary>
 	/// What someone meeting the need is shown to be doing, such as "Sleeping". Defaults to the title.
@@ -407,31 +356,96 @@ public sealed class Need : IIdentified
 	public string? Activity { get; init; }
 
 	/// <summary>
-	/// For a quota need measured in trips with time at home afterward, what someone is shown to be doing during that time,
-	/// such as "Hanging out the washing". Defaults to <see cref="Activity"/>.
-	/// </summary>
-	public string? HomeActivity { get; init; }
-
-	/// <summary>
 	/// How the player can spend time on the need where it's met, such as sleeping at home, or null if they can't.
 	/// </summary>
 	public PlayerAction? PlayerAction { get; init; }
 
+	[JsonIgnore]
+	public NeedKind Kind => Level is null ? NeedKind.Quota : NeedKind.Level;
+
+	[JsonIgnore]
+	public NeedPlace Place => PlaceSetting.Kind;
+
+	[JsonIgnore]
+	public IReadOnlyList<QuarterChoice>? QuarterKinds => PlaceSetting.QuarterKinds;
+
+	[JsonIgnore]
+	public bool Nearest => PlaceSetting.Nearest;
+
+	[JsonIgnore]
+	public int? Start => Hours?.Start;
+
+	[JsonIgnore]
+	public int? End => Hours?.End;
+
+	[JsonIgnore]
+	public IReadOnlyList<string>? Days => Hours?.Days;
+
+	[JsonIgnore]
+	public bool OnSpecialDays => Hours?.OnSpecialDays ?? true;
+
+	[JsonIgnore]
+	public double? PerHour => Level?.PerHour;
+
+	[JsonIgnore]
+	public double? SatisfyPerHour => Level?.SatisfyPerHour;
+
+	[JsonIgnore]
+	public IReadOnlyList<string>? PausedBy => Level?.PausedBy;
+
+	[JsonIgnore]
+	public IntegerRange? StartLevel => Level?.StartLevel;
+
+	[JsonIgnore]
+	public double? UrgentFrom => Level?.UrgentFrom;
+
+	[JsonIgnore]
+	public double? WakeUrgency => Level?.WakeUrgency;
+
+	[JsonIgnore]
+	public IReadOnlyList<NeedLevel>? Levels => Level?.Levels;
+
+	[JsonIgnore]
+	public NeedPeriod Period => Quota?.Period ?? NeedPeriod.Day;
+
+	[JsonIgnore]
+	public int? Lead => Quota?.Lead;
+
+	[JsonIgnore]
+	public bool SharedByFamily => Quota?.SharedByFamily ?? false;
+
+	[JsonIgnore]
+	public double? OverdueUrgency => Quota?.OverdueUrgency;
+
+	/// <summary>
+	/// For a quota need measured in trips with time at home afterward, what someone is shown to be doing during that time.
+	/// Defaults to <see cref="Activity"/>.
+	/// </summary>
+	[JsonIgnore]
+	public string? HomeActivity => Quota?.Trips?.Home?.Activity;
+
+	/// <summary>
+	/// For a quota need measured in time, the most minutes spent on it at once.
+	/// </summary>
+	[JsonIgnore]
+	public int? Shift => Quota?.Time?.Shift;
+
 	/// <summary>
 	/// Whether the quota is measured in trips rather than time.
 	/// </summary>
-	public bool IsTrips => VisitMinutes is not null || VisitMinutesPerMember is not null;
+	[JsonIgnore]
+	public bool IsTrips => Quota?.Trips is not null;
 
 	/// <summary>
 	/// For a quota need measured in trips, how many minutes each trip takes at the place for a family with the given number
 	/// of members (or for one person, for a need that isn't shared).
 	/// </summary>
-	public int GetVisitMinutes(int members) => (VisitMinutes ?? 0) + ((VisitMinutesPerMember ?? 0) * GetMemberCount(members));
+	public int GetVisitMinutes(int members) => (int) (Quota?.Trips?.Minutes.GetAmount(GetMemberCount(members)) ?? 0);
 
 	/// <summary>
 	/// For a quota need measured in trips, how many minutes each trip takes at home afterward.
 	/// </summary>
-	public int GetHomeMinutes(int members) => (HomeMinutes ?? 0) + ((HomeMinutesPerMember ?? 0) * GetMemberCount(members));
+	public int GetHomeMinutes(int members) => (int) (Quota?.Trips?.Home?.Minutes.GetAmount(GetMemberCount(members)) ?? 0);
 
 	/// <summary>
 	/// For a quota need, the most minutes spent on it at once: a shift, or one trip (at the place and at home afterward).
@@ -443,190 +457,157 @@ public sealed class Need : IIdentified
 	/// person, for a need that isn't shared). Trips are counted by the minutes spent at the place and at home afterward.
 	/// </summary>
 	public long GetQuotaMinutes(int members) =>
-		IsTrips
-			? (long) Math.Ceiling((Visits ?? 0) + ((VisitsPerMember ?? 0) * GetMemberCount(members))) * GetShiftMinutes(members)
-			: (Minutes ?? 0) + ((long) (MinutesPerMember ?? 0) * GetMemberCount(members));
+		Quota?.Trips is { } trips
+			? (long) Math.Ceiling(trips.Visits.GetAmount(GetMemberCount(members))) * GetShiftMinutes(members)
+			: (long) (Quota?.Time?.Minutes.GetAmount(GetMemberCount(members)) ?? 0);
 
 	private int GetMemberCount(int members) => SharedByFamily ? members : 0;
 
 	internal IEnumerable<string> Validate(IReadOnlySet<string> needIds)
 	{
 		var path = $"needs[{Id}]";
-		foreach (var error in ScheduleSettings.ValidatePlace(path, Place, QuarterKinds))
+		foreach (var error in PlaceSetting.Validate($"{path}.place"))
 			yield return error;
-		if (Nearest && Place != NeedPlace.Quarter)
-			yield return OurResources.NeedSettingNotAllowed.FormatCurrentCulture(Id, "nearest", JsonNamingPolicy.CamelCase.ConvertName(Place.ToString()));
 		if (ReturnHome && Place == NeedPlace.Home)
 			yield return OurResources.NeedSettingNotAllowed.FormatCurrentCulture(Id, "returnHome", "home");
-
 		if (Activity is not null && string.IsNullOrWhiteSpace(Activity))
 			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.activity");
-		if (HomeActivity is not null && string.IsNullOrWhiteSpace(HomeActivity))
-			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.homeActivity");
+
+		if ((Level is null) == (Quota is null))
+		{
+			yield return OurResources.NeedKindInvalid.FormatCurrentCulture(Id);
+			yield break;
+		}
+
 		if (PlayerAction is { } playerAction)
 		{
-			foreach (var error in playerAction.Validate($"{path}.playerAction", Kind == NeedKind.Quota, IsTrips, ReturnHome))
+			foreach (var error in playerAction.Validate($"{path}.playerAction", Quota is not null, IsTrips, ReturnHome))
 				yield return error;
 		}
 
-		var isLevel = Kind == NeedKind.Level;
-		var kind = isLevel ? "level" : "quota";
-		var levelSettings = new (string Name, bool IsSet)[]
+		if (Hours is { } hours)
 		{
-			("perHour", PerHour is not null), ("satisfyPerHour", SatisfyPerHour is not null), ("pausedBy", PausedBy is not null),
-			("startLevel", StartLevel is not null), ("levels", Levels is not null), ("urgentFrom", UrgentFrom is not null),
-			("start", Start is not null), ("end", End is not null), ("wakeUrgency", WakeUrgency is not null),
-		};
-		var quotaSettings = new (string Name, bool IsSet)[]
-		{
-			("period", Period != NeedPeriod.Day), ("days", Days is not null), ("start", Start is not null), ("end", End is not null),
-			("minutes", Minutes is not null), ("minutesPerMember", MinutesPerMember is not null), ("shift", Shift is not null),
-			("visits", Visits is not null), ("visitsPerMember", VisitsPerMember is not null), ("visitMinutes", VisitMinutes is not null),
-			("visitMinutesPerMember", VisitMinutesPerMember is not null), ("homeMinutes", HomeMinutes is not null), ("homeMinutesPerMember", HomeMinutesPerMember is not null),
-			("lead", Lead is not null), ("onSpecialDays", !OnSpecialDays), ("sharedByFamily", SharedByFamily), ("overdueUrgency", OverdueUrgency is not null),
-			("homeActivity", HomeActivity is not null),
-		};
-		var required = isLevel ? new[] { "perHour", "satisfyPerHour" } : ["start", "end", "lead"];
-		foreach (var (name, isSet) in levelSettings.Concat(quotaSettings).DistinctBy(x => x.Name))
-		{
-			var isAllowed = (isLevel ? levelSettings : quotaSettings).Any(x => x.Name == name);
-			if (!isSet && required.Contains(name))
-				yield return OurResources.NeedSettingMissing.FormatCurrentCulture(Id, name, kind);
-			else if (isSet && !isAllowed)
-				yield return OurResources.NeedSettingNotAllowed.FormatCurrentCulture(Id, name, kind);
+			foreach (var error in hours.Validate($"{path}.hours", allowDays: Quota is not null))
+				yield return error;
 		}
 
-		if (!isLevel)
+		var errors = Level is { } level ? ValidateLevel(path, level, needIds) : ValidateQuota(path, Quota!);
+		foreach (var error in errors)
+			yield return error;
+	}
+
+	private static IEnumerable<string> ValidateLevel(string path, LevelNeedSettings level, IReadOnlySet<string> needIds)
+	{
+		if (level.PerHour < 0)
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.level.perHour", level.PerHour, 0);
+		if (!(level.SatisfyPerHour > 0))
+			yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.level.satisfyPerHour", level.SatisfyPerHour);
+		foreach (var pausedBy in level.PausedBy ?? [])
 		{
-			// A quota is measured either in time (minutes, with shifts) or in trips (visits of a number of minutes each).
-			var isTimed = Minutes is not null || MinutesPerMember is not null || Shift is not null;
-			var isTrips = Visits is not null || VisitsPerMember is not null || VisitMinutes is not null || VisitMinutesPerMember is not null || HomeMinutes is not null || HomeMinutesPerMember is not null;
-			if (isTimed && isTrips)
-				yield return OurResources.NeedQuotaMixed.FormatCurrentCulture(Id);
-			else if (isTrips && VisitMinutes is null && VisitMinutesPerMember is null)
-				yield return OurResources.NeedSettingMissing.FormatCurrentCulture(Id, "visitMinutes", kind);
-			else if (isTrips && Visits is null && VisitsPerMember is null)
-				yield return OurResources.NeedSettingMissing.FormatCurrentCulture(Id, "visits", kind);
-			else if (!isTrips && (Minutes is null && MinutesPerMember is null))
-				yield return OurResources.NeedSettingMissing.FormatCurrentCulture(Id, "minutes", kind);
-			else if (!isTrips && Shift is null)
-				yield return OurResources.NeedSettingMissing.FormatCurrentCulture(Id, "shift", kind);
-
-			if (!SharedByFamily && (MinutesPerMember is not null || VisitsPerMember is not null || VisitMinutesPerMember is not null || HomeMinutesPerMember is not null))
-				yield return OurResources.NeedPerMemberNotShared.FormatCurrentCulture(Id);
-			if (OverdueUrgency is { } overdue)
-			{
-				if (Period != NeedPeriod.Week || Days is null)
-					yield return OurResources.NeedOverdueNotAllowed.FormatCurrentCulture(Id);
-				else if (overdue is < 0 or > MaximumLevel)
-					yield return OurResources.NeedLevelOutOfRange.FormatCurrentCulture($"{path}.overdueUrgency", MaximumLevel);
-			}
-
-			if (HomeActivity is not null && HomeMinutes is null && HomeMinutesPerMember is null)
-				yield return OurResources.NeedHomeActivityWithoutHomeMinutes.FormatCurrentCulture(Id);
-			if (!ReturnHome && (HomeMinutes is not null || HomeMinutesPerMember is not null))
-				yield return OurResources.NeedHomeMinutesWithoutReturn.FormatCurrentCulture(Id);
+			if (!needIds.Contains(pausedBy ?? ""))
+				yield return OurResources.DataIdUnknown.FormatCurrentCulture($"{path}.level.pausedBy", pausedBy, "needs");
 		}
 
-		if (isLevel)
+		if (level.UrgentFrom is < 0 or >= MaximumLevel)
+			yield return OurResources.NeedUrgentFromOutOfRange.FormatCurrentCulture($"{path}.level.urgentFrom", level.UrgentFrom, MaximumLevel);
+		if (level.WakeUrgency is { } wakeUrgency && !(wakeUrgency >= 0))
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.level.wakeUrgency", wakeUrgency, 0);
+
+		if (level.StartLevel is { } startLevel)
 		{
-			if (PerHour < 0)
-				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.perHour", PerHour, 0);
-			if (SatisfyPerHour is { } satisfy && !(satisfy > 0))
-				yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.satisfyPerHour", satisfy);
-			foreach (var pausedBy in PausedBy ?? [])
-			{
-				if (!needIds.Contains(pausedBy ?? ""))
-					yield return OurResources.DataIdUnknown.FormatCurrentCulture($"{path}.pausedBy", pausedBy, "needs");
-			}
+			foreach (var error in CharacterData.ValidateRange($"{path}.level.startLevel", startLevel))
+				yield return error;
+			if (startLevel.Minimum < 0 || startLevel.Maximum > MaximumLevel)
+				yield return OurResources.NeedLevelOutOfRange.FormatCurrentCulture($"{path}.level.startLevel", MaximumLevel);
+		}
 
-			if (UrgentFrom is < 0 or >= MaximumLevel)
-				yield return OurResources.NeedUrgentFromOutOfRange.FormatCurrentCulture($"{path}.urgentFrom", UrgentFrom, MaximumLevel);
-			if (WakeUrgency is { } wakeUrgency && !(wakeUrgency >= 0))
-				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.wakeUrgency", wakeUrgency, 0);
-			if (Start is null != End is null)
-				yield return OurResources.NeedSettingMissing.FormatCurrentCulture(Id, Start is null ? "start" : "end", kind);
-			else if (Start is { } levelStart && End is { } levelEnd && (levelStart is < 0 or > 23 || levelEnd is < 0 or > 23 || levelStart == levelEnd))
-				yield return OurResources.NeedLevelHoursInvalid.FormatCurrentCulture(Id, levelStart, levelEnd);
-
-			if (StartLevel is { } startLevel)
+		if (level.Levels is { } levels)
+		{
+			if (levels.Count == 0)
+				yield return OurResources.DataListEmpty.FormatCurrentCulture($"{path}.level.levels");
+			var previous = double.NegativeInfinity;
+			foreach (var item in levels)
 			{
-				foreach (var error in CharacterData.ValidateRange($"{path}.startLevel", startLevel))
-					yield return error;
-				if (startLevel.Minimum < 0 || startLevel.Maximum > MaximumLevel)
-					yield return OurResources.NeedLevelOutOfRange.FormatCurrentCulture($"{path}.startLevel", MaximumLevel);
-			}
-
-			if (Levels is { } levels)
-			{
-				if (levels.Count == 0)
-					yield return OurResources.DataListEmpty.FormatCurrentCulture($"{path}.levels");
-				var previous = double.NegativeInfinity;
-				foreach (var level in levels)
+				if (item is null || string.IsNullOrWhiteSpace(item.Title))
 				{
-					if (level is null || string.IsNullOrWhiteSpace(level.Title))
-					{
-						yield return OurResources.DataListItemBlank.FormatCurrentCulture($"{path}.levels");
-					}
-					else
-					{
-						if (level.Minimum <= previous || level.Minimum < 0 || level.Minimum > MaximumLevel)
-							yield return OurResources.NeedLevelsOutOfOrder.FormatCurrentCulture(path, MaximumLevel);
-						previous = level.Minimum;
-					}
+					yield return OurResources.DataListItemBlank.FormatCurrentCulture($"{path}.level.levels");
+				}
+				else
+				{
+					if (item.Minimum <= previous || item.Minimum < 0 || item.Minimum > MaximumLevel)
+						yield return OurResources.NeedLevelsOutOfOrder.FormatCurrentCulture($"{path}.level.levels", MaximumLevel);
+					previous = item.Minimum;
 				}
 			}
 		}
-		else if (Start is { } start && End is { } end)
+	}
+
+	private IEnumerable<string> ValidateQuota(string path, QuotaNeedSettings quota)
+	{
+		if (Hours is null)
+			yield return OurResources.NeedSettingMissing.FormatCurrentCulture(Id, "hours", "quota");
+		if ((quota.Time is null) == (quota.Trips is null))
+			yield return OurResources.NeedQuotaMeasureInvalid.FormatCurrentCulture(Id);
+
+		var amounts = new List<(string Path, FamilyAmount Amount, bool IsWhole)>();
+		if (quota.Time is { } time)
 		{
-			// With one person in the family, the quota must fit in the hours the need can be met. Hours that end before they
-			// start run past midnight.
-			var days = Period == NeedPeriod.Week ? Days?.Count ?? 7 : 1;
-			var hours = start < end ? end - start : 24 - start + end;
-			if (start is < 0 or > 23 || end is < 1 or > 24 || start == end)
-				yield return OurResources.NeedHoursInvalid.FormatCurrentCulture(Id, start, end);
-			else if (GetQuotaMinutes(1) > hours * 60 * days)
-				yield return OurResources.NeedMinutesTooLong.FormatCurrentCulture(Id, GetQuotaMinutes(1), hours * 60 * days);
+			amounts.Add(($"{path}.quota.time.minutes", time.Minutes, true));
+			if (time.Shift < 1)
+				yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.quota.time.shift", time.Shift);
+		}
 
-			if (Minutes is < 0)
-				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.minutes", Minutes, 0);
-			if (MinutesPerMember is < 0)
-				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.minutesPerMember", MinutesPerMember, 0);
-			if (Visits is < 0)
-				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.visits", Visits, 0);
-			if (VisitsPerMember is < 0)
-				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.visitsPerMember", VisitsPerMember, 0);
-			if (Shift is < 1)
-				yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.shift", Shift);
-			if (VisitMinutes is < 0)
-				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.visitMinutes", VisitMinutes, 0);
-			foreach (var (name, value) in new[] { ("visitMinutesPerMember", VisitMinutesPerMember), ("homeMinutes", HomeMinutes), ("homeMinutesPerMember", HomeMinutesPerMember) })
+		if (quota.Trips is { } trips)
+		{
+			amounts.Add(($"{path}.quota.trips.visits", trips.Visits, false));
+			amounts.Add(($"{path}.quota.trips.minutes", trips.Minutes, true));
+			if (trips.Home is { } home)
 			{
-				if (value is < 0)
-					yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.{name}", value, 0);
+				amounts.Add(($"{path}.quota.trips.home.minutes", home.Minutes, true));
+				if (home.Activity is not null && string.IsNullOrWhiteSpace(home.Activity))
+					yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.quota.trips.home.activity");
+				if (!ReturnHome)
+					yield return OurResources.NeedHomeMinutesWithoutReturn.FormatCurrentCulture(Id);
 			}
 
-			if (IsTrips && GetVisitMinutes(1) < 1)
+			if (GetVisitMinutes(1) < 1)
 				yield return OurResources.NeedVisitMinutesNotPositive.FormatCurrentCulture(Id);
-			if (Lead is < 1)
-				yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.lead", Lead);
-			if (Days is not null)
-			{
-				foreach (var error in DataValidation.ValidateStrings($"{path}.days", Days))
-					yield return error;
-			}
+		}
+
+		foreach (var (amountPath, amount, isWhole) in amounts)
+		{
+			foreach (var error in amount.Validate(amountPath, isWhole))
+				yield return error;
+		}
+
+		if (!quota.SharedByFamily && amounts.Any(x => x.Amount.PerMember is not null))
+			yield return OurResources.NeedPerMemberNotShared.FormatCurrentCulture(Id);
+
+		if (quota.OverdueUrgency is { } overdue)
+		{
+			if (quota.Period != NeedPeriod.Week || Days is null)
+				yield return OurResources.NeedOverdueNotAllowed.FormatCurrentCulture(Id);
+			else if (overdue is < 0 or > MaximumLevel)
+				yield return OurResources.NeedLevelOutOfRange.FormatCurrentCulture($"{path}.quota.overdueUrgency", MaximumLevel);
+		}
+
+		if (quota.Lead < 1)
+			yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.quota.lead", quota.Lead);
+
+		// With one person in the family, the quota must fit in the hours the need can be met.
+		if (Hours is { Start: >= 0 and <= 23, End: >= 1 and <= 24 } hours && hours.Start != hours.End)
+		{
+			var days = quota.Period == NeedPeriod.Week ? Days?.Count ?? 7 : 1;
+			var available = hours.Length * 60L * days;
+			if (GetQuotaMinutes(1) > available)
+				yield return OurResources.NeedMinutesTooLong.FormatCurrentCulture(Id, GetQuotaMinutes(1), available);
 		}
 	}
 
 	/// <summary>
 	/// Whether the need can be met in the given hour of the day.
 	/// </summary>
-	public bool IsWithinHours(int hour) => (Start, End) switch
-	{
-		({ } start, { } end) when start < end => hour >= start && hour < end,
-		({ } start, { } end) => hour >= start || hour < end,
-		_ => true,
-	};
+	public bool IsWithinHours(int hour) => Hours?.Contains(hour) ?? true;
 
 	/// <summary>
 	/// Gets how urgent a level need is at the given level, from 0 to <see cref="MaximumLevel"/>.
@@ -641,6 +622,139 @@ public sealed class Need : IIdentified
 	/// Gets the words for a level of the need, or null if it isn't shown to the player.
 	/// </summary>
 	public string? GetLevelTitle(double level) => Levels is { Count: > 0 } levels ? (levels.LastOrDefault(x => x.Minimum <= level) ?? levels[0]).Title : null;
+}
+
+/// <summary>
+/// The settings of a level need: a level from 0 to <see cref="Need.MaximumLevel"/> that grows steadily over time, and
+/// drops while it's being met, such as fatigue.
+/// </summary>
+public sealed class LevelNeedSettings
+{
+	/// <summary>
+	/// How much the level grows each hour, unless it's being met or paused.
+	/// </summary>
+	public required double PerHour { get; init; }
+
+	/// <summary>
+	/// How much the level drops each hour while it's being met.
+	/// </summary>
+	public required double SatisfyPerHour { get; init; }
+
+	/// <summary>
+	/// The needs that stop it growing while they're being met, such as sleep.
+	/// </summary>
+	public IReadOnlyList<string>? PausedBy { get; init; }
+
+	/// <summary>
+	/// The level it starts to become urgent at. Its urgency rises from 0 there to fully urgent at
+	/// <see cref="Need.MaximumLevel"/>. Defaults to 0.
+	/// </summary>
+	public double? UrgentFrom { get; init; }
+
+	/// <summary>
+	/// How urgent it must get to wake someone who's asleep, if it's also more urgent than sleep is by then. Without it, the
+	/// need never wakes anyone.
+	/// </summary>
+	public double? WakeUrgency { get; init; }
+
+	/// <summary>
+	/// Its level at the start of a new game. Defaults to 0.
+	/// </summary>
+	public IntegerRange? StartLevel { get; init; }
+
+	/// <summary>
+	/// The words for how high it is, shown to the player. Without them, the need isn't shown.
+	/// </summary>
+	public IReadOnlyList<NeedLevel>? Levels { get; init; }
+}
+
+/// <summary>
+/// The settings of a quota need: a quota of time or trips to spend each day or week within its hours, such as work or
+/// fetching water, which grows more urgent as time runs out.
+/// </summary>
+public sealed class QuotaNeedSettings
+{
+	/// <summary>
+	/// Whether the quota is for each day or each week.
+	/// </summary>
+	public NeedPeriod Period { get; init; } = NeedPeriod.Day;
+
+	/// <summary>
+	/// How many minutes of spare time are left when it starts to become urgent. It's fully urgent when there's just enough
+	/// time left to meet it.
+	/// </summary>
+	public required int Lead { get; init; }
+
+	/// <summary>
+	/// For a quota by the week with days, the urgency it has once those days have passed this week and its quota still
+	/// isn't met. It can then be met on any day for the rest of the week.
+	/// </summary>
+	public double? OverdueUrgency { get; init; }
+
+	/// <summary>
+	/// Whether it's met for the whole family by anyone in it, such as shopping.
+	/// </summary>
+	public bool SharedByFamily { get; init; }
+
+	/// <summary>
+	/// A quota measured in time.
+	/// </summary>
+	public QuotaTime? Time { get; init; }
+
+	/// <summary>
+	/// A quota measured in trips.
+	/// </summary>
+	public QuotaTrips? Trips { get; init; }
+}
+
+/// <summary>
+/// A quota measured in time, spent in shifts.
+/// </summary>
+public sealed class QuotaTime
+{
+	/// <summary>
+	/// How many minutes it takes each period.
+	/// </summary>
+	public required FamilyAmount Minutes { get; init; }
+
+	/// <summary>
+	/// The most minutes spent on it at once, before deciding again what to do.
+	/// </summary>
+	public required int Shift { get; init; }
+}
+
+/// <summary>
+/// A quota measured in trips to the place the need is met.
+/// </summary>
+public sealed class QuotaTrips
+{
+	/// <summary>
+	/// How many trips it takes each period. The total is rounded up.
+	/// </summary>
+	public required FamilyAmount Visits { get; init; }
+
+	/// <summary>
+	/// How many minutes each trip takes once the person gets there.
+	/// </summary>
+	public required FamilyAmount Minutes { get; init; }
+
+	/// <summary>
+	/// The time each trip takes at home afterward, such as hanging up washing, for a need that returns home.
+	/// </summary>
+	public QuotaTripHome? Home { get; init; }
+}
+
+/// <summary>
+/// The time each trip takes at home afterward.
+/// </summary>
+public sealed class QuotaTripHome
+{
+	public required FamilyAmount Minutes { get; init; }
+
+	/// <summary>
+	/// What someone is shown to be doing during that time, such as "Hanging out the washing". Defaults to the need's activity.
+	/// </summary>
+	public string? Activity { get; init; }
 }
 
 /// <summary>
@@ -735,7 +849,7 @@ public sealed class PlayerAction
 	/// For a trip that returns home, what to tell the player once they've spent the trip's time at the place, such as
 	/// "Take it home to finish."
 	/// </summary>
-	public string? Return { get; init; }
+	public LongText? Return { get; init; }
 
 	/// <summary>
 	/// For a trip that returns home, the action at home that finishes it, once the player has been to the place.
@@ -763,7 +877,7 @@ public sealed class PlayerAction
 			yield return OurResources.DataListEmpty.FormatCurrentCulture($"{path}.options");
 
 		var isReturnTrip = isTrips && isReturnHome;
-		if (isReturnTrip && string.IsNullOrWhiteSpace(Return))
+		if (isReturnTrip && string.IsNullOrWhiteSpace(Return?.Text))
 			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.return");
 		else if (!isReturnTrip && Return is not null)
 			yield return OurResources.PlayerActionSettingNotAllowed.FormatCurrentCulture($"{path}.return");
@@ -839,9 +953,7 @@ public sealed class PlayerActionOption
 /// </summary>
 public sealed class IdleSettings
 {
-	public required NeedPlace Place { get; init; }
-
-	public IReadOnlyList<QuarterChoice>? QuarterKinds { get; init; }
+	public required SchedulePlace Place { get; init; }
 
 	public required IntegerRange Minutes { get; init; }
 
@@ -875,14 +987,15 @@ public sealed class SleepSettings
 
 	internal IEnumerable<string> Validate()
 	{
+		const string path = $"{ScheduleSettings.SectionName}.sleep";
 		if (!(NapBelow >= 0) || NapBelow > Need.MaximumLevel)
-			yield return OurResources.NeedLevelOutOfRange.FormatCurrentCulture("sleep.napBelow", Need.MaximumLevel);
-		foreach (var error in CharacterData.ValidateRange("sleep.napMinutes", NapMinutes))
+			yield return OurResources.NeedLevelOutOfRange.FormatCurrentCulture($"{path}.napBelow", Need.MaximumLevel);
+		foreach (var error in CharacterData.ValidateRange($"{path}.napMinutes", NapMinutes))
 			yield return error;
 		if (NapMinutes.Minimum < 1)
-			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture("sleep.napMinutes.minimum", NapMinutes.Minimum, 1);
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.napMinutes.minimum", NapMinutes.Minimum, 1);
 		if (BedtimeLead < 1)
-			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture("sleep.bedtimeLead", BedtimeLead, 1);
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.bedtimeLead", BedtimeLead, 1);
 	}
 }
 
@@ -891,6 +1004,11 @@ public sealed class SleepSettings
 /// </summary>
 public sealed class SocializingSettings
 {
+	/// <summary>
+	/// How long a chat with a friend takes.
+	/// </summary>
+	public required int ChatMinutes { get; init; }
+
 	/// <summary>
 	/// How willing someone must be to stop and chat with a friend they meet: their socializing urgency, times their
 	/// relationship score out of 100, less their current goal's urgency times <see cref="ChatGoalWeight"/>.
@@ -939,18 +1057,21 @@ public sealed class SocializingSettings
 
 	internal IEnumerable<string> Validate()
 	{
+		const string path = $"{ScheduleSettings.SectionName}.socializing";
 		foreach (var (name, value) in new[] { ("chatUrgency", ChatUrgency), ("chatGoalWeight", ChatGoalWeight), ("wakeUrgency", WakeUrgency), ("clues.workplace", Clues.Workplace), ("clues.home", Clues.Home), ("clues.sighting", Clues.Sighting), ("clues.gathering", Clues.Gathering) })
 		{
 			if (!(value >= 0) || !double.IsFinite(value))
-				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"socializing.{name}", value, 0);
+				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.{name}", value, 0);
 		}
 		foreach (var (name, value) in new[] { ("seekFactor", SeekFactor), ("recentHours", RecentHours), ("nearMinutes", NearMinutes), ("askPlayerAgainHours", AskPlayerAgainHours) })
 		{
 			if (!(value > 0) || !double.IsFinite(value))
-				yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"socializing.{name}", value);
+				yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.{name}", value);
 		}
 		if (SeekMinutes < 1)
-			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture("socializing.seekMinutes", SeekMinutes, 1);
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.seekMinutes", SeekMinutes, 1);
+		if (ChatMinutes < 1)
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.chatMinutes", ChatMinutes, 1);
 	}
 }
 
@@ -992,7 +1113,7 @@ public sealed class TalkingSettings
 	public required double RefuseUrgency { get; init; }
 
 	/// <summary>
-	/// How much someone woken up to talk has their sleep need (the start need) rise.
+	/// How much someone woken up to talk has their sleep need rise.
 	/// </summary>
 	public required double WakeLevel { get; init; }
 
@@ -1005,29 +1126,13 @@ public sealed class TalkingSettings
 	/// How long it takes to ask someone what they're doing.
 	/// </summary>
 	public required int AskDoingMinutes { get; init; }
-
-	/// <summary>
-	/// How long socializing with someone takes.
-	/// </summary>
-	public required int SocializeMinutes { get; init; }
-
-	/// <summary>
-	/// The id of the level need met by socializing with a friend, or null if there isn't one. It's only met that way, so it's
-	/// never chosen as a goal.
-	/// </summary>
-	public string? SocializeNeed { get; init; }
 }
 
 /// <summary>
-/// How everyone starts a new game: asleep at home, meeting the given need, and waking up around the given hour.
+/// How everyone starts a new game: asleep at home, meeting the sleep need, and waking up around the given hour.
 /// </summary>
 public sealed class ScheduleStart
 {
-	/// <summary>
-	/// The level need people are meeting while asleep.
-	/// </summary>
-	public required string Need { get; init; }
-
 	public required int WakeHour { get; init; }
 
 	/// <summary>
@@ -1039,8 +1144,10 @@ public sealed class ScheduleStart
 /// <summary>
 /// Makes some needs more or less urgent for people who meet a condition, by multiplying their urgency.
 /// </summary>
-public sealed class UrgencyFactor
+public sealed class UrgencyFactor : IIdentified
 {
+	public required string Id { get; init; }
+
 	public required CharacterCondition When { get; init; }
 
 	/// <summary>
@@ -1054,8 +1161,10 @@ public sealed class UrgencyFactor
 /// <summary>
 /// Makes travel take longer for people who meet a condition.
 /// </summary>
-public sealed class TravelTimeFactor
+public sealed class TravelTimeFactor : IIdentified
 {
+	public required string Id { get; init; }
+
 	public required CharacterCondition When { get; init; }
 
 	public required double Factor { get; init; }

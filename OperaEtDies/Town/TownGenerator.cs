@@ -21,7 +21,7 @@ public static class TownGenerator
 		var families = new FamilyGenerator(gameData, random, x => IsProfessionAvailable(gameData, x, featureIds));
 		families.AddPlayerHousehold(player);
 
-		var count = random.NextInRange(gameData.Families.FamilyCount);
+		var count = random.NextInRange(gameData.Village.FamilyCount);
 		for (var index = 0; index < count; index++)
 			families.AddHousehold();
 
@@ -59,7 +59,7 @@ public static class TownGenerator
 			options = GetOptions();
 		}
 
-		if (player.Values.GetValueOrDefault(gameData.Families.Properties.Profession) is CharacterPropertyOption option && gameData.Professions.Find(option.Id) is { } profession)
+		if (player.Values.GetValueOrDefault(gameData.Families.Roles.Properties.Profession) is CharacterPropertyOption option && gameData.Professions.Find(option.Id) is { } profession)
 		{
 			var ids = chosen.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
 			var needed = gameData.MapFeatures.FirstOrDefault(x => !ids.Contains(x.Id) && !IsProfessionAvailable(gameData, profession, ids) && IsProfessionAvailable(gameData, profession, new HashSet<string>(ids, StringComparer.Ordinal) { x.Id }));

@@ -22,10 +22,11 @@ public sealed class SvgPathTests
 	[Test]
 	public void ShippedPathsCanBeEdited()
 	{
-		var result = PortraitData.Load(JsonDataLoader.DefaultDataDirectory, []);
-		Assert.That(result?.Value, Is.Not.Null);
+		var document = DataDocument.Read(JsonDataLoader.DefaultDataDirectory, []);
+		var result = PortraitDataReader.Read(document.Value!.Root, "");
+		Assert.That(result.Value, Is.Not.Null);
 
-		var paths = result!.Value!.Layers.SelectMany(x => x.Shapes).Select(x => x.Path).ToList();
+		var paths = result.Value!.Layers.SelectMany(x => x.Shapes).Select(x => x.Path).ToList();
 		var failures = paths.Where(x => !SvgPath.TryParse(x, out var path, out _) || path.ToString() != x).ToList();
 		Assert.That(failures, Is.Empty);
 	}

@@ -18,11 +18,11 @@ public sealed class PreviewCharacterViewModel : ViewModelBase
 	{
 		m_character = new CharacterRandomizer(gameData, random, CharacterRole.Npc);
 		var families = gameData.Families;
-		m_atWorkPropertyId = families.Properties.AtWork;
-		m_professionPropertyId = families.Properties.Profession;
+		m_atWorkPropertyId = families.Roles.Properties.AtWork;
+		m_professionPropertyId = families.Roles.Properties.Profession;
 		var atWorkValues = gameData.CharacterProperties.Find(m_atWorkPropertyId)?.Values;
-		m_atWork = atWorkValues?.FirstOrDefault(x => x.Id == families.AtWork);
-		m_notAtWork = atWorkValues?.FirstOrDefault(x => x.Id == families.NotAtWork);
+		m_atWork = atWorkValues?.FirstOrDefault(x => x.Id == families.Roles.AtWork);
+		m_notAtWork = atWorkValues?.FirstOrDefault(x => x.Id == families.Roles.NotAtWork);
 
 		// The game sets whether a character is at work from where they are, so it's set from the place instead.
 		var properties = CharacterDependencies.GetOrder(m_character.Properties);

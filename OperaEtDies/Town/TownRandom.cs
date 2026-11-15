@@ -28,12 +28,12 @@ internal static class TownRandom
 	/// <summary>
 	/// Picks a number from minimum to maximum that's allowed, weighted by the shape. Returns null if no number is allowed.
 	/// </summary>
-	public static int? NextShaped(this Random random, WeightShape shape, int minimum, int maximum, Func<int, bool> isAllowed)
+	public static int? NextShaped(this Random random, WeightShape? shape, int minimum, int maximum, Func<int, bool> isAllowed)
 	{
 		int? result = null;
 		if (maximum >= minimum)
 		{
-			var chances = shape.GetChances(maximum - minimum + 1);
+			var chances = IntegerRange.GetChances(shape, maximum - minimum + 1);
 			var candidates = Enumerable.Range(0, chances.Count).Where(x => chances[x] > 0 && isAllowed(minimum + x)).ToList();
 			if (candidates.Count != 0)
 				result = minimum + random.NextWeighted(candidates, x => chances[x]);

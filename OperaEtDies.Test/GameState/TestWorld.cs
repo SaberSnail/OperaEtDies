@@ -39,11 +39,11 @@ internal sealed class TestWorld
 	public Person AddPerson(CharacterTraits traits, Location home, Location? workplace = null)
 	{
 		var families = GameData.Families;
-		var atWorkProperty = GameData.CharacterProperties.Get(families.Properties.AtWork);
-		var notAtWork = atWorkProperty.Values!.First(x => x.Id == families.NotAtWork);
+		var atWorkProperty = GameData.CharacterProperties.Get(families.Roles.Properties.AtWork);
+		var notAtWork = atWorkProperty.Values!.First(x => x.Id == families.Roles.NotAtWork);
 		var person = Objects.Create(id => new Person(id, GameData, traits.With(atWorkProperty.Id, notAtWork), FamilyRole.Head, isPlayer: false, home, Time));
 		Objects.Create(id => new Family(id, traits.GetString("lastName"), [person], home, WealthLevel.Medium));
-		if (workplace is not null && traits.GetValueId(families.Properties.Profession) is { } profession)
+		if (workplace is not null && traits.GetValueId(families.Roles.Properties.Profession) is { } profession)
 			Objects.Create(id => new Business(id, GameData.Professions.Get(profession), person, [], workplace == home ? null : workplace));
 		return person;
 	}

@@ -1,24 +1,13 @@
-using System.IO;
 using System.Text.Json;
 using GoldenAnvil.Utility;
 
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// The templates the town is built from when a new game is created, loaded from Locations.json.
+/// The templates the village is built from when a new game is created, and the village's settings.
 /// </summary>
 public sealed class LocationList : IValidatedData
 {
-	public const string FileName = "Locations.json";
-
-	public static DataLoadResult<LocationList> Load(string dataDirectory) => Load(dataDirectory, []);
-
-	/// <summary>
-	/// Loads the file from the data folder, with the changes from the mod folders applied in order.
-	/// </summary>
-	public static DataLoadResult<LocationList> Load(string dataDirectory, IReadOnlyList<string> modDirectories) =>
-		JsonDataLoader.Load<LocationList>(Path.Combine(dataDirectory, FileName), modDirectories, []);
-
 	/// <summary>
 	/// The kinds of quarter, which decide where a quarter goes on the map, which businesses can be in it, and what its
 	/// paths are called.
@@ -26,14 +15,9 @@ public sealed class LocationList : IValidatedData
 	public required IReadOnlyList<QuarterKind> QuarterKinds { get; init; }
 
 	/// <summary>
-	/// How many minutes it takes to go into or out of a house or business from its quarter.
+	/// The settings for the village as a whole.
 	/// </summary>
-	public required int BuildingTravelTime { get; init; }
-
-	/// <summary>
-	/// How many landmark quarters (quarters with no houses or businesses) the town has, including unique ones.
-	/// </summary>
-	public required IntegerRange LandmarkCount { get; init; }
+	public required VillageSettings Village { get; init; }
 
 	/// <summary>
 	/// The shapes a town can be laid out in, chosen by frequency.
@@ -45,22 +29,12 @@ public sealed class LocationList : IValidatedData
 	/// </summary>
 	public IReadOnlyList<MapFeature> Features { get; init; } = [];
 
-	/// <summary>
-	/// How many map features a town has.
-	/// </summary>
-	public IntegerRange? FeatureCount { get; init; }
-
 	public required IReadOnlyList<QuarterTemplate> Quarters { get; init; }
 
 	/// <summary>
-	/// The houses households live in. A house's title comes from <see cref="HouseTitle"/>.
+	/// The houses households live in. A house's title comes from <see cref="VillageSettings.HouseTitle"/>.
 	/// </summary>
 	public required IReadOnlyList<HouseTemplate> Houses { get; init; }
-
-	/// <summary>
-	/// The title of every house: a template filled in with the Characters.json properties of the household's head.
-	/// </summary>
-	public required string HouseTitle { get; init; }
 
 	/// <summary>
 	/// The places businesses are run from, each for one profession.
@@ -75,26 +49,28 @@ public sealed class LocationList : IValidatedData
 		var kinds = quarterKinds.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
 		foreach (var kind in quarterKinds.Where(x => string.IsNullOrWhiteSpace(x.Path)))
 			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture($"quarterKinds[{kind.Id}].path"));
-		if (BuildingTravelTime < 0)
-			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("buildingTravelTime", BuildingTravelTime, 0));
+		if (Village.BuildingTravelTime < 0)
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("village.buildingTravelTime", Village.BuildingTravelTime, 0));
 		foreach (var kind in quarterKinds.Where(x => x.TravelTime < 0))
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"quarterKinds[{kind.Id}].travelTime", kind.TravelTime, 0));
 
-		errors.AddRange(CharacterData.ValidateRange("landmarkCount", LandmarkCount));
-		if (LandmarkCount.Minimum < 0)
-			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("landmarkCount.minimum", LandmarkCount.Minimum, 0));
+		errors.AddRange(CharacterData.ValidateRange("village.familyCount", Village.FamilyCount));
+		if (Village.FamilyCount.Minimum < 0)
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("village.familyCount.minimum", Village.FamilyCount.Minimum, 0));
+		errors.AddRange(CharacterData.ValidateRange("village.landmarkCount", Village.LandmarkCount));
+		if (Village.LandmarkCount.Minimum < 0)
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("village.landmarkCount.minimum", Village.LandmarkCount.Minimum, 0));
 
-		if (Layouts.Count == 0)
-			errors.Add(OurResources.DataListEmpty.FormatCurrentCulture("layouts"));
+		errors.AddRange(DataValidation.ValidateIdentifiedItems("layouts", Layouts, x => x.Id, null));
 		foreach (var layout in Layouts.Where(x => x is not null && !quarterKinds.Any(kind => kind.Id == x.Center && kind.Unique && kind.OptionalWith is null && kind.Area == MapArea.Village)))
 			errors.Add(OurResources.LayoutCenterInvalid.FormatCurrentCulture(JsonNamingPolicy.CamelCase.ConvertName(layout.Shape.ToString()), layout.Center));
 
 		errors.AddRange(DataValidation.ValidateIdentifiedItems("quarters", Quarters, x => x.Id, x => x.Title));
 		errors.AddRange(DataValidation.ValidateIdentifiedItems("houses", Houses, x => x.Id, null));
-		if (string.IsNullOrWhiteSpace(HouseTitle))
-			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("houseTitle"));
-		else if (!TextTemplate.TryParse(HouseTitle, out _))
-			errors.Add(OurResources.TemplateMalformed.FormatCurrentCulture("houseTitle"));
+		if (string.IsNullOrWhiteSpace(Village.HouseTitle))
+			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("village.houseTitle"));
+		else if (!TextTemplate.TryParse(Village.HouseTitle, out _))
+			errors.Add(OurResources.TemplateMalformed.FormatCurrentCulture("village.houseTitle"));
 		errors.AddRange(DataValidation.ValidateIdentifiedItems("businesses", Businesses, x => x.Id, x => x.Title));
 
 		// Items that are empty or missing an id are already reported above.
@@ -110,7 +86,7 @@ public sealed class LocationList : IValidatedData
 		// Every town has a quarter of each unique kind, and landmarks if it needs them.
 		foreach (var kind in quarterKinds.Where(x => x.Unique && !quarters.Any(quarter => quarter.Kind == x.Id)))
 			errors.Add(OurResources.QuarterKindUniqueMissing.FormatCurrentCulture(kind.Id));
-		if (LandmarkCount.Maximum > 0 && !quarters.Any(x => x.IsLandmark))
+		if (Village.LandmarkCount.Maximum > 0 && !quarters.Any(x => x.IsLandmark))
 			errors.Add(OurResources.LandmarkQuartersMissing);
 
 		foreach (var house in houses)
@@ -171,15 +147,15 @@ public sealed class LocationList : IValidatedData
 		if (Features.Count != 0)
 		{
 			errors.AddRange(DataValidation.ValidateIdentifiedItems("features", Features, x => x.Id, x => x.Title));
-			if (FeatureCount is null)
-				errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("featureCount"));
+			if (Village.FeatureCount is null)
+				errors.Add(OurResources.DataValueMissing.FormatCurrentCulture("village.featureCount"));
 		}
 
-		if (FeatureCount is { } featureCount)
+		if (Village.FeatureCount is { } featureCount)
 		{
-			errors.AddRange(CharacterData.ValidateRange("featureCount", featureCount));
+			errors.AddRange(CharacterData.ValidateRange("village.featureCount", featureCount));
 			if (featureCount.Minimum < 0)
-				errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("featureCount.minimum", featureCount.Minimum, 0));
+				errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("village.featureCount.minimum", featureCount.Minimum, 0));
 		}
 
 		var features = Features.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)).ToList();
@@ -208,8 +184,8 @@ public sealed class LocationList : IValidatedData
 
 			if (feature.Text.Count == 0)
 				errors.Add(OurResources.DataListEmpty.FormatCurrentCulture($"{path}.text"));
-			foreach (var text in feature.Text.Where(x => !IsFeatureText(x)))
-				errors.Add(OurResources.FeatureTextInvalid.FormatCurrentCulture($"{path}.text", text));
+			foreach (var text in feature.Text.Where(x => x is null || !IsFeatureText(x.Text)))
+				errors.Add(OurResources.FeatureTextInvalid.FormatCurrentCulture($"{path}.text", text?.Text));
 		}
 
 		var featureIds = features.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
@@ -224,10 +200,10 @@ public sealed class LocationList : IValidatedData
 		foreach (var kind in quarterKinds.Where(x => x.OptionalWith is not null))
 		{
 			if (!featureIds.Contains(kind.OptionalWith!))
-				errors.Add(OurResources.FeatureUnknown.FormatCurrentCulture($"quarterKinds[{kind.Id}].optionalWith", kind.OptionalWith));
+				errors.Add(OurResources.FeatureUnknown.FormatCurrentCulture($"quarterKinds[{kind.Id}].optional.with", kind.OptionalWith));
 			if (!kind.Unique)
 				errors.Add(OurResources.QuarterKindOptionalNotUnique.FormatCurrentCulture(kind.Id));
-			errors.AddRange(DataValidation.ValidateChance($"quarterKinds[{kind.Id}].optionalChance", kind.OptionalChance));
+			errors.AddRange(DataValidation.ValidateChance($"quarterKinds[{kind.Id}].optional.chance", kind.OptionalChance));
 		}
 
 		foreach (var quarter in quarters)
@@ -237,12 +213,12 @@ public sealed class LocationList : IValidatedData
 				errors.Add(OurResources.FeatureUnknown.FormatCurrentCulture($"{path}.borders", borders));
 			if (quarter.Borders is not null && quarterKinds.Any(x => x.Id == quarter.Kind && x.Unique))
 				errors.Add(OurResources.QuarterKindUniqueBorders.FormatCurrentCulture(quarter.Kind));
-			foreach (var (featureId, text) in quarter.FeatureText ?? new Dictionary<string, string>())
+			foreach (var (featureId, text) in quarter.FeatureText ?? new Dictionary<string, LongText>())
 			{
 				if (!featureIds.Contains(featureId))
 					errors.Add(OurResources.FeatureUnknown.FormatCurrentCulture($"{path}.featureText", featureId));
-				else if (!IsFeatureText(text))
-					errors.Add(OurResources.FeatureTextInvalid.FormatCurrentCulture($"{path}.featureText.{featureId}", text));
+				else if (text is null || !IsFeatureText(text.Text))
+					errors.Add(OurResources.FeatureTextInvalid.FormatCurrentCulture($"{path}.featureText.{featureId}", text?.Text));
 			}
 		}
 
@@ -273,16 +249,11 @@ public sealed class LocationList : IValidatedData
 				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.houses.minimum", houses.Minimum, 0);
 			if (houses.Maximum < Math.Max(houses.Minimum, 1))
 				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.houses.maximum", houses.Maximum, Math.Max(houses.Minimum, 1));
-			if (quarter.Wealth is null)
-				yield return OurResources.QuarterHousesWithoutWealth.FormatCurrentCulture(quarter.Id);
+			foreach (var error in houses.Shape?.Validate($"{path}.houses.shape") ?? [])
+				yield return error;
+			if (houses.Wealth == WealthLevel.VeryLow)
+				yield return OurResources.WealthLevelNotAllowed.FormatCurrentCulture($"{path}.houses.wealth", houses.Wealth.GetDataName());
 		}
-		else if (quarter.Wealth is not null)
-		{
-			yield return OurResources.QuarterWealthWithoutHouses.FormatCurrentCulture(quarter.Id);
-		}
-
-		if (quarter.Wealth == WealthLevel.VeryLow)
-			yield return OurResources.WealthLevelNotAllowed.FormatCurrentCulture($"{path}.wealth", quarter.Wealth.Value.GetDataName());
 
 		if (quarter.Businesses < 0)
 			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.businesses", quarter.Businesses, 0);

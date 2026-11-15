@@ -17,14 +17,14 @@ public static class ModPatcher
 
 	/// <summary>
 	/// Applies each operation in a mod file to the root of a data file, in order. Operations can't change the
-	/// protected top level properties. Returns a user-facing message for each problem found; operations that have
+	/// protected paths. Returns a user-facing message for each problem found; operations that have
 	/// problems are skipped.
 	/// </summary>
-	public static IReadOnlyList<string> Apply(JsonNode root, JsonNode? modFile, IReadOnlyCollection<string> protectedProperties)
+	public static IReadOnlyList<string> Apply(JsonNode root, JsonNode? modFile, IReadOnlyCollection<string> protectedPaths)
 	{
 		var errors = new List<string>();
 		if (modFile is JsonArray operations)
-			ApplyOperations(root, operations, null, protectedProperties, errors);
+			ApplyOperations(root, operations, null, protectedPaths, errors);
 		else
 			errors.Add(OurResources.ModFileNotList);
 
@@ -35,16 +35,16 @@ public static class ModPatcher
 	/// Applies a list of operations to a root, in order, adding a message for each problem found. Operations in the
 	/// changes of a copy are numbered after the operation that holds them, as in "3.2".
 	/// </summary>
-	private static void ApplyOperations(JsonNode? root, JsonArray operations, string? parentNumber, IReadOnlyCollection<string> protectedProperties, ICollection<string> errors)
+	private static void ApplyOperations(JsonNode? root, JsonArray operations, string? parentNumber, IReadOnlyCollection<string> protectedPaths, ICollection<string> errors)
 	{
 		for (var index = 0; index < operations.Count; index++)
 		{
 			var number = parentNumber is null ? $"{index + 1}" : $"{parentNumber}.{index + 1}";
-			ApplyOperation(root, operations[index], number, protectedProperties, errors);
+			ApplyOperation(root, operations[index], number, protectedPaths, errors);
 		}
 	}
 
-	private static void ApplyOperation(JsonNode? root, JsonNode? node, string number, IReadOnlyCollection<string> protectedProperties, ICollection<string> errors)
+	private static void ApplyOperation(JsonNode? root, JsonNode? node, string number, IReadOnlyCollection<string> protectedPaths, ICollection<string> errors)
 	{
 		string? error = null;
 		if (node is not JsonObject operation)
@@ -61,7 +61,7 @@ public static class ModPatcher
 				error = OurResources.ModOperationTypeInvalid.FormatCurrentCulture(number, type);
 			else if (path is null)
 				error = OurResources.ModOperationPathMissing.FormatCurrentCulture(number);
-			else if (ApplyOperation(root, operation, type.ToLowerInvariant(), path, number, protectedProperties, errors) is { } message)
+			else if (ApplyOperation(root, operation, type.ToLowerInvariant(), path, number, protectedPaths, errors) is { } message)
 				error = OurResources.ModOperationFailed.FormatCurrentCulture(number, type, path, message);
 		}
 
@@ -69,12 +69,12 @@ public static class ModPatcher
 			errors.Add(error);
 	}
 
-	private static string? ApplyOperation(JsonNode? root, JsonObject operation, string type, string path, string number, IReadOnlyCollection<string> protectedProperties, ICollection<string> errors)
+	private static string? ApplyOperation(JsonNode? root, JsonObject operation, string type, string path, string number, IReadOnlyCollection<string> protectedPaths, ICollection<string> errors)
 	{
 		if (!ModPath.TryParse(path, out var segments, out var pathError))
 			return pathError;
-		if (protectedProperties.Contains(segments[0].Text, StringComparer.OrdinalIgnoreCase))
-			return OurResources.ModPathProtected.FormatCurrentCulture(segments[0].Text);
+		if (FindProtectedPath(segments, protectedPaths) is { } protectedPath)
+			return OurResources.ModPathProtected.FormatCurrentCulture(protectedPath);
 		var hasValue = FindKey(operation, "value") is not null;
 		var valuesNode = GetProperty(operation, "values");
 		var hasValues = FindKey(operation, "values") is not null;
@@ -343,6 +343,23 @@ public static class ModPatcher
 		node.ContainsKey(name) ? name : node.Select(x => x.Key).FirstOrDefault(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
 
 	private static JsonNode? GetProperty(JsonObject node, string name) => FindKey(node, name) is { } key ? node[key] : null;
+
+	/// <summary>
+	/// Gets the protected path that a path leads to or into, or that leads into the path (so changing it would change the
+	/// protected data), or null if there's none. Protected paths are names joined by dots.
+	/// </summary>
+	private static string? FindProtectedPath(IReadOnlyList<ModPathSegment> segments, IReadOnlyCollection<string> protectedPaths)
+	{
+		foreach (var protectedPath in protectedPaths)
+		{
+			var names = protectedPath.Split('.');
+			var count = Math.Min(names.Length, segments.Count);
+			if (Enumerable.Range(0, count).All(x => string.Equals(names[x], segments[x].Text, StringComparison.OrdinalIgnoreCase)))
+				return protectedPath;
+		}
+
+		return null;
+	}
 
 	private static string? GetString(JsonObject node, string name) =>
 		GetProperty(node, name) is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;

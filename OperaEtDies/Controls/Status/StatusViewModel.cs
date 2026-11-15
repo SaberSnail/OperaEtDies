@@ -121,7 +121,7 @@ public sealed class NeedStatusViewModel : ViewModelBase
 		{
 			VerifyAccess();
 			var notes = m_need.Kind == NeedKind.Level ? [] :
-				new[] { m_need.SharedByFamily ? OurResources.NeedStatusShared : null, m_person.PendingTrip == m_need ? m_need.PlayerAction?.Return : null }.OfType<string>().ToList();
+				new[] { m_need.SharedByFamily ? OurResources.NeedStatusShared : null, m_person.PendingTrip == m_need ? m_need.PlayerAction?.Return?.Text : null }.OfType<string>().ToList();
 			return notes.Count == 0 ? null : string.Join(OurResources.NeedStatusNoteSeparator, notes);
 		}
 	}

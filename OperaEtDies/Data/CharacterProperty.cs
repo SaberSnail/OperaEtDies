@@ -12,6 +12,12 @@ public sealed class CharacterProperty : IIdentified
 	public required CharacterPropertyType Type { get; init; }
 
 	/// <summary>
+	/// What the engine uses the property for, such as the gender, or null for none. The property with the profession role
+	/// takes its values from the professions.
+	/// </summary>
+	public string? Role { get; init; }
+
+	/// <summary>
 	/// A condition on other properties that must be met for a character to have this property.
 	/// </summary>
 	public CharacterCondition? When { get; init; }
@@ -34,18 +40,7 @@ public sealed class CharacterProperty : IIdentified
 	public IReadOnlyList<CharacterPropertyOption>? Values { get; init; }
 
 	/// <summary>
-	/// For value list properties, where the values come from instead of <see cref="Values"/>. The only source is
-	/// <see cref="ProfessionsSource"/>, the professions in Professions.json. The values are filled in when the data loads.
-	/// </summary>
-	public string? ValuesFrom { get; init; }
-
-	/// <summary>
-	/// The <see cref="ValuesFrom"/> source for the professions in Professions.json.
-	/// </summary>
-	public const string ProfessionsSource = "professions";
-
-	/// <summary>
-	/// Whether <see cref="Values"/> were filled in from <see cref="ValuesFrom"/> rather than read from the file.
+	/// Whether <see cref="Values"/> were filled in from the professions rather than read from the data.
 	/// </summary>
 	internal bool HasSourceValues { get; private init; }
 
@@ -129,7 +124,7 @@ public sealed class CharacterProperty : IIdentified
 		Follows = Follows,
 		SetByGame = SetByGame,
 		Values = values,
-		ValuesFrom = ValuesFrom,
+		Role = Role,
 		HasSourceValues = hasSourceValues,
 		Shape = Shape,
 		SortByTitle = SortByTitle,
@@ -152,12 +147,16 @@ public sealed class CharacterProperty : IIdentified
 	/// </summary>
 	public IReadOnlyList<CharacterPropertyOption> GetOptions(CharacterRole role)
 	{
-		var options = Values ?? [];
-		if (GetRoleSettings(role)?.Values is not { } allowedIds)
-			return options;
+		IReadOnlyList<CharacterPropertyOption> options = Values ?? [];
+		if (role == CharacterRole.Player && options.Any(x => x is { IsPlayerAllowed: false }))
+			options = options.Where(x => x is null || x.IsPlayerAllowed).ToList();
+		if (GetRoleSettings(role)?.Values is { } allowedIds)
+		{
+			var allowed = new HashSet<string>(allowedIds, StringComparer.Ordinal);
+			options = options.Where(x => allowed.Contains(x.Id)).ToList();
+		}
 
-		var allowed = new HashSet<string>(allowedIds, StringComparer.Ordinal);
-		return options.Where(x => allowed.Contains(x.Id)).ToList();
+		return options;
 	}
 
 	/// <summary>
@@ -193,6 +192,15 @@ public sealed class CharacterProperty : IIdentified
 		int number => Groups?.FirstOrDefault(x => x.Contains(number))?.Id,
 		_ => null,
 	};
+
+	/// <summary>
+	/// Gets the ids of the values in a group of a value list property, or null if no value is in the group.
+	/// </summary>
+	public IReadOnlyList<string>? GetGroupValueIds(string group)
+	{
+		var ids = Type == CharacterPropertyType.ValueList ? (Values ?? []).Where(x => x?.Groups?.Contains(group, StringComparer.Ordinal) ?? false).Select(x => x.Id).ToList() : [];
+		return ids.Count == 0 ? null : ids;
+	}
 
 	/// <summary>
 	/// Gets the ids conditions can use for this property's values: its value ids, or its group ids.

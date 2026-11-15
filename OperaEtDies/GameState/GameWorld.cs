@@ -46,8 +46,8 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 
 		// Everyone starts at home and not at work, until their family and business are known.
 		var families = gameData.Families;
-		var atWorkProperty = gameData.CharacterProperties.Get(families.Properties.AtWork);
-		var notAtWork = atWorkProperty.Values!.First(x => x.Id == families.NotAtWork);
+		var atWorkProperty = gameData.CharacterProperties.Get(families.Roles.Properties.AtWork);
+		var notAtWork = atWorkProperty.Values!.First(x => x.Id == families.Roles.NotAtWork);
 		var peopleByTownPerson = new Dictionary<TownPerson, Person>();
 		foreach (var household in town.Households)
 		{
@@ -66,14 +66,14 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 
 		// Everyone has a relationship with everyone else, closer for family (depending on how they're related) and for neighbors.
 		var people = peopleByTownPerson.Values.ToList();
-		var relationships = families.Relationships;
-		var headRelation = families.Properties.HeadRelation;
+		var relationships = gameData.Relationships;
+		var headRelation = families.Roles.Properties.HeadRelation;
 		for (var first = 0; first < people.Count; first++)
 		{
 			for (var second = first + 1; second < people.Count; second++)
 			{
 				var (a, b) = (people[first], people[second]);
-				var score = relationships.ChooseScore(random, a.Family == b.Family ? families.HeadRelations.GetFamilyTie(a.Traits.GetValueId(headRelation), b.Traits.GetValueId(headRelation)) : null,
+				var score = relationships.ChooseScore(random, a.Family == b.Family ? families.Roles.HeadRelations.GetFamilyTie(a.Traits.GetValueId(headRelation), b.Traits.GetValueId(headRelation)) : null,
 					isNeighbor: a.Home.Quarter is { } quarter && quarter == b.Home.Quarter);
 				objects.Create(id => new Relationship(id, a, b, score));
 			}
@@ -365,7 +365,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	{
 		var settings = GameData.Schedules;
 		var calendar = GameData.Calendar;
-		var sleep = settings.Needs.FirstOrDefault(x => x.Id == settings.Start.Need && x.Kind == NeedKind.Level);
+		var sleep = settings.Needs.FirstOrDefault(x => x.Id == settings.SleepNeed && x.Kind == NeedKind.Level);
 		foreach (var person in People)
 		{
 			foreach (var need in settings.Needs.Where(x => x.StartLevel is not null))
@@ -451,7 +451,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	public TimeOffset Socialize(Person person)
 	{
 		CheckCanTalk(person);
-		StartTalking(Player, person, GameData.Schedules.Talking.SocializeMinutes, Time, isSocializing: true);
+		StartTalking(Player, person, GameData.Schedules.Socializing.ChatMinutes, Time, isSocializing: true);
 		return FinishPlayerTalk();
 	}
 
@@ -513,9 +513,9 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	internal void StartTalking(Person first, Person second, int minutes, TimePoint time, bool isSocializing = false)
 	{
 		var settings = GameData.Schedules;
-		var sleep = settings.Needs.FirstOrDefault(x => x.Id == settings.Start.Need);
-		var social = isSocializing ? settings.Needs.FirstOrDefault(x => x.Id == settings.Talking.SocializeNeed) : null;
-		var isFriends = first.Relationships.TryGetValue(second, out var friendship) && GameData.Families.Relationships.IsFriend(friendship.Score);
+		var sleep = settings.Needs.FirstOrDefault(x => x.Id == settings.SleepNeed);
+		var social = isSocializing ? settings.Needs.FirstOrDefault(x => x.Id == settings.SocializeNeed) : null;
+		var isFriends = first.Relationships.TryGetValue(second, out var friendship) && GameData.Relationships.IsFriend(friendship.Score);
 		var end = GameData.Calendar.AddMinutes(time, minutes);
 		var talks = new List<(Person Person, TalkTask Task)>();
 		foreach (var (person, other) in new[] { (first, second), (second, first) })

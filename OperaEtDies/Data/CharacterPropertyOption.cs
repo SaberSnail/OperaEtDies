@@ -12,6 +12,22 @@ public sealed class CharacterPropertyOption : IIdentified, IHasFrequency
 	public required string Title { get; init; }
 
 	/// <summary>
+	/// What the engine uses the value for, such as the value for men, or null for none.
+	/// </summary>
+	public string? Role { get; init; }
+
+	/// <summary>
+	/// The groups the value is in, which conditions can name in place of listing values.
+	/// </summary>
+	public IReadOnlyList<string>? Groups { get; init; }
+
+	/// <summary>
+	/// Whether the player can have the value. Only professions can be left out for the player this way.
+	/// </summary>
+	[System.Text.Json.Serialization.JsonIgnore]
+	internal bool IsPlayerAllowed { get; init; } = true;
+
+	/// <summary>
 	/// How common the value is when chosen at random.
 	/// </summary>
 	public FrequencyLevel Frequency { get; init; } = new(Utility.Random.Frequency.Common);

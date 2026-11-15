@@ -1,26 +1,13 @@
-using System.IO;
 using GoldenAnvil.Utility;
 
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// How character portraits are drawn, loaded from Portraits.json: the colors, stretches, and shifts portraits use, and the layers drawn from
+/// How character portraits are drawn, from the portrait sections of the data: the colors, stretches, and shifts portraits use, and the layers drawn from
 /// a character's properties, bottom to top.
 /// </summary>
 public sealed class PortraitData : IValidatedData
 {
-	public const string FileName = "Portraits.json";
-
-	/// <summary>
-	/// Loads the file from the data folder, with the changes from the mod folders applied in order. Returns null if the
-	/// data folder has no portrait file, in which case characters have no portraits.
-	/// </summary>
-	public static DataLoadResult<PortraitData>? Load(string dataDirectory, IReadOnlyList<string> modDirectories)
-	{
-		var filePath = Path.Combine(dataDirectory, FileName);
-		return File.Exists(filePath) ? JsonDataLoader.Load<PortraitData>(filePath, modDirectories, []) : null;
-	}
-
 	/// <summary>
 	/// The width of a portrait, in the units used by the layers' paths.
 	/// </summary>
@@ -59,27 +46,27 @@ public sealed class PortraitData : IValidatedData
 		foreach (var color in Colors.Where(x => x is not null))
 		{
 			foreach (var (variant, index) in (color.Variants ?? []).Select((x, i) => (x, i)).Where(x => x.x?.When is not null))
-				yield return ($"colors[{color.Id}].variants[{index}].when", variant.When);
+				yield return ($"portraitColors[{color.Id}].variants[{index}].when", variant.When);
 		}
 
 		foreach (var scale in Scales.Where(x => x is not null))
 		{
 			foreach (var (variant, index) in (scale.Variants ?? []).Select((x, i) => (x, i)).Where(x => x.x?.When is not null))
-				yield return ($"scales[{scale.Id}].variants[{index}].when", variant.When);
+				yield return ($"portraitScales[{scale.Id}].variants[{index}].when", variant.When);
 		}
 
 		foreach (var offset in Offsets.Where(x => x is not null))
 		{
 			foreach (var (variant, index) in (offset.Variants ?? []).Select((x, i) => (x, i)).Where(x => x.x?.When is not null))
-				yield return ($"offsets[{offset.Id}].variants[{index}].when", variant.When);
+				yield return ($"portraitOffsets[{offset.Id}].variants[{index}].when", variant.When);
 		}
 
 		foreach (var layer in Layers.Where(x => x is not null))
 		{
 			if (layer.When is { } layerWhen)
-				yield return ($"layers[{layer.Id}].when", layerWhen);
+				yield return ($"portraitLayers[{layer.Id}].when", layerWhen);
 			foreach (var (shape, index) in (layer.Shapes ?? []).Select((x, i) => (x, i)).Where(x => x.x?.When is not null))
-				yield return ($"layers[{layer.Id}].shapes[{index}].when", shape.When!);
+				yield return ($"portraitLayers[{layer.Id}].shapes[{index}].when", shape.When!);
 		}
 	}
 
@@ -89,7 +76,7 @@ public sealed class PortraitData : IValidatedData
 	/// </summary>
 	public IEnumerable<(string Path, string QuarterKind)> GetQuarterKinds() =>
 		Layers.Where(x => x?.At?.QuarterKinds is not null)
-			.SelectMany(layer => layer.At!.QuarterKinds!.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => ($"layers[{layer.Id}].at.quarterKinds", x)));
+			.SelectMany(layer => layer.At!.QuarterKinds!.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => ($"portraitLayers[{layer.Id}].at.quarterKinds", x)));
 
 	/// <summary>
 	/// Gets the profession of every workplace a layer is drawn in, with the path to it, so they can be checked against
@@ -97,15 +84,15 @@ public sealed class PortraitData : IValidatedData
 	/// </summary>
 	public IEnumerable<(string Path, string Profession)> GetWorkplaces() =>
 		Layers.Where(x => x?.At?.Workplaces is not null)
-			.SelectMany(layer => layer.At!.Workplaces!.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => ($"layers[{layer.Id}].at.workplaces", x)));
+			.SelectMany(layer => layer.At!.Workplaces!.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => ($"portraitLayers[{layer.Id}].at.workplaces", x)));
 
 	public IEnumerable<string> Validate()
 	{
 		var errors = new List<string>();
 		if (Width <= 0)
-			errors.Add(OurResources.DataNumberNotPositive.FormatCurrentCulture("width", Width));
+			errors.Add(OurResources.DataNumberNotPositive.FormatCurrentCulture("portraits.width", Width));
 		if (Height <= 0)
-			errors.Add(OurResources.DataNumberNotPositive.FormatCurrentCulture("height", Height));
+			errors.Add(OurResources.DataNumberNotPositive.FormatCurrentCulture("portraits.height", Height));
 
 		// A color can only use the colors before it, so they can be worked out in order.
 		var colorIds = new HashSet<string>(StringComparer.Ordinal);
@@ -113,17 +100,17 @@ public sealed class PortraitData : IValidatedData
 		{
 			if (color is null)
 			{
-				errors.Add(OurResources.DataListItemEmpty.FormatCurrentCulture("colors"));
+				errors.Add(OurResources.DataListItemEmpty.FormatCurrentCulture("portraitColors"));
 			}
 			else if (string.IsNullOrWhiteSpace(color.Id))
 			{
-				errors.Add(OurResources.DataListItemIdMissing.FormatCurrentCulture("colors"));
+				errors.Add(OurResources.DataListItemIdMissing.FormatCurrentCulture("portraitColors"));
 			}
 			else
 			{
 				errors.AddRange(ValidateColor(color, colorIds));
 				if (!colorIds.Add(color.Id))
-					errors.Add(OurResources.DataListItemIdDuplicate.FormatCurrentCulture(color.Id, "colors"));
+					errors.Add(OurResources.DataListItemIdDuplicate.FormatCurrentCulture(color.Id, "portraitColors"));
 			}
 		}
 
@@ -132,17 +119,17 @@ public sealed class PortraitData : IValidatedData
 		{
 			if (scale is null)
 			{
-				errors.Add(OurResources.DataListItemEmpty.FormatCurrentCulture("scales"));
+				errors.Add(OurResources.DataListItemEmpty.FormatCurrentCulture("portraitScales"));
 			}
 			else if (string.IsNullOrWhiteSpace(scale.Id))
 			{
-				errors.Add(OurResources.DataListItemIdMissing.FormatCurrentCulture("scales"));
+				errors.Add(OurResources.DataListItemIdMissing.FormatCurrentCulture("portraitScales"));
 			}
 			else
 			{
 				errors.AddRange(ValidateScale(scale));
 				if (!scaleIds.Add(scale.Id))
-					errors.Add(OurResources.DataListItemIdDuplicate.FormatCurrentCulture(scale.Id, "scales"));
+					errors.Add(OurResources.DataListItemIdDuplicate.FormatCurrentCulture(scale.Id, "portraitScales"));
 			}
 		}
 
@@ -151,38 +138,38 @@ public sealed class PortraitData : IValidatedData
 		{
 			if (offset is null)
 			{
-				errors.Add(OurResources.DataListItemEmpty.FormatCurrentCulture("offsets"));
+				errors.Add(OurResources.DataListItemEmpty.FormatCurrentCulture("portraitOffsets"));
 			}
 			else if (string.IsNullOrWhiteSpace(offset.Id))
 			{
-				errors.Add(OurResources.DataListItemIdMissing.FormatCurrentCulture("offsets"));
+				errors.Add(OurResources.DataListItemIdMissing.FormatCurrentCulture("portraitOffsets"));
 			}
 			else
 			{
 				errors.AddRange(ValidateOffset(offset));
 				if (!offsetIds.Add(offset.Id))
-					errors.Add(OurResources.DataListItemIdDuplicate.FormatCurrentCulture(offset.Id, "offsets"));
+					errors.Add(OurResources.DataListItemIdDuplicate.FormatCurrentCulture(offset.Id, "portraitOffsets"));
 			}
 		}
 
 		if (Layers.Count == 0)
-			errors.Add(OurResources.DataListEmpty.FormatCurrentCulture("layers"));
+			errors.Add(OurResources.DataListEmpty.FormatCurrentCulture("portraitLayers"));
 
 		var layerIds = new HashSet<string>(StringComparer.Ordinal);
 		foreach (var layer in Layers)
 		{
 			if (layer is null)
 			{
-				errors.Add(OurResources.DataListItemEmpty.FormatCurrentCulture("layers"));
+				errors.Add(OurResources.DataListItemEmpty.FormatCurrentCulture("portraitLayers"));
 			}
 			else if (string.IsNullOrWhiteSpace(layer.Id))
 			{
-				errors.Add(OurResources.DataListItemIdMissing.FormatCurrentCulture("layers"));
+				errors.Add(OurResources.DataListItemIdMissing.FormatCurrentCulture("portraitLayers"));
 			}
 			else
 			{
 				if (!layerIds.Add(layer.Id))
-					errors.Add(OurResources.DataListItemIdDuplicate.FormatCurrentCulture(layer.Id, "layers"));
+					errors.Add(OurResources.DataListItemIdDuplicate.FormatCurrentCulture(layer.Id, "portraitLayers"));
 				errors.AddRange(ValidateLayer(layer, colorIds, scaleIds, offsetIds));
 			}
 		}
@@ -192,7 +179,7 @@ public sealed class PortraitData : IValidatedData
 
 	private static IEnumerable<string> ValidateColor(PortraitColor color, IReadOnlySet<string> earlierColorIds)
 	{
-		var path = $"colors[{color.Id}]";
+		var path = $"portraitColors[{color.Id}]";
 		foreach (var error in ValidateColorReference($"{path}.color", color.Color, earlierColorIds, isRequired: true))
 			yield return error;
 
@@ -228,7 +215,7 @@ public sealed class PortraitData : IValidatedData
 
 	private static IEnumerable<string> ValidateLayer(PortraitLayer layer, IReadOnlySet<string> colorIds, IReadOnlySet<string> scaleIds, IReadOnlySet<string> offsetIds)
 	{
-		var path = $"layers[{layer.Id}]";
+		var path = $"portraitLayers[{layer.Id}]";
 		foreach (var error in ValidateScaleReference($"{path}.scale", layer.Scale, scaleIds))
 			yield return error;
 		if (layer.Offset is { } offset && !offsetIds.Contains(offset))
@@ -304,7 +291,7 @@ public sealed class PortraitData : IValidatedData
 
 	private static IEnumerable<string> ValidateScale(PortraitScale scale)
 	{
-		var path = $"scales[{scale.Id}]";
+		var path = $"portraitScales[{scale.Id}]";
 		foreach (var error in ValidateStretch(path, scale.X, scale.Y))
 			yield return error;
 
@@ -336,7 +323,7 @@ public sealed class PortraitData : IValidatedData
 		if (offset.Variants is not { } variants)
 			yield break;
 
-		var path = $"offsets[{offset.Id}]";
+		var path = $"portraitOffsets[{offset.Id}]";
 		if (variants.Count == 0)
 			yield return OurResources.DataListEmpty.FormatCurrentCulture($"{path}.variants");
 
@@ -374,5 +361,69 @@ public sealed class PortraitData : IValidatedData
 		{
 			yield return OurResources.PortraitColorUnknown.FormatCurrentCulture(path, reference);
 		}
+	}
+}
+
+/// <summary>
+/// The portraits section of the data: the size of a portrait.
+/// </summary>
+public sealed class PortraitSection
+{
+	/// <summary>
+	/// The width of a portrait, in the units used by the layers' paths.
+	/// </summary>
+	public required double Width { get; init; }
+
+	/// <summary>
+	/// The height of a portrait, in the units used by the layers' paths.
+	/// </summary>
+	public required double Height { get; init; }
+}
+
+/// <summary>
+/// Reads portrait data from the portrait sections of data, for tools that edit it on its own.
+/// </summary>
+public static class PortraitDataReader
+{
+	/// <summary>
+	/// The names of the data sections that hold portrait data.
+	/// </summary>
+	public static IReadOnlyList<string> SectionNames { get; } = ["portraits", "portraitColors", "portraitScales", "portraitOffsets", "portraitLayers"];
+
+	/// <summary>
+	/// Reads and checks the portrait sections of the given data. Problems are reported against the given file.
+	/// </summary>
+	public static DataLoadResult<PortraitData> Read(System.Text.Json.Nodes.JsonObject root, string filePath)
+	{
+		var errors = new List<DataLoadError>();
+		T? Section<T>(string name)
+			where T : class
+		{
+			try
+			{
+				return root.TryGetPropertyValue(name, out var node) ? System.Text.Json.JsonSerializer.Deserialize<T>(node, JsonDataLoader.Options) : null;
+			}
+			catch (Exception e) when (e is System.Text.Json.JsonException or ArgumentException or InvalidOperationException)
+			{
+				errors.Add(new DataLoadError(filePath, OurResources.DataFileInvalidJson.FormatCurrentCulture(e.Message)));
+				return null;
+			}
+		}
+
+		var size = Section<PortraitSection>("portraits");
+		if (size is null && errors.Count == 0)
+			errors.Add(new DataLoadError(filePath, OurResources.DataSectionMissing.FormatCurrentCulture("portraits")));
+		var portraits = size is null ? null : new PortraitData
+		{
+			Width = size.Width,
+			Height = size.Height,
+			Colors = Section<List<PortraitColor>>("portraitColors") ?? [],
+			Scales = Section<List<PortraitScale>>("portraitScales") ?? [],
+			Offsets = Section<List<PortraitOffset>>("portraitOffsets") ?? [],
+			Layers = Section<List<PortraitLayer>>("portraitLayers") ?? [],
+		};
+		if (portraits is not null && errors.Count == 0)
+			errors.AddRange(portraits.Validate().Select(x => new DataLoadError(filePath, x)));
+		return errors.Count != 0 ? DataLoadResult<PortraitData>.Failure(errors) : DataLoadResult<PortraitData>.Success(portraits!);
 	}
 }

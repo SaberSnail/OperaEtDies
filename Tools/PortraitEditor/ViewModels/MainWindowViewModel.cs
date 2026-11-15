@@ -235,7 +235,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 		if (m_document is { } document)
 		{
 			var selectedLayer = SelectedItem?.Kind == DataItemKind.Shape ? SelectedItem.Parent : SelectedItem?.Kind == DataItemKind.Layer ? SelectedItem : null;
-			var layers = PortraitDocument.GetList(document.Root, "layers");
+			var layers = PortraitDocument.GetList(document.Root, "portraitLayers");
 			var index = selectedLayer is not null ? selectedLayer.Index + 1 : layers?.Count ?? 0;
 			var layer = new JsonObject
 			{
@@ -248,7 +248,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 				if (layers is null)
 				{
 					layers = [];
-					document.Root.SetProperty("layers", layers);
+					document.Root.SetProperty("portraitLayers", layers);
 				}
 
 				layers.Insert(index, layer);
@@ -478,7 +478,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 		var problems = new List<string>(m_loadErrors);
 		if (m_document is not null && m_data.GameData is { } gameData)
 		{
-			var result = JsonDataLoader.Deserialize<PortraitData>(m_document.FilePath, m_document.Root, null);
+			var result = PortraitDataReader.Read(m_document.Root, m_document.FilePath);
 			problems.AddRange(result.Errors.Select(x => x.Message));
 			if (result.Value is { } portraits)
 			{
@@ -639,10 +639,10 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 		m_layers = [];
 		if (m_document is { } document)
 		{
-			roots.Add(CreateCategory(document, "colors", DataItemKind.Color));
-			roots.Add(CreateCategory(document, "scales", DataItemKind.Scale));
-			roots.Add(CreateCategory(document, "offsets", DataItemKind.Offset));
-			var layers = CreateCategory(document, "layers", DataItemKind.Layer);
+			roots.Add(CreateCategory(document, "portraitColors", DataItemKind.Color));
+			roots.Add(CreateCategory(document, "portraitScales", DataItemKind.Scale));
+			roots.Add(CreateCategory(document, "portraitOffsets", DataItemKind.Offset));
+			var layers = CreateCategory(document, "portraitLayers", DataItemKind.Layer);
 			roots.Add(layers);
 			m_layers = layers.Children.OfType<DataItemViewModel>().ToList();
 			foreach (var layer in m_layers)
@@ -662,7 +662,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 		}
 
 		foreach (var root in roots)
-			root.IsExpanded = expandedCategories.Count == 0 ? root.Name == "layers" : expandedCategories.Contains(root.Name);
+			root.IsExpanded = expandedCategories.Count == 0 ? root.Name == "portraitLayers" : expandedCategories.Contains(root.Name);
 		TreeRoots = roots;
 		m_structure = GetStructure();
 		foreach (var item in GetAllItems())
@@ -702,8 +702,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 		if (m_document is not { } document)
 			return "";
 
-		var counts = new[] { "colors", "scales", "offsets" }.Select(x => PortraitDocument.GetList(document.Root, x)?.Count ?? 0);
-		var layers = PortraitDocument.GetList(document.Root, "layers");
+		var counts = new[] { "portraitColors", "portraitScales", "portraitOffsets" }.Select(x => PortraitDocument.GetList(document.Root, x)?.Count ?? 0);
+		var layers = PortraitDocument.GetList(document.Root, "portraitLayers");
 		var shapeCounts = layers?.Select(x => (x as JsonObject)?.GetProperty("shapes") is JsonArray shapes ? shapes.Count : -1) ?? [];
 		return string.Join(",", counts.Concat(shapeCounts).Select(x => x.ToString(CultureInfo.InvariantCulture)));
 	}
@@ -926,7 +926,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 	/// </summary>
 	private void RemapShapeStates()
 	{
-		if (m_document?.Root is not { } root || PortraitDocument.GetList(root, "layers") is not { } layers)
+		if (m_document?.Root is not { } root || PortraitDocument.GetList(root, "portraitLayers") is not { } layers)
 			return;
 
 		var states = new Dictionary<(string Layer, int Shape), CanvasState>();

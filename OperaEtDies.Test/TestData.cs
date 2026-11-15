@@ -9,13 +9,13 @@ namespace OperaEtDies.Test;
 /// </summary>
 internal static class TestData
 {
-	public static GameInfo CreateGameInfo() => new() { Title = "Title", Description = "Description" };
+	public static GameInfo CreateGameInfo() => new() { Title = "Title", Description = Text("Description") };
 
 	/// <summary>
 	/// Creates game data for tests. Without schedules, people have no needs, so they stay at home.
 	/// </summary>
 	public static GameData CreateGameData(LayoutShape shape = LayoutShape.Radial, bool withFeatures = false, bool withSchedules = false, double napBelow = 0) =>
-		new(CreateCharacterData(), CreateLocationList(shape, withFeatures), CreateProfessionList(), CreateFamilySettings(), CreateCalendarSettings(),
+		new(CreateCharacterData(), CreateLocationList(shape, withFeatures), CreateProfessionList(), CreateFamilySettings(), CreateRelationshipSettings(), CreateCalendarSettings(),
 			schedules: withSchedules ? CreateScheduleSettings(napBelow) : null);
 
 	/// <summary>
@@ -25,46 +25,78 @@ internal static class TestData
 	/// day with time at home afterward (overdue if it's missed), and a trip to the square on the sixth day. Everyone wakes within a few minutes of six, the infirm walk at half speed, and
 	/// homemakers find chores three times as urgent. Water comes from the nearest square or landmark.
 	/// </summary>
-	public static ScheduleSettings CreateScheduleSettings(double napBelow = 0) => new()
+	public static ScheduleSettings CreateScheduleSettings(double napBelow = 0)
 	{
-		MinimumUrgency = 40,
-		SightingHours = 24,
-		Sleep = new SleepSettings { NapBelow = napBelow, NapMinutes = Range(30, 30), BedtimeLead = 60 },
-		Talking = new TalkingSettings { RefuseUrgency = 95, WakeLevel = 6, AskAboutMinutes = 1, AskDoingMinutes = 5, SocializeMinutes = 30, SocializeNeed = "socializing" },
-		Socializing = new SocializingSettings { ChatUrgency = 25, ChatGoalWeight = 0.5, WakeUrgency = 90, NearMinutes = 15, SeekFactor = 0.6, SeekMinutes = 15, RecentHours = 12, AskPlayerAgainHours = 4, Clues = new SeekClues { Workplace = 3, Home = 2, Sighting = 4, Gathering = 2 } },
-		UrgencyPower = 2,
-		Needs =
+		var settings = new ScheduleSettings
+		{
+			MinimumUrgency = 40,
+			SightingHours = 24,
+			Sleep = new SleepSettings { NapBelow = napBelow, NapMinutes = Range(30, 30), BedtimeLead = 60 },
+			Talking = new TalkingSettings { RefuseUrgency = 95, WakeLevel = 6, AskAboutMinutes = 1, AskDoingMinutes = 5 },
+			Socializing = new SocializingSettings { ChatMinutes = 30, ChatUrgency = 25, ChatGoalWeight = 0.5, WakeUrgency = 90, NearMinutes = 15, SeekFactor = 0.6, SeekMinutes = 15, RecentHours = 12, AskPlayerAgainHours = 4, Clues = new SeekClues { Workplace = 3, Home = 2, Sighting = 4, Gathering = 2 } },
+			UrgencyPower = 2,
+			Idle = new IdleSettings { Place = Home, Minutes = Range(10, 30), Activity = "Resting" },
+			Start = new ScheduleStart { WakeHour = 6, WakeMinutes = Range(-10, 10) },
+		};
+
+		settings.Needs =
 		[
-			new Need { Id = "fatigue", Title = "Fatigue", Activity = "Sleeping", Kind = NeedKind.Level, Place = NeedPlace.Home, PerHour = 6, SatisfyPerHour = 12, UrgentFrom = 85, Start = 21, End = 4,
-				Levels = [new NeedLevel { Minimum = 0, Title = "Rested" }, new NeedLevel { Minimum = 50, Title = "Tired" }],
+			new Need { Id = "fatigue", Title = "Fatigue", Role = ScheduleSettings.SleepRole, Activity = "Sleeping", PlaceSetting = Home, Hours = Hours(21, 4),
+				Level = new LevelNeedSettings { PerHour = 6, SatisfyPerHour = 12, UrgentFrom = 85, Levels = [new NeedLevel { Minimum = 0, Title = "Rested" }, new NeedLevel { Minimum = 50, Title = "Tired" }] },
 				PlayerAction = new PlayerAction { Title = "Sleep", Result = "You slept", Options = [new PlayerActionOption { Title = "Until rested", UntilMet = true }, new PlayerActionOption { Title = "Until dawn", UntilHour = 6 }, new PlayerActionOption { Minutes = 60 }] } },
-			new Need { Id = "hunger", Title = "Hunger", Kind = NeedKind.Level, Place = NeedPlace.Home, PerHour = 10, SatisfyPerHour = 200, WakeUrgency = 90, Start = 5, End = 22, StartLevel = Range(10, 40) },
-			new Need { Id = "restlessness", Title = "Restlessness", Kind = NeedKind.Level, Place = NeedPlace.Quarter, PerHour = 5, SatisfyPerHour = 60, PausedBy = ["fatigue"], Start = 9, End = 22,
-				QuarterKinds = [new QuarterChoice { QuarterKind = "square" }, new QuarterChoice { QuarterKind = "landmark" }], StartLevel = Range(0, 50) },
-			new Need { Id = "socializing", Title = "Socializing", Activity = "Chatting", Kind = NeedKind.Level, Place = NeedPlace.Quarter, PerHour = 2, SatisfyPerHour = 60, PausedBy = ["fatigue"], Start = 7, End = 21,
-				QuarterKinds = [new QuarterChoice { QuarterKind = "square" }] },
-			new Need { Id = "work", Title = "Work", Kind = NeedKind.Quota, Place = NeedPlace.Workplace, AtWork = true, Days = ["day1", "day2", "day3", "day4", "day5", "day6"], OnSpecialDays = false,
-				Start = 6, End = 19, Minutes = 480, Shift = 120, Lead = 300,
+			new Need { Id = "hunger", Title = "Hunger", PlaceSetting = Home, Hours = Hours(5, 22),
+				Level = new LevelNeedSettings { PerHour = 10, SatisfyPerHour = 200, WakeUrgency = 90, StartLevel = Range(10, 40) } },
+			new Need { Id = "restlessness", Title = "Restlessness", PlaceSetting = Quarters(false, "square", "landmark"), Hours = Hours(9, 22),
+				Level = new LevelNeedSettings { PerHour = 5, SatisfyPerHour = 60, PausedBy = ["fatigue"], StartLevel = Range(0, 50) } },
+			new Need { Id = "socializing", Title = "Socializing", Role = ScheduleSettings.SocializingRole, Activity = "Chatting", PlaceSetting = Quarters(false, "square"), Hours = Hours(7, 21),
+				Level = new LevelNeedSettings { PerHour = 2, SatisfyPerHour = 60, PausedBy = ["fatigue"] } },
+			new Need { Id = "work", Title = "Work", PlaceSetting = new SchedulePlace { Kind = NeedPlace.Workplace }, AtWork = true,
+				Hours = new Hours { Start = 6, End = 19, Days = ["day1", "day2", "day3", "day4", "day5", "day6"], OnSpecialDays = false },
+				Quota = new QuotaNeedSettings { Lead = 300, Time = new QuotaTime { Minutes = Amount(480), Shift = 120 } },
 				PlayerAction = new PlayerAction { Title = "Work", Result = "You worked", Options = [new PlayerActionOption { Title = "Until done", UntilMet = true }, new PlayerActionOption { Minutes = 120 }] } },
-			new Need { Id = "upkeep", Title = "Upkeep", Kind = NeedKind.Quota, Place = NeedPlace.Home, Start = 6, End = 21, Minutes = 30, MinutesPerMember = 15, Shift = 30, Lead = 480, SharedByFamily = true,
+			new Need { Id = "upkeep", Title = "Upkeep", PlaceSetting = Home, Hours = Hours(6, 21),
+				Quota = new QuotaNeedSettings { Lead = 480, SharedByFamily = true, Time = new QuotaTime { Minutes = Amount(30, 15), Shift = 30 } },
 				PlayerAction = new PlayerAction { Title = "Tidy up", Result = "You tidied up", Options = [new PlayerActionOption { Title = "Until done", UntilMet = true }, new PlayerActionOption { Minutes = 15 }] } },
-			new Need { Id = "water", Title = "Water", Kind = NeedKind.Quota, Place = NeedPlace.Quarter, Nearest = true, QuarterKinds = [new QuarterChoice { QuarterKind = "square" }, new QuarterChoice { QuarterKind = "landmark" }], Start = 5, End = 20,
-				VisitsPerMember = 1, VisitMinutes = 5, Lead = 600, SharedByFamily = true, ReturnHome = true,
-				PlayerAction = new PlayerAction { Title = "Fetch water", Result = "You fetched water", Return = "Take it home to finish.", Home = new PlayerActionHome { Title = "Put away the water", Result = "You put away the water" } } },
-			new Need { Id = "mending", Title = "Mending", Kind = NeedKind.Quota, Period = NeedPeriod.Week, Place = NeedPlace.Home, Start = 6, End = 21, Minutes = 60, MinutesPerMember = 30, Shift = 60,
-				Lead = 3000, SharedByFamily = true },
-			new Need { Id = "laundry", Title = "Laundry", Activity = "Washing", HomeActivity = "Hanging out the washing", Kind = NeedKind.Quota, Period = NeedPeriod.Week, OverdueUrgency = 80, Place = NeedPlace.Quarter, QuarterKinds = [new QuarterChoice { QuarterKind = "square" }, new QuarterChoice { QuarterKind = "landmark" }], Days = ["day1"],
-				Start = 7, End = 17, Visits = 1, VisitMinutesPerMember = 20, HomeMinutesPerMember = 10, Lead = 300, SharedByFamily = true, ReturnHome = true,
-				PlayerAction = new PlayerAction { Title = "Wash the clothes", Result = "You washed the clothes", Return = "Take the washing home to hang it out.", Home = new PlayerActionHome { Title = "Hang out the washing", Result = "You hung out the washing" } } },
-			new Need { Id = "market", Title = "Market", Kind = NeedKind.Quota, Place = NeedPlace.Quarter, QuarterKinds = [new QuarterChoice { QuarterKind = "square" }], Days = ["day6"],
-				Start = 7, End = 14, Visits = 1, VisitMinutes = 30, Lead = 300, SharedByFamily = true, ReturnHome = true,
-				PlayerAction = new PlayerAction { Title = "Shop", Result = "You shopped", Return = "Go home.", Home = new PlayerActionHome { Title = "Put it away", Result = "You put it away" }, OnlyInHours = true } },
-		],
-		Idle = new IdleSettings { Place = NeedPlace.Home, Minutes = Range(10, 30), Activity = "Resting" },
-		Start = new ScheduleStart { Need = "fatigue", WakeHour = 6, WakeMinutes = Range(-10, 10) },
-		TravelTimeFactors = [new TravelTimeFactor { When = Condition("profession", "infirm"), Factor = 2 }],
-		UrgencyFactors = [new UrgencyFactor { When = Condition("profession", "homemaker"), Needs = ["upkeep", "water", "mending", "laundry", "market"], Factor = 3 }],
-	};
+			new Need { Id = "water", Title = "Water", PlaceSetting = Quarters(true, "square", "landmark"), Hours = Hours(5, 20), ReturnHome = true,
+				Quota = new QuotaNeedSettings { Lead = 600, SharedByFamily = true, Trips = new QuotaTrips { Visits = Amount(0, 1), Minutes = Amount(5) } },
+				PlayerAction = new PlayerAction { Title = "Fetch water", Result = "You fetched water", Return = Text("Take it home to finish."), Home = new PlayerActionHome { Title = "Put away the water", Result = "You put away the water" } } },
+			new Need { Id = "mending", Title = "Mending", PlaceSetting = Home, Hours = Hours(6, 21),
+				Quota = new QuotaNeedSettings { Period = NeedPeriod.Week, Lead = 3000, SharedByFamily = true, Time = new QuotaTime { Minutes = Amount(60, 30), Shift = 60 } } },
+			new Need { Id = "laundry", Title = "Laundry", Activity = "Washing", PlaceSetting = Quarters(false, "square", "landmark"), ReturnHome = true,
+				Hours = new Hours { Start = 7, End = 17, Days = ["day1"] },
+				Quota = new QuotaNeedSettings { Period = NeedPeriod.Week, OverdueUrgency = 80, Lead = 300, SharedByFamily = true,
+					Trips = new QuotaTrips { Visits = Amount(1), Minutes = Amount(0, 20), Home = new QuotaTripHome { Minutes = Amount(0, 10), Activity = "Hanging out the washing" } } },
+				PlayerAction = new PlayerAction { Title = "Wash the clothes", Result = "You washed the clothes", Return = Text("Take the washing home to hang it out."), Home = new PlayerActionHome { Title = "Hang out the washing", Result = "You hung out the washing" } } },
+			new Need { Id = "market", Title = "Market", PlaceSetting = Quarters(false, "square"), ReturnHome = true,
+				Hours = new Hours { Start = 7, End = 14, Days = ["day6"] },
+				Quota = new QuotaNeedSettings { Lead = 300, SharedByFamily = true, Trips = new QuotaTrips { Visits = Amount(1), Minutes = Amount(30) } },
+				PlayerAction = new PlayerAction { Title = "Shop", Result = "You shopped", Return = Text("Go home."), Home = new PlayerActionHome { Title = "Put it away", Result = "You put it away" }, OnlyInHours = true } },
+		];
+		settings.TravelTimeFactors = [new TravelTimeFactor { Id = "infirm", When = Condition("profession", "infirm"), Factor = 2 }];
+		settings.UrgencyFactors = [new UrgencyFactor { Id = "homemaker", When = Condition("profession", "homemaker"), Needs = ["upkeep", "water", "mending", "laundry", "market"], Factor = 3 }];
+		return settings;
+	}
+
+	/// <summary>
+	/// The place for a need met at home.
+	/// </summary>
+	public static SchedulePlace Home { get; } = new() { Kind = NeedPlace.Home };
+
+	/// <summary>
+	/// Creates the place for a need met in a quarter of one of the given kinds.
+	/// </summary>
+	public static SchedulePlace Quarters(bool nearest, params string[] kinds) =>
+		new() { Kind = NeedPlace.Quarter, Nearest = nearest, QuarterKinds = kinds.Select(x => new QuarterChoice { QuarterKind = x }).ToList() };
+
+	/// <summary>
+	/// Creates hours from the start hour to the end hour, every day.
+	/// </summary>
+	public static Hours Hours(int start, int end) => new() { Start = start, End = end };
+
+	/// <summary>
+	/// Creates an amount, with an amount for each family member if given.
+	/// </summary>
+	public static FamilyAmount Amount(double baseAmount, double? perMember = null) => new() { Base = baseAmount, PerMember = perMember };
 
 	private static IntegerRange Range(int minimum, int maximum) =>
 		new() { Minimum = minimum, Maximum = maximum, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = Math.Max((maximum - minimum) / 4.0, 1) } };
@@ -73,6 +105,31 @@ internal static class TestData
 	/// Creates the templates the engine requires.
 	/// </summary>
 	public static IReadOnlyList<CharacterTemplate> CreateTemplates(string fullName, string description) =>
+		CreateTemplateList(fullName, description);
+
+	/// <summary>
+	/// Reads character data (properties, templates, and obscurers) from JSON and checks it on its own, the way the game
+	/// does before checking it against the rest of the data.
+	/// </summary>
+	public static DataLoadResult<CharacterData> LoadCharacterData(string json)
+	{
+		var root = System.Text.Json.Nodes.JsonNode.Parse(json, documentOptions: new System.Text.Json.JsonDocumentOptions { CommentHandling = System.Text.Json.JsonCommentHandling.Skip, AllowTrailingCommas = true })!.AsObject();
+		CharacterData data;
+		try
+		{
+			IReadOnlyList<T> List<T>(string name) => root.TryGetPropertyValue(name, out var node) ? System.Text.Json.JsonSerializer.Deserialize<List<T>>(node, JsonDataLoader.Options)! : [];
+			data = new CharacterData { Properties = List<CharacterProperty>("properties"), Templates = List<CharacterTemplate>("templates"), Obscurers = List<CharacterObscurer>("obscurers") };
+		}
+		catch (System.Text.Json.JsonException e)
+		{
+			return DataLoadResult<CharacterData>.Failure(new DataLoadError("", e.Message));
+		}
+
+		var errors = data.Validate().Select(x => new DataLoadError("", x)).ToList();
+		return errors.Count != 0 ? DataLoadResult<CharacterData>.Failure(errors) : DataLoadResult<CharacterData>.Success(data);
+	}
+
+	private static IReadOnlyList<CharacterTemplate> CreateTemplateList(string fullName, string description) =>
 	[
 		new CharacterTemplate { Id = CharacterData.FullNameTemplateId, Template = fullName },
 		new CharacterTemplate { Id = CharacterData.DescriptionTemplateId, Template = description },
@@ -88,51 +145,56 @@ internal static class TestData
 			new CharacterProperty
 			{
 				Id = "gender",
+				Role = "gender",
 				Title = "Gender",
 				Type = CharacterPropertyType.ValueList,
 				Values =
 				[
-					CreateOption("male", Frequency.Common, ("noun", "man"), ("pronoun", "he")),
-					CreateOption("female", Frequency.Common, ("noun", "woman"), ("pronoun", "she")),
+					WithRole(CreateOption("male", Frequency.Common, ("noun", "man"), ("pronoun", "he"))),
+					WithRole(CreateOption("female", Frequency.Common, ("noun", "woman"), ("pronoun", "she"))),
 				],
 				Player = new CharacterRoleSettings { Values = ["male"] },
 			},
 			new CharacterProperty
 			{
 				Id = "profession",
+				Role = "profession",
 				Title = "Profession",
 				Type = CharacterPropertyType.ValueList,
 				Values = CreateProfessionList().Professions.Select(x => x.ToOption()).ToList(),
-				ValuesFrom = CharacterProperty.ProfessionsSource,
 				Player = new CharacterRoleSettings { Values = ["smith", "miller"] },
 			},
 			new CharacterProperty
 			{
 				Id = "workRole",
+				Role = "workRole",
 				Title = "Work Role",
 				Type = CharacterPropertyType.ValueList,
-				Values = [CreateOption("independent", Frequency.Common), CreateOption("helper", Frequency.Common)],
+				Values = [WithRole(CreateOption("independent", Frequency.Common)), WithRole(CreateOption("helper", Frequency.Common))],
 				SetByGame = true,
 			},
 			new CharacterProperty
 			{
 				Id = "householdRole",
+				Role = "householdRole",
 				Title = "Household Role",
 				Type = CharacterPropertyType.ValueList,
-				Values = [CreateOption("head", Frequency.Common), CreateOption("member", Frequency.Common)],
+				Values = [WithRole(CreateOption("head", Frequency.Common)), WithRole(CreateOption("member", Frequency.Common))],
 				SetByGame = true,
 			},
 			new CharacterProperty
 			{
 				Id = "headRelation",
+				Role = "headRelation",
 				Title = "Head Relation",
 				Type = CharacterPropertyType.ValueList,
-				Values = new[] { "self", "husband", "father", "mother", "son", "daughter", "sonInLaw", "daughterInLaw" }.Select(x => CreateOption(x, Frequency.Common)).ToList(),
+				Values = new[] { "self", "husband", "father", "mother", "son", "daughter", "sonInLaw", "daughterInLaw" }.Select(x => WithRole(CreateOption(x, Frequency.Common))).ToList(),
 				SetByGame = true,
 			},
 			new CharacterProperty
 			{
 				Id = "headName",
+				Role = "headName",
 				Title = "Head Name",
 				Type = CharacterPropertyType.String,
 				SetByGame = true,
@@ -140,17 +202,19 @@ internal static class TestData
 			new CharacterProperty
 			{
 				Id = "atWork",
+				Role = "atWork",
 				Title = "At Work",
 				Type = CharacterPropertyType.ValueList,
-				Values = [CreateOption("atWork", Frequency.Common), CreateOption("notAtWork", Frequency.Common)],
+				Values = [WithRole(CreateOption("atWork", Frequency.Common)), WithRole(CreateOption("notAtWork", Frequency.Common))],
 				SetByGame = true,
 			},
 			new CharacterProperty
 			{
 				Id = "married",
+				Role = "married",
 				Title = "Married",
 				Type = CharacterPropertyType.ValueList,
-				Values = [CreateOption("married", Frequency.Common), CreateOption("unmarried", Frequency.Common)],
+				Values = [WithRole(CreateOption("married", Frequency.Common)), WithRole(CreateOption("unmarried", Frequency.Common))],
 				SetByGame = true,
 			},
 			new CharacterProperty
@@ -171,6 +235,7 @@ internal static class TestData
 			new CharacterProperty
 			{
 				Id = "lastName",
+				Role = "lastName",
 				Title = "Last Name",
 				Type = CharacterPropertyType.String,
 				Defaults = new StringDefaults
@@ -213,6 +278,7 @@ internal static class TestData
 			new CharacterProperty
 			{
 				Id = "age",
+				Role = "age",
 				Title = "Age",
 				Type = CharacterPropertyType.Integer,
 				Range = new IntegerRange { Minimum = 16, Maximum = 80, Shape = new WeightShape { Peak = ShapePeak.Low, MostWithin = 25 } },
@@ -294,6 +360,7 @@ internal static class TestData
 		CreateLocationList(),
 		CreateProfessionList(),
 		CreateFamilySettings(),
+		CreateRelationshipSettings(),
 		CreateCalendarSettings());
 
 	/// <summary>
@@ -317,11 +384,10 @@ internal static class TestData
 		Features = withFeatures
 			?
 			[
-				new MapFeature { Id = "river", Title = "River", Type = MapFeatureType.River, Crossings = ["bridge"], Text = ["The river is {direction}."] },
-				new MapFeature { Id = "woods", Title = "Woods", Type = MapFeatureType.Area, Size = new QuarterSize { Length = 2, Width = 2 }, Text = ["The woods are {direction}."] },
+				new MapFeature { Id = "river", Title = "River", Type = MapFeatureType.River, Crossings = ["bridge"], Text = [Text("The river is {direction}.")] },
+				new MapFeature { Id = "woods", Title = "Woods", Type = MapFeatureType.Area, Size = new QuarterSize { Length = 2, Width = 2 }, Text = [Text("The woods are {direction}.")] },
 			]
 			: [],
-		FeatureCount = withFeatures ? new IntegerRange { Minimum = 2, Maximum = 2, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } } : null,
 		QuarterKinds =
 		[
 			new QuarterKind { Id = "square", Area = MapArea.Village, Unique = true, Path = "street", TravelTime = 2 },
@@ -330,10 +396,15 @@ internal static class TestData
 			new QuarterKind { Id = "fields", Area = MapArea.Outskirts, Path = "track", TravelTime = 5 },
 			new QuarterKind { Id = "riverbank", Area = MapArea.Outskirts, Path = "towpath", Borders = "river", TravelTime = 5 },
 		],
-		LandmarkCount = new IntegerRange { Minimum = 1, Maximum = 3, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } },
-		BuildingTravelTime = 1,
-		Layouts = [new TownLayoutChoice { Shape = shape, Center = "square" }],
-		HouseTitle = "The {lastName} Home",
+		Village = new VillageSettings
+		{
+			FamilyCount = new IntegerRange { Minimum = 3, Maximum = 5, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } },
+			LandmarkCount = new IntegerRange { Minimum = 1, Maximum = 3, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } },
+			FeatureCount = withFeatures ? new IntegerRange { Minimum = 2, Maximum = 2, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } } : null,
+			BuildingTravelTime = 1,
+			HouseTitle = "The {lastName} Home",
+		},
+		Layouts = [new TownLayoutChoice { Id = "layout", Shape = shape, Center = "square" }],
 		Quarters =
 		[
 			CreateQuarter("lane-low", "lane", WealthLevel.Low, 2, 4, 0),
@@ -344,7 +415,7 @@ internal static class TestData
 			CreateQuarter("shrine", "landmark", null, 0, 0, 0),
 			CreateQuarter("common", "fields", null, 0, 0, 0),
 			CreateQuarter("bank", "riverbank", null, 0, 0, 0),
-			new QuarterTemplate { Id = "clearing", Title = "Clearing", ShortDescription = "Short.", MediumDescription = "Medium.", LongDescription = ["Long."], Kind = "fields", Borders = "woods", FeatureText = new Dictionary<string, string> { ["woods"] = "The trees stand {direction}." } },
+			new QuarterTemplate { Id = "clearing", Title = "Clearing", Description = Describe("Short.", "Medium.", "Long."), Kind = "fields", Borders = "woods", FeatureText = new Dictionary<string, LongText> { ["woods"] = Text("The trees stand {direction}.") } },
 		],
 		Houses =
 		[
@@ -371,9 +442,7 @@ internal static class TestData
 				Id = "smith",
 				Title = "Smith",
 				Text = new Dictionary<string, string> { ["description"] = "a blacksmith" },
-				Wealth = WealthLevel.High,
-				MaxBusinesses = 1,
-				Helpers = 1,
+				Business = new ProfessionBusiness { Wealth = WealthLevel.High, MaxBusinesses = 1, Helpers = 1 },
 			},
 			new Profession
 			{
@@ -381,15 +450,13 @@ internal static class TestData
 				Title = "Miller",
 				Frequency = new FrequencyLevel(Frequency.Uncommon),
 				Text = new Dictionary<string, string> { ["description"] = "a miller" },
-				Wealth = WealthLevel.Low,
-				Helpers = 2,
-				HelperWhen = Condition("gender", "male", "female"),
-				WorksFromHome = true,
-				ForHouseholdElders = true,
+				Business = new ProfessionBusiness { Wealth = WealthLevel.Low, Helpers = 2, WorksFromHome = true, ForHouseholdElders = true },
 			},
 			new Profession
 			{
 				Id = "homemaker",
+				Role = "homemaker",
+				Player = false,
 				Title = "Homemaker",
 				Frequency = new FrequencyLevel(Frequency.VeryRare),
 				When = Condition("gender", "female"),
@@ -398,6 +465,8 @@ internal static class TestData
 			new Profession
 			{
 				Id = "infirm",
+				Role = "infirm",
+				Player = false,
 				Title = "Infirm",
 				Frequency = new FrequencyLevel(Frequency.VeryRare),
 				Text = new Dictionary<string, string> { ["description"] = "infirm" },
@@ -427,7 +496,7 @@ internal static class TestData
 		DayParts =
 		[
 			new CalendarDayPart { Id = "morning", Title = "Morning", Start = 6 },
-			new CalendarDayPart { Id = "afternoon", Title = "Afternoon", Start = 12, Announcement = "The bell rings for noon." },
+			new CalendarDayPart { Id = "afternoon", Title = "Afternoon", Start = 12, Announcement = Text("The bell rings for noon.") },
 			new CalendarDayPart { Id = "evening", Title = "Evening", Start = 18 },
 			new CalendarDayPart { Id = "night", Title = "Night", Start = 21 },
 		],
@@ -438,21 +507,58 @@ internal static class TestData
 
 	public static FamilySettings CreateFamilySettings() => new()
 	{
-		Properties = new FamilyProperties { Gender = "gender", Age = "age", Profession = "profession", LastName = "lastName", WorkRole = "workRole", HouseholdRole = "householdRole", HeadRelation = "headRelation", HeadName = "headName", AtWork = "atWork", Married = "married" },
-		Male = "male",
-		Female = "female",
-		Homemaker = "homemaker",
-		Infirm = "infirm",
-		Independent = "independent",
-		Helper = "helper",
-		Head = "head",
-		Member = "member",
-		HeadRelations = new HeadRelations { Self = "self", Husband = "husband", Father = "father", Mother = "mother", Son = "son", Daughter = "daughter", SonInLaw = "sonInLaw", DaughterInLaw = "daughterInLaw" },
-		AtWork = "atWork",
-		NotAtWork = "notAtWork",
-		Married = "married",
-		Unmarried = "unmarried",
-		FamilyCount = new IntegerRange { Minimum = 3, Maximum = 5, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } },
+		Head = new FamilyHeadSettings
+		{
+			FemaleChance = 10,
+			FemaleMinWealth = WealthLevel.Low,
+			Age = new IntegerRange { Minimum = 25, Maximum = 60, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 6 } },
+		},
+		Wife = new FamilyWifeSettings
+		{
+			Chance = 80,
+			AgeDifference = new IntegerRange { Minimum = -10, Maximum = 4, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 3 } },
+		},
+		Children = new FamilyChildSettings
+		{
+			Count = new IntegerRange { Minimum = 0, Maximum = 2, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } },
+			Age = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 5 },
+			SiblingAgeSpread = 2,
+			SonChance = 5,
+			HomemakerChance = 50,
+		},
+		Elder = new FamilyElderSettings
+		{
+			Chance = 40,
+			FemaleChance = 70,
+			AgeGap = new WeightShape { Peak = ShapePeak.Low, MostWithin = 8 },
+			MinAge = new GenderAges { Male = 65, Female = 45 },
+			InfirmChance = new Dictionary<string, double> { ["old"] = 20, ["veryOld"] = 60 },
+			HomemakerChance = 50,
+		},
+		ParentAge = new ParentAgeSettings { Minimum = 16, MaxMother = 42, MaxFather = 55 },
+		HelperChance = 80,
+		Wealth = new FamilyWealthSettings
+		{
+			Helper = 0.5,
+			HelperFalloff = 0.7,
+			Homemaker = 0.5,
+			Infirm = -0.5,
+			Fortune = new IntegerRange { Minimum = 80, Maximum = 120, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 10 } },
+			HeadAge = new Dictionary<string, double> { ["young"] = 90, ["adult"] = 110 },
+			Thresholds = new WealthThresholds { Medium = 5, High = 10 },
+		},
+	};
+
+	public static RelationshipSettings CreateRelationshipSettings() => new()
+	{
+		Score = new IntegerRange { Minimum = 0, Maximum = 100, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 15 } },
+		FamilyBonus = 20,
+		SpouseBonus = 30,
+		ElderBonus = 15,
+		ElderInLawBonus = 10,
+		NeighborBonus = 10,
+		FriendScore = 70,
+		Levels = [new RelationshipLevel { Minimum = 0, Title = "Cold" }, new RelationshipLevel { Minimum = 40, Title = "Friendly" }, new RelationshipLevel { Minimum = 70, Title = "Friend" }],
 		PlayerRelations =
 		[
 			new PlayerRelation { When = Condition("headRelation", "husband"), Title = "wife" },
@@ -461,44 +567,30 @@ internal static class TestData
 			new PlayerRelation { When = Both("headRelation", ["son", "daughter", "sonInLaw", "daughterInLaw"], "gender", "male"), Title = "father" },
 			new PlayerRelation { When = Both("headRelation", ["son", "daughter", "sonInLaw", "daughterInLaw"], "gender", "female"), Title = "mother" },
 		],
-		Relationships = new RelationshipSettings
-		{
-			Score = new IntegerRange { Minimum = 0, Maximum = 100, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 15 } },
-			FamilyBonus = 20,
-			SpouseBonus = 30,
-			ElderBonus = 15,
-			ElderInLawBonus = 10,
-			NeighborBonus = 10,
-			FriendScore = 70,
-			Levels = [new RelationshipLevel { Minimum = 0, Title = "Cold" }, new RelationshipLevel { Minimum = 40, Title = "Friendly" }, new RelationshipLevel { Minimum = 70, Title = "Friend" }],
-		},
-		FemaleHeadChance = 10,
-		FemaleHeadMinWealth = WealthLevel.Low,
-		HeadAge = new IntegerRange { Minimum = 25, Maximum = 60, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 6 } },
-		WifeChance = 80,
-		WifeAgeDifference = new IntegerRange { Minimum = -10, Maximum = 4, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 3 } },
-		HouseholdElderChance = 40,
-		FemaleHouseholdElderChance = 70,
-		HouseholdElderAgeGap = new WeightShape { Peak = ShapePeak.Low, MostWithin = 8 },
-		HouseholdElderMinAge = new GenderAges { Male = 65, Female = 45 },
-		InfirmChance = new Dictionary<string, double> { ["old"] = 20, ["veryOld"] = 60 },
-		HouseholdElderHomemakerChance = 50,
-		MinParentAge = 16,
-		MaxMotherAge = 42,
-		MaxFatherAge = 55,
-		ChildCount = new IntegerRange { Minimum = 0, Maximum = 2, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 1 } },
-		ChildAge = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 5 },
-		SiblingAgeSpread = 2,
-		SonChance = 5,
-		ChildHomemakerChance = 50,
-		HelperChance = 80,
-		HelperWealth = 0.5,
-		HelperWealthFalloff = 0.7,
-		HomemakerWealth = 0.5,
-		InfirmWealth = -0.5,
-		HouseholdFortune = new IntegerRange { Minimum = 80, Maximum = 120, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = 10 } },
-		HeadAgeWealth = new Dictionary<string, double> { ["young"] = 90, ["adult"] = 110 },
-		WealthThresholds = new WealthThresholds { Medium = 5, High = 10 },
+	};
+
+	/// <summary>
+	/// Creates long text, marked as written by AI.
+	/// </summary>
+	public static LongText Text(string text) => new() { Text = text, Ai = true };
+
+	/// <summary>
+	/// Creates the descriptions of a location.
+	/// </summary>
+	public static LocationDescription Describe(string short1, string medium, params string[] paragraphs) =>
+		new() { Short = Text(short1), Medium = Text(medium), Long = paragraphs.Select(Text).ToList() };
+
+	/// <summary>
+	/// Creates a copy of a value whose role is its id, for the properties whose values the engine finds by role.
+	/// </summary>
+	private static CharacterPropertyOption WithRole(CharacterPropertyOption option) => new()
+	{
+		Id = option.Id,
+		Title = option.Title,
+		Role = option.Id,
+		Frequency = option.Frequency,
+		Text = option.Text,
+		When = option.When,
 	};
 
 	private static CharacterPropertyOption CreateOption(string id, Frequency frequency, params (string Name, string Text)[] text) =>
@@ -519,21 +611,16 @@ internal static class TestData
 	{
 		Id = id,
 		Title = $"{id} title",
-		ShortDescription = $"{id} short",
-		MediumDescription = $"{id} medium",
-		LongDescription = [$"{id} long 1", $"{id} long 2", $"{id} long 3"],
+		Description = Describe($"{id} short", $"{id} medium", $"{id} long 1", $"{id} long 2", $"{id} long 3"),
 		Kind = kind,
-		Wealth = wealth,
-		Houses = maxHouses > 0 ? new CountRange { Minimum = minHouses, Maximum = maxHouses } : null,
+		Houses = maxHouses > 0 ? new QuarterHouses { Minimum = minHouses, Maximum = maxHouses, Wealth = wealth!.Value } : null,
 		Businesses = businesses,
 	};
 
 	private static HouseTemplate CreateHouse(string id, WealthLevel wealth) => new()
 	{
 		Id = id,
-		ShortDescription = $"{id} short",
-		MediumDescription = $"{id} medium",
-		LongDescription = [$"{id} long"],
+		Description = Describe($"{id} short", $"{id} medium", $"{id} long"),
 		Wealth = wealth,
 	};
 
@@ -542,9 +629,7 @@ internal static class TestData
 		Id = id,
 		Profession = profession,
 		Title = $"{id} title",
-		ShortDescription = $"{id} short",
-		MediumDescription = $"{id} medium",
-		LongDescription = [$"{id} long"],
+		Description = Describe($"{id} short", $"{id} medium", $"{id} long"),
 		QuarterKinds = quarterKinds,
 	};
 }

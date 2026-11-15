@@ -168,7 +168,7 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	/// Describes the start of a part of the day, with its announcement if it has one.
 	/// </summary>
 	private static string GetDayPartAnnouncement(CalendarDayPart dayPart) =>
-		dayPart.Announcement ?? OurResources.DayPartStarted.FormatCurrentCulture(dayPart.Title);
+		dayPart.Announcement?.Text ?? OurResources.DayPartStarted.FormatCurrentCulture(dayPart.Title);
 
 	/// <summary>
 	/// Shows how a wait went, such as after following someone here.
@@ -196,7 +196,7 @@ public sealed class LocationScreenViewModel : ViewModelBase
 			.ToList();
 
 	private LocationPersonViewModel CreatePerson(Person person) =>
-		new(person, m_world.GameData.PortraitRenderer, m_world.GameData.Schedules, m_world.GameData.Families, toggleFollow: ToggleFollow,
+		new(person, m_world.GameData.PortraitRenderer, m_world.GameData.Schedules, m_world.GameData.Relationships, toggleFollow: ToggleFollow,
 			developerCalendar: m_isDeveloper ? m_world.GameData.Calendar : null, examine: x => ExamineRequested.Raise(this, new GenericEventArgs<Person>(x)),
 			talk: x => TalkRequested.Raise(this, new GenericEventArgs<Person>(x))) { IsFollowed = person == m_following };
 

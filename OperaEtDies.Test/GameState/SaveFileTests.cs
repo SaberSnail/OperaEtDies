@@ -74,7 +74,7 @@ public sealed class SaveFileTests
 		var talk = (TalkTask) loaded.Objects.Get<Person>(first.Id).CurrentTask!;
 		Assert.That((talk.With.Id, talk.Minutes), Is.EqualTo((second.Id, 15)));
 		Assert.That(loaded.Objects.Get<Person>(first.Id).Tasks[1].ResumeMinutes, Is.Not.Null);
-		Assert.That(talk.Need?.Id, Is.EqualTo(world.GameData.Schedules.Talking.SocializeNeed));
+		Assert.That(talk.Need?.Id, Is.EqualTo(world.GameData.Schedules.SocializeNeed));
 		Assert.That(loaded.Objects.Get<Person>(first.Id).Sightings.Values.Count(x => x.Plan is not null), Is.EqualTo(1));
 	}
 
@@ -82,7 +82,7 @@ public sealed class SaveFileTests
 	public void SeekingSavesAndLoads()
 	{
 		var (world, person) = TalkingTests.CreateWorldWithSomeoneHere();
-		var socializing = world.GameData.Schedules.Needs.Single(x => x.Id == world.GameData.Schedules.Talking.SocializeNeed);
+		var socializing = world.GameData.Schedules.Needs.Single(x => x.Id == world.GameData.Schedules.SocializeNeed);
 		foreach (var need in world.GameData.Schedules.Needs.Where(x => x.Kind == NeedKind.Level))
 			person.SetLevel(need, 0);
 		person.SetLevel(socializing, OperaEtDies.Data.Need.MaximumLevel);

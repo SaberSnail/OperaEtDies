@@ -1,47 +1,38 @@
-using System.IO;
 using GoldenAnvil.Utility;
 
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// Checks that the data files agree with each other, once each file has been loaded and checked on its own.
+/// Checks that the parts of the data agree with each other, once each part has been checked on its own.
 /// </summary>
 internal static class GameDataValidation
 {
-	public static IReadOnlyList<DataLoadError> Validate(string dataDirectory, CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, CalendarSettings calendar, ScheduleSettings schedules, PortraitData? portraits = null)
+	public static IReadOnlyList<string> Validate(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, RelationshipSettings relationships, CalendarSettings calendar, ScheduleSettings schedules, PortraitData? portraits = null)
 	{
 		var properties = new Dictionary<string, CharacterProperty>(StringComparer.Ordinal);
-		foreach (var property in characters.Properties)
+		foreach (var property in characters.Properties.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)))
 			properties.TryAdd(property.Id, property);
 
-		var errors = new List<DataLoadError>();
-		var familyErrors = ValidateFamilies(families, properties).ToList();
-		errors.AddRange(familyErrors.Select(x => new DataLoadError(Path.Combine(dataDirectory, FamilySettings.FileName), x)));
+		var errors = new List<string>();
+		errors.AddRange(ValidateFamilies(families, characters, properties));
+		errors.AddRange(relationships.PlayerRelations.OfType<PlayerRelation>().SelectMany((x, index) => CharacterData.ValidateCondition($"{RelationshipSettings.SectionName}.playerRelations[{index}].when", x.When, properties, isTemplate: false)));
 
-		// Professions can only be matched to the profession property once Families.json says which property it is.
-		var professionProperty = familyErrors.Count == 0 ? properties[families.Properties.Profession] : null;
-		errors.AddRange(ValidateProfessions(professions, professionProperty, families, properties, locations)
-			.Select(x => new DataLoadError(Path.Combine(dataDirectory, ProfessionList.FileName), x)));
-		errors.AddRange(ValidateBusinesses(locations, professions, families)
-			.Select(x => new DataLoadError(Path.Combine(dataDirectory, LocationList.FileName), x)));
+		var professionProperty = characters.FindRole(CharacterData.ProfessionRole);
+		errors.AddRange(ValidateProfessions(professions, professionProperty, properties, locations));
+		errors.AddRange(ValidateBusinesses(locations, professions));
 
 		// House titles are filled in from the head's character properties.
-		if (TextTemplate.TryParse(locations.HouseTitle ?? "", out var houseTitle))
-		{
-			errors.AddRange(CharacterData.ValidatePlaceholders("houseTitle", houseTitle, null, properties, new HashSet<string>(StringComparer.Ordinal))
-				.Select(x => new DataLoadError(Path.Combine(dataDirectory, LocationList.FileName), x)));
-		}
+		if (TextTemplate.TryParse(locations.Village.HouseTitle ?? "", out var houseTitle))
+			errors.AddRange(CharacterData.ValidatePlaceholders("village.houseTitle", houseTitle, null, properties, new HashSet<string>(StringComparer.Ordinal)));
 
 		// Schedules use the character properties, the kinds of quarter, and the days of the week.
-		errors.AddRange(ValidateSchedules(schedules, properties, locations, calendar)
-			.Select(x => new DataLoadError(Path.Combine(dataDirectory, ScheduleSettings.FileName), x)));
+		errors.AddRange(ValidateSchedules(schedules, properties, locations, calendar));
 
 		// Portrait conditions use the character properties, like other conditions outside of templates.
 		if (portraits is not null)
 		{
 			var quarterKinds = locations.QuarterKinds.Where(x => x?.Id is not null).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
-			errors.AddRange(ValidatePortraits(portraits, properties, quarterKinds, professionProperty)
-				.Select(x => new DataLoadError(Path.Combine(dataDirectory, PortraitData.FileName), x)));
+			errors.AddRange(ValidatePortraits(portraits, properties, quarterKinds, professionProperty));
 		}
 
 		return errors;
@@ -72,145 +63,69 @@ internal static class GameDataValidation
 		return errors;
 	}
 
-	private static IEnumerable<string> ValidateFamilies(FamilySettings families, IReadOnlyDictionary<string, CharacterProperty> properties)
+	private static IEnumerable<string> ValidateFamilies(FamilySettings families, CharacterData characters, IReadOnlyDictionary<string, CharacterProperty> properties)
 	{
+		const string path = FamilySettings.SectionName;
 		var errors = new List<string>();
-		var gender = ValidateProperty("properties.gender", families.Properties.Gender, CharacterPropertyType.ValueList, "valueList", properties, errors);
-		var age = ValidateProperty("properties.age", families.Properties.Age, CharacterPropertyType.Integer, "integer", properties, errors);
-		var profession = ValidateProperty("properties.profession", families.Properties.Profession, CharacterPropertyType.ValueList, "valueList", properties, errors);
-		var lastName = ValidateProperty("properties.lastName", families.Properties.LastName, CharacterPropertyType.String, "string", properties, errors);
-		var workRole = ValidateProperty("properties.workRole", families.Properties.WorkRole, CharacterPropertyType.ValueList, "valueList", properties, errors);
-		var householdRole = ValidateProperty("properties.householdRole", families.Properties.HouseholdRole, CharacterPropertyType.ValueList, "valueList", properties, errors);
-		var headRelation = ValidateProperty("properties.headRelation", families.Properties.HeadRelation, CharacterPropertyType.ValueList, "valueList", properties, errors);
-		var headName = ValidateProperty("properties.headName", families.Properties.HeadName, CharacterPropertyType.String, "string", properties, errors);
-		var atWork = ValidateProperty("properties.atWork", families.Properties.AtWork, CharacterPropertyType.ValueList, "valueList", properties, errors);
-		var married = ValidateProperty("properties.married", families.Properties.Married, CharacterPropertyType.ValueList, "valueList", properties, errors);
 
 		// Households whose usual last name is taken, and in-laws, pick from the other last names.
-		if (lastName is not null && lastName.GetDefaults(CharacterRole.Npc)?.OtherValues is not { Count: > 0 })
+		if (characters.FindRole("lastName") is { Type: CharacterPropertyType.String } lastName && lastName.GetDefaults(CharacterRole.Npc)?.OtherValues is not { Count: > 0 })
 			errors.Add(OurResources.FamilyLastNameOtherValuesMissing.FormatCurrentCulture(lastName.Id));
 
-		if (workRole is not null)
-			ValidateGameSetProperty(workRole, [("independent", families.Independent), ("helper", families.Helper)], errors);
-		if (householdRole is not null)
-			ValidateGameSetProperty(householdRole, [("head", families.Head), ("member", families.Member)], errors);
-		if (headRelation is not null)
-			ValidateGameSetProperty(headRelation, families.HeadRelations.GetAll(), errors);
-		if (headName is not null)
-			ValidateGameSetProperty(headName, [], errors);
-		errors.AddRange(families.PlayerRelations.OfType<PlayerRelation>().SelectMany((x, index) => CharacterData.ValidateCondition($"playerRelations[{index}].when", x.When, properties, isTemplate: false)));
-		if (atWork is not null)
-			ValidateGameSetProperty(atWork, [("atWork", families.AtWork), ("notAtWork", families.NotAtWork)], errors);
-		if (married is not null)
-			ValidateGameSetProperty(married, [("married", families.Married), ("unmarried", families.Unmarried)], errors);
-
-		if (gender is not null)
-		{
-			var genderIds = gender.GetConditionValueIds();
-			if (!genderIds.Contains(families.Male, StringComparer.Ordinal))
-				errors.Add(OurResources.FamilyValueUnknown.FormatCurrentCulture("male", families.Male, gender.Id));
-			if (!genderIds.Contains(families.Female, StringComparer.Ordinal))
-				errors.Add(OurResources.FamilyValueUnknown.FormatCurrentCulture("female", families.Female, gender.Id));
-		}
-
-		if (profession is not null)
-		{
-			var professionIds = profession.GetConditionValueIds();
-			if (!professionIds.Contains(families.Homemaker, StringComparer.Ordinal))
-				errors.Add(OurResources.FamilyValueUnknown.FormatCurrentCulture("homemaker", families.Homemaker, profession.Id));
-			if (!professionIds.Contains(families.Infirm, StringComparer.Ordinal))
-				errors.Add(OurResources.FamilyValueUnknown.FormatCurrentCulture("infirm", families.Infirm, profession.Id));
-		}
-
-		if (age is not null)
+		if (characters.FindRole("age") is { Type: CharacterPropertyType.Integer } age)
 		{
 			var groupIds = age.GetConditionValueIds();
-			foreach (var group in families.InfirmChance.Keys.Where(x => !groupIds.Contains(x, StringComparer.Ordinal)))
-				errors.Add(OurResources.FamilyAgeGroupUnknown.FormatCurrentCulture("infirmChance", group, age.Id));
-			foreach (var group in families.HeadAgeWealth.Keys.Where(x => !groupIds.Contains(x, StringComparer.Ordinal)))
-				errors.Add(OurResources.FamilyAgeGroupUnknown.FormatCurrentCulture("headAgeWealth", group, age.Id));
+			foreach (var group in families.Elder.InfirmChance.Keys.Where(x => !groupIds.Contains(x, StringComparer.Ordinal)))
+				errors.Add(OurResources.FamilyAgeGroupUnknown.FormatCurrentCulture($"{path}.elder.infirmChance", group, age.Id));
+			foreach (var group in families.Wealth.HeadAge.Keys.Where(x => !groupIds.Contains(x, StringComparer.Ordinal)))
+				errors.Add(OurResources.FamilyAgeGroupUnknown.FormatCurrentCulture($"{path}.wealth.headAge", group, age.Id));
 
-			var range = age.GetRange(CharacterRole.Npc);
-			if (families.HeadAge.Minimum < range.Minimum || families.HeadAge.Maximum > range.Maximum)
-				errors.Add(OurResources.FamilyHeadAgeOutOfRange.FormatCurrentCulture(families.HeadAge.Minimum, families.HeadAge.Maximum, age.Id, range.Minimum, range.Maximum));
+			if (age.Range is not null || age.Npc?.Range is not null)
+			{
+				var range = age.GetRange(CharacterRole.Npc);
+				if (families.Head.Age.Minimum < range.Minimum || families.Head.Age.Maximum > range.Maximum)
+					errors.Add(OurResources.FamilyHeadAgeOutOfRange.FormatCurrentCulture(families.Head.Age.Minimum, families.Head.Age.Maximum, age.Id, range.Minimum, range.Maximum));
 
-			// The player's age comes from the head ages, from the youngest age at which they can have an adult child.
+				// The player's age comes from the head ages, from the youngest age at which they can have an adult child.
+				var minPlayerAge = GameData.GetMinPlayerAge(age, families);
+				if (families.Head.Age.Maximum < minPlayerAge)
+					errors.Add(OurResources.FamilyHeadAgeTooYoung.FormatCurrentCulture(minPlayerAge));
+			}
+
 			if (age.Player?.Range is not null)
 				errors.Add(OurResources.FamilyAgePlayerRangeNotAllowed.FormatCurrentCulture(age.Id));
-			var minPlayerAge = GameData.GetMinPlayerAge(age, families);
-			if (families.HeadAge.Maximum < minPlayerAge)
-				errors.Add(OurResources.FamilyHeadAgeTooYoung.FormatCurrentCulture(minPlayerAge));
 		}
 
 		// The properties the generator sets for itself can't also be inherited.
-		var familyPropertyIds = new[] { families.Properties.Gender, families.Properties.Age, families.Properties.Profession, families.Properties.LastName, families.Properties.WorkRole, families.Properties.HouseholdRole, families.Properties.HeadRelation, families.Properties.HeadName, families.Properties.AtWork, families.Properties.Married };
-		for (var index = 0; index < families.InheritedProperties.Count; index++)
+		foreach (var (inherited, index) in families.InheritedProperties.Select((x, i) => (x, i)).Where(x => x.x is not null))
 		{
-			var inherited = families.InheritedProperties[index];
-			var path = $"inheritedProperties[{index}]";
-			if (familyPropertyIds.Contains(inherited.Property, StringComparer.Ordinal))
+			var inheritedPath = $"{path}.inheritedProperties[{index}]";
+			var property = properties.GetValueOrDefault(inherited.Property);
+			if (property is { Role: not null } && CharacterData.PropertyRoles.Any(x => x.Role == property.Role))
 			{
-				errors.Add(OurResources.FamilyInheritedPropertyNotAllowed.FormatCurrentCulture($"{path}.property", inherited.Property));
+				errors.Add(OurResources.FamilyInheritedPropertyNotAllowed.FormatCurrentCulture($"{inheritedPath}.property", inherited.Property));
 			}
-			else if (ValidateProperty($"{path}.property", inherited.Property, CharacterPropertyType.ValueList, "valueList", properties, errors) is { } property)
+			else if (property is not { Type: CharacterPropertyType.ValueList })
+			{
+				errors.Add(OurResources.FamilyPropertyInvalid.FormatCurrentCulture($"{inheritedPath}.property", inherited.Property, "valueList"));
+			}
+			else
 			{
 				var valueIds = property.Values?.Select(x => x.Id).ToList() ?? [];
 				foreach (var valueId in inherited.Unblended.Where(x => !valueIds.Contains(x, StringComparer.Ordinal)))
-					errors.Add(OurResources.FamilyValueUnknown.FormatCurrentCulture($"{path}.unblended", valueId, property.Id));
+					errors.Add(OurResources.FamilyValueUnknown.FormatCurrentCulture($"{inheritedPath}.unblended", valueId, property.Id));
 			}
 		}
 
 		return errors;
 	}
 
-	/// <summary>
-	/// Checks a property the family generator sets: the game must set it, and a value list property must have each of
-	/// the named values.
-	/// </summary>
-	private static void ValidateGameSetProperty(CharacterProperty property, IReadOnlyList<(string Name, string ValueId)> values, ICollection<string> errors)
-	{
-		if (!property.SetByGame)
-			errors.Add(OurResources.FamilyPropertyNotSetByGame.FormatCurrentCulture(property.Id));
-
-		var valueIds = property.GetConditionValueIds();
-		foreach (var (name, valueId) in values.Where(x => !valueIds.Contains(x.ValueId, StringComparer.Ordinal)))
-			errors.Add(OurResources.FamilyValueUnknown.FormatCurrentCulture(name, valueId, property.Id));
-	}
-
-	/// <summary>
-	/// Gets the property with the given id, or adds an error and returns null if there's no property of the given type with that id.
-	/// </summary>
-	private static CharacterProperty? ValidateProperty(string path, string id, CharacterPropertyType type, string typeName, IReadOnlyDictionary<string, CharacterProperty> properties, ICollection<string> errors)
-	{
-		var property = properties.GetValueOrDefault(id);
-		if (property is null || property.Type != type)
-		{
-			errors.Add(OurResources.FamilyPropertyInvalid.FormatCurrentCulture(path, id, typeName));
-			property = null;
-		}
-
-		return property;
-	}
-
-	private static IEnumerable<string> ValidateProfessions(ProfessionList professions, CharacterProperty? professionProperty, FamilySettings families, IReadOnlyDictionary<string, CharacterProperty> properties, LocationList locations)
+	private static IEnumerable<string> ValidateProfessions(ProfessionList professions, CharacterProperty? professionProperty, IReadOnlyDictionary<string, CharacterProperty> properties, LocationList locations)
 	{
 		var items = professions.Professions.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)).ToList();
-
-		// The profession property's values are the professions.
-		if (professionProperty is not null && professionProperty.ValuesFrom != CharacterProperty.ProfessionsSource)
-			yield return OurResources.FamilyProfessionValuesNotFromProfessions.FormatCurrentCulture(professionProperty.Id, CharacterProperty.ProfessionsSource);
-
-		// The homemaker and infirm professions aren't businesses, and every other profession is.
-		var notBusinesses = new Dictionary<string, string>(StringComparer.Ordinal) { [families.Homemaker] = "homemaker", [families.Infirm] = "infirm" };
-		var professionsWithBusinesses = locations.Businesses.Select(x => x.Profession).ToHashSet(StringComparer.Ordinal);
+		var professionsWithBusinesses = locations.Businesses.Where(x => x is not null).Select(x => x.Profession).ToHashSet(StringComparer.Ordinal);
 		foreach (var profession in items)
 		{
-			var isBusiness = !notBusinesses.TryGetValue(profession.Id, out var setting);
-			if (!isBusiness && profession.HasBusinessSettings)
-				yield return OurResources.ProfessionNotBusiness.FormatCurrentCulture(profession.Id, setting);
-			else if (isBusiness && profession.Wealth is null)
-				yield return OurResources.ProfessionWealthMissing.FormatCurrentCulture(profession.Id);
-
 			// Profession defaults are only used by string properties keyed by the profession property, which don't list
 			// their own values for each key.
 			if (professionProperty is not null && profession.Defaults is not null)
@@ -227,11 +142,11 @@ internal static class GameDataValidation
 
 			if (profession.HelperWhen is { } helperWhen)
 			{
-				foreach (var error in CharacterData.ValidateCondition($"professions[{profession.Id}].helperWhen", helperWhen, properties, isTemplate: false))
+				foreach (var error in CharacterData.ValidateCondition($"professions[{profession.Id}].business.helperWhen", helperWhen, properties, isTemplate: false))
 					yield return error;
 			}
 
-			if (isBusiness && !profession.WorksFromHome && !professionsWithBusinesses.Contains(profession.Id))
+			if (profession.IsBusiness && !profession.WorksFromHome && !professionsWithBusinesses.Contains(profession.Id))
 				yield return OurResources.ProfessionLocationsMissing.FormatCurrentCulture(profession.Id);
 		}
 	}
@@ -245,14 +160,13 @@ internal static class GameDataValidation
 			.Concat(schedules.GetDays().Where(x => !days.Contains(x.Day)).Select(x => OurResources.DataIdUnknown.FormatCurrentCulture(x.Path, x.Day, "days")));
 	}
 
-	private static IEnumerable<string> ValidateBusinesses(LocationList locations, ProfessionList professions, FamilySettings families)
+	private static IEnumerable<string> ValidateBusinesses(LocationList locations, ProfessionList professions)
 	{
-		// Homemaker and infirm aren't businesses, so they can't have places.
 		var professionsById = new Dictionary<string, Profession>(StringComparer.Ordinal);
-		foreach (var profession in professions.Professions.Where(x => x is not null && x.Id != families.Homemaker && x.Id != families.Infirm))
+		foreach (var profession in professions.Professions.Where(x => x is not null && x.IsBusiness))
 			professionsById.TryAdd(profession.Id, profession);
 
-		foreach (var business in locations.Businesses)
+		foreach (var business in locations.Businesses.Where(x => x is not null))
 		{
 			if (professionsById.GetValueOrDefault(business.Profession) is not { } profession)
 				yield return OurResources.BusinessProfessionUnknown.FormatCurrentCulture(business.Id, business.Profession);

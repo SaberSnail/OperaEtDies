@@ -11,12 +11,12 @@ public sealed class CharacterCondition
 	/// <summary>
 	/// The value ids allowed for each listed value list property.
 	/// </summary>
-	public IReadOnlyDictionary<string, IReadOnlyList<string>>? Values { get; init; }
+	public IReadOnlyDictionary<string, IReadOnlyList<string>>? Values { get => m_values; init => m_values = value; }
 
 	/// <summary>
 	/// The value ids not allowed for each listed value list property.
 	/// </summary>
-	public IReadOnlyDictionary<string, IReadOnlyList<string>>? NotValues { get; init; }
+	public IReadOnlyDictionary<string, IReadOnlyList<string>>? NotValues { get => m_notValues; init => m_notValues = value; }
 
 	/// <summary>
 	/// The ids of properties that must have no visible value, because they're obscured or have no value. Only
@@ -46,6 +46,25 @@ public sealed class CharacterCondition
 		((condition.Values ?? s_empty).All(x => getValueId(x.Key) is { } valueId && x.Value.Contains(valueId, StringComparer.Ordinal)) &&
 			(condition.NotValues ?? s_empty).All(x => getValueId(x.Key) is { } valueId && !x.Value.Contains(valueId, StringComparer.Ordinal)) &&
 			(condition.Hidden ?? []).All(x => !hasVisibleValue(x)));
+
+	/// <summary>
+	/// Replaces the group ids in the condition's value lists with the ids of the values in each group, given a function
+	/// that gets the ids of the values in a group of a property (or null if there's no such group).
+	/// </summary>
+	internal void ResolveGroups(Func<string, string, IReadOnlyList<string>?> getGroupValues)
+	{
+		m_values = Resolve(m_values, getGroupValues);
+		m_notValues = Resolve(m_notValues, getGroupValues);
+	}
+
+	private static IReadOnlyDictionary<string, IReadOnlyList<string>>? Resolve(IReadOnlyDictionary<string, IReadOnlyList<string>>? values, Func<string, string, IReadOnlyList<string>?> getGroupValues) =>
+		values?.ToDictionary(
+			x => x.Key,
+			x => x.Value is null ? x.Value! : (IReadOnlyList<string>) x.Value.SelectMany(id => id is null ? [id!] : getGroupValues(x.Key, id) ?? [id]).Distinct(StringComparer.Ordinal).ToList(),
+			StringComparer.Ordinal);
+
+	private IReadOnlyDictionary<string, IReadOnlyList<string>>? m_values;
+	private IReadOnlyDictionary<string, IReadOnlyList<string>>? m_notValues;
 
 	private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> s_empty = new Dictionary<string, IReadOnlyList<string>>();
 }

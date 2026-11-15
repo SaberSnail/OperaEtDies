@@ -49,7 +49,7 @@ public sealed class CharacterDependenciesTests
 	[Test]
 	public void InvalidNotValuesReportErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
 				"templates": [ { "id": "fullName", "template": "{style}" }, { "id": "description", "template": "{style}" } ],
 				"properties": [
@@ -65,8 +65,6 @@ public sealed class CharacterDependenciesTests
 				]
 			}
 			""");
-
-		var result = CharacterData.Load(m_directory);
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
@@ -128,7 +126,7 @@ public sealed class CharacterDependenciesTests
 	[Test]
 	public void InvalidFollowsReportErrors()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
 				"templates": [ { "id": "fullName", "template": "{a}" }, { "id": "description", "template": "{a}" } ],
 				"properties": [
@@ -139,8 +137,6 @@ public sealed class CharacterDependenciesTests
 				]
 			}
 			""");
-
-		var result = CharacterData.Load(m_directory);
 
 		// An empty list of values for a role is allowed: that role never has the property.
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
@@ -209,7 +205,7 @@ public sealed class CharacterDependenciesTests
 					},
 				],
 			},
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateCalendarSettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings());
 
 		for (var seed = 0; seed < 20; seed++)
 		{
@@ -224,7 +220,7 @@ public sealed class CharacterDependenciesTests
 	[Test]
 	public void CircularDependenciesReportAnError()
 	{
-		File.WriteAllText(Path.Combine(m_directory, CharacterData.FileName), """
+		var result = TestData.LoadCharacterData("""
 			{
 				"templates": [ { "id": "fullName", "template": "{a}" }, { "id": "description", "template": "{a}" } ],
 				"properties": [
@@ -233,8 +229,6 @@ public sealed class CharacterDependenciesTests
 				]
 			}
 			""");
-
-		var result = CharacterData.Load(m_directory);
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EqualTo(new[] { OurResources.PropertyDependencyCycle.FormatCurrentCulture("\"a\", \"b\"") }));
 	}
