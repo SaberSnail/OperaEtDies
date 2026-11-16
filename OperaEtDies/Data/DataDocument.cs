@@ -21,8 +21,8 @@ public sealed partial class DataDocument
 
 	/// <summary>
 	/// Reads and merges every JSON file in the data folder (including its subfolders), in order of their paths, then
-	/// applies the files of each mod folder in order. A mod file is either a list of operations or data, which is merged
-	/// in the same way as a data file.
+	/// applies the files of each mod folder in order. A mod file holds either operations or data, which is merged in the
+	/// same way as a data file. Files' comments are left out (see <see cref="DataFileParts"/>).
 	/// </summary>
 	public static DataLoadResult<DataDocument> Read(string dataDirectory, IReadOnlyList<string> modDirectories)
 	{
@@ -32,11 +32,13 @@ public sealed partial class DataDocument
 		{
 			foreach (var filePath in GetJsonFiles(dataDirectory))
 			{
-				var file = ReadFile(filePath, null, errors);
-				if (file is JsonObject data)
-					document.Merge(data, filePath, null, errors);
-				else if (file is not null)
-					errors.Add(new DataLoadError(filePath, OurResources.DataFileNotObject));
+				if (ReadFile(filePath, null, errors) is { } file)
+				{
+					var (parts, fileErrors) = DataFileParts.Split(file, allowOperations: false);
+					errors.AddRange(fileErrors.Select(x => new DataLoadError(filePath, x)));
+					if (parts?.Sections is { } data)
+						document.Merge(data, filePath, null, errors);
+				}
 			}
 		}
 		else
@@ -50,13 +52,15 @@ public sealed partial class DataDocument
 			foreach (var filePath in GetJsonFiles(modDirectory))
 			{
 				document.m_hasMods = true;
-				var file = ReadFile(filePath, source, errors);
-				if (file is JsonObject data)
-					document.Merge(data, filePath, source, errors);
-				else if (file is JsonArray operations)
-					errors.AddRange(ModPatcher.Apply(document.Root, operations, ProtectedPaths).Select(x => new DataLoadError(filePath, x, source)));
-				else if (file is not null)
-					errors.Add(new DataLoadError(filePath, OurResources.ModFileInvalid, source));
+				if (ReadFile(filePath, source, errors) is { } file)
+				{
+					var (parts, fileErrors) = DataFileParts.Split(file, allowOperations: true);
+					errors.AddRange(fileErrors.Select(x => new DataLoadError(filePath, x, source)));
+					if (parts?.Sections is { } data)
+						document.Merge(data, filePath, source, errors);
+					else if (parts?.Operations is { } operations)
+						errors.AddRange(ModPatcher.Apply(document.Root, operations, ProtectedPaths).Select(x => new DataLoadError(filePath, x, source)));
+				}
 			}
 		}
 

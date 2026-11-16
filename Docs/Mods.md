@@ -3,7 +3,7 @@
 A mod is a folder of JSON files that change the data described in [DataFiles.md](DataFiles.md). The game applies the mods in its mod list, in order, or the mods given with `--mod` on the command line instead (see [CommandLine.md](CommandLine.md)). The [mod editor](ModEditor.md) is a tool for writing them.
 
 * The data folder's files are merged first (see Files and Sections in DataFiles.md). Then each mod folder's `.json` files, including those in subfolders, are applied in order of their paths. File names don't matter.
-* A mod file holds either **data**, an object of sections merged in the same way as a data file, or a list of **operations**, applied in order to the merged data.
+* A mod file holds either **data**, an object of sections merged in the same way as a data file (including its optional `comments`), or a list of **operations** and **groups** of operations, applied in order to the merged data.
 * The result is then read and checked as described in DataFiles.md. Problems found in it are reported as coming from the mods.
 * A mod folder that doesn't exist, or any problem in a mod file, stops the data from loading, and every problem is reported.
 * Mods can't change `game.title` or `game.icon`.
@@ -31,6 +31,17 @@ At most one of `index`, `before`, and `after` can be given.
 | `remove` | Removes the existing property or list item at `path`. |
 | `move` | Moves the list item at `path` to `index` (its position once taken out), or before or after the given item (not itself). One is required. |
 | `copy` | Copies the list item at `path`, applies `changes` to the copy, and adds it to the same list: at `index` (counting the original), before or after the given item, or else right after the original. If a change fails, the copy isn't added. Problems in the changes are numbered after the operation, as in 3.2. A copy of an item with an `id` needs a new one. |
+
+**Group**
+
+An object in a mod file's list without `op`, but with `operations` or `comments`, is a group. Its operations are applied in order, just as if they were in the list in its place. Problems in them are numbered after the group, as in 3.2, and a group's own problems are reported as the group's.
+
+| Property | Type | Notes |
+|---|---|---|
+| `comments` | string | Optional. What the operations are for, for the people editing the mod. Not used by the game. Can be empty. |
+| `operations` | list | Optional. The group's operations. Can be empty. |
+
+A group can't have other properties, and can only be in a mod file's list, not in another group or in a copy's `changes`.
 
 **Path**
 
@@ -79,12 +90,18 @@ Add a property after the `hairColor` property:
 ]
 ```
 
-Change a value's frequency (adding `frequency` if it's missing), and remove another value's condition:
+Change a value's frequency (adding `frequency` if it's missing), and remove another value's condition, in a group with comments, then remove a property on its own:
 
 ```json
 [
-	{ "op": "set", "path": "properties[hairColor].values[red].frequency", "value": "veryRare" },
-	{ "op": "remove", "path": "properties[hairColor].values[blond].when" }
+	{
+		"comments": "Makes red hair rare, and blond hair possible anywhere.",
+		"operations": [
+			{ "op": "set", "path": "properties[hairColor].values[red].frequency", "value": "veryRare" },
+			{ "op": "remove", "path": "properties[hairColor].values[blond].when" }
+		]
+	},
+	{ "op": "remove", "path": "properties[scar]" }
 ]
 ```
 

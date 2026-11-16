@@ -15,6 +15,7 @@
 	<ContextMenu x:Key="FieldMenu" x:Shared="False">
 		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CopyPath}" Header="Copy Path" />
 		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=GoToModChange}" Header="Go to Change in Mod" />
+		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AddComment}" Header="Add Comment" />
 		<MenuItem
 			Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowHelp}"
 			Header="Help"
@@ -31,6 +32,7 @@
 			Command="{Binding Field, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CopyPath}"
 			Header="Copy Path" />
 		<MenuItem Command="{Binding Field, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=GoToModChange}" Header="Go to Change in Mod" />
+		<MenuItem Command="{Binding Field, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AddComment}" Header="Add Comment" />
 		<MenuItem
 			Command="{Binding Field, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowHelp}"
 			Header="Help"
@@ -352,7 +354,40 @@
 						</Style.Triggers>
 					</Style>
 				</Border.Style>
-				<ItemsControl Focusable="False" ItemsSource="{Binding Fields}" />
+				<StackPanel>
+					<!--
+						The object's comments, for the people editing the data, before its fields. The main object always shows
+						them; a nested object only once they're added (with Add Comment in its name's menu), and ✕ removes them.
+					-->
+					<DockPanel Style="{StaticResource FieldRowStyle}" Visibility="{Binding IsCommentsShown, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+						<TextBlock
+							Width="{Binding CommentsLabelWidth}"
+							Margin="2,3,6,0"
+							VerticalAlignment="Top"
+							DockPanel.Dock="Left"
+							FontStyle="Italic"
+							Foreground="{DynamicResource FontLightBrush}"
+							Text="comments"
+							ToolTip="What this is for, for the people editing the data. The game ignores it." />
+						<Button
+							VerticalAlignment="Top"
+							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RemoveComment}"
+							Content="✕"
+							DockPanel.Dock="Right"
+							Style="{StaticResource TinyButtonStyle}"
+							ToolTip="Remove the comments"
+							Visibility="{Binding IsCommentsRemovable, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+						<TextBox
+							MaxHeight="160"
+							AcceptsReturn="True"
+							FontStyle="Italic"
+							IsReadOnly="{Binding Form.IsReadOnly}"
+							Text="{Binding Comments, UpdateSourceTrigger=PropertyChanged}"
+							TextWrapping="Wrap"
+							VerticalScrollBarVisibility="Auto" />
+					</DockPanel>
+					<ItemsControl Focusable="False" ItemsSource="{Binding Fields}" />
+				</StackPanel>
 			</Border>
 		</StackPanel>
 	</DataTemplate>

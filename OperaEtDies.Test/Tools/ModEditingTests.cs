@@ -130,6 +130,88 @@ public sealed class ModEditingTests
 		Assert.That(project.IsModified, Is.False);
 	}
 
+	private const string Operations = """
+		[
+			{ "op": "remove", "path": "a" },
+			{ "comments": "G", "operations": [ { "op": "remove", "path": "b" }, { "op": "remove", "path": "c" } ] },
+			{ "op": "remove", "path": "d" }
+		]
+		""";
+
+	[Test]
+	public void OperationsGoIntoAGroupTheyreDroppedOn()
+	{
+		var project = CreateProject(("A.json", Operations));
+
+		var (location, error) = ModEditing.Move(project, new OperationLocation("A.json", 0), new GroupLocation("A.json", 1), after: false, isCopy: false);
+
+		Assert.That(error, Is.Null);
+		Assert.That(location, Is.EqualTo(new OperationLocation("A.json", 2, 0)));
+		Assert.That(Describe(project), Is.EqualTo("G(b c a) d"));
+	}
+
+	[Test]
+	public void OperationsMoveWithinAndOutOfGroups()
+	{
+		var project = CreateProject(("A.json", Operations));
+
+		ModEditing.Move(project, new OperationLocation("A.json", 0, 1), new OperationLocation("A.json", 1, 1), after: true, isCopy: false);
+		Assert.That(Describe(project), Is.EqualTo("a G(c b) d"));
+
+		var (location, _) = ModEditing.Move(project, new OperationLocation("A.json", 1, 1), new OperationLocation("A.json", 2), after: true, isCopy: false);
+		Assert.That(Describe(project), Is.EqualTo("a G(c) d b"));
+		Assert.That(location, Is.EqualTo(new OperationLocation("A.json", 3)));
+	}
+
+	[Test]
+	public void OperationsCanMovePastAGroup()
+	{
+		var project = CreateProject(("A.json", Operations));
+
+		var (location, _) = ModEditing.Move(project, new OperationLocation("A.json", 0), new GroupLocation("A.json", 1), after: true, isCopy: false, intoGroup: false);
+
+		Assert.That(Describe(project), Is.EqualTo("G(b c) a d"));
+		Assert.That(location, Is.EqualTo(new OperationLocation("A.json", 1)));
+	}
+
+	[Test]
+	public void GroupsOnlyGoInTheFilesList()
+	{
+		var project = CreateProject(("A.json", Operations));
+
+		var (location, _) = ModEditing.Move(project, new GroupLocation("A.json", 1), new OperationLocation("A.json", 2), after: true, isCopy: false);
+		Assert.That(Describe(project), Is.EqualTo("a d G(b c)"));
+		Assert.That(location, Is.EqualTo(new GroupLocation("A.json", 2)));
+
+		(location, _) = ModEditing.Move(project, new GroupLocation("A.json", 2), new OperationLocation("A.json", 0, 2), after: false, isCopy: false);
+		Assert.That(Describe(project), Is.EqualTo("a d G(b c)"), "A group dropped on its own operation stays where it is.");
+		Assert.That(location, Is.EqualTo(new GroupLocation("A.json", 2)));
+
+		ModEditing.Duplicate(project, new GroupLocation("A.json", 2));
+		Assert.That(Describe(project), Is.EqualTo("a d G(b c) G(b c)"));
+	}
+
+	[Test]
+	public void OperationsCantGoIntoDataFiles()
+	{
+		var project = CreateProject(("A.json", Operations), ("B.json", "{}"));
+
+		var (location, error) = ModEditing.Move(project, new GroupLocation("A.json", 1), new FileLocation("B.json"), after: true, isCopy: false);
+
+		Assert.That(location, Is.Null);
+		Assert.That(error, Is.Not.Null);
+		Assert.That(Describe(project), Is.EqualTo("a G(b c) d"));
+	}
+
+	/// <summary>
+	/// Describes an operations file by the paths of its operations, with each group's comments and operations, as in
+	/// "a G(b c) d".
+	/// </summary>
+	private static string Describe(ModProject project, string file = "A.json") =>
+		string.Join(" ", ((JsonArray) project.FindFile(file)!.Root!).Select(x => x is JsonObject obj && obj.ContainsKey("operations")
+			? $"{obj["comments"]}({string.Join(" ", obj["operations"]!.AsArray().Select(y => y!["path"]!.ToString()))})"
+			: x!["path"]!.ToString()));
+
 	private static ModProject CreateProject(params (string Path, string Text)[] files) =>
 		new(@"C:\Mods\Test", files, files.Select(x => ModFilePath.GetParent(x.Path)).Where(x => x.Length != 0).SelectMany(GetFolderAndParents));
 

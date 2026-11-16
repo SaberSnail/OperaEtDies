@@ -41,7 +41,7 @@ public sealed class StringListConverter : JsonConverter<IReadOnlyList<string>>
 
 /// <summary>
 /// Reads an amount that can grow with the size of the family: a number, or an object with a base and an amount for each
-/// family member.
+/// family member (and, like any object in the data, comments).
 /// </summary>
 public sealed class FamilyAmountConverter : JsonConverter<FamilyAmount>
 {
@@ -62,6 +62,8 @@ public sealed class FamilyAmountConverter : JsonConverter<FamilyAmount>
 				baseAmount = reader.GetDouble();
 			else if (string.Equals(name, "perMember", StringComparison.OrdinalIgnoreCase) && reader.TokenType == JsonTokenType.Number)
 				perMember = reader.GetDouble();
+			else if (string.Equals(name, DataFileParts.CommentsName, StringComparison.OrdinalIgnoreCase) && reader.TokenType == JsonTokenType.String)
+				continue;
 			else
 				throw new JsonException(OurResources.FamilyAmountInvalid);
 		}

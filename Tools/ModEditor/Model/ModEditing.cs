@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using OperaEtDies.Data;
 
 namespace ModEditor.Model;
 
@@ -20,7 +21,8 @@ public static class ModEditing
 			SectionLocation x => GetSection(root, x.Section),
 			ItemLocation x => GetSection(root, x.Section) is JsonArray list && x.Index < list.Count ? list[x.Index] : null,
 			SettingLocation x => GetSection(root, x.Section) is JsonObject obj && ModJson.FindName(obj, x.Name) is { } name ? obj[name] : null,
-			OperationLocation x => root is JsonArray list && x.Index < list.Count ? list[x.Index] : null,
+			OperationLocation x => GetOperationList(root, x.Group) is { } list && x.Index < list.Count ? list[x.Index] : null,
+			GroupLocation x => root is JsonArray list && x.Index < list.Count && ModPatcher.IsGroup(list[x.Index]) ? list[x.Index] : null,
 			_ => null,
 		};
 	}
@@ -50,6 +52,7 @@ public static class ModEditing
 			ItemLocation x => ModPiece.Item(GetSectionName(project, x.File, x.Section), value),
 			SettingLocation x => ModPiece.Setting(GetSectionName(project, x.File, x.Section), x.Name, value),
 			OperationLocation => ModPiece.Operation(value),
+			GroupLocation => ModPiece.Group(value),
 			_ => null,
 		};
 	}
@@ -76,10 +79,13 @@ public static class ModEditing
 			settings[ModJson.FindName(settings, x.Name)!] = value;
 			break;
 		case OperationLocation x:
+			GetOperationList(root, x.Group)![x.Index] = value;
+			break;
+		case GroupLocation x:
 			((JsonArray) root)[x.Index] = value;
 			break;
 		default:
-			return "Only a section, item, setting, or operation can be changed this way.";
+			return "Only a section, item, setting, operation, or group can be changed this way.";
 		}
 
 		file.UpdateText();
@@ -125,6 +131,9 @@ public static class ModEditing
 				((JsonObject) root).Remove(ModJson.FindName((JsonObject) root, x.Section)!);
 			break;
 		case OperationLocation x:
+			GetOperationList(root, x.Group)!.RemoveAt(x.Index);
+			break;
+		case GroupLocation x:
 			((JsonArray) root).RemoveAt(x.Index);
 			break;
 		}
@@ -135,10 +144,12 @@ public static class ModEditing
 	/// <summary>
 	/// Puts a piece at a target: into a file or section (at the end), or next to an item, setting, or operation. Items
 	/// and settings go into the section they belong to, which is added to a data file that doesn't have it. A section
-	/// is joined with the file's section of the same name, if it has one. Returns where the piece went, or the reason
-	/// it couldn't go there.
+	/// is joined with the file's section of the same name, if it has one. An operation goes into a group it's put on
+	/// (at the end), unless <paramref name="intoGroup"/> is false, when it goes next to the group; a group only goes in
+	/// the file's list, next to the group or operation it's put on (or the group that operation is in). Returns where the
+	/// piece went, or the reason it couldn't go there.
 	/// </summary>
-	public static (ModLocation? Location, string? Error) Insert(ModProject project, ModPiece piece, ModLocation target, bool after)
+	public static (ModLocation? Location, string? Error) Insert(ModProject project, ModPiece piece, ModLocation target, bool after, bool intoGroup = true)
 	{
 		var file = target.FilePath is { } path ? project.FindFile(path) : null;
 		if (file is null)
@@ -147,7 +158,7 @@ public static class ModEditing
 		var root = file.Root as JsonObject;
 		var result = piece.Kind switch
 		{
-			ModPieceKind.Operation => InsertOperation(file, piece, target, after),
+			ModPieceKind.Operation or ModPieceKind.Group => InsertOperation(file, piece, target, after, intoGroup),
 			_ when root is null => (null, file.Kind == ModFileKind.Operations ? $"Only operations can go into an operations file, and this is {Describe(piece)}. To change a piece of the game data, use Replace or Remove in its menu." : "The file can't be read."),
 			ModPieceKind.Section => InsertSection(file, root, piece),
 			_ => InsertIntoSection(file, root, piece, target, after),
@@ -161,10 +172,14 @@ public static class ModEditing
 	/// Moves (or copies) the piece at one location to a target, as <see cref="Insert"/> does. A copied item gets a new id
 	/// if its id is already used in the section it goes into. Returns where it went, or the reason it couldn't go there.
 	/// </summary>
-	public static (ModLocation? Location, string? Error) Move(ModProject project, ModLocation source, ModLocation target, bool after, bool isCopy)
+	public static (ModLocation? Location, string? Error) Move(ModProject project, ModLocation source, ModLocation target, bool after, bool isCopy, bool intoGroup = true)
 	{
 		if (GetPiece(project, source) is not { } piece)
 			return (null, "There's nothing there to move.");
+
+		// A group put on an operation in a group goes next to that group, which may be the group itself.
+		if (piece.Kind == ModPieceKind.Group && target is OperationLocation { Group: { } targetGroup } operationTarget)
+			target = new GroupLocation(operationTarget.File, targetGroup);
 		if (!isCopy && source == target)
 			return (source, null);
 
@@ -179,7 +194,7 @@ public static class ModEditing
 			target = AdjustForRemoval(project, target, source);
 		}
 
-		var result = Insert(project, piece, target, after);
+		var result = Insert(project, piece, target, after, intoGroup);
 		if (result.Location is null)
 			project.Restore(snapshot);
 		return result;
@@ -250,14 +265,55 @@ public static class ModEditing
 	public static JsonNode? GetSection(JsonNode? root, string section) =>
 		root is JsonObject obj && ModJson.FindName(obj, section) is { } name ? obj[name] : null;
 
-	private static (ModLocation?, string?) InsertOperation(ModFile file, ModPiece piece, ModLocation target, bool after)
+	/// <summary>
+	/// Gets the list an operation is in: the file's list, or the operations of the group at an index in it. Returns null
+	/// if there's no such list.
+	/// </summary>
+	public static JsonArray? GetOperationList(JsonNode? root, int? group)
 	{
-		if (file.Root is not JsonArray operations)
-			return (null, "Operations can only go into an operations file.");
+		if (root is not JsonArray items || group is not { } index)
+			return root as JsonArray;
+		return index < items.Count && ModPatcher.IsGroup(items[index]) && items[index] is JsonObject groupObject &&
+			ModJson.FindName(groupObject, ModPatcher.GroupOperationsName) is { } name ? groupObject[name] as JsonArray : null;
+	}
 
-		var index = target is OperationLocation x ? Math.Min(x.Index + (after ? 1 : 0), operations.Count) : operations.Count;
-		operations.Insert(index, ModJson.Clone(piece.Value));
-		return (new OperationLocation(file.Path, index), null);
+	private static (ModLocation?, string?) InsertOperation(ModFile file, ModPiece piece, ModLocation target, bool after, bool intoGroup)
+	{
+		if (file.Root is not JsonArray items)
+			return (null, piece.Kind == ModPieceKind.Group ? "Groups of operations can only go into an operations file." : "Operations can only go into an operations file.");
+
+		var value = ModJson.Clone(piece.Value);
+		if (piece.Kind == ModPieceKind.Operation)
+		{
+			if (intoGroup && target is GroupLocation group && group.Index < items.Count && items[group.Index] is JsonObject groupObject)
+			{
+				var name = ModJson.FindName(groupObject, ModPatcher.GroupOperationsName);
+				if (name is null)
+					groupObject[name = ModPatcher.GroupOperationsName] = new JsonArray();
+				if (groupObject[name] is not JsonArray groupOperations)
+					return (null, $"The group's \"{name}\" isn't a list.");
+				groupOperations.Add(value);
+				return (new OperationLocation(file.Path, groupOperations.Count - 1, group.Index), null);
+			}
+
+			if (target is OperationLocation { Group: { } groupIndex } inGroup && GetOperationList(items, groupIndex) is { } list)
+			{
+				var position = Math.Min(inGroup.Index + (after ? 1 : 0), list.Count);
+				list.Insert(position, value);
+				return (new OperationLocation(file.Path, position, groupIndex), null);
+			}
+		}
+
+		var targetIndex = target switch
+		{
+			GroupLocation x => x.Index,
+			OperationLocation { Group: { } x } => x,
+			OperationLocation x => x.Index,
+			_ => (int?) null,
+		};
+		var index = targetIndex is { } t ? Math.Min(t + (after ? 1 : 0), items.Count) : items.Count;
+		items.Insert(index, value);
+		return (ModPatcher.IsGroup(value) ? new GroupLocation(file.Path, index) : new OperationLocation(file.Path, index), null);
 	}
 
 	private static (ModLocation?, string?) InsertSection(ModFile file, JsonObject root, ModPiece piece)
@@ -336,12 +392,26 @@ public static class ModEditing
 	private static ModLocation AdjustForRemoval(ModProject project, ModLocation target, ModLocation removed) => (target, removed) switch
 	{
 		(ItemLocation t, ItemLocation r) when t.File == r.File && t.Section == r.Section && t.Index > r.Index => t with { Index = t.Index - 1 },
-		(OperationLocation t, OperationLocation r) when t.File == r.File && t.Index > r.Index => t with { Index = t.Index - 1 },
+		(OperationLocation t, OperationLocation r) when t.File == r.File && t.Group == r.Group && t.Index > r.Index => t with { Index = t.Index - 1 },
+		// Removing an operation or group from a file's list moves up the groups after it, and the operations in them.
+		(GroupLocation t, _) when IsRemovedBefore(removed, t.File, t.Index) => t with { Index = t.Index - 1 },
+		(OperationLocation { Group: { } group } t, _) when IsRemovedBefore(removed, t.File, group) => t with { Group = group - 1 },
+		(OperationLocation { Group: null } t, GroupLocation) when IsRemovedBefore(removed, t.File, t.Index) => t with { Index = t.Index - 1 },
 		// A target section that was removed with its last piece is still a fine place for a piece of that section.
 		(ItemLocation t, _) when !Exists(project, t) => new FileLocation(t.File),
 		(SettingLocation t, _) when !Exists(project, t) => new FileLocation(t.File),
 		(SectionLocation t, _) when !Exists(project, t) => new FileLocation(t.File),
 		_ => target,
+	};
+
+	/// <summary>
+	/// Whether what was removed was in a file's list (an operation or a group) before an index in it.
+	/// </summary>
+	private static bool IsRemovedBefore(ModLocation removed, string file, int index) => removed switch
+	{
+		GroupLocation r => r.File == file && r.Index < index,
+		OperationLocation { Group: null } r => r.File == file && r.Index < index,
+		_ => false,
 	};
 
 	private static string GetSectionName(ModProject project, SectionLocation location) => GetSectionName(project, location.File, location.Section);
@@ -357,6 +427,7 @@ public static class ModEditing
 		ModPieceKind.Item => ModJson.GetId(piece.Value) is { } id ? $"\"{id}\", an item of \"{piece.Section}\"" : $"an item of \"{piece.Section}\"",
 		ModPieceKind.Setting => $"the \"{piece.Name}\" setting of \"{piece.Section}\"",
 		ModPieceKind.Section => $"the \"{piece.Section}\" section",
+		ModPieceKind.Group => "a group of operations",
 		_ => "an operation",
 	};
 

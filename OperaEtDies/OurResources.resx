@@ -358,21 +358,37 @@
 	<data name="ModFileNotList" xml:space="preserve">
 		<value>The file must contain a list of operations.</value>
 	</data>
+	<data name="ModGroupNotAllowed" xml:space="preserve">
+		<value>Operation {0} is a group, but groups can only be at the top of a mod file.</value>
+		<comment>{0} is the operation's number (such as 3.2 for the second change of operation 3).</comment>
+	</data>
+	<data name="ModGroupCommentsInvalid" xml:space="preserve">
+		<value>Group {0}: "{1}" must be text.</value>
+		<comment>{0} is the group's number in the file. {1} is the property's name as written.</comment>
+	</data>
+	<data name="ModGroupOperationsInvalid" xml:space="preserve">
+		<value>Group {0}: "{1}" must be a list of operations.</value>
+		<comment>{0} is the group's number in the file. {1} is the property's name as written.</comment>
+	</data>
+	<data name="ModGroupPropertyInvalid" xml:space="preserve">
+		<value>Group {0}: a group can only have "comments" and "operations", not "{1}".</value>
+		<comment>{0} is the group's number in the file. {1} is the property's name as written.</comment>
+	</data>
 	<data name="ModOperationNotObject" xml:space="preserve">
 		<value>Operation {0} isn't an object.</value>
-		<comment>{0} is the operation's number (such as 3, or 3.2 for the second change of operation 3).</comment>
+		<comment>{0} is the operation's number (such as 3, or 3.2 for the second operation in group 3 or the second change of operation 3).</comment>
 	</data>
 	<data name="ModOperationTypeMissing" xml:space="preserve">
 		<value>Operation {0} needs an "op".</value>
-		<comment>{0} is the operation's number (such as 3, or 3.2 for the second change of operation 3).</comment>
+		<comment>{0} is the operation's number (such as 3, or 3.2 for the second operation in group 3 or the second change of operation 3).</comment>
 	</data>
 	<data name="ModOperationTypeInvalid" xml:space="preserve">
 		<value>Operation {0} has the op "{1}", but it must be "insert", "replace", "set", "remove", "move", or "copy".</value>
-		<comment>{0} is the operation's number (such as 3, or 3.2 for the second change of operation 3). {1} is its op.</comment>
+		<comment>{0} is the operation's number (such as 3, or 3.2 for the second operation in group 3 or the second change of operation 3). {1} is its op.</comment>
 	</data>
 	<data name="ModOperationPathMissing" xml:space="preserve">
 		<value>Operation {0} needs a "path".</value>
-		<comment>{0} is the operation's number (such as 3, or 3.2 for the second change of operation 3).</comment>
+		<comment>{0} is the operation's number (such as 3, or 3.2 for the second operation in group 3 or the second change of operation 3).</comment>
 	</data>
 	<data name="ModOperationFailed" xml:space="preserve">
 		<value>Operation {0} ({1} "{2}"): {3}</value>
@@ -1571,6 +1587,10 @@
 	</data>
 	<data name="ModFileInvalid" xml:space="preserve">
 		<value>The file must contain a list of operations, or an object holding data.</value>
+	</data>
+	<data name="DataFileCommentsInvalid" xml:space="preserve">
+		<value>"{0}" must be text.</value>
+		<comment>A data or mod file's comments aren't a string. {0} is the property's name as written.</comment>
 	</data>
 	<data name="DataIdDefinedTwice" xml:space="preserve">
 		<value>"{0}" is already the id of an item in "{1}", in {2}.</value>

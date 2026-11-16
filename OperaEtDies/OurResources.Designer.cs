@@ -808,6 +808,42 @@ namespace OperaEtDies {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Operation {0} is a group, but groups can only be at the top of a mod file..
+        /// </summary>
+        public static string ModGroupNotAllowed {
+            get {
+                return ResourceManager.GetString("ModGroupNotAllowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Group {0}: "{1}" must be text..
+        /// </summary>
+        public static string ModGroupCommentsInvalid {
+            get {
+                return ResourceManager.GetString("ModGroupCommentsInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Group {0}: "{1}" must be a list of operations..
+        /// </summary>
+        public static string ModGroupOperationsInvalid {
+            get {
+                return ResourceManager.GetString("ModGroupOperationsInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Group {0}: a group can only have "comments" and "operations", not "{1}"..
+        /// </summary>
+        public static string ModGroupPropertyInvalid {
+            get {
+                return ResourceManager.GetString("ModGroupPropertyInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Operation {0} isn't an object..
         /// </summary>
         public static string ModOperationNotObject {
@@ -3639,6 +3675,15 @@ namespace OperaEtDies {
         public static string ModFileInvalid {
             get {
                 return ResourceManager.GetString("ModFileInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" must be text..
+        /// </summary>
+        public static string DataFileCommentsInvalid {
+            get {
+                return ResourceManager.GetString("DataFileCommentsInvalid", resourceCulture);
             }
         }
         

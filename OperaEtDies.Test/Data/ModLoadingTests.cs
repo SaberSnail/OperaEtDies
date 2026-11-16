@@ -159,6 +159,92 @@ public sealed class ModLoadingTests
 	}
 
 	[Test]
+	public void DataFileCommentsAreIgnored()
+	{
+		File.WriteAllText(Path.Combine(m_dataDirectory, "Baker.json"), """{ "Comments": "The baker.", "professions": [ { "id": "baker", "title": "Baker" } ] }""");
+		var mod = WriteMod("Mod", "Mod.json", """{ "comments": "More.", "professions": [ { "id": "cook", "title": "Cook" } ] }""");
+
+		var document = DataDocument.Read(m_dataDirectory, [mod]);
+
+		Assert.That(ReadProfessions(document).Select(x => x.Id), Is.EqualTo(new[] { "baker", "smith", "cook" }));
+		Assert.That(document.Value!.GetSection("comments"), Is.Null);
+	}
+
+	[Test]
+	public void ObjectsCanHaveComments()
+	{
+		File.WriteAllText(Path.Combine(m_dataDirectory, "Baker.json"), """
+			{
+				"professions": [
+					{ "id": "baker", "Comments": "Bread.", "title": "Baker", "business": { "comments": "Small.", "wealth": "low", "worksFromHome": true } }
+				],
+				"game": { "comments": "The game." }
+			}
+			""");
+
+		var document = DataDocument.Read(m_dataDirectory, []);
+
+		Assert.That(ReadProfessions(document).Select(x => x.Id), Is.EqualTo(new[] { "baker", "smith" }));
+		Assert.That(GameInfo.Read(document.Value!).Errors, Is.Empty);
+	}
+
+	[TestCase("3")]
+	[TestCase("null")]
+	[TestCase("""[ "Bread." ]""")]
+	public void ObjectCommentsMustBeText(string comments)
+	{
+		File.WriteAllText(Path.Combine(m_dataDirectory, "Baker.json"), $$"""{ "professions": [ { "id": "baker", "title": "Baker", "comments": {{comments}} } ] }""");
+
+		var errors = new List<DataLoadError>();
+		DataDocument.Read(m_dataDirectory, []).Value!.ReadSection<List<Profession>>("professions", errors);
+
+		Assert.That(errors, Is.Not.Empty);
+	}
+
+	[Test]
+	public void GroupsAndOperationsAreAppliedInOrder()
+	{
+		var mod = WriteMod("Mod", "Mod.json", """
+			[
+				{ "comments": "Renames the smith.", "operations": [ { "op": "set", "path": "professions[smith].title", "value": "Blacksmith" } ] },
+				{ "op": "set", "path": "professions[smith].title", "value": "Farrier" },
+				{ "Comments": "Only a note." },
+				{ "operations": [] },
+			]
+			""");
+
+		var professions = ReadProfessions(DataDocument.Read(m_dataDirectory, [mod]));
+
+		Assert.That(professions.Single().Title, Is.EqualTo("Farrier"));
+	}
+
+	[Test]
+	public void OperationsInGroupsAreNumberedAfterTheGroup()
+	{
+		var mod = WriteMod("Mod", "Mod.json", """[ { "op": "set", "path": "game.description.text", "value": "A." }, { "operations": [ { "op": "set", "path": "game.description.text", "value": "B." }, { "op": "remove", "path": "professions[missing]" } ] } ]""");
+
+		var result = DataDocument.Read(m_dataDirectory, [mod]);
+
+		Assert.That(result.Errors.Single().Message, Does.StartWith("Operation 2.2 "));
+	}
+
+	[TestCase("""{ "comments": 3, "professions": [] }""")]
+	[TestCase("""[ { "comments": "Fine.", "operations": {} } ]""")]
+	[TestCase("""[ { "comments": 3 } ]""")]
+	[TestCase("""[ { "operations": [], "path": "professions" } ]""")]
+	[TestCase("""[ { "operations": [ { "operations": [] } ] } ]""")]
+	[TestCase("""[ { "op": "copy", "path": "professions[smith]", "changes": [ { "comments": "No." } ] } ]""")]
+	public void InvalidCommentsAndGroupsAreErrors(string contents)
+	{
+		var mod = WriteMod("Mod", "Mod.json", contents);
+
+		var result = DataDocument.Read(m_dataDirectory, [mod]);
+
+		Assert.That(result.Errors, Is.Not.Empty);
+		Assert.That(result.Errors.Select(x => x.Source), Is.All.EqualTo("mod \"Mod\""));
+	}
+
+	[Test]
 	public void MissingModFoldersAreErrors()
 	{
 		var errors = ModFolders.Check([Path.Combine(m_directory, "Missing"), m_dataDirectory]);

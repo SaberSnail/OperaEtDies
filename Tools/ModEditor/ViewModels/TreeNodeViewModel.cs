@@ -214,10 +214,11 @@ public sealed class ModNodeViewModel : TreeNodeViewModel
 		FileLocation => m_fileKind == ModFileKind.Operations ? "🔧" : "📄",
 		SectionLocation => "▤",
 		OperationLocation => "⚙",
+		GroupLocation => "▣",
 		_ => "•",
 	};
 
-	public override bool IsContainer => Location is FolderLocation or FileLocation;
+	public override bool IsContainer => Location is FolderLocation or FileLocation or GroupLocation;
 
 	public override ModPiece? GetPiece() => Host.Project is { } project ? ModEditing.GetPiece(project, Location) : null;
 
@@ -242,19 +243,28 @@ public sealed class ModNodeViewModel : TreeNodeViewModel
 				RaisePropertyChanged(nameof(Glyph));
 			}
 
-			Detail = file?.Kind switch
+			// The first line of the file's comments says what it's for.
+			var kindDetail = file?.Kind switch
 			{
 				ModFileKind.Operations => "operations",
 				ModFileKind.Invalid => "can't be read",
 				_ => "",
 			};
+			Detail = string.Join(" · ", new[] { kindDetail, FirstLine(file?.Comments) }.Where(x => x.Length != 0));
+			break;
+		case GroupLocation x:
+			// A group is known by what its comments say it's for.
+			var group = node as JsonObject;
+			var operationCount = ModEditing.GetOperationList(project.FindFile(x.File)?.Root, x.Index)?.Count ?? 0;
+			Title = group is not null && FirstLine(ModOperations.GetComments(group)) is { Length: > 0 } groupComment ? groupComment : "group";
+			Detail = operationCount == 1 ? "1 operation" : $"{Count(operationCount)} operations";
 			break;
 		case SectionLocation x:
 			Title = x.Section;
 			Detail = node switch
 			{
 				JsonArray list => Count(list.Count),
-				JsonObject obj => $"settings ({Count(obj.Count)})",
+				JsonObject obj => $"settings ({Count(obj.Count(y => !ModJson.IsComments(y.Key, y.Value)))})",
 				_ => "",
 			};
 			break;
@@ -276,6 +286,12 @@ public sealed class ModNodeViewModel : TreeNodeViewModel
 			break;
 		}
 	}
+
+	/// <summary>
+	/// Gets the first line of comments that isn't blank, or empty if there isn't one.
+	/// </summary>
+	private static string FirstLine(string? comments) =>
+		comments?.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
 
 	private ModFileKind m_fileKind = ModFileKind.Data;
 }
@@ -370,7 +386,9 @@ public sealed class GameDataNodeViewModel : TreeNodeViewModel
 		{
 			var beforeSettings = before as JsonObject ?? [];
 			var afterSettings = after as JsonObject ?? [];
-			foreach (var key in afterSettings.Select(x => x.Key).Concat(beforeSettings.Select(x => x.Key).Where(x => ModJson.FindName(afterSettings, x) is null)))
+			// The section's comments are shown in its form, not as a setting.
+			var keys = afterSettings.Select(x => x.Key).Concat(beforeSettings.Select(x => x.Key).Where(x => ModJson.FindName(afterSettings, x) is null));
+			foreach (var key in keys.Where(x => !ModJson.IsComments(x, Get(afterSettings, x) ?? Get(beforeSettings, x))))
 			{
 				var setting = Get(afterSettings, key) ?? Get(beforeSettings, key);
 				var child = GetChild(name, key);
@@ -386,7 +404,7 @@ public sealed class GameDataNodeViewModel : TreeNodeViewModel
 		var count = value switch
 		{
 			JsonArray list => Count(list.Count),
-			JsonObject obj => $"settings ({Count(obj.Count)})",
+			JsonObject => $"settings ({Count(children.Count)})",
 			_ => "",
 		};
 		Detail = changed == 0 ? count : $"{count} · {Count(changed)} changed";

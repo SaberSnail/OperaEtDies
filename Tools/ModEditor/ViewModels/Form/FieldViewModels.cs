@@ -105,9 +105,18 @@ public abstract class FieldViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Whether the field's name has a menu (to copy its path or show its help).
+	/// Whether the field's name has a menu (to copy its path, add a comment, or show its help).
 	/// </summary>
-	public bool HasMenu => HasCopyablePath || Help is not null || CanGoToModChange();
+	public bool HasMenu => HasCopyablePath || Help is not null || CanGoToModChange() || CanAddComment();
+
+	/// <summary>
+	/// Whether comments can be added to the field's data, which only an object read into a class can have.
+	/// </summary>
+	public virtual bool CanAddComment() => false;
+
+	public virtual void AddComment()
+	{
+	}
 
 	/// <summary>
 	/// What the mod does to the field's data, in a form showing the game data: adds or changes it (or something in it),
@@ -468,11 +477,109 @@ public sealed class ObjectFieldViewModel : FieldViewModel
 		Changed();
 	}
 
+	/// <summary>
+	/// Whether the object is the one the form is for (an item, a settings section, or a setting), whose comments are
+	/// always shown. A nested object only shows comments it has.
+	/// </summary>
+	public bool IsMain
+	{
+		get => m_isMain;
+		set
+		{
+			m_isMain = value;
+			RaisePropertyChanged(nameof(IsMain), nameof(IsCommentsShown), nameof(IsCommentsRemovable));
+		}
+	}
+
+	/// <summary>
+	/// The object's comments, for the people editing the data, or empty if it has none. The main object's comments are
+	/// left out when they're emptied; a nested object's are left out with <see cref="RemoveComment"/>.
+	/// </summary>
+	public string Comments
+	{
+		get => GetCommentsName() is { } name && Slot.Get() is JsonObject obj && obj[name] is JsonValue value && value.TryGetValue<string>(out var text) ? text : "";
+		set
+		{
+			if (IsEditable && Slot.Get() is JsonObject obj && value != Comments)
+			{
+				var name = GetCommentsName();
+				if (IsMain && string.IsNullOrWhiteSpace(value))
+				{
+					if (name is not null)
+						obj.Remove(name);
+				}
+				else
+				{
+					SetComments(obj, name, value);
+				}
+
+				RaiseCommentsChanged();
+				Changed();
+			}
+		}
+	}
+
+	/// <summary>
+	/// Whether the comments box is shown: always for the main object, and for a nested object that has comments.
+	/// </summary>
+	public bool IsCommentsShown => IsPresent && (IsMain || GetCommentsName() is not null);
+
+	public bool IsCommentsRemovable => !IsMain && IsEditable && GetCommentsName() is not null;
+
+	/// <summary>
+	/// The width of the comments' name, which lines their box up with the object's fields.
+	/// </summary>
+	public double CommentsLabelWidth => Math.Max(EditorStart - (IndentWidth * (Place.Depth + 1)), 48);
+
+	public override bool CanAddComment() => !IsMain && IsEditable && Slot.Get() is JsonObject && GetCommentsName() is null;
+
+	public override void AddComment()
+	{
+		if (CanAddComment() && Slot.Get() is JsonObject obj)
+		{
+			SetComments(obj, null, "");
+			RaiseCommentsChanged();
+			Changed();
+		}
+	}
+
+	public bool CanRemoveComment() => IsCommentsRemovable;
+
+	public void RemoveComment()
+	{
+		if (CanRemoveComment() && Slot.Get() is JsonObject obj)
+		{
+			obj.Remove(GetCommentsName()!);
+			RaiseCommentsChanged();
+			Changed();
+		}
+	}
+
 	public override void Refresh()
 	{
 		foreach (var field in Fields)
 			field.Refresh();
 	}
+
+	/// <summary>
+	/// Gets the name of the object's comments, if it has them as text. Comments that aren't text are shown as an unknown
+	/// property instead, so they can be fixed.
+	/// </summary>
+	private string? GetCommentsName() =>
+		Slot.Get() is JsonObject obj && ModJson.FindName(obj, DataFileParts.CommentsName) is { } name && obj[name] is JsonValue value && value.GetValueKind() == JsonValueKind.String ? name : null;
+
+	/// <summary>
+	/// Sets the comments, adding them at the start of the object if it doesn't have them.
+	/// </summary>
+	private static void SetComments(JsonObject obj, string? name, string comments)
+	{
+		if (name is not null)
+			obj[name] = comments;
+		else
+			obj.Insert(0, DataFileParts.CommentsName, comments);
+	}
+
+	private void RaiseCommentsChanged() => RaisePropertyChanged(nameof(Comments), nameof(IsCommentsShown), nameof(IsCommentsRemovable));
 
 	private void BuildFields()
 	{
@@ -483,15 +590,19 @@ public sealed class ObjectFieldViewModel : FieldViewModel
 				Fields.Add(FieldFactory.Create(Form, field.Name, field.Type, new PropertySlot(obj, field.Name), field.IsRequired, DataReferences.Find(field), m_propertyId, place: Place.Property(field.Name) with { Help = HelpTopics.ForProperty(m_type.ClrType, field.Name) }));
 
 			var known = m_type.Fields.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+			if (GetCommentsName() is { } commentsName)
+				known.Add(commentsName);
 			foreach (var name in obj.Select(x => x.Key).Where(x => !known.Contains(x)).ToList())
 				Fields.Add(new JsonFieldViewModel(Form, name, new PropertySlot(obj, name), isRequired: false, isUnknown: true, Place.Property(name) with { Help = null }));
 		}
 
 		RaisePropertyChanged(nameof(IsPresent), nameof(IsInvalid));
+		RaiseCommentsChanged();
 	}
 
 	private readonly DataType m_type;
 	private readonly string? m_propertyId;
+	private bool m_isMain;
 }
 
 /// <summary>

@@ -99,6 +99,67 @@ public sealed class ModEditorFormTests
 	}
 
 	[Test]
+	public void TheMainObjectAlwaysShowsItsComments()
+	{
+		var piece = ModPiece.Item("professions", JsonNode.Parse("""{ "id": "smith", "business": { "wealth": "high" } }"""));
+		JsonNode? changed = null;
+
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: false, x => changed = x.Value)!;
+		var root = (ObjectFieldViewModel) form.Root;
+		var business = (ObjectFieldViewModel) root.Fields.Single(x => x.Label == "business");
+
+		Assert.That(root.IsCommentsShown, Is.True);
+		Assert.That(root.CanAddComment(), Is.False);
+		Assert.That(business.IsCommentsShown, Is.False);
+
+		root.Comments = "Works iron.";
+		Assert.That(((JsonObject) changed!).First().Key, Is.EqualTo("comments"), "Comments are added at the start.");
+		Assert.That(changed!["comments"]!.GetValue<string>(), Is.EqualTo("Works iron."));
+
+		root.Comments = " ";
+		Assert.That(((JsonObject) changed!).ContainsKey("comments"), Is.False);
+		Assert.That(root.IsCommentsShown, Is.True);
+	}
+
+	[Test]
+	public void NestedObjectsShowCommentsOnceTheyreAdded()
+	{
+		var piece = ModPiece.Item("professions", JsonNode.Parse("""{ "id": "smith", "business": { "wealth": "high" } }"""));
+		JsonNode? changed = null;
+
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: false, x => changed = x.Value)!;
+		var business = (ObjectFieldViewModel) ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "business");
+		Assert.That(business.CanAddComment(), Is.True);
+		Assert.That(business.HasMenu, Is.True);
+
+		business.AddComment();
+		Assert.That(business.IsCommentsShown, Is.True);
+		business.Comments = "";
+		Assert.That(business.IsCommentsShown, Is.True, "Emptying a nested object's comments doesn't take its box away.");
+		business.Comments = "Smiths are well off.";
+		Assert.That(changed!["business"]!["comments"]!.GetValue<string>(), Is.EqualTo("Smiths are well off."));
+
+		business.RemoveComment();
+		Assert.That(business.IsCommentsShown, Is.False);
+		Assert.That(((JsonObject) changed!["business"]!).ContainsKey("comments"), Is.False);
+	}
+
+	[Test]
+	public void CommentsArentUnknownProperties()
+	{
+		var piece = ModPiece.Item("professions", JsonNode.Parse("""{ "id": "smith", "comments": "Iron.", "business": { "comments": 3 } }"""));
+
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: true, _ => { })!;
+		var root = (ObjectFieldViewModel) form.Root;
+		var business = (ObjectFieldViewModel) root.Fields.Single(x => x.Label == "business");
+
+		Assert.That(root.Fields.Any(x => x.IsUnknown), Is.False);
+		Assert.That(root.Comments, Is.EqualTo("Iron."));
+		Assert.That(business.Fields.Single(x => x.IsUnknown).Label, Is.EqualTo("comments"), "Comments that aren't text are shown so they can be fixed.");
+		Assert.That(root.CanAddComment(), Is.False);
+	}
+
+	[Test]
 	public void OptionalFieldsLeftEmptyAreRemoved()
 	{
 		var piece = ModPiece.Item("professions", JsonNode.Parse("""{ "id": "smith", "role": "homemaker" }"""));

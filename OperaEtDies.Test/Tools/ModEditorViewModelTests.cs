@@ -54,6 +54,59 @@ public sealed class ModEditorViewModelTests
 		}
 	}
 
+	[Test]
+	public void CommentsAreEditedInTheForm()
+	{
+		var directory = Path.Combine(Path.GetTempPath(), "OperaEtDiesModEditorTests", Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(directory);
+		File.WriteAllText(Path.Combine(directory, "Data.json"), """{ "professions": [ { "id": "cobbler", "title": "Cobbler" } ] }""");
+		File.WriteAllText(Path.Combine(directory, "Ops.json"), """[ { "op": "set", "path": "families.head.femaleChance", "value": 35 } ]""");
+		var previousContext = SynchronizationContext.Current;
+		SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
+		using var viewModel = new MainWindowViewModel(new NoDialogs(), new EditorSettings([], false, null, false, 0), _ => { });
+		try
+		{
+			viewModel.OpenRecentFolder(directory);
+
+			// A data file's comments.
+			var dataFile = viewModel.ModRoots.Single().Children.Single(x => x.Title == "Data.json");
+			dataFile.IsSelected = true;
+			Assert.That(viewModel.IsCommentsShown, Is.True);
+			Assert.That(viewModel.IsCommentsEnabled, Is.True);
+			viewModel.Comments = "A cobbler.";
+			Assert.That(viewModel.EditorText, Does.StartWith("{\r\n\t\"comments\": \"A cobbler.\","));
+			Assert.That(dataFile.Detail, Is.EqualTo("A cobbler."));
+			viewModel.Undo();
+			Assert.That(viewModel.Comments, Is.Empty);
+
+			// An operations file's comments are in its groups.
+			var operationsFile = viewModel.ModRoots.Single().Children.Single(x => x.Title == "Ops.json");
+			operationsFile.IsSelected = true;
+			Assert.That(viewModel.IsCommentsShown, Is.False);
+			viewModel.AddGroup();
+			var group = operationsFile.Children.Last();
+			Assert.That(group.IsSelected, Is.True);
+			Assert.That(viewModel.IsCommentsShown, Is.True);
+			viewModel.Comments = "More women lead families.\nAnd more.";
+			Assert.That(group.Title, Is.EqualTo("More women lead families."));
+			Assert.That(group.Detail, Is.EqualTo("0 operations"));
+
+			// The operation is dropped into the group.
+			viewModel.Drop(operationsFile.Children.First(), group, after: false, isCopy: false);
+			group = operationsFile.Children.Single();
+			Assert.That(group.Detail, Is.EqualTo("1 operation"));
+			WaitFor(() => viewModel.ProblemSummary != "Checking…");
+			Assert.That(viewModel.Problems.Where(x => x.FilePath == "Ops.json"), Is.Empty);
+			Assert.That(viewModel.ModRoots.Single().Children.Single(x => x.Title == "Ops.json").Children.Single().Children.Single().Warning, Is.Null);
+		}
+		finally
+		{
+			SynchronizationContext.SetSynchronizationContext(previousContext);
+			viewModel.Dispose();
+			Directory.Delete(directory, recursive: true);
+		}
+	}
+
 	/// <summary>
 	/// Lets the dispatcher run what's waiting for it (such as the end of a background check) until the condition is met.
 	/// </summary>

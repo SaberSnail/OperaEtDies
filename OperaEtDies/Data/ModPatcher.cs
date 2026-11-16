@@ -16,8 +16,13 @@ public static class ModPatcher
 	public const string CopyOperation = "copy";
 
 	/// <summary>
-	/// Applies each operation in a mod file to the root of a data file, in order. Operations can't change the
-	/// protected paths. Returns a user-facing message for each problem found; operations that have
+	/// The property of a group that holds its operations.
+	/// </summary>
+	public const string GroupOperationsName = "operations";
+
+	/// <summary>
+	/// Applies each operation (and group of operations) in a mod file to the root of a data file, in order. Operations
+	/// can't change the protected paths. Returns a user-facing message for each problem found; operations that have
 	/// problems are skipped.
 	/// </summary>
 	public static IReadOnlyList<string> Apply(JsonNode root, JsonNode? modFile, IReadOnlyCollection<string> protectedPaths)
@@ -33,15 +38,55 @@ public static class ModPatcher
 
 	/// <summary>
 	/// Applies a list of operations to a root, in order, adding a message for each problem found. Operations in the
-	/// changes of a copy are numbered after the operation that holds them, as in "3.2".
+	/// changes of a copy, or in a group, are numbered after the item that holds them, as in "3.2". Groups are only
+	/// allowed at the top of a mod file.
 	/// </summary>
 	private static void ApplyOperations(JsonNode? root, JsonArray operations, string? parentNumber, IReadOnlyCollection<string> protectedPaths, ICollection<string> errors)
 	{
 		for (var index = 0; index < operations.Count; index++)
 		{
 			var number = parentNumber is null ? $"{index + 1}" : $"{parentNumber}.{index + 1}";
-			ApplyOperation(root, operations[index], number, protectedPaths, errors);
+			var item = operations[index];
+			if (!IsGroup(item))
+				ApplyOperation(root, item, number, protectedPaths, errors);
+			else if (parentNumber is null)
+				ApplyGroup(root, (JsonObject) item!, number, protectedPaths, errors);
+			else
+				errors.Add(OurResources.ModGroupNotAllowed.FormatCurrentCulture(number));
 		}
+	}
+
+	/// <summary>
+	/// Whether an item in a mod file is a group of operations: an object with "operations" or "comments", and no "op".
+	/// </summary>
+	public static bool IsGroup(JsonNode? item) =>
+		item is JsonObject obj && FindKey(obj, "op") is null && (FindKey(obj, GroupOperationsName) is not null || FindKey(obj, DataFileParts.CommentsName) is not null);
+
+	/// <summary>
+	/// Checks a group's properties, and applies its operations in order. A group without "operations" has none.
+	/// </summary>
+	private static void ApplyGroup(JsonNode? root, JsonObject group, string number, IReadOnlyCollection<string> protectedPaths, ICollection<string> errors)
+	{
+		foreach (var (name, value) in group)
+		{
+			if (string.Equals(name, DataFileParts.CommentsName, StringComparison.OrdinalIgnoreCase))
+			{
+				if (value is not JsonValue comments || comments.GetValueKind() != System.Text.Json.JsonValueKind.String)
+					errors.Add(OurResources.ModGroupCommentsInvalid.FormatCurrentCulture(number, name));
+			}
+			else if (string.Equals(name, GroupOperationsName, StringComparison.OrdinalIgnoreCase))
+			{
+				if (value is not JsonArray)
+					errors.Add(OurResources.ModGroupOperationsInvalid.FormatCurrentCulture(number, name));
+			}
+			else
+			{
+				errors.Add(OurResources.ModGroupPropertyInvalid.FormatCurrentCulture(number, name));
+			}
+		}
+
+		if (GetProperty(group, GroupOperationsName) is JsonArray operations)
+			ApplyOperations(root, operations, number, protectedPaths, errors);
 	}
 
 	private static void ApplyOperation(JsonNode? root, JsonNode? node, string number, IReadOnlyCollection<string> protectedPaths, ICollection<string> errors)

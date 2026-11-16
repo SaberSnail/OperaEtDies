@@ -29,6 +29,9 @@ public sealed class FormViewModel : ViewModelBase
 		if (root is null)
 			return null;
 
+		// The object the form is for always shows its comments.
+		if (root is ObjectFieldViewModel main)
+			main.IsMain = true;
 		form.Root = root;
 		return form;
 	}

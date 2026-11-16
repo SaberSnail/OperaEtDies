@@ -177,6 +177,48 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
+	/// The comments of the selected data file or group of operations, for the people editing the mod. Typing in them
+	/// changes the file or group.
+	/// </summary>
+	public string Comments
+	{
+		get => VerifyAccess(m_comments);
+		set
+		{
+			if (SetPropertyField(value, ref m_comments) && !m_isLoadingEditor)
+				ApplyComments();
+		}
+	}
+
+	/// <summary>
+	/// What the comments are for.
+	/// </summary>
+	public string CommentsHint
+	{
+		get => VerifyAccess(m_commentsHint);
+		private set => SetPropertyField(value, ref m_commentsHint);
+	}
+
+	/// <summary>
+	/// Whether a data file (or a file that can't be read) or a group of operations is selected, so its comments are
+	/// shown.
+	/// </summary>
+	public bool IsCommentsShown
+	{
+		get => VerifyAccess(m_isCommentsShown);
+		private set => SetPropertyField(value, ref m_isCommentsShown);
+	}
+
+	/// <summary>
+	/// Whether the comments shown can be edited (they can't while the file can't be read).
+	/// </summary>
+	public bool IsCommentsEnabled
+	{
+		get => VerifyAccess(m_isCommentsEnabled);
+		private set => SetPropertyField(value, ref m_isCommentsEnabled);
+	}
+
+	/// <summary>
 	/// Which way the selected item is edited: 0 for the form, 1 for JSON. It's kept between sessions.
 	/// </summary>
 	public int EditorTab
@@ -244,7 +286,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		{
 			if (m_project is null || m_selectedNode is not ModNodeViewModel { Location: var location } || location is FolderLocation or FileLocation)
 				return [];
-			var kind = location is OperationLocation ? ModFileKind.Operations : ModFileKind.Data;
+			var kind = location is OperationLocation or GroupLocation ? ModFileKind.Operations : ModFileKind.Data;
 			return m_project.Files.Where(x => x.Kind == kind && x.Path != location.FilePath).Select(x => new MoveTarget(x.Path, new DelegateCommand(() => MoveTo(x.Path)))).ToList();
 		}
 	}
@@ -427,10 +469,10 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		Change(() => ModEditing.Remove(project, node.Location), next);
 	}
 
-	public bool CanDuplicate() => m_selectedNode is ModNodeViewModel { Location: FileLocation or ItemLocation or OperationLocation };
+	public bool CanDuplicate() => m_selectedNode is ModNodeViewModel { Location: FileLocation or ItemLocation or OperationLocation or GroupLocation };
 
 	/// <summary>
-	/// Copies the selected file, item, or operation to right after it (an item with a new id).
+	/// Copies the selected file, item, operation, or group to right after it (an item with a new id).
 	/// </summary>
 	public void Duplicate()
 	{
@@ -576,12 +618,12 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		ChangeOrReport(() => ModEditing.Insert(project, ModPiece.WholeSection(name, value), new FileLocation(file.Path), after: true).Error, () => new SectionLocation(file.Path, name));
 	}
 
-	public bool CanAddItem() => m_selectedNode is ModNodeViewModel { Location: SectionLocation or ItemLocation or SettingLocation or OperationLocation } ||
+	public bool CanAddItem() => m_selectedNode is ModNodeViewModel { Location: SectionLocation or ItemLocation or SettingLocation or OperationLocation or GroupLocation } ||
 		GetSelectedFile() is { Kind: ModFileKind.Operations } && m_selectedNode is ModNodeViewModel { Location: FileLocation };
 
 	/// <summary>
 	/// Adds an item (with a new id) to the selected list section, a setting (named by the user) to the selected
-	/// settings section, or an operation to the selected operations file, after the selected piece.
+	/// settings section, or an operation to the selected operations file or group, after the selected piece.
 	/// </summary>
 	public void AddItem()
 	{
@@ -589,7 +631,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 			return;
 		var location = ((ModNodeViewModel) m_selectedNode!).Location;
 		ModPiece piece;
-		if (location is FileLocation or OperationLocation)
+		if (location is FileLocation or OperationLocation or GroupLocation)
 		{
 			piece = ModPiece.Operation(new JsonObject { ["op"] = "set", ["path"] = "", ["value"] = null });
 		}
@@ -620,6 +662,26 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		ChangeOrReport(() =>
 		{
 			(result, var error) = ModEditing.Insert(project, piece, location, after: true);
+			return error;
+		}, () => result);
+	}
+
+	public bool CanAddGroup() => GetSelectedFile() is { Kind: ModFileKind.Operations } && m_selectedNode is ModNodeViewModel { Location: FileLocation or OperationLocation or GroupLocation };
+
+	/// <summary>
+	/// Adds an empty group of operations to the selected operations file, after the selected operation or group (or the
+	/// group the selected operation is in).
+	/// </summary>
+	public void AddGroup()
+	{
+		if (m_project is not { } project || !CanAddGroup())
+			return;
+		var location = ((ModNodeViewModel) m_selectedNode!).Location;
+		var group = new JsonObject { [DataFileParts.CommentsName] = "", [ModPatcher.GroupOperationsName] = new JsonArray() };
+		ModLocation? result = null;
+		ChangeOrReport(() =>
+		{
+			(result, var error) = ModEditing.Insert(project, ModPiece.Group(group), location, after: true);
 			return error;
 		}, () => result);
 	}
@@ -693,7 +755,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		RefreshChanges();
 	}
 
-	private void Drop(TreeNodeViewModel source, ModLocation target, bool after, bool isCopy)
+	private void Drop(TreeNodeViewModel source, ModLocation target, bool after, bool isCopy, bool intoGroup = true)
 	{
 		if (m_project is not { } project)
 			return;
@@ -728,7 +790,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 			ModLocation? moved = null;
 			ChangeOrReport(() =>
 			{
-				(moved, var error) = ModEditing.Move(project, sourceLocation, target, after, isCopy);
+				(moved, var error) = ModEditing.Move(project, sourceLocation, target, after, isCopy, intoGroup);
 				return error;
 			}, () => moved);
 			break;
@@ -998,11 +1060,12 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
 	/// <summary>
 	/// Gets what a piece of the mod changes when it's applied, or null if it isn't a piece that's applied on its own (a
-	/// data file, or something in one, or an operation).
+	/// data file, or something in one, or an operation or group of them).
 	/// </summary>
 	private IReadOnlyList<DataChange>? GetSourceChanges(ModLocation location) => location switch
 	{
 		OperationLocation x => m_changes.BySource.GetValueOrDefault(x) ?? [],
+		GroupLocation x => m_changes.BySource.Where(c => c.Key is OperationLocation o && o.File == x.File && o.Group == x.Index).SelectMany(c => c.Value).ToList(),
 		FileLocation x when m_project?.FindFile(x.Path)?.Kind == ModFileKind.Data => m_changes.BySource.GetValueOrDefault(x) ?? [],
 		SectionLocation x => FileChanges(x.File).Where(c => string.Equals(c.Section, x.Section, StringComparison.OrdinalIgnoreCase)).ToList(),
 		ItemLocation x => FileChanges(x.File).Where(c => string.Equals(c.Section, x.Section, StringComparison.OrdinalIgnoreCase) && c.Item == ModJson.GetId(ModEditing.Get(m_project!, x))).ToList(),
@@ -1164,16 +1227,20 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	/// </summary>
 	private ModNodeViewModel? GetSibling(int offset)
 	{
-		if (m_selectedNode is not ModNodeViewModel { Location: ItemLocation or SettingLocation or OperationLocation, Parent: { } parent } node)
+		if (m_selectedNode is not ModNodeViewModel { Location: ItemLocation or SettingLocation or OperationLocation or GroupLocation, Parent: { } parent } node)
 			return null;
 		var index = parent.Children.IndexOf(node) + offset;
 		return index >= 0 && index < parent.Children.Count ? parent.Children[index] as ModNodeViewModel : null;
 	}
 
+	/// <summary>
+	/// Moves the selected piece past the one next to it, in the same list (an operation moves past a group, rather than
+	/// into it).
+	/// </summary>
 	private void MoveToSibling(int offset)
 	{
 		if (m_selectedNode is ModNodeViewModel node && GetSibling(offset) is { } sibling)
-			Drop(node, sibling.Location, after: offset > 0, isCopy: false);
+			Drop(node, sibling.Location, after: offset > 0, isCopy: false, intoGroup: false);
 	}
 
 	private static ModLocation? GetSelectionAfterRemoving(ModNodeViewModel node)
@@ -1181,18 +1248,29 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		if (node.Parent is not { } parent)
 			return null;
 		var index = parent.Children.IndexOf(node);
-		// List items after the removed one move up, so the one that takes its place has the same location.
-		if (node.Location is ItemLocation or OperationLocation && index + 1 < parent.Children.Count)
-			return node.Location;
-		if (index + 1 < parent.Children.Count && parent.Children[index + 1] is ModNodeViewModel next && node.Location is not (ItemLocation or OperationLocation))
+		// List items after the removed one move up, so the one that takes its place has its location, with one less
+		// for its index.
+		if (node.Location is ItemLocation or OperationLocation or GroupLocation && index + 1 < parent.Children.Count && parent.Children[index + 1] is ModNodeViewModel following)
+		{
+			return following.Location switch
+			{
+				ItemLocation x => x with { Index = x.Index - 1 },
+				OperationLocation x => x with { Index = x.Index - 1 },
+				GroupLocation x => x with { Index = x.Index - 1 },
+				var x => x,
+			};
+		}
+
+		if (index + 1 < parent.Children.Count && parent.Children[index + 1] is ModNodeViewModel next)
 			return next.Location;
 		return index > 0 && parent.Children[index - 1] is ModNodeViewModel previous ? previous.Location : (parent as ModNodeViewModel)?.Location;
 	}
 
 	/// <summary>
 	/// Adds an operation on the selected piece of the game data to the mod. It goes after the operation last selected in
-	/// the mod, or at the end of the operations file last selected, or else at the end of the first operations file
-	/// (which is made if there isn't one). A replace is selected in the mod's tree; a remove is only announced.
+	/// the mod (in its group, if it's in one), or at the end of the group or operations file last selected, or else at
+	/// the end of the first operations file (which is made if there isn't one). A replace is selected in the mod's tree;
+	/// a remove is only announced.
 	/// </summary>
 	private void AddOperationFor(string op, bool includeValue)
 	{
@@ -1206,7 +1284,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		ChangeOrReport(() =>
 		{
 			var target = m_lastModLocation is { FilePath: { } lastPath } last && project.FindFile(lastPath) is { Kind: ModFileKind.Operations }
-				? last is OperationLocation ? last : new FileLocation(lastPath)
+				? last is OperationLocation or GroupLocation ? last : new FileLocation(lastPath)
 				: null;
 			if (target is null)
 			{
@@ -1310,7 +1388,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		IEnumerable<JsonNode?> AsList(JsonNode? node) => node is JsonArray array ? array.ToList() : [node];
 
 		if (file?.Kind == ModFileKind.Operations)
-			return AsList(json).Select(ModPiece.Operation).ToList();
+			return AsList(json).Select(x => ModPatcher.IsGroup(x) ? ModPiece.Group(x) : ModPiece.Operation(x)).ToList();
 		if (section is not null && ModEditing.GetSection(file?.Root, section) is JsonObject)
 			return json is JsonObject settings ? settings.Select(x => ModPiece.Setting(section, x.Key, x.Value)).ToList() : Fail("Settings are pasted as an object of settings.", out error);
 		if (section is not null)
@@ -1427,7 +1505,9 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		ItemLocation x => new SectionLocation(x.File, x.Section),
 		SettingLocation x => new SectionLocation(x.File, x.Section),
 		SectionLocation x => new FileLocation(x.File),
+		OperationLocation { Group: { } group } x => new GroupLocation(x.File, group),
 		OperationLocation x => new FileLocation(x.File),
+		GroupLocation x => new FileLocation(x.File),
 		FileLocation x => new FolderLocation(ModFilePath.GetParent(x.Path)),
 		FolderLocation { Path.Length: > 0 } x => new FolderLocation(ModFilePath.GetParent(x.Path)),
 		_ => null,
@@ -1488,14 +1568,19 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 			return project.FindFile(file.Path)?.Root switch
 			{
 				JsonObject sections => sections.Select(x => (ModLocation) new SectionLocation(file.Path, x.Key)).ToList(),
-				JsonArray operations => Enumerable.Range(0, operations.Count).Select(x => (ModLocation) new OperationLocation(file.Path, x)).ToList(),
+				JsonArray operations => Enumerable.Range(0, operations.Count)
+					.Select(x => ModPatcher.IsGroup(operations[x]) ? (ModLocation) new GroupLocation(file.Path, x) : new OperationLocation(file.Path, x)).ToList(),
 				_ => [],
 			};
+		case GroupLocation group:
+			var groupOperations = ModEditing.GetOperationList(project.FindFile(group.File)?.Root, group.Index);
+			return groupOperations is null ? [] : Enumerable.Range(0, groupOperations.Count).Select(x => (ModLocation) new OperationLocation(group.File, x, group.Index)).ToList();
 		case SectionLocation section:
 			return ModEditing.Get(project, section) switch
 			{
 				JsonArray items => Enumerable.Range(0, items.Count).Select(x => (ModLocation) new ItemLocation(section.File, section.Section, x)).ToList(),
-				JsonObject settings => settings.Select(x => (ModLocation) new SettingLocation(section.File, section.Section, x.Key)).ToList(),
+				// A settings section's comments are edited in its form, not as a setting.
+				JsonObject settings => settings.Where(x => !ModJson.IsComments(x.Key, x.Value)).Select(x => (ModLocation) new SettingLocation(section.File, section.Section, x.Key)).ToList(),
 				_ => [],
 			};
 		default:
@@ -1554,7 +1639,93 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 			m_isLoadingEditor = false;
 		}
 
+		LoadComments();
 		BuildForm();
+	}
+
+	/// <summary>
+	/// Shows the comments of the selected data file (which can only be edited if the file can be read) or group of
+	/// operations. A file that can't be read might be a data file, so its comments are shown, turned off.
+	/// </summary>
+	private void LoadComments()
+	{
+		var location = (m_selectedNode as ModNodeViewModel)?.Location;
+		var file = location is FileLocation fileLocation ? m_project?.FindFile(fileLocation.Path) : null;
+		var group = location is GroupLocation && m_project is { } project ? ModEditing.Get(project, location) as JsonObject : null;
+		var wasLoading = m_isLoadingEditor;
+		m_isLoadingEditor = true;
+		try
+		{
+			IsCommentsShown = file is { Kind: not ModFileKind.Operations } || group is not null;
+			IsCommentsEnabled = file is { Kind: ModFileKind.Data } || group is not null;
+			CommentsHint = group is not null ? "What the group's operations are for, for the people editing the mod. The game ignores them."
+				: "What the file is for, for the people editing the mod. The game ignores them.";
+			Comments = (group is not null ? ModOperations.GetComments(group) : file?.Comments) ?? "";
+		}
+		finally
+		{
+			m_isLoadingEditor = wasLoading;
+		}
+	}
+
+	/// <summary>
+	/// Applies the comments typed for the selected data file or group. Typing in the same file or group is undone all
+	/// at once. Empty comments are left out.
+	/// </summary>
+	private void ApplyComments()
+	{
+		if (m_project is not { } project || m_selectedNode is not ModNodeViewModel { Location: FileLocation or GroupLocation } node)
+			return;
+
+		// Captured first, since applying JSON typed for the file or group loads its comments again.
+		var comments = string.IsNullOrWhiteSpace(m_comments) ? null : m_comments;
+		FlushEditorText();
+		var location = node.Location;
+		var file = location is FileLocation fileLocation ? project.FindFile(fileLocation.Path) : null;
+		var group = location is GroupLocation ? ModEditing.Get(project, location) as JsonObject : null;
+		var existing = group is not null ? ModOperations.GetComments(group) : file?.Comments;
+		if ((file is { Kind: ModFileKind.Data } || group is not null) && comments != (string.IsNullOrWhiteSpace(existing) ? null : existing))
+		{
+			var snapshot = project.TakeSnapshot();
+			if (group is not null)
+				ModEditing.Replace(project, location, WithComments(group, comments));
+			else
+				file!.SetComments(comments);
+			if (m_editSession != location)
+			{
+				PushUndo(snapshot);
+				m_editSession = location;
+			}
+
+			m_isLoadingEditor = true;
+			try
+			{
+				EditorText = file?.Text ?? ModJson.Format(ModEditing.Get(project, location));
+				EditorError = null;
+			}
+			finally
+			{
+				m_isLoadingEditor = false;
+			}
+
+			OnProjectChanged(null, reloadEditor: false);
+			EditorHeading = node.GetBreadcrumb();
+		}
+
+		// A copy of a group with its comments changed. It keeps "operations" (adding it if it's missing), so it's still a
+		// group without comments.
+		static JsonObject WithComments(JsonObject group, string? comments)
+		{
+			var copy = (JsonObject) group.DeepClone();
+			var name = ModJson.FindName(copy, DataFileParts.CommentsName);
+			if (comments is null && name is not null)
+				copy.Remove(name);
+			else if (comments is not null)
+				copy[name ?? DataFileParts.CommentsName] = comments;
+			if (ModJson.FindName(copy, ModPatcher.GroupOperationsName) is null)
+				copy[ModPatcher.GroupOperationsName] = new JsonArray();
+			return copy;
+		}
 	}
 
 	/// <summary>
@@ -1571,6 +1742,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 			null => "",
 			ModNodeViewModel { Location: FolderLocation } => "Select a piece of a file to edit it here.",
 			ModNodeViewModel { Location: FileLocation } => "Select a piece of the file to edit it here, or edit the whole file as JSON.",
+			ModNodeViewModel { Location: GroupLocation } => "Select an operation in the group to edit it here, or edit the whole group as JSON.",
 			_ when piece?.Kind == ModPieceKind.Section => "Select an item in the section to edit it here, or edit the whole section as JSON.",
 			_ => "This can only be edited as JSON.",
 		};
@@ -1665,6 +1837,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
 		OnProjectChanged(null, reloadEditor: false);
 		EditorHeading = node.GetBreadcrumb();
+		LoadComments();
 		BuildForm();
 	}
 
@@ -1767,6 +1940,10 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	private int m_treeTab;
 	private FormViewModel? m_form;
 	private string? m_formMessage;
+	private string m_comments = "";
+	private string m_commentsHint = "";
+	private bool m_isCommentsShown;
+	private bool m_isCommentsEnabled;
 	private ModLocation? m_lastModLocation;
 	private string? m_gameDataJson;
 	private string m_gameDataDescription = "";

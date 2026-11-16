@@ -8,6 +8,7 @@ Every `.json` file in the data folder and its subfolders is read, in order of th
 
 * A **list section** is a list of items, each with an `id`. Lists with the same name are joined, in file order. An id already used in the list is an error.
 * A **settings section** is an object. Objects with the same name are joined property by property. A property already set by another file is an error.
+* `comments` isn't a section. It's an optional string saying what the file is for, for the people editing the data, and the game ignores it. Objects in the data can have comments too (see General Rules).
 
 Problems are reported against the file holding the item or setting they're about.
 
@@ -45,6 +46,7 @@ Problems are reported against the file holding the item or setting they're about
 
 * Files are JSON. Comments and trailing commas are allowed.
 * Property names are camelCase, but matching ignores case. An unknown property is an error.
+* Every object described by a table below (an item, a settings section, or an object inside one) can also have an optional `comments` string, which can be empty. It's for the people editing the data, and the game ignores it. Maps and lists can't have comments. A settings section's `comments` is joined like its other properties, so only one file can set it.
 * A property is required unless marked optional. A required property can't be `null`, and list items can't be `null`.
 * Text must be filled in (not empty or only whitespace), and lists and maps must not be empty, unless marked otherwise.
 * Ids are case-sensitive and unique within their list.

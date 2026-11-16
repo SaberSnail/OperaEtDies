@@ -28,6 +28,7 @@
 			Command="{Binding Host, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AddItem}"
 			Header="Add Item"
 			InputGestureText="Ins" />
+		<MenuItem Command="{Binding Host, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AddGroup}" Header="Add Group" />
 		<Separator />
 		<MenuItem
 			Command="{Binding Host, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Cut}"

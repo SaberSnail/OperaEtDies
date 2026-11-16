@@ -45,9 +45,18 @@ public sealed record SettingLocation(string File, string Section, string Name) :
 }
 
 /// <summary>
-/// An operation in an operations file.
+/// An operation in an operations file: at an index in the file's list, or, if <see cref="Group"/> isn't null, at an
+/// index in the operations of the group at that index in the file's list.
 /// </summary>
-public sealed record OperationLocation(string File, int Index) : ModLocation
+public sealed record OperationLocation(string File, int Index, int? Group = null) : ModLocation
+{
+	public override string FilePath => File;
+}
+
+/// <summary>
+/// A group of operations, at an index in an operations file's list.
+/// </summary>
+public sealed record GroupLocation(string File, int Index) : ModLocation
 {
 	public override string FilePath => File;
 }
@@ -61,11 +70,12 @@ public enum ModPieceKind
 	Setting,
 	Section,
 	Operation,
+	Group,
 }
 
 /// <summary>
 /// A piece of a mod file, taken out so it can be put somewhere else: an item or setting with the section it belongs
-/// in, a whole section, or an operation.
+/// in, a whole section, an operation, or a group of operations.
 /// </summary>
 public sealed record ModPiece(ModPieceKind Kind, string? Section, string? Name, JsonNode? Value)
 {
@@ -76,6 +86,8 @@ public sealed record ModPiece(ModPieceKind Kind, string? Section, string? Name, 
 	public static ModPiece WholeSection(string section, JsonNode? value) => new(ModPieceKind.Section, section, null, value);
 
 	public static ModPiece Operation(JsonNode? value) => new(ModPieceKind.Operation, null, null, value);
+
+	public static ModPiece Group(JsonNode? value) => new(ModPieceKind.Group, null, null, value);
 
 	/// <summary>
 	/// Gets the piece as JSON, to put on the clipboard.

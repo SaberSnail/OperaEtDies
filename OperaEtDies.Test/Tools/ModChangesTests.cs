@@ -83,6 +83,22 @@ public sealed class ModChangesTests
 	}
 
 	[Test]
+	public void CommentsArentChanges()
+	{
+		var gameData = (JsonObject) JsonNode.Parse("""{ "properties": [ { "id": "a", "comments": "A." } ], "game": { "title": "T" } }""")!;
+
+		var changes = ModChanges.Compute(gameData, [("A.json", """
+			[
+				{ "op": "set", "path": "properties[a].comments", "value": "Changed." },
+				{ "op": "set", "path": "game.comments", "value": "New." },
+				{ "op": "set", "path": "properties[a].title", "value": "A" }
+			]
+			""")]);
+
+		Assert.That(changes.Changes.Select(x => x.Path), Is.EqualTo(new[] { "properties[a].title" }));
+	}
+
+	[Test]
 	public void ThePlaceOfAChangeAndWhatItsInAreMarked()
 	{
 		var gameData = (JsonObject) JsonNode.Parse("""{ "properties": [ { "id": "hair", "values": [ { "id": "red" } ] } ] }""")!;

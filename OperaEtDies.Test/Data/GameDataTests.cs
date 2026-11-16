@@ -830,7 +830,7 @@ public sealed class GameDataTests
 		CopyShippedData();
 		ModifyShipped("Families.json", x => x
 			.Replace("\"age_veryOld\":", "\"age_ancient\":", StringComparison.Ordinal)
-			.Replace("\"age\": { \"minimum\": 20,", "\"age\": { \"minimum\": 10,", StringComparison.Ordinal));
+			.Replace("\"minimum\": 20, \"maximum\": 65,", "\"minimum\": 10, \"maximum\": 65,", StringComparison.Ordinal));
 
 		var result = GameData.Load(m_directory);
 
@@ -848,7 +848,7 @@ public sealed class GameDataTests
 		ModifyShipped("Characters.json", x => x
 			.Replace("\"range\": { \"minimum\": 18, \"maximum\": 80,", "\"player\": { \"range\": { \"minimum\": 36, \"maximum\": 50, \"shape\": { \"peak\": \"low\", \"mostWithin\": 10 } } }, \"range\": { \"minimum\": 18, \"maximum\": 80,", StringComparison.Ordinal));
 		ModifyShipped("Families.json", x => x
-			.Replace("\"age\": { \"minimum\": 20, \"maximum\": 65,", "\"age\": { \"minimum\": 20, \"maximum\": 30,", StringComparison.Ordinal));
+			.Replace("\"minimum\": 20, \"maximum\": 65,", "\"minimum\": 20, \"maximum\": 30,", StringComparison.Ordinal));
 
 		var result = GameData.Load(m_directory);
 

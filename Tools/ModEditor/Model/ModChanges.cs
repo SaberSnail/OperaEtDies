@@ -36,7 +36,9 @@ public sealed class ModChanges
 		var failed = new HashSet<ModLocation>();
 		foreach (var (path, text) in files)
 		{
-			switch (ModJson.Parse(text).Node)
+			var parsed = ModJson.Parse(text);
+			var parts = parsed.Error is null ? DataFileParts.Split(parsed.Node, allowOperations: true).Parts : null;
+			switch ((JsonNode?) parts?.Sections ?? parts?.Operations)
 			{
 			case JsonObject sections:
 				// Only the sections the file has can change.
@@ -46,10 +48,8 @@ public sealed class ModChanges
 				break;
 
 			case JsonArray operations:
-				for (var index = 0; index < operations.Count; index++)
+				foreach (var (location, operation) in ModOperations.GetOperations(path, operations))
 				{
-					var location = new OperationLocation(path, index);
-					var operation = operations[index];
 					var section = operation is JsonObject obj && ModOperations.GetString(obj, "path") is { } operationPath && DataSchema.ParsePath(operationPath) is [var first, ..]
 						? first.Text
 						: null;
@@ -268,8 +268,19 @@ public sealed class ModChanges
 		return ids.All(x => x is not null) && ids.Distinct(StringComparer.Ordinal).Count() == ids.Count;
 	}
 
+	/// <summary>
+	/// Gets the names of the properties of two objects, leaving out their comments, since changing them doesn't change
+	/// the data.
+	/// </summary>
 	private static IEnumerable<string> Keys(JsonObject a, JsonObject b) =>
-		a.Select(x => x.Key).Concat(b.Select(x => x.Key).Where(x => ModJson.FindName(a, x) is null));
+		a.Select(x => x.Key).Concat(b.Select(x => x.Key).Where(x => ModJson.FindName(a, x) is null)).Where(x => !IsComments(a, b, x));
+
+	/// <summary>
+	/// Whether a property is comments in both objects (or comments in one and missing from the other).
+	/// </summary>
+	private static bool IsComments(JsonObject a, JsonObject b, string key) =>
+		(Get(a, key) is not { } before || ModJson.IsComments(key, before)) && (Get(b, key) is not { } after || ModJson.IsComments(key, after)) &&
+		(Get(a, key) is not null || Get(b, key) is not null);
 
 	private static JsonNode? Get(JsonObject obj, string key) => ModJson.FindName(obj, key) is { } name ? obj[name] : null;
 

@@ -89,11 +89,17 @@ public static partial class HelpTopics
 		HelpLibrary.Check(new HelpTarget(HelpLibrary.Mods, "Operation", property));
 
 	/// <summary>
+	/// Gets where the help explains groups of mod operations.
+	/// </summary>
+	public static HelpTarget? ForGroup() => HelpLibrary.Check(new HelpTarget(HelpLibrary.Mods, "Group", null));
+
+	/// <summary>
 	/// Gets where the help explains a piece of a mod file or of the game data.
 	/// </summary>
 	public static HelpTarget? ForPiece(ModPiece piece) => piece.Kind switch
 	{
 		ModPieceKind.Operation => ForOperation(),
+		ModPieceKind.Group => ForGroup(),
 		ModPieceKind.Item when DataSchema.ListSections.TryGetValue(piece.Section!, out var type) => ForType(type),
 		ModPieceKind.Setting when DataSchema.SettingsSections.TryGetValue(piece.Section!, out var type) => ForProperty(type, piece.Name!),
 		_ => ForSection(piece.Section!),

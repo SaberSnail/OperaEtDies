@@ -162,7 +162,7 @@ public sealed class IdCatalog
 			}
 			else if (file.Root is JsonArray operations)
 			{
-				foreach (var operation in operations.OfType<JsonObject>())
+				foreach (var operation in ModOperations.GetOperations(file.Path, operations).Select(x => x.Operation).OfType<JsonObject>())
 				{
 					// Items inserted into a list section can be referred to like the others.
 					if (ModOperations.GetString(operation, "op") is { } op && string.Equals(op, "insert", StringComparison.OrdinalIgnoreCase) &&

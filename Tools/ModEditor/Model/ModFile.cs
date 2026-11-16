@@ -10,24 +10,25 @@ namespace ModEditor.Model;
 public enum ModFileKind
 {
 	/// <summary>
-	/// An object of sections, merged like a data file.
+	/// An object of sections (and optional comments), merged like a data file.
 	/// </summary>
 	Data,
 
 	/// <summary>
-	/// A list of operations.
+	/// A list of operations and groups of operations.
 	/// </summary>
 	Operations,
 
 	/// <summary>
-	/// Text that isn't JSON, or JSON that's neither an object nor a list.
+	/// Text that isn't JSON, JSON that's neither an object nor a list, or a data file whose comments can't
+	/// be read.
 	/// </summary>
 	Invalid,
 }
 
 /// <summary>
 /// One JSON file in a mod folder. Its text is kept exactly as it was loaded or typed, and is only written again (in
-/// the style of the data files, without comments) when its JSON is changed piece by piece.
+/// the style of the data files, without its JSON comments) when its JSON or its comments are changed piece by piece.
 /// </summary>
 public sealed class ModFile
 {
@@ -48,10 +49,16 @@ public sealed class ModFile
 	public string Text => m_text;
 
 	/// <summary>
-	/// The file's JSON, or null if its text can't be read. It can be changed in place, followed by a call to
-	/// <see cref="UpdateText"/>.
+	/// The file's sections (an object, without its comments) or operations (a list), or null if its text can't be read.
+	/// It can be changed in place, followed by a call to <see cref="UpdateText"/>.
 	/// </summary>
 	public JsonNode? Root { get; private set; }
+
+	/// <summary>
+	/// A data file's "comments" property, for the people editing the mod, or null if it has none. A list of operations
+	/// has comments in its groups instead.
+	/// </summary>
+	public string? Comments { get; private set; }
 
 	/// <summary>
 	/// Why the text can't be read, or null if it can.
@@ -72,12 +79,14 @@ public sealed class ModFile
 	{
 		m_text = text;
 		var (root, error) = ModJson.Parse(text);
-		Root = root is JsonObject or JsonArray ? root : null;
-		ParseError = error ?? (Root is null ? "A mod file must be an object of sections or a list of operations." : null);
+		var (parts, errors) = error is null ? DataFileParts.Split(root, allowOperations: true) : (null, []);
+		Root = (JsonNode?) parts?.Sections ?? parts?.Operations;
+		Comments = parts?.Comments;
+		ParseError = error ?? (errors.Count != 0 ? string.Join(" ", errors) : null);
 	}
 
 	/// <summary>
-	/// Replaces the JSON, and writes the text from it.
+	/// Replaces the JSON (sections without comments, or operations), and writes the text from it.
 	/// </summary>
 	public void SetRoot(JsonNode root)
 	{
@@ -86,15 +95,38 @@ public sealed class ModFile
 	}
 
 	/// <summary>
-	/// Writes the text again from the JSON, after it's been changed in place.
+	/// Replaces a data file's comments (leaving them out if they're empty), and writes the text again.
+	/// </summary>
+	public void SetComments(string? comments)
+	{
+		if (Root is JsonObject)
+		{
+			Comments = string.IsNullOrWhiteSpace(comments) ? null : comments;
+			UpdateText();
+		}
+	}
+
+	/// <summary>
+	/// Writes the text again from the JSON and the comments, after they've been changed. The comments come first.
 	/// </summary>
 	public void UpdateText()
 	{
 		if (Root is not null)
 		{
-			m_text = JsonFormatter.Format(Root) + "\r\n";
+			m_text = JsonFormatter.Format(Combine()) + "\r\n";
 			ParseError = null;
 		}
+	}
+
+	private JsonNode Combine()
+	{
+		if (Root is not JsonObject sections || Comments is null)
+			return Root!;
+
+		var file = new JsonObject { [DataFileParts.CommentsName] = Comments };
+		foreach (var (name, value) in sections)
+			file[name] = value?.DeepClone();
+		return file;
 	}
 
 	private string m_text;
@@ -139,6 +171,12 @@ public static class ModJson
 	/// </summary>
 	public static string? FindName(JsonObject obj, string name) =>
 		obj.ContainsKey(name) ? name : obj.Select(x => x.Key).FirstOrDefault(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
+
+	/// <summary>
+	/// Whether a property of an object is its comments (text, for the people editing the data), which the game ignores.
+	/// </summary>
+	public static bool IsComments(string name, JsonNode? value) =>
+		string.Equals(name, DataFileParts.CommentsName, StringComparison.OrdinalIgnoreCase) && value is JsonValue text && text.GetValueKind() == JsonValueKind.String;
 
 	private static readonly JsonDocumentOptions s_options = new()
 	{

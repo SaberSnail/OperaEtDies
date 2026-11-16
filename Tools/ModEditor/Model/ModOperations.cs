@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using OperaEtDies.Data;
 
 namespace ModEditor.Model;
 
@@ -13,6 +14,31 @@ public static partial class ModOperations
 	/// The operations, in the order the documentation lists them.
 	/// </summary>
 	public static IReadOnlyList<string> Names { get; } = ["insert", "replace", "set", "remove", "move", "copy"];
+
+	/// <summary>
+	/// Gets the operations in an operations file's list, in the order they're applied, with their locations: each
+	/// operation in the list, and each operation in each group in it.
+	/// </summary>
+	public static IEnumerable<(OperationLocation Location, JsonNode? Operation)> GetOperations(string file, JsonArray items)
+	{
+		for (var index = 0; index < items.Count; index++)
+		{
+			if (!ModPatcher.IsGroup(items[index]))
+			{
+				yield return (new OperationLocation(file, index), items[index]);
+			}
+			else if (ModEditing.GetOperationList(items, index) is { } operations)
+			{
+				for (var groupIndex = 0; groupIndex < operations.Count; groupIndex++)
+					yield return (new OperationLocation(file, groupIndex, index), operations[groupIndex]);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Gets a group's comments, or null if it has none.
+	/// </summary>
+	public static string? GetComments(JsonObject group) => GetString(group, DataFileParts.CommentsName);
 
 	/// <summary>
 	/// Gets a property of an operation as text, matching its name ignoring case, or null if it isn't a string.

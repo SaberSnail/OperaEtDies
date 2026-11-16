@@ -290,6 +290,11 @@
 											Style="{StaticResource SmallButtonStyle}"
 											ToolTip="Add an item, setting, or operation after the selected one (Ins)" />
 										<Button
+											Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AddGroup}"
+											Content="+ Group"
+											Style="{StaticResource SmallButtonStyle}"
+											ToolTip="Add a group of operations, with comments saying what they're for, after the selected operation or group" />
+										<Button
 											Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=MoveUp}"
 											Content="▲"
 											Style="{StaticResource SmallButtonStyle}"
@@ -403,11 +408,35 @@
 						<TabControl SelectedIndex="{Binding EditorTab}">
 							<TabItem Header="Form">
 								<Grid>
-									<TextBlock
-										Margin="8"
-										Foreground="{DynamicResource FontLightBrush}"
-										Text="{Binding FormMessage}"
-										TextWrapping="Wrap" />
+									<DockPanel>
+										<!--  A mod file's comments, for the people editing the mod. The game ignores them.  -->
+										<StackPanel
+											Margin="8,8,8,0"
+											DockPanel.Dock="Top"
+											Visibility="{Binding IsCommentsShown, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+											<TextBlock
+												FontWeight="SemiBold"
+												Text="Comments" />
+											<TextBlock
+												Margin="0,2,0,4"
+												Foreground="{DynamicResource FontLightBrush}"
+												Text="{Binding CommentsHint}"
+												TextWrapping="Wrap" />
+											<TextBox
+												MinHeight="80"
+												MaxHeight="240"
+												AcceptsReturn="True"
+												IsEnabled="{Binding IsCommentsEnabled}"
+												Text="{Binding Comments, UpdateSourceTrigger=PropertyChanged}"
+												TextWrapping="Wrap"
+												VerticalScrollBarVisibility="Auto" />
+										</StackPanel>
+										<TextBlock
+											Margin="8"
+											Foreground="{DynamicResource FontLightBrush}"
+											Text="{Binding FormMessage}"
+											TextWrapping="Wrap" />
+									</DockPanel>
 									<ScrollViewer
 										HorizontalScrollBarVisibility="Disabled"
 										VerticalScrollBarVisibility="Auto"
