@@ -6,6 +6,7 @@ OperaEtDies.exe accepts these options. Options are matched ignoring case, can co
 |---|---|
 | `--help` | Shows the list of options and exits. |
 | `--no-mods` | Starts without loading any mods. |
+| `--mod <folder>` | Loads the mod in the folder instead of the mods in the mod list. Can be given more than once. |
 | `--developer` | Shows extra information and controls for developing the game. |
 | `--generate-villages <count>` | Generates villages, writes them to standard output, and exits without showing the game. |
 | `--seed <number>` | With `--generate-villages`, the random seed of the first village. |
@@ -32,7 +33,15 @@ Writes the list of options to standard output and exits. When the output isn't r
 
 ## --no-mods
 
-Loads only the game's own data files, ignoring every mod in the game's mod list. Without it, the mods in the mod list are applied in order, as described in [Mods.md](Mods.md). This also applies to `--generate-villages`.
+Loads only the game's own data files, ignoring every mod in the game's mod list and any given with `--mod`. Without it, the mods in the mod list are applied in order, as described in [Mods.md](Mods.md). This also applies to `--generate-villages`.
+
+## --mod
+
+Loads the mod in the given folder instead of the mods in the game's mod list, which is left as it is for the next time. Each `--mod` adds one folder, and the mods are applied in the order they're given. A relative folder is relative to the folder the game was started from. A folder that doesn't exist stops the data from loading, as a missing folder in the mod list does, and a `--mod` with no folder after it is ignored. The Manage Mods screen still shows and changes the mod list, with a note that it isn't loaded this time. This also applies to `--generate-villages`. The [mod editor](ModEditor.md) uses it to run the game with the mod being edited.
+
+```bash
+OperaEtDies/bin/Debug/net9.0-windows/OperaEtDies.exe --mod "D:/Mods/My Mod" --developer
+```
 
 ## --developer
 

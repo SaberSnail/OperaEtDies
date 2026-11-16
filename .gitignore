@@ -23,6 +23,9 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+# Temporary projects WPF's build creates next to each project, left behind when a build is interrupted
+*_wpftmp.csproj
+
 # .NET Core
 project.lock.json
 project.fragment.lock.json

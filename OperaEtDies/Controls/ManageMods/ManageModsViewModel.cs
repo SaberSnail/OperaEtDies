@@ -11,11 +11,12 @@ namespace OperaEtDies.Controls.ManageMods;
 /// </summary>
 public sealed class ManageModsViewModel : ViewModelBase
 {
-	public ManageModsViewModel(IModListStore store, IFolderPicker folderPicker, bool areModsEnabled)
+	public ManageModsViewModel(IModListStore store, IFolderPicker folderPicker, bool areModsEnabled, bool areModsOverridden = false)
 	{
 		m_store = store;
 		m_folderPicker = folderPicker;
 		AreModsEnabled = areModsEnabled;
+		AreModsOverridden = areModsEnabled && areModsOverridden;
 		m_mods = new ObservableCollection<string>(store.Load());
 		Mods = new ReadOnlyObservableCollection<string>(m_mods);
 	}
@@ -37,6 +38,11 @@ public sealed class ManageModsViewModel : ViewModelBase
 	/// False if mods were turned off from the command line, so the list is kept but not loaded.
 	/// </summary>
 	public bool AreModsEnabled { get; }
+
+	/// <summary>
+	/// True if other mod folders were chosen from the command line, so the list is kept but not loaded this time.
+	/// </summary>
+	public bool AreModsOverridden { get; }
 
 	/// <summary>
 	/// Asks the player for a folder and adds it to the end of the list. A folder that's already in the list is

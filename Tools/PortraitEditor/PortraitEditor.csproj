@@ -9,6 +9,8 @@
     <PlatformTarget>x64</PlatformTarget>
     <!-- The icon is drawn by the editor itself from the portrait data; see "The icon" in Docs/PortraitEditor.md. -->
     <ApplicationIcon>Icon.ico</ApplicationIcon>
+    <!-- Built into the game's output folder, alongside the game and the other tools. -->
+    <OutDir>$(MSBuildThisFileDirectory)..\..\OperaEtDies\bin\$(Configuration)\$(TargetFramework)\</OutDir>
   </PropertyGroup>
 
   <ItemGroup>

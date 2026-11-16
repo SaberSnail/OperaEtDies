@@ -1105,6 +1105,15 @@ namespace OperaEtDies {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Mods were chosen by the --mod command line argument, so these folders won't be loaded this time..
+        /// </summary>
+        public static string ModsOverridden {
+            get {
+                return ResourceManager.GetString("ModsOverridden", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Mods are turned off by the --no-mods command line argument, so these folders won't be loaded..
         /// </summary>
         public static string ModsDisabled {
@@ -1452,6 +1461,15 @@ namespace OperaEtDies {
         public static string CommandLineNoMods {
             get {
                 return ResourceManager.GetString("CommandLineNoMods", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Load the mod in this folder instead of the mod list. Can be given more than once..
+        /// </summary>
+        public static string CommandLineMod {
+            get {
+                return ResourceManager.GetString("CommandLineMod", resourceCulture);
             }
         }
         

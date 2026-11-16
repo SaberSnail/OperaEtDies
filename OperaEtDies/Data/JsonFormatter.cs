@@ -3,7 +3,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace PortraitEditor.Model;
+namespace OperaEtDies.Data;
 
 /// <summary>
 /// Writes JSON in the style of the data files: indented with tabs, with each object or list on one line unless it

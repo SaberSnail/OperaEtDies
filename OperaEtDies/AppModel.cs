@@ -74,17 +74,20 @@ public sealed class AppModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Loads the game data and opens the start up window. Mods aren't loaded if they're turned off, and developer UI is
-	/// only shown if it's turned on.
+	/// Loads the game data and opens the start up window. Mods aren't loaded if they're turned off, the given mod folders
+	/// are loaded instead of the mod list if there are any, and developer UI is only shown if it's turned on.
 	/// </summary>
-	public async Task StartupAsync(TaskStateController state, bool areModsEnabled, bool isDeveloper)
+	public async Task StartupAsync(TaskStateController state, bool areModsEnabled, IReadOnlyList<string>? modDirectories, bool isDeveloper)
 	{
 		m_areModsEnabled = areModsEnabled;
+		m_modDirectoriesOverride = modDirectories;
 		m_isDeveloper = isDeveloper;
 		if (isDeveloper)
 			Log.Info("Developer UI is turned on");
 		if (!areModsEnabled)
 			Log.Info("Mods are turned off");
+		else if (modDirectories is not null)
+			Log.Info("Mods were chosen on the command line, instead of the mod list");
 
 		await LoadDataAsync(state);
 		OpenStartUpWindow();
@@ -149,15 +152,16 @@ public sealed class AppModel : ViewModelBase
 
 	/// <summary>
 	/// Loads the game content from the default data folder, with the files from each mod folder in the mod list applied
-	/// in order if mods are turned on. The mod list is kept under the game's title, so it's found using the game info
-	/// without mods (mods can't change the title). The mod list is null if the game info without mods didn't load.
+	/// in order if mods are turned on. The given mod folders are loaded instead of the mod list if there are any. The mod
+	/// list is kept under the game's title, so it's found using the game info without mods (mods can't change the title).
+	/// The mod list is null if the game info without mods didn't load.
 	/// </summary>
-	internal static (GameContent Content, DataLoadResult<GameInfo> BaseGameInfoResult, IModListStore? ModListStore) LoadContent(bool areModsEnabled)
+	internal static (GameContent Content, DataLoadResult<GameInfo> BaseGameInfoResult, IModListStore? ModListStore) LoadContent(bool areModsEnabled, IReadOnlyList<string>? modDirectoriesOverride = null)
 	{
 		var dataDirectory = JsonDataLoader.DefaultDataDirectory;
 		var baseGameInfoResult = GameInfo.Load(dataDirectory);
 		var modListStore = baseGameInfoResult.Value is { } baseGameInfo ? new RegistryModListStore(baseGameInfo.Title) : null;
-		var modDirectories = areModsEnabled && modListStore is not null ? modListStore.Load() : [];
+		IReadOnlyList<string> modDirectories = !areModsEnabled ? [] : modDirectoriesOverride ?? modListStore?.Load() ?? [];
 		if (modDirectories.Count != 0)
 			Log.Info($"Loading mods from {string.Join(", ", modDirectories.Select(x => $"\"{x}\""))}");
 
@@ -171,7 +175,7 @@ public sealed class AppModel : ViewModelBase
 	{
 		await state.ToThreadPool();
 
-		var (content, baseGameInfoResult, modListStore) = LoadContent(m_areModsEnabled);
+		var (content, baseGameInfoResult, modListStore) = LoadContent(m_areModsEnabled, m_modDirectoriesOverride);
 		var gameInfoResult = content.GameInfoResult;
 		var gameDataResult = content.GameDataResult;
 
@@ -208,7 +212,7 @@ public sealed class AppModel : ViewModelBase
 		if (m_startUpWindow is not null)
 			return;
 
-		var startUpWindow = new StartUpWindowViewModel(m_gameInfoResult.Value, m_gameDataResult.Value, Random, GetLoadErrors(), m_modListStore, new FolderPicker(), m_areModsEnabled, m_isDeveloper, m_saveSettings);
+		var startUpWindow = new StartUpWindowViewModel(m_gameInfoResult.Value, m_gameDataResult.Value, Random, GetLoadErrors(), m_modListStore, new FolderPicker(), m_areModsEnabled, m_isDeveloper, m_saveSettings, m_modDirectoriesOverride is not null);
 		startUpWindow.StartNewGameRequested += OnStartNewGameRequested;
 		startUpWindow.GameLoaded += OnGameLoaded;
 		startUpWindow.ExitGameRequested += OnExitGameRequested;
@@ -267,6 +271,7 @@ public sealed class AppModel : ViewModelBase
 	private IModListStore? m_modListStore;
 	private SaveSettings? m_saveSettings;
 	private bool m_areModsEnabled = true;
+	private IReadOnlyList<string>? m_modDirectoriesOverride;
 	private bool m_isDeveloper;
 	private Uri m_currentTheme;
 	private TaskGroup m_taskGroup;

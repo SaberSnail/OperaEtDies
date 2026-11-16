@@ -26,10 +26,25 @@ public sealed class CommandLineOptionsTests
 	}
 
 	[Test]
+	public void ModArgumentsAreCollectedInOrder()
+	{
+		var options = CommandLineOptions.Parse(["--mod", @"C:\First", "--developer", "--MOD", @"C:\Second", "--mod"]);
+
+		Assert.That(options.ModDirectories, Is.EqualTo(new[] { @"C:\First", @"C:\Second" }));
+		Assert.That(options.AreModsEnabled, Is.True);
+	}
+
+	[Test]
+	public void WithoutModArgumentsTheModListIsUsed()
+	{
+		Assert.That(CommandLineOptions.Parse(["--developer"]).ModDirectories, Is.Null);
+	}
+
+	[Test]
 	public void HelpListsEveryOption()
 	{
 		var help = CommandLineOptions.GetHelpText();
 
-		Assert.That(help, Does.Contain("--help").And.Contain("--no-mods").And.Contain("--developer").And.Contain("--generate-villages <count>").And.Contain("--seed <number>"));
+		Assert.That(help, Does.Contain("--help").And.Contain("--no-mods").And.Contain("--mod <folder>").And.Contain("--developer").And.Contain("--generate-villages <count>").And.Contain("--seed <number>"));
 	}
 }

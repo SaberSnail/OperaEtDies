@@ -35,7 +35,7 @@ public partial class App : Application
 			base.OnStartup(e);
 			using var output = new StreamWriter(Console.OpenStandardOutput());
 			using var error = new StreamWriter(Console.OpenStandardError());
-			Shutdown(VillageReport.Run(e.Args, options.AreModsEnabled, output, error));
+			Shutdown(VillageReport.Run(e.Args, options.AreModsEnabled, options.ModDirectories, output, error));
 		}
 		else
 		{
@@ -60,7 +60,7 @@ public partial class App : Application
 
 		try
 		{
-			await appModel.StartupAsync(state, options.AreModsEnabled, options.IsDeveloper).ConfigureAwait(false);
+			await appModel.StartupAsync(state, options.AreModsEnabled, options.ModDirectories, options.IsDeveloper).ConfigureAwait(false);
 			Log.Info($"Finished starting up in {stopwatch.Elapsed}");
 		}
 #pragma warning disable CA1031 // Do not catch general exception types (any start up failure must shut the app down)

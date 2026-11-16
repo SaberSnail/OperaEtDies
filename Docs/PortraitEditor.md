@@ -4,7 +4,7 @@ The portrait editor (`Tools/PortraitEditor`) is a standalone tool for working on
 
 ## Starting it
 
-Run `PortraitEditor.exe` from `Tools/PortraitEditor/bin/Debug/net9.0-windows`. Options are matched ignoring case, and anything else is ignored.
+Run `PortraitEditor.exe` from the game's build folder, `OperaEtDies/bin/Debug/net9.0-windows`, where it's built alongside the game and the [mod editor](ModEditor.md). Options are matched ignoring case, and anything else is ignored.
 
 | Option | Does |
 |---|---|
@@ -54,7 +54,7 @@ The **Insert** menu above the path adds a command: after the command the caret i
 `Tools/PortraitEditor/Icon.ico` is drawn by the editor from the portrait data, so it can be made again when the art changes. It's a close-up of one character's face (the character is set in `Model/IconRenderer.cs`), cropped around the drawn shapes of the `head` layer, in a rounded square with a frame, at 16, 20, 24, 32, 40, 48, 64, 128, and 256 px. It always uses the data without mods, and comes out the same each time. To make it again, close the editor, build it, and run (in Git Bash, which waits for it and shows its errors):
 
 ```bash
-Tools/PortraitEditor/bin/Debug/net9.0-windows/PortraitEditor.exe --no-mods --save-icon Tools/PortraitEditor/Icon.ico --icon-previews <scratch folder>
+OperaEtDies/bin/Debug/net9.0-windows/PortraitEditor.exe --no-mods --save-icon Tools/PortraitEditor/Icon.ico --icon-previews <scratch folder>
 ```
 
 Then look at the previews, especially the 16 and 32 px ones, and build again so the new icon is used.

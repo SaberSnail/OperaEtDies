@@ -15,15 +15,17 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 {
 	/// <summary>
 	/// Creates the start up window. The mod list can only be managed if a store for it is given, which needs the game
-	/// info. Mods that are turned off are still listed, but aren't loaded.
+	/// info. Mods that are turned off, or replaced by mod folders chosen from the command line, are still listed, but
+	/// aren't loaded.
 	/// </summary>
-	public StartUpWindowViewModel(GameInfo? gameInfo, GameData? gameData, Random random, IReadOnlyList<DataLoadError> loadErrors, IModListStore? modListStore = null, IFolderPicker? folderPicker = null, bool areModsEnabled = true, bool isDeveloper = false, SaveSettings? saveSettings = null)
+	public StartUpWindowViewModel(GameInfo? gameInfo, GameData? gameData, Random random, IReadOnlyList<DataLoadError> loadErrors, IModListStore? modListStore = null, IFolderPicker? folderPicker = null, bool areModsEnabled = true, bool isDeveloper = false, SaveSettings? saveSettings = null, bool areModsOverridden = false)
 	{
 		IsDeveloper = isDeveloper;
 		m_taskGroup = new TaskGroup();
 		m_random = random;
 		m_folderPicker = folderPicker ?? new FolderPicker();
 		m_areModsEnabled = areModsEnabled;
+		m_areModsOverridden = areModsOverridden;
 		m_title = "";
 		m_description = "";
 		m_loadErrors = [];
@@ -209,7 +211,7 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 		if (!CanShowManageMods() || !IsMenuVisible)
 			return;
 
-		var manageMods = new ManageModsViewModel(m_modListStore!, m_folderPicker, m_areModsEnabled);
+		var manageMods = new ManageModsViewModel(m_modListStore!, m_folderPicker, m_areModsEnabled, m_areModsOverridden);
 		manageMods.BackRequested += OnManageModsBackRequested;
 		ManageMods = manageMods;
 	}
@@ -302,6 +304,7 @@ public sealed class StartUpWindowViewModel : ViewModelBase, IDisposable
 	private readonly Random m_random;
 	private readonly IFolderPicker m_folderPicker;
 	private readonly bool m_areModsEnabled;
+	private readonly bool m_areModsOverridden;
 	private GameInfo? m_gameInfo;
 	private GameData? m_gameData;
 	private IModListStore? m_modListStore;

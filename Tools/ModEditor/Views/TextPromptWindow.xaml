@@ -1,0 +1,28 @@
+<Window
+	x:Class="ModEditor.Views.TextPromptWindow"
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	Width="420"
+	Background="{DynamicResource WindowBackgroundBrush}"
+	FontSize="{DynamicResource DefaultFontSize}"
+	Foreground="{DynamicResource FontBrush}"
+	ResizeMode="NoResize"
+	ShowInTaskbar="False"
+	SizeToContent="Height"
+	WindowStartupLocation="CenterOwner">
+
+	<StackPanel Margin="12">
+		<TextBlock x:Name="MessageText" Margin="0,0,0,6" TextWrapping="Wrap" />
+		<!--  An editable list when there are suggestions, so a name can be picked or typed.  -->
+		<ComboBox x:Name="InputBox" IsEditable="True" IsTextSearchEnabled="False" />
+		<StackPanel Margin="0,12,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
+			<Button
+				Width="80"
+				Margin="0,0,8,0"
+				Click="OnOkClick"
+				Content="OK"
+				IsDefault="True" />
+			<Button Width="80" Content="Cancel" IsCancel="True" />
+		</StackPanel>
+	</StackPanel>
+</Window>

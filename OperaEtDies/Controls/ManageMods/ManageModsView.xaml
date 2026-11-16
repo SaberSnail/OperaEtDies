@@ -28,6 +28,12 @@
 					Text="{x:Static operaEtDies:OurResources.ModsDisabled}"
 					TextWrapping="Wrap"
 					Visibility="{Binding AreModsEnabled, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
+				<TextBlock
+					Margin="0,4,0,0"
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{x:Static operaEtDies:OurResources.ModsOverridden}"
+					TextWrapping="Wrap"
+					Visibility="{Binding AreModsOverridden, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
 			</StackPanel>
 
 			<Grid Grid.Row="2" Margin="0,12,0,16">

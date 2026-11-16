@@ -1,0 +1,88 @@
+<DrawingGroup xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+	<!-- Fixes the drawing bounds to the full 256x256 canvas. -->
+	<GeometryDrawing Brush="Transparent" Geometry="M0,0 H256 V256 H0 Z" />
+
+	<!-- Parchment background, the same as Sub Corona's icon. -->
+	<GeometryDrawing>
+		<GeometryDrawing.Geometry>
+			<RectangleGeometry Rect="8,8,240,240" RadiusX="40" RadiusY="40" />
+		</GeometryDrawing.Geometry>
+		<GeometryDrawing.Brush>
+			<RadialGradientBrush Center="0.45,0.38" GradientOrigin="0.45,0.38" RadiusX="0.75" RadiusY="0.75">
+				<GradientStop Offset="0" Color="#F0E6CC" />
+				<GradientStop Offset="0.7" Color="#DDCCA4" />
+				<GradientStop Offset="1" Color="#C9B387" />
+			</RadialGradientBrush>
+		</GeometryDrawing.Brush>
+		<GeometryDrawing.Pen>
+			<Pen Brush="#5C4630" Thickness="8" />
+		</GeometryDrawing.Pen>
+	</GeometryDrawing>
+	<GeometryDrawing>
+		<GeometryDrawing.Geometry>
+			<RectangleGeometry Rect="22,22,212,212" RadiusX="28" RadiusY="28" />
+		</GeometryDrawing.Geometry>
+		<GeometryDrawing.Pen>
+			<Pen Brush="#A68E66" Thickness="3" />
+		</GeometryDrawing.Pen>
+	</GeometryDrawing>
+
+	<!-- Anvil on a wooden stump, horn on the left, with two sparks above. Laid out on the canvas, then moved to center it. -->
+	<DrawingGroup>
+		<DrawingGroup.Transform>
+			<TranslateTransform X="10" Y="-4" />
+		</DrawingGroup.Transform>
+
+		<!-- Stump. -->
+		<GeometryDrawing Geometry="M72,170 L184,170 L180,208 L76,208 Z">
+			<GeometryDrawing.Brush>
+				<LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+					<GradientStop Offset="0" Color="#7A5A3A" />
+					<GradientStop Offset="0.45" Color="#A4825A" />
+					<GradientStop Offset="1" Color="#6E5034" />
+				</LinearGradientBrush>
+			</GeometryDrawing.Brush>
+			<GeometryDrawing.Pen>
+				<Pen Brush="#3F2F22" Thickness="4" LineJoin="Round" />
+			</GeometryDrawing.Pen>
+		</GeometryDrawing>
+		<GeometryDrawing Geometry="M96,178 L95,200 M128,178 V202 M160,178 L161,200">
+			<GeometryDrawing.Pen>
+				<Pen Brush="#4F3F2C" Thickness="3" StartLineCap="Round" EndLineCap="Round" />
+			</GeometryDrawing.Pen>
+		</GeometryDrawing>
+
+		<!-- Anvil: face and heel on the right, horn tapering to the left, narrow waist, and a flared foot. -->
+		<GeometryDrawing Geometry="M30,90 Q58,82 92,80 L200,80 L200,104 L174,108 Q162,118 162,140 L186,156 L186,170 L70,170 L70,156 L94,140 Q94,120 84,112 Q62,100 30,90 Z">
+			<GeometryDrawing.Brush>
+				<LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+					<GradientStop Offset="0" Color="#8E887C" />
+					<GradientStop Offset="0.5" Color="#6E695F" />
+					<GradientStop Offset="1" Color="#57534B" />
+				</LinearGradientBrush>
+			</GeometryDrawing.Brush>
+			<GeometryDrawing.Pen>
+				<Pen Brush="#3F2F22" Thickness="4" LineJoin="Round" />
+			</GeometryDrawing.Pen>
+		</GeometryDrawing>
+		<!-- Shine along the face and horn. -->
+		<GeometryDrawing Geometry="M44,89 Q66,85 94,86 H192">
+			<GeometryDrawing.Pen>
+				<Pen Brush="#ABA597" Thickness="3" StartLineCap="Round" EndLineCap="Round" />
+			</GeometryDrawing.Pen>
+		</GeometryDrawing>
+
+		<!-- Sparks, in the colors of Sub Corona's flame. -->
+		<GeometryDrawing Brush="#C48C4E" Geometry="M150,30 L156,48 L174,54 L156,60 L150,78 L144,60 L126,54 L144,48 Z">
+			<GeometryDrawing.Pen>
+				<Pen Brush="#5E3420" Thickness="3" LineJoin="Round" />
+			</GeometryDrawing.Pen>
+		</GeometryDrawing>
+		<GeometryDrawing Brush="#E4CC96" Geometry="M150,42 L153,51 L162,54 L153,57 L150,66 L147,57 L138,54 L147,51 Z" />
+		<GeometryDrawing Brush="#C48C4E" Geometry="M186,30 L189,39 L198,42 L189,45 L186,54 L183,45 L174,42 L183,39 Z">
+			<GeometryDrawing.Pen>
+				<Pen Brush="#5E3420" Thickness="2.5" LineJoin="Round" />
+			</GeometryDrawing.Pen>
+		</GeometryDrawing>
+	</DrawingGroup>
+</DrawingGroup>

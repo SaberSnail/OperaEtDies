@@ -1,0 +1,449 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:form="clr-namespace:ModEditor.ViewModels.Form"
+	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
+
+	<!--
+		The form's fields. Each row starts with the field's name (bold when it's required), and every editor starts at the
+		same distance from the left: a nested field's name area is narrower by the width of each indent (see
+		FieldViewModel.LabelWidth). Objects, lists, and maps have a heading row, with their fields indented below it.
+	-->
+
+	<!--  The menu of a field's name: its path, and its help.  -->
+	<ContextMenu x:Key="FieldMenu" x:Shared="False">
+		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CopyPath}" Header="Copy Path" />
+		<MenuItem
+			Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowHelp}"
+			Header="Help"
+			InputGestureText="F1" />
+	</ContextMenu>
+
+	<!--  The menu of a map entry's key box, which keeps a text box's usual commands.  -->
+	<ContextMenu x:Key="KeyMenu" x:Shared="False">
+		<MenuItem Command="ApplicationCommands.Cut" />
+		<MenuItem Command="ApplicationCommands.Copy" />
+		<MenuItem Command="ApplicationCommands.Paste" />
+		<Separator />
+		<MenuItem
+			Command="{Binding Field, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CopyPath}"
+			Header="Copy Path" />
+		<MenuItem
+			Command="{Binding Field, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowHelp}"
+			Header="Help"
+			InputGestureText="F1" />
+	</ContextMenu>
+
+	<!--
+		A name area with a menu, which lights up under the mouse so it's clear it can be right-clicked. Its tooltip is
+		what the help says about the field, and its path.
+	-->
+	<Style x:Key="FieldMenuAreaStyle" TargetType="DockPanel">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="ToolTip" Value="{Binding ToolTipText}" />
+		<Setter Property="ToolTipService.ShowDuration" Value="60000" />
+		<Style.Triggers>
+			<DataTrigger Binding="{Binding ToolTipText}" Value="{x:Null}">
+				<Setter Property="ToolTip" Value="{x:Null}" />
+			</DataTrigger>
+			<DataTrigger Binding="{Binding HasMenu}" Value="True">
+				<Setter Property="ContextMenu" Value="{StaticResource FieldMenu}" />
+			</DataTrigger>
+			<MultiDataTrigger>
+				<MultiDataTrigger.Conditions>
+					<Condition Binding="{Binding HasMenu}" Value="True" />
+					<Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+				</MultiDataTrigger.Conditions>
+				<Setter Property="Background" Value="#18000000" />
+			</MultiDataTrigger>
+		</Style.Triggers>
+	</Style>
+
+	<!--  A field's name, at the width that lines its editor up with the others.  -->
+	<DataTemplate x:Key="FieldLabelTemplate">
+		<DockPanel
+			Width="{Binding LabelWidth}"
+			LastChildFill="True"
+			Style="{StaticResource FieldMenuAreaStyle}">
+			<TextBlock
+				Margin="2,3,6,0"
+				VerticalAlignment="Top"
+				Text="{Binding Label}"
+				TextTrimming="CharacterEllipsis">
+				<TextBlock.Style>
+					<Style TargetType="TextBlock">
+						<Style.Triggers>
+							<DataTrigger Binding="{Binding IsRequired}" Value="True">
+								<Setter Property="FontWeight" Value="SemiBold" />
+							</DataTrigger>
+							<DataTrigger Binding="{Binding IsUnknown}" Value="True">
+								<Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+							</DataTrigger>
+						</Style.Triggers>
+					</Style>
+				</TextBlock.Style>
+			</TextBlock>
+		</DockPanel>
+	</DataTemplate>
+
+	<!--  The name area at the start of a row, left out for a map value (whose key is shown instead).  -->
+	<Style x:Key="FieldLabelStyle" TargetType="ContentControl">
+		<Setter Property="DockPanel.Dock" Value="Left" />
+		<Setter Property="Focusable" Value="False" />
+		<Setter Property="Content" Value="{Binding}" />
+		<Setter Property="ContentTemplate" Value="{StaticResource FieldLabelTemplate}" />
+		<Setter Property="Visibility" Value="{Binding HasLabel, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+	</Style>
+
+	<Style x:Key="FieldRowStyle" TargetType="DockPanel">
+		<Setter Property="Margin" Value="0,1" />
+		<Setter Property="MinHeight" Value="24" />
+	</Style>
+
+	<!--  The fields of an object, list, or map, indented by FieldViewModel.IndentWidth (margin, line, and padding).  -->
+	<Style x:Key="IndentStyle" TargetType="Border">
+		<Setter Property="Margin" Value="4,0,0,2" />
+		<Setter Property="Padding" Value="8,0,0,0" />
+		<Setter Property="BorderThickness" Value="2,0,0,0" />
+		<Setter Property="BorderBrush" Value="#D8D0C0" />
+	</Style>
+
+	<Style x:Key="TinyButtonStyle" BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
+		<Setter Property="Margin" Value="4,0,0,0" />
+		<Setter Property="Padding" Value="6,0" />
+		<Setter Property="MinHeight" Value="22" />
+		<Setter Property="VerticalAlignment" Value="Top" />
+	</Style>
+
+	<!--  Long lists of suggestions only make the items that are shown.  -->
+	<Style x:Key="SuggestionBoxStyle" BasedOn="{StaticResource {x:Type ComboBox}}" TargetType="ComboBox">
+		<Setter Property="IsEditable" Value="True" />
+		<Setter Property="IsTextSearchEnabled" Value="True" />
+		<Setter Property="VerticalAlignment" Value="Top" />
+		<Setter Property="ItemsPanel">
+			<Setter.Value>
+				<ItemsPanelTemplate>
+					<VirtualizingStackPanel />
+				</ItemsPanelTemplate>
+			</Setter.Value>
+		</Setter>
+	</Style>
+
+	<!--  A box that turns red, with the reason as its tooltip, while its text can't be used.  -->
+	<Style x:Key="CheckedTextBoxStyle" BasedOn="{StaticResource {x:Type TextBox}}" TargetType="TextBox">
+		<Setter Property="VerticalAlignment" Value="Top" />
+		<Style.Triggers>
+			<DataTrigger Binding="{Binding Error, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" Value="Visible">
+				<Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}" />
+				<Setter Property="ToolTip" Value="{Binding Error}" />
+			</DataTrigger>
+		</Style.Triggers>
+	</Style>
+
+	<!--  Words beside a heading, such as (none) for an optional object that's left out.  -->
+	<Style x:Key="HeadingNoteStyle" TargetType="TextBlock">
+		<Setter Property="Margin" Value="0,3,0,0" />
+		<Setter Property="VerticalAlignment" Value="Top" />
+		<Setter Property="Foreground" Value="{DynamicResource FontLightBrush}" />
+	</Style>
+
+	<DataTemplate DataType="{x:Type form:TextFieldViewModel}">
+		<DockPanel Style="{StaticResource FieldRowStyle}">
+			<ContentControl Style="{StaticResource FieldLabelStyle}" />
+			<!--  Always there, so a warning doesn't move the box.  -->
+			<TextBlock
+				Width="18"
+				Margin="4,3,0,0"
+				VerticalAlignment="Top"
+				DockPanel.Dock="Right"
+				Foreground="{StaticResource ErrorBrush}"
+				ToolTip="{Binding Warning}">
+				<TextBlock.Style>
+					<Style TargetType="TextBlock">
+						<Setter Property="Text" Value="⚠" />
+						<Style.Triggers>
+							<DataTrigger Binding="{Binding Warning}" Value="{x:Null}">
+								<Setter Property="Text" Value="" />
+							</DataTrigger>
+						</Style.Triggers>
+					</Style>
+				</TextBlock.Style>
+			</TextBlock>
+			<ContentControl Content="{Binding}" Focusable="False">
+				<ContentControl.Style>
+					<Style TargetType="ContentControl">
+						<Setter Property="ContentTemplate">
+							<Setter.Value>
+								<DataTemplate>
+									<TextBox
+										VerticalAlignment="Top"
+										IsReadOnly="{Binding Form.IsReadOnly}"
+										Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" />
+								</DataTemplate>
+							</Setter.Value>
+						</Setter>
+						<Style.Triggers>
+							<DataTrigger Binding="{Binding HasSuggestions}" Value="True">
+								<Setter Property="ContentTemplate">
+									<Setter.Value>
+										<DataTemplate>
+											<ComboBox
+												IsEnabled="{Binding IsEditable}"
+												ItemsSource="{Binding Suggestions}"
+												Style="{StaticResource SuggestionBoxStyle}"
+												Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" />
+										</DataTemplate>
+									</Setter.Value>
+								</Setter>
+							</DataTrigger>
+							<DataTrigger Binding="{Binding IsMultiline}" Value="True">
+								<Setter Property="ContentTemplate">
+									<Setter.Value>
+										<DataTemplate>
+											<TextBox
+												MinHeight="60"
+												VerticalAlignment="Top"
+												AcceptsReturn="True"
+												IsReadOnly="{Binding Form.IsReadOnly}"
+												Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+												TextWrapping="Wrap" />
+										</DataTemplate>
+									</Setter.Value>
+								</Setter>
+							</DataTrigger>
+						</Style.Triggers>
+					</Style>
+				</ContentControl.Style>
+			</ContentControl>
+		</DockPanel>
+	</DataTemplate>
+
+	<DataTemplate DataType="{x:Type form:NumberFieldViewModel}">
+		<DockPanel Style="{StaticResource FieldRowStyle}">
+			<ContentControl Style="{StaticResource FieldLabelStyle}" />
+			<TextBox
+				Width="120"
+				HorizontalAlignment="Left"
+				IsReadOnly="{Binding Form.IsReadOnly}"
+				Style="{StaticResource CheckedTextBoxStyle}"
+				Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" />
+		</DockPanel>
+	</DataTemplate>
+
+	<DataTemplate DataType="{x:Type form:BooleanFieldViewModel}">
+		<DockPanel Style="{StaticResource FieldRowStyle}">
+			<ContentControl Style="{StaticResource FieldLabelStyle}" />
+			<CheckBox
+				Margin="0,4,0,0"
+				VerticalAlignment="Top"
+				IsChecked="{Binding Value}"
+				IsEnabled="{Binding IsEditable}"
+				IsThreeState="{Binding IsThreeState}"
+				ToolTip="Checked is true, empty is false, and a square leaves it out (when that's allowed)" />
+		</DockPanel>
+	</DataTemplate>
+
+	<DataTemplate DataType="{x:Type form:ChoiceFieldViewModel}">
+		<DockPanel Style="{StaticResource FieldRowStyle}">
+			<ContentControl Style="{StaticResource FieldLabelStyle}" />
+			<ComboBox
+				MinWidth="160"
+				HorizontalAlignment="Left"
+				VerticalAlignment="Top"
+				IsEnabled="{Binding IsEditable}"
+				ItemsSource="{Binding Choices}"
+				SelectedItem="{Binding Selected}" />
+		</DockPanel>
+	</DataTemplate>
+
+	<DataTemplate DataType="{x:Type form:JsonFieldViewModel}">
+		<DockPanel Style="{StaticResource FieldRowStyle}">
+			<ContentControl Style="{StaticResource FieldLabelStyle}" />
+			<TextBox
+				MaxHeight="240"
+				AcceptsReturn="True"
+				AcceptsTab="True"
+				FontFamily="{StaticResource CodeFontFamily}"
+				IsReadOnly="{Binding Form.IsReadOnly}"
+				Style="{StaticResource CheckedTextBoxStyle}"
+				Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+				VerticalScrollBarVisibility="Auto" />
+		</DockPanel>
+	</DataTemplate>
+
+	<DataTemplate DataType="{x:Type form:ObjectFieldViewModel}">
+		<StackPanel>
+			<DockPanel Style="{StaticResource FieldRowStyle}" Visibility="{Binding IsRoot, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}">
+				<ContentControl Style="{StaticResource FieldLabelStyle}" />
+				<StackPanel Orientation="Horizontal">
+					<TextBlock
+						Style="{StaticResource HeadingNoteStyle}"
+						Text="(none)"
+						Visibility="{Binding IsPresent, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
+					<TextBlock
+						Style="{StaticResource HeadingNoteStyle}"
+						Text="(not an object; edit it as JSON)"
+						Visibility="{Binding IsInvalid, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+					<Button
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Add}"
+						Content="+ Add"
+						Style="{StaticResource TinyButtonStyle}"
+						Visibility="{Binding IsPresent, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
+					<!--  Only an optional property can be left out; a list item is removed with its list's button.  -->
+					<Button
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=RemoveValue}"
+						Content="✕"
+						ToolTip="Leave it out">
+						<Button.Style>
+							<Style BasedOn="{StaticResource TinyButtonStyle}" TargetType="Button">
+								<Setter Property="Visibility" Value="Collapsed" />
+								<Style.Triggers>
+									<MultiDataTrigger>
+										<MultiDataTrigger.Conditions>
+											<Condition Binding="{Binding IsPresent}" Value="True" />
+											<Condition Binding="{Binding IsOptional}" Value="True" />
+										</MultiDataTrigger.Conditions>
+										<Setter Property="Visibility" Value="Visible" />
+									</MultiDataTrigger>
+								</Style.Triggers>
+							</Style>
+						</Button.Style>
+					</Button>
+				</StackPanel>
+			</DockPanel>
+			<Border>
+				<Border.Style>
+					<Style BasedOn="{StaticResource IndentStyle}" TargetType="Border">
+						<Style.Triggers>
+							<DataTrigger Binding="{Binding IsRoot}" Value="True">
+								<Setter Property="Margin" Value="0" />
+								<Setter Property="Padding" Value="0" />
+								<Setter Property="BorderThickness" Value="0" />
+							</DataTrigger>
+						</Style.Triggers>
+					</Style>
+				</Border.Style>
+				<ItemsControl Focusable="False" ItemsSource="{Binding Fields}" />
+			</Border>
+		</StackPanel>
+	</DataTemplate>
+
+	<DataTemplate DataType="{x:Type form:ListFieldViewModel}">
+		<StackPanel>
+			<DockPanel Style="{StaticResource FieldRowStyle}">
+				<ContentControl Style="{StaticResource FieldLabelStyle}" />
+				<StackPanel Orientation="Horizontal">
+					<TextBlock
+						Style="{StaticResource HeadingNoteStyle}"
+						Text="(none)"
+						Visibility="{Binding IsPresent, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
+					<Button
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Add}"
+						Content="+ Add"
+						Style="{StaticResource TinyButtonStyle}"
+						ToolTip="Add an item at the end" />
+				</StackPanel>
+			</DockPanel>
+			<!--  Each item is labeled with its number, and removed with the button at the end of its row.  -->
+			<Border Style="{StaticResource IndentStyle}" Visibility="{Binding IsPresent, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+				<ItemsControl Focusable="False" ItemsSource="{Binding Items}">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate>
+							<DockPanel>
+								<Button
+									Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Remove}"
+									Content="✕"
+									DockPanel.Dock="Right"
+									IsEnabled="{Binding IsEditable}"
+									Style="{StaticResource TinyButtonStyle}"
+									ToolTip="Remove this item" />
+								<ContentPresenter Content="{Binding Field}" />
+							</DockPanel>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+			</Border>
+		</StackPanel>
+	</DataTemplate>
+
+	<DataTemplate DataType="{x:Type form:MapFieldViewModel}">
+		<StackPanel>
+			<DockPanel Style="{StaticResource FieldRowStyle}">
+				<ContentControl Style="{StaticResource FieldLabelStyle}" />
+				<Button
+					HorizontalAlignment="Left"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Add}"
+					Content="+ Add"
+					Style="{StaticResource TinyButtonStyle}"
+					ToolTip="Add an entry" />
+			</DockPanel>
+			<!--  Each entry's key is in its value's name area, so the values line up with the other editors.  -->
+			<Border Style="{StaticResource IndentStyle}">
+				<ItemsControl Focusable="False" ItemsSource="{Binding Entries}">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate>
+							<DockPanel Margin="0,1">
+								<Button
+									Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Remove}"
+									Content="✕"
+									DockPanel.Dock="Right"
+									IsEnabled="{Binding IsEditable}"
+									Style="{StaticResource TinyButtonStyle}"
+									ToolTip="Remove this entry" />
+								<DockPanel
+									Width="{Binding Field.LabelWidth}"
+									VerticalAlignment="Top"
+									DockPanel.Dock="Left">
+									<!--  The key is applied when the box loses focus.  -->
+									<ContentControl
+										Margin="0,0,6,0"
+										Content="{Binding}"
+										Focusable="False">
+										<ContentControl.Style>
+											<Style TargetType="ContentControl">
+												<Setter Property="ContentTemplate">
+													<Setter.Value>
+														<DataTemplate>
+															<TextBox
+														ContextMenu="{StaticResource KeyMenu}"
+														IsReadOnly="{Binding Field.Form.IsReadOnly}"
+														Text="{Binding KeyText, UpdateSourceTrigger=LostFocus}"
+														ToolTip="{Binding Field.ToolTipText}" />
+														</DataTemplate>
+													</Setter.Value>
+												</Setter>
+												<Style.Triggers>
+													<DataTrigger Binding="{Binding HasKeySuggestions}" Value="True">
+														<Setter Property="ContentTemplate">
+															<Setter.Value>
+																<DataTemplate>
+																	<ComboBox
+																		ContextMenu="{StaticResource KeyMenu}"
+																		IsEnabled="{Binding IsEditable}"
+																		ItemsSource="{Binding KeySuggestions}"
+																		Style="{StaticResource SuggestionBoxStyle}"
+																		Text="{Binding KeyText, UpdateSourceTrigger=LostFocus}"
+																		ToolTip="{Binding Field.ToolTipText}" />
+																</DataTemplate>
+															</Setter.Value>
+														</Setter>
+													</DataTrigger>
+												</Style.Triggers>
+											</Style>
+										</ContentControl.Style>
+									</ContentControl>
+								</DockPanel>
+								<ContentPresenter Content="{Binding Field}" />
+							</DockPanel>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+			</Border>
+		</StackPanel>
+	</DataTemplate>
+
+	<DataTemplate DataType="{x:Type form:OperationFieldViewModel}">
+		<ItemsControl Focusable="False" ItemsSource="{Binding Fields}" />
+	</DataTemplate>
+
+</ResourceDictionary>

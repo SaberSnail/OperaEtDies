@@ -475,6 +475,9 @@
 	<data name="ManageModsEmpty" xml:space="preserve">
 		<value>No mods have been added.</value>
 	</data>
+	<data name="ModsOverridden" xml:space="preserve">
+		<value>Mods were chosen by the --mod command line argument, so these folders won't be loaded this time.</value>
+	</data>
 	<data name="ModsDisabled" xml:space="preserve">
 		<value>Mods are turned off by the --no-mods command line argument, so these folders won't be loaded.</value>
 	</data>
@@ -623,6 +626,10 @@
 	<data name="CommandLineNoMods" xml:space="preserve">
 		<value>Start without loading mods.</value>
 		<comment>Explains the --no-mods command line option.</comment>
+	</data>
+	<data name="CommandLineMod" xml:space="preserve">
+		<value>Load the mod in this folder instead of the mod list. Can be given more than once.</value>
+		<comment>Explains the --mod command line option.</comment>
 	</data>
 	<data name="CommandLineDeveloper" xml:space="preserve">
 		<value>Show extra information and controls for developing the game.</value>

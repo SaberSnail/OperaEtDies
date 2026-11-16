@@ -64,6 +64,12 @@ When running the application, always pass the `--no-mods` command line argument 
 
 The same goes for the portrait editor (`Tools/PortraitEditor`): never run it without `--no-mods` unless I specifically ask you to.
 
+Never run the mod editor (`Tools/ModEditor`, documented in `Docs/ModEditor.md`) unless I explicitly ask you to. It has no `--no-mods`, and it interrupts other work on my computer. Building it is fine. The game and both tools build into the game's output folder (`OperaEtDies/bin/Debug/net9.0-windows`).
+
+## Third-Party Packages
+
+Every NuGet package is a supply-chain risk, so adding or updating one (including a version bump, or a package another package brings in) follows `Docs/Dependencies.md`: ask me first, inspect the package before it's restored, pin it exactly, update the lock files on purpose, and add its license to `ThirdPartyNotices.txt`. Never loosen the safeguards in `nuget.config` and `Directory.Build.props` (locked restores, one source, required signatures, the vulnerability audit) to get a build working; fix the cause instead.
+
 ## AI-Written Text
 
 Every long text field in the data (one that typically holds a full sentence or more, not a title or short fragment) is an object holding the `text` and a required `ai` flag (see `Docs/DataFiles.md`).

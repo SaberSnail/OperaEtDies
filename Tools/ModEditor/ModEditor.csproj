@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- The icon is drawn from Art/Icon.xaml; see "The icon" in Docs/ModEditor.md. -->
+    <ApplicationIcon>Icon.ico</ApplicationIcon>
+    <!-- Built into the game's output folder, so the editor can run the game with the mod being edited. -->
+    <OutDir>$(MSBuildThisFileDirectory)..\..\OperaEtDies\bin\$(Configuration)\$(TargetFramework)\</OutDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Icon.ico" />
+    <!-- The icon's source drawing isn't part of the editor. -->
+    <Page Remove="Art\**" />
+    <None Include="Art\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Markdig" />
+  </ItemGroup>
+
+  <!-- The licenses of the third-party software the editor includes go with it. -->
+  <ItemGroup>
+    <None Include="..\..\ThirdPartyNotices.txt" Link="ThirdPartyNotices.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The documentation shown in the help, built in so it always matches the editor. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\Docs\DataFiles.md;..\..\Docs\Mods.md;..\..\Docs\ModEditor.md" LogicalName="Docs/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\OperaEtDies\OperaEtDies.csproj" />
+    <ProjectReference Include="..\..\..\..\GoldenAnvil.Utility\GoldenAnvil.Utility.Windows\GoldenAnvil.Utility.Windows.csproj" />
+    <ProjectReference Include="..\..\..\..\GoldenAnvil.Utility\GoldenAnvil.Utility\GoldenAnvil.Utility.csproj" />
+  </ItemGroup>
+
+</Project>

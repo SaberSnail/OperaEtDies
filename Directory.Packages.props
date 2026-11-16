@@ -8,6 +8,15 @@
     <PackageVersion Include="Microsoft.VisualStudio.Threading" Version="18.12.1" />
   </ItemGroup>
 
+  <!--
+    Third-party packages are pinned to exact versions ([x]), checked before they're added, and listed in
+    ThirdPartyNotices.txt. See "Third-Party Packages" in Docs/Dependencies.md.
+  -->
+  <ItemGroup Label="Third party">
+    <!-- Reads the documentation shown in the mod editor's help. Only the mod editor uses it. -->
+    <PackageVersion Include="Markdig" Version="[1.3.2]" />
+  </ItemGroup>
+
   <ItemGroup Label="Testing">
     <PackageVersion Include="coverlet.collector" Version="10.1.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />

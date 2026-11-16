@@ -58,16 +58,17 @@ public sealed class VillageReport : ILogDestination
 	/// <summary>
 	/// Runs the report with the given command line arguments, and returns the exit code: 0 on success, 1 if the game
 	/// data couldn't be loaded, and 2 if the arguments are invalid. Logging must not have been set up yet, since the
-	/// report captures it. Writing portraits must be done on an STA thread.
+	/// report captures it. Writing portraits must be done on an STA thread. The given mod folders are loaded instead of the mod
+	/// list if there are any.
 	/// </summary>
-	public static int Run(IReadOnlyList<string> args, bool areModsEnabled, TextWriter output, TextWriter error)
+	public static int Run(IReadOnlyList<string> args, bool areModsEnabled, IReadOnlyList<string>? modDirectories, TextWriter output, TextWriter error)
 	{
 		int exitCode;
 		if (TryParseArguments(args, out var count, out var firstSeed, out var portraitFolder, out var simulateDays, out var argumentError))
 		{
 			var report = new VillageReport(output, portraitFolder, args.Contains(PortraitsAtWorkArgument, StringComparer.OrdinalIgnoreCase), args.Contains(ThroughSaveArgument, StringComparer.OrdinalIgnoreCase), simulateDays);
 			LogManager.Initialize(report);
-			exitCode = report.Generate(count, firstSeed, areModsEnabled, error);
+			exitCode = report.Generate(count, firstSeed, areModsEnabled, modDirectories, error);
 		}
 		else
 		{
@@ -141,9 +142,9 @@ public sealed class VillageReport : ILogDestination
 		return error.Length == 0;
 	}
 
-	private int Generate(int count, int firstSeed, bool areModsEnabled, TextWriter error)
+	private int Generate(int count, int firstSeed, bool areModsEnabled, IReadOnlyList<string>? modDirectories, TextWriter error)
 	{
-		var (content, _, _) = AppModel.LoadContent(areModsEnabled);
+		var (content, _, _) = AppModel.LoadContent(areModsEnabled, modDirectories);
 		var gameData = content.GameDataResult.Value;
 		var exitCode = 0;
 		if (gameData is null)

@@ -106,3 +106,26 @@
 
 ## Current Work
 
+Mod editor: a standalone tool (`Tools/ModEditor`) for writing and organizing mods, and running the game with the mod being edited.
+
+- [x] `--mod <folder>` command line option that loads the given mods instead of the mod list
+- [x] Build the game, the portrait editor, and the mod editor into the same output folder
+- [x] Mod editor: open a folder by hand, tree of files and their pieces, JSON editing, save, undo
+- [x] Mod editor: new files and folders, moving and copying pieces between files (drag, cut and paste, Move To), game data to copy from
+- [x] Mod editor: check the mod as it's edited, and run the game with it (optionally in developer mode)
+- [x] Mod editor icon (an anvil)
+- [x] Mod editor: Replace and Remove a piece of the game data from the Game Data tab, adding the operation to the mod
+- [x] Mod editor: a form tab with a field for each property, offering the ids a field can refer to
+- [x] Mod editor: show the ids of the items an operation works on in the tree
+- [x] Mod editor form: copy the path of any field, line the editors up, and tighten and top-align the names
+- [x] Mod editor form: narrow a replace value when its path is made longer
+- [x] Mod editor: copy problems as text
+- [x] Third-party package safeguards: inspection, exact versions, lock files, one source, signatures, and the vulnerability audit (Docs/Dependencies.md)
+- [x] ThirdPartyNotices.txt
+- [x] Mod editor: help window with the documentation built in, going to a field's row with F1 or its menu, and its notes as the field's tooltip
+- [ ] Try the mod editor on a real mod, and adjust what's awkward
+- [ ] Mod editor: notice when the mod's files change on disk (such as when edited in another program), as the portrait editor does
+- [ ] Mod editor: drop a data item on an operations file as an `insert` operation
+- [ ] Mod editor: show which pieces of the game data the mod changes
+- [x] Mod editor form: offer the paths inside items (such as `properties[hair].values[red]`) for operations, not just the items themselves
+- [ ] Mod editor form: move list items up and down, not just add and remove them

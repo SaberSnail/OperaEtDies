@@ -1,7 +1,7 @@
 using System.Text.Json.Nodes;
-using PortraitEditor.Model;
+using OperaEtDies.Data;
 
-namespace OperaEtDies.Test.Tools;
+namespace OperaEtDies.Test.Data;
 
 [TestFixture]
 public sealed class JsonFormatterTests

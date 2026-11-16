@@ -95,6 +95,13 @@ public sealed class ManageModsViewModelTests
 	}
 
 	[Test]
+	public void ModsAreOnlyOverriddenWhileTurnedOn()
+	{
+		Assert.That(new ManageModsViewModel(new FakeModListStore(), new FakeFolderPicker(), areModsEnabled: true, areModsOverridden: true).AreModsOverridden, Is.True);
+		Assert.That(new ManageModsViewModel(new FakeModListStore(), new FakeFolderPicker(), areModsEnabled: false, areModsOverridden: true).AreModsOverridden, Is.False);
+	}
+
+	[Test]
 	public void BackRaisesRequest()
 	{
 		var viewModel = new ManageModsViewModel(new FakeModListStore(), new FakeFolderPicker(), areModsEnabled: false);

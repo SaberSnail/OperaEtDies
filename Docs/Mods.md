@@ -1,6 +1,6 @@
 # Mods
 
-A mod is a folder of JSON files that change the data described in [DataFiles.md](DataFiles.md). The game applies the mods in its mod list, in order.
+A mod is a folder of JSON files that change the data described in [DataFiles.md](DataFiles.md). The game applies the mods in its mod list, in order, or the mods given with `--mod` on the command line instead (see [CommandLine.md](CommandLine.md)). The [mod editor](ModEditor.md) is a tool for writing them.
 
 * The data folder's files are merged first (see Files and Sections in DataFiles.md). Then each mod folder's `.json` files, including those in subfolders, are applied in order of their paths. File names don't matter.
 * A mod file holds either **data**, an object of sections merged in the same way as a data file, or a list of **operations**, applied in order to the merged data.

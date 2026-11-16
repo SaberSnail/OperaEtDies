@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\OperaEtDies\OperaEtDies.csproj" />
     <ProjectReference Include="..\Tools\PortraitEditor\PortraitEditor.csproj" />
+    <ProjectReference Include="..\Tools\ModEditor\ModEditor.csproj" />
   </ItemGroup>
 
   <ItemGroup>
