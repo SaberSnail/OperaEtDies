@@ -60,6 +60,12 @@ public sealed class ModProject
 
 	public bool IsModified => !TakeSnapshot().IsSameAs(m_saved);
 
+	/// <summary>
+	/// The files and folders as they were last loaded or saved, which is what the mod folder should hold unless it was
+	/// changed by another program.
+	/// </summary>
+	public ModSnapshot SavedSnapshot => m_saved;
+
 	public ModFile? FindFile(string path) => m_files.FirstOrDefault(x => ModFilePath.AreSame(x.Path, path));
 
 	public bool FolderExists(string path) => path.Length == 0 || m_folders.Contains(path);

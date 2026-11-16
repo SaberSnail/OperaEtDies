@@ -2,6 +2,7 @@
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:form="clr-namespace:ModEditor.ViewModels.Form"
+	xmlns:model="clr-namespace:ModEditor.Model"
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
 
 	<!--
@@ -10,9 +11,10 @@
 		FieldViewModel.LabelWidth). Objects, lists, and maps have a heading row, with their fields indented below it.
 	-->
 
-	<!--  The menu of a field's name: its path, and its help.  -->
+	<!--  The menu of a field's name: its path, the part of the mod that changed it (for the game data), and its help.  -->
 	<ContextMenu x:Key="FieldMenu" x:Shared="False">
 		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CopyPath}" Header="Copy Path" />
+		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=GoToModChange}" Header="Go to Change in Mod" />
 		<MenuItem
 			Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowHelp}"
 			Header="Help"
@@ -28,6 +30,7 @@
 		<MenuItem
 			Command="{Binding Field, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CopyPath}"
 			Header="Copy Path" />
+		<MenuItem Command="{Binding Field, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=GoToModChange}" Header="Go to Change in Mod" />
 		<MenuItem
 			Command="{Binding Field, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ShowHelp}"
 			Header="Help"
@@ -36,7 +39,7 @@
 
 	<!--
 		A name area with a menu, which lights up under the mouse so it's clear it can be right-clicked. Its tooltip is
-		what the help says about the field, and its path.
+		what the mod does to the field (in the game data), what the help says about it, and its path.
 	-->
 	<Style x:Key="FieldMenuAreaStyle" TargetType="DockPanel">
 		<Setter Property="Background" Value="Transparent" />
@@ -59,12 +62,32 @@
 		</Style.Triggers>
 	</Style>
 
-	<!--  A field's name, at the width that lines its editor up with the others.  -->
+	<!--
+		A field's name, at the width that lines its editor up with the others. In the game data, what the mod does to it is
+		marked before it (✚ added, ✎ changed), in the colors the tree uses.
+	-->
 	<DataTemplate x:Key="FieldLabelTemplate">
 		<DockPanel
 			Width="{Binding LabelWidth}"
 			LastChildFill="True"
 			Style="{StaticResource FieldMenuAreaStyle}">
+			<TextBlock
+				Margin="2,3,0,0"
+				VerticalAlignment="Top"
+				DockPanel.Dock="Left"
+				FontWeight="Bold"
+				Text="{Binding ChangeGlyph}">
+				<TextBlock.Style>
+					<Style TargetType="TextBlock">
+						<Setter Property="Foreground" Value="{StaticResource ChangedBrush}" />
+						<Style.Triggers>
+							<DataTrigger Binding="{Binding Change}" Value="{x:Static model:ChangeKind.Added}">
+								<Setter Property="Foreground" Value="{StaticResource AddedBrush}" />
+							</DataTrigger>
+						</Style.Triggers>
+					</Style>
+				</TextBlock.Style>
+			</TextBlock>
 			<TextBlock
 				Margin="2,3,6,0"
 				VerticalAlignment="Top"
@@ -78,6 +101,12 @@
 							</DataTrigger>
 							<DataTrigger Binding="{Binding IsUnknown}" Value="True">
 								<Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+							</DataTrigger>
+							<DataTrigger Binding="{Binding Change}" Value="{x:Static model:ChangeKind.Changed}">
+								<Setter Property="Foreground" Value="{StaticResource ChangedBrush}" />
+							</DataTrigger>
+							<DataTrigger Binding="{Binding Change}" Value="{x:Static model:ChangeKind.Added}">
+								<Setter Property="Foreground" Value="{StaticResource AddedBrush}" />
 							</DataTrigger>
 						</Style.Triggers>
 					</Style>
@@ -344,7 +373,7 @@
 						ToolTip="Add an item at the end" />
 				</StackPanel>
 			</DockPanel>
-			<!--  Each item is labeled with its number, and removed with the button at the end of its row.  -->
+			<!--  Each item is labeled with its number, and moved or removed with the buttons at the end of its row.  -->
 			<Border Style="{StaticResource IndentStyle}" Visibility="{Binding IsPresent, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 				<ItemsControl Focusable="False" ItemsSource="{Binding Items}">
 					<ItemsControl.ItemTemplate>
@@ -357,6 +386,19 @@
 									IsEnabled="{Binding IsEditable}"
 									Style="{StaticResource TinyButtonStyle}"
 									ToolTip="Remove this item" />
+								<Button
+									Margin="2,0,0,0"
+									Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=MoveDown}"
+									Content="▼"
+									DockPanel.Dock="Right"
+									Style="{StaticResource TinyButtonStyle}"
+									ToolTip="Move this item down" />
+								<Button
+									Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=MoveUp}"
+									Content="▲"
+									DockPanel.Dock="Right"
+									Style="{StaticResource TinyButtonStyle}"
+									ToolTip="Move this item up" />
 								<ContentPresenter Content="{Binding Field}" />
 							</DockPanel>
 						</DataTemplate>

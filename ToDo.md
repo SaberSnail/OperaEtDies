@@ -123,9 +123,9 @@ Mod editor: a standalone tool (`Tools/ModEditor`) for writing and organizing mod
 - [x] Third-party package safeguards: inspection, exact versions, lock files, one source, signatures, and the vulnerability audit (Docs/Dependencies.md)
 - [x] ThirdPartyNotices.txt
 - [x] Mod editor: help window with the documentation built in, going to a field's row with F1 or its menu, and its notes as the field's tooltip
-- [ ] Try the mod editor on a real mod, and adjust what's awkward
-- [ ] Mod editor: notice when the mod's files change on disk (such as when edited in another program), as the portrait editor does
-- [ ] Mod editor: drop a data item on an operations file as an `insert` operation
-- [ ] Mod editor: show which pieces of the game data the mod changes
+- [x] Try the mod editor on a real mod, and adjust what's awkward
+- [x] Mod editor: notice when the mod's files change on disk (such as when edited in another program), as the portrait editor does
+- [x] Mod editor: show which pieces of the game data the mod changes, and go from them to what changed them
+- [x] Mod editor help: readable tables, no viewing-mode or zoom controls, and the documents in the order Mod Editor, Data Files, Mods
 - [x] Mod editor form: offer the paths inside items (such as `properties[hair].values[red]`) for operations, not just the items themselves
-- [ ] Mod editor form: move list items up and down, not just add and remove them
+- [x] Mod editor form: move list items up and down, not just add and remove them

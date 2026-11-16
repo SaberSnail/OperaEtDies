@@ -13,9 +13,9 @@ public sealed class FormViewModel : ViewModelBase
 	/// <summary>
 	/// Builds a form for a piece, or returns null if its shape isn't known (such as a whole list section).
 	/// </summary>
-	public static FormViewModel? Create(ModPiece piece, IdCatalog catalog, bool isReadOnly, Action<FormViewModel> changed, Action<HelpTarget>? showHelp = null)
+	public static FormViewModel? Create(ModPiece piece, IdCatalog catalog, bool isReadOnly, Action<FormViewModel> changed, Action<HelpTarget>? showHelp = null, IFormChanges? changes = null)
 	{
-		var form = new FormViewModel(ModJson.Clone(piece.Value), catalog, isReadOnly, changed, showHelp);
+		var form = new FormViewModel(ModJson.Clone(piece.Value), catalog, isReadOnly, changed, showHelp) { Changes = changes };
 		var slot = new RootSlot(form);
 		FieldViewModel? root = piece.Kind switch
 		{
@@ -51,6 +51,11 @@ public sealed class FormViewModel : ViewModelBase
 	public FieldViewModel Root { get; private set; }
 
 	public IdCatalog Catalog { get; }
+
+	/// <summary>
+	/// What the mod changes in the data the form shows, or null if it isn't showing the game data.
+	/// </summary>
+	public IFormChanges? Changes { get; private init; }
 
 	public bool IsReadOnly { get; }
 

@@ -25,6 +25,7 @@ public partial class App : Application
 		var window = new MainWindowView();
 		var viewModel = new MainWindowViewModel(new EditorDialogs(window), EditorSettings.Load());
 		window.SetViewModel(viewModel);
+		window.Closed += (_, _) => viewModel.Dispose();
 		MainWindow = window;
 		window.Show();
 	}

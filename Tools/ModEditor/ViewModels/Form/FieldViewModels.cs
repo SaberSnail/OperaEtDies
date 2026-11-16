@@ -107,13 +107,48 @@ public abstract class FieldViewModel : ViewModelBase
 	/// <summary>
 	/// Whether the field's name has a menu (to copy its path or show its help).
 	/// </summary>
-	public bool HasMenu => HasCopyablePath || Help is not null;
+	public bool HasMenu => HasCopyablePath || Help is not null || CanGoToModChange();
 
 	/// <summary>
-	/// The tooltip of the field's name: what the help says about it (its type and notes), and its path.
+	/// What the mod does to the field's data, in a form showing the game data: adds or changes it (or something in it),
+	/// or null if nothing (or the form isn't showing the game data).
+	/// </summary>
+	public ChangeKind? Change => DataPath is { } path ? Form.Changes?.GetChange(path) : null;
+
+	/// <summary>
+	/// The mark shown before a changed field's name.
+	/// </summary>
+	public string ChangeGlyph => Change switch
+	{
+		ChangeKind.Added => "✚",
+		ChangeKind.Changed => "✎",
+		_ => "",
+	};
+
+	public string? ChangeText => Change switch
+	{
+		ChangeKind.Added => "The mod adds this.",
+		ChangeKind.Changed => "The mod changes this, or something in it (see the Changes tab).",
+		_ => null,
+	};
+
+	public bool CanGoToModChange() => DataPath is { } path && Form.Changes?.GetSource(path) is not null;
+
+	/// <summary>
+	/// Shows the part of the mod that last changed the field's data (or something in it) in the Mod tab.
+	/// </summary>
+	public void GoToModChange()
+	{
+		if (DataPath is { } path && Form.Changes is { } changes && changes.GetSource(path) is { } source)
+			changes.GoTo(source);
+	}
+
+	/// <summary>
+	/// The tooltip of the field's name: what the mod does to it, what the help says about it (its type and notes),
+	/// and its path.
 	/// </summary>
 	public string? ToolTipText =>
-		string.Join(Environment.NewLine + Environment.NewLine, new[] { HelpLibrary.GetRowText(Help), HasCopyablePath ? $"Path: {DataPath}" : null }.OfType<string>()) is { Length: > 0 } text ? text : null;
+		string.Join(Environment.NewLine + Environment.NewLine, new[] { ChangeText, HelpLibrary.GetRowText(Help), HasCopyablePath ? $"Path: {DataPath}" : null }.OfType<string>()) is { Length: > 0 } text ? text : null;
 
 	public void CopyPath()
 	{
@@ -507,6 +542,25 @@ public sealed class ListFieldViewModel : FieldViewModel
 		Changed();
 	}
 
+	/// <summary>
+	/// Whether an item can move by the offset (-1 for up, 1 for down) and stay in the list.
+	/// </summary>
+	public bool CanMoveItem(ListItemViewModel item, int offset) => IsEditable && item.Index + offset >= 0 && item.Index + offset < Items.Count;
+
+	/// <summary>
+	/// Moves an item up (-1) or down (1) in the list, swapping it with the one beside it.
+	/// </summary>
+	public void MoveItem(ListItemViewModel item, int offset)
+	{
+		if (!CanMoveItem(item, offset) || Slot.Get() is not JsonArray list)
+			return;
+		var value = list[item.Index];
+		list.RemoveAt(item.Index);
+		list.Insert(item.Index + offset, value);
+		BuildItems();
+		Changed();
+	}
+
 	public override void Refresh()
 	{
 		foreach (var item in Items)
@@ -545,6 +599,14 @@ public sealed class ListItemViewModel(ListFieldViewModel list, int index, FieldV
 	public bool IsEditable => Field.IsEditable;
 
 	public void Remove() => list.RemoveItem(this);
+
+	public bool CanMoveUp() => list.CanMoveItem(this, -1);
+
+	public void MoveUp() => list.MoveItem(this, -1);
+
+	public bool CanMoveDown() => list.CanMoveItem(this, 1);
+
+	public void MoveDown() => list.MoveItem(this, 1);
 }
 
 /// <summary>

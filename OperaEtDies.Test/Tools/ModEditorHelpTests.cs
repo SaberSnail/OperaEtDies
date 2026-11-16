@@ -12,7 +12,7 @@ public sealed class ModEditorHelpTests
 	[Test]
 	public void TheDocumentsAreBuiltIn()
 	{
-		Assert.That(HelpLibrary.Documents.Select(x => x.Name), Is.EquivalentTo(new[] { HelpLibrary.DataFiles, HelpLibrary.Mods, HelpLibrary.ModEditor }));
+		Assert.That(HelpLibrary.Documents.Select(x => x.Name), Is.EqualTo(new[] { HelpLibrary.ModEditor, HelpLibrary.DataFiles, HelpLibrary.Mods }));
 		Assert.That(HelpLibrary.Documents.All(x => x.Headings.Count != 0), Is.True);
 	}
 

@@ -2,6 +2,7 @@
 	x:Class="ModEditor.Views.Help.HelpWindow"
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:utilityControls="clr-namespace:GoldenAnvil.Utility.Windows.Controls;assembly=GoldenAnvil.Utility.Windows"
 	Title="Mod Editor Help"
 	Width="1000"
 	Height="800"
@@ -10,7 +11,7 @@
 	Background="{DynamicResource WindowBackgroundBrush}"
 	FontSize="{DynamicResource DefaultFontSize}"
 	Foreground="{DynamicResource FontBrush}"
-	Icon="/Icon.ico"
+	Icon="pack://application:,,,/ModEditor;component/Icon.ico"
 	ShowInTaskbar="False"
 	WindowStartupLocation="CenterOwner">
 
@@ -64,12 +65,30 @@
 			HorizontalAlignment="Stretch"
 			Background="Transparent" />
 
-		<!--  The document. Ctrl+F searches it.  -->
-		<FlowDocumentReader
-			x:Name="Reader"
-			Grid.Column="2"
-			IsPageViewEnabled="False"
-			IsTwoPageViewEnabled="False"
-			ViewingMode="Scroll" />
+		<!--  The document, at the usual text size, and a box for searching it (Ctrl+F; Enter or F3 finds the next match).  -->
+		<DockPanel Grid.Column="2">
+			<DockPanel Margin="0,0,0,6" DockPanel.Dock="Top">
+				<Button
+					Margin="4,0,0,0"
+					Padding="8,2"
+					Click="OnFindNextClick"
+					Content="Find Next"
+					DockPanel.Dock="Right" />
+				<utilityControls:CustomTextBox
+					x:Name="FindBox"
+					HintText="Find in this document (Ctrl+F)"
+					KeyDown="OnFindBoxKeyDown" />
+			</DockPanel>
+			<TextBlock
+				x:Name="FindStatus"
+				Margin="0,0,0,4"
+				DockPanel.Dock="Bottom"
+				Foreground="{DynamicResource FontLightBrush}" />
+			<FlowDocumentScrollViewer
+				x:Name="Reader"
+				Background="White"
+				IsToolBarVisible="False"
+				VerticalScrollBarVisibility="Auto" />
+		</DockPanel>
 	</Grid>
 </Window>

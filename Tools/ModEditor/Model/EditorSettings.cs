@@ -32,7 +32,7 @@ public sealed record EditorSettings(IReadOnlyList<string> RecentFolders, bool Ru
 			Rect? bounds = Read(LeftName) is { } left && Read(TopName) is { } top && Read(WidthName) is { } width && Read(HeightName) is { } height
 				? new Rect(left, top, width, height)
 				: null;
-			return new EditorSettings(recent, Read(DeveloperName) == 1, bounds, Read(MaximizedName) == 1, Read(TreeWidthName) ?? 0, Read(EditorTabName) is 1 ? 1 : 0);
+			return new EditorSettings(recent, Read(DeveloperName) == 1, bounds, Read(MaximizedName) == 1, Read(TreeWidthName) ?? 0, Read(EditorTabName) is { } tab and >= 0 and <= 2 ? tab : 0);
 		}
 		catch (Exception e) when (e is SecurityException or UnauthorizedAccessException or IOException)
 		{

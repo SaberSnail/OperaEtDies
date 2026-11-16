@@ -191,6 +191,48 @@ public sealed partial class DataDocument
 	}
 
 	/// <summary>
+	/// Merges a data file's sections into merged data, by the same rules as <see cref="Read"/>, but without checking the
+	/// file or remembering where its data came from. A list section's items are added to the list, except an item whose
+	/// id the list already has; a settings section's settings are added, except one that's already set; and a section of
+	/// a different kind than the one already there is left out. (Read reports each of those as an error.) The file's
+	/// data is copied, so the file is left as it was. Tools use it to apply a mod one file at a time.
+	/// </summary>
+	public static void MergeSections(JsonObject root, JsonObject file)
+	{
+		foreach (var (name, value) in file)
+		{
+			var sectionName = FindKey(root, name);
+			if (value is JsonArray items)
+			{
+				if (sectionName is null)
+					root[sectionName = name] = new JsonArray();
+				if (root[sectionName] is JsonArray list)
+				{
+					var ids = list.Select(GetId).OfType<string>().ToHashSet(StringComparer.Ordinal);
+					foreach (var item in items)
+					{
+						if (GetId(item) is not { } id || ids.Add(id))
+							list.Add(item?.DeepClone());
+					}
+				}
+			}
+			else if (value is JsonObject settings)
+			{
+				if (sectionName is null)
+					root[sectionName = name] = new JsonObject(new JsonNodeOptions { PropertyNameCaseInsensitive = true });
+				if (root[sectionName] is JsonObject target)
+				{
+					foreach (var (key, setting) in settings)
+					{
+						if (FindKey(target, key) is null)
+							target[key] = setting?.DeepClone();
+					}
+				}
+			}
+		}
+	}
+
+	/// <summary>
 	/// Merges the top-level sections of a file into the document. Lists are joined, and an id already used in the list
 	/// is an error. Settings objects are joined, and a setting already set is an error.
 	/// </summary>

@@ -108,16 +108,59 @@ public abstract class TreeNodeViewModel : ViewModelBase
 	public IEnumerable<TreeNodeViewModel> GetDescendants() => Children.SelectMany(x => x.GetDescendants().Prepend(x));
 
 	/// <summary>
-	/// Shows the items whose titles have the text, and the items they're in. Returns whether this item is shown.
+	/// What the mod does to the item: adds it, removes it, or changes it (or something in it), or null if nothing.
 	/// </summary>
-	public bool ApplyFilter(string filter)
+	public ChangeKind? Change
+	{
+		get => VerifyAccess(m_change);
+		set
+		{
+			if (SetPropertyField(value, ref m_change))
+				RaisePropertyChanged(nameof(ChangeGlyph), nameof(ChangeText));
+		}
+	}
+
+	/// <summary>
+	/// The mark shown before a changed item's title.
+	/// </summary>
+	public string ChangeGlyph => m_change switch
+	{
+		ChangeKind.Added => "✚",
+		ChangeKind.Removed => "✖",
+		ChangeKind.Changed => "✎",
+		_ => "",
+	};
+
+	public string? ChangeText => m_change switch
+	{
+		ChangeKind.Added => "The mod adds this.",
+		ChangeKind.Removed => "The mod removes this.",
+		ChangeKind.Changed => "The mod changes this (see the Changes tab).",
+		_ => null,
+	};
+
+	/// <summary>
+	/// Something to look at about the item, such as an operation that changes nothing, or null if there's nothing.
+	/// </summary>
+	public string? Warning
+	{
+		get => VerifyAccess(m_warning);
+		set => SetPropertyField(value, ref m_warning);
+	}
+
+	/// <summary>
+	/// Shows the items whose titles have the text (and, if asked, that the mod changes), and the items they're in.
+	/// Returns whether this item is shown.
+	/// </summary>
+	public bool ApplyFilter(string filter, bool onlyChanged = false)
 	{
 		var anyChild = false;
 		foreach (var child in Children)
-			anyChild |= child.ApplyFilter(filter);
-		var isMatch = filter.Length == 0 || Title.Contains(filter, StringComparison.OrdinalIgnoreCase) || Detail.Contains(filter, StringComparison.OrdinalIgnoreCase);
+			anyChild |= child.ApplyFilter(filter, onlyChanged);
+		var isMatch = (filter.Length == 0 || Title.Contains(filter, StringComparison.OrdinalIgnoreCase) || Detail.Contains(filter, StringComparison.OrdinalIgnoreCase)) &&
+			(!onlyChanged || m_change is not null);
 		IsVisible = isMatch || anyChild || Parent is null;
-		if (filter.Length != 0 && anyChild)
+		if ((filter.Length != 0 || onlyChanged) && anyChild)
 			IsExpanded = true;
 		return IsVisible;
 	}
@@ -148,6 +191,8 @@ public abstract class TreeNodeViewModel : ViewModelBase
 	private bool m_isExpanded;
 	private bool m_isSelected;
 	private bool m_isVisible = true;
+	private ChangeKind? m_change;
+	private string? m_warning;
 }
 
 /// <summary>
@@ -236,17 +281,27 @@ public sealed class ModNodeViewModel : TreeNodeViewModel
 }
 
 /// <summary>
-/// A section, item, or setting of the game data, which can be looked at and copied but not changed.
+/// A section, item, or setting of the game data, which can be looked at and copied but not changed. The tree shows
+/// the data as the mod leaves it: what the mod adds is in it, and what it removes stays in it, marked.
 /// </summary>
 public sealed class GameDataNodeViewModel : TreeNodeViewModel
 {
-	public GameDataNodeViewModel(MainWindowViewModel host, TreeNodeViewModel? parent, string title, string detail, ModPiece? piece)
+	private GameDataNodeViewModel(MainWindowViewModel host, TreeNodeViewModel? parent, string? section, string? key)
 		: base(host, parent)
 	{
-		Title = title;
-		Detail = detail;
-		m_piece = piece;
+		Section = section;
+		Key = key;
 	}
+
+	/// <summary>
+	/// The section the item is in (or is), or null for the top of the tree.
+	/// </summary>
+	public string? Section { get; }
+
+	/// <summary>
+	/// The id of a list item, or the name of a setting, or null for a section.
+	/// </summary>
+	public string? Key { get; }
 
 	public override string Glyph => m_piece?.Kind switch
 	{
@@ -260,40 +315,109 @@ public sealed class GameDataNodeViewModel : TreeNodeViewModel
 	public override ModPiece? GetPiece() => m_piece is null ? null : m_piece with { Value = ModJson.Clone(m_piece.Value) };
 
 	/// <summary>
-	/// Builds the tree of the game data: its sections, with their items or settings.
+	/// Makes the top of the game data's tree, to be filled in by <see cref="Update"/>.
 	/// </summary>
-	public static GameDataNodeViewModel Create(MainWindowViewModel host, JsonObject? data, string description)
-	{
-		var root = new GameDataNodeViewModel(host, null, "Game data", description, null) { IsExpanded = true };
-		foreach (var (name, value) in data ?? [])
-		{
-			var section = new GameDataNodeViewModel(host, root, name, value switch
-			{
-				JsonArray list => Count(list.Count),
-				JsonObject obj => $"settings ({Count(obj.Count)})",
-				_ => "",
-			}, ModPiece.WholeSection(name, value));
-			root.Children.Add(section);
+	public static GameDataNodeViewModel CreateRoot(MainWindowViewModel host) =>
+		new(host, null, null, null) { Title = "Game data", IsExpanded = true };
 
-			if (value is JsonArray items)
+	/// <summary>
+	/// Brings the tree up to date with the game data and what the mod changes in it, keeping the items that are still
+	/// there (so they stay selected and expanded). Each item shows its value with the mod, or without it if the mod
+	/// removes it.
+	/// </summary>
+	public void Update(JsonObject? gameData, ModChanges changes, string description)
+	{
+		Detail = description;
+		var data = changes.Changes.Count == 0 ? gameData ?? [] : changes.Data;
+		var names = (gameData?.Select(x => x.Key) ?? []).Concat(data.Select(x => x.Key)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+		var sections = names.Select(name =>
+		{
+			var before = Get(gameData, name);
+			var after = Get(data, name);
+			var node = GetChild(name, null);
+			node.UpdateSection(name, before, after, changes);
+			return node;
+		}).ToList();
+		SetChildren(sections);
+	}
+
+	private void UpdateSection(string name, JsonNode? before, JsonNode? after, ModChanges changes)
+	{
+		var value = after ?? before;
+		var sectionChanges = changes.GetChanges(name, null);
+		Title = name;
+		m_piece = ModPiece.WholeSection(name, value);
+		Change = before is null ? ChangeKind.Added : after is null ? ChangeKind.Removed : sectionChanges.Count != 0 ? ChangeKind.Changed : null;
+
+		var children = new List<GameDataNodeViewModel>();
+		if (value is JsonArray)
+		{
+			// The items in the order the mod leaves them, then those it removes.
+			var beforeItems = (before as JsonArray ?? []).Where(x => ModJson.GetId(x) is not null).ToDictionary(x => ModJson.GetId(x)!, StringComparer.Ordinal);
+			var afterItems = (after as JsonArray ?? []).Where(x => ModJson.GetId(x) is not null).ToDictionary(x => ModJson.GetId(x)!, StringComparer.Ordinal);
+			foreach (var id in afterItems.Keys.Concat(beforeItems.Keys.Where(x => !afterItems.ContainsKey(x))))
 			{
-				var index = 0;
-				foreach (var item in items)
-				{
-					var detail = item is JsonObject obj && obj.TryGetPropertyValue("title", out var title) && title is JsonValue ? title.ToString() : "";
-					section.Children.Add(new GameDataNodeViewModel(host, section, ModJson.GetId(item) ?? $"[{Count(index)}]", detail, ModPiece.Item(name, item)));
-					index++;
-				}
+				var item = afterItems.GetValueOrDefault(id) ?? beforeItems[id];
+				var child = GetChild(name, id);
+				child.Title = id;
+				child.Detail = item is JsonObject obj && obj.TryGetPropertyValue("title", out var title) && title is JsonValue ? title.ToString() : "";
+				child.m_piece = ModPiece.Item(name, item);
+				child.Change = GetChange(beforeItems.ContainsKey(id), afterItems.ContainsKey(id), changes.GetChanges(name, id).Count != 0);
+				children.Add(child);
 			}
-			else if (value is JsonObject settings)
+		}
+		else if (value is JsonObject)
+		{
+			var beforeSettings = before as JsonObject ?? [];
+			var afterSettings = after as JsonObject ?? [];
+			foreach (var key in afterSettings.Select(x => x.Key).Concat(beforeSettings.Select(x => x.Key).Where(x => ModJson.FindName(afterSettings, x) is null)))
 			{
-				foreach (var (key, setting) in settings)
-					section.Children.Add(new GameDataNodeViewModel(host, section, key, setting is JsonObject or JsonArray ? "" : Preview(setting), ModPiece.Setting(name, key, setting)));
+				var setting = Get(afterSettings, key) ?? Get(beforeSettings, key);
+				var child = GetChild(name, key);
+				child.Title = key;
+				child.Detail = setting is JsonObject or JsonArray ? "" : Preview(setting);
+				child.m_piece = ModPiece.Setting(name, key, setting);
+				child.Change = GetChange(ModJson.FindName(beforeSettings, key) is not null, ModJson.FindName(afterSettings, key) is not null, changes.GetChanges(name, key).Count != 0);
+				children.Add(child);
 			}
 		}
 
-		return root;
+		var changed = children.Count(x => x.Change is not null);
+		var count = value switch
+		{
+			JsonArray list => Count(list.Count),
+			JsonObject obj => $"settings ({Count(obj.Count)})",
+			_ => "",
+		};
+		Detail = changed == 0 ? count : $"{count} · {Count(changed)} changed";
+		SetChildren(children);
 	}
 
-	private readonly ModPiece? m_piece;
+	private static ChangeKind? GetChange(bool wasThere, bool isThere, bool isChanged) =>
+		!wasThere ? ChangeKind.Added : !isThere ? ChangeKind.Removed : isChanged ? ChangeKind.Changed : null;
+
+	/// <summary>
+	/// Gets the child for a section (key null) or for an item or setting in this section, reusing the one already there.
+	/// </summary>
+	private GameDataNodeViewModel GetChild(string section, string? key) =>
+		Children.OfType<GameDataNodeViewModel>().FirstOrDefault(x => string.Equals(x.Section, section, StringComparison.OrdinalIgnoreCase) && x.Key == key)
+		?? new GameDataNodeViewModel(Host, this, section, key);
+
+	private void SetChildren(IReadOnlyList<GameDataNodeViewModel> children)
+	{
+		foreach (var removed in Children.Except(children).ToList())
+			Children.Remove(removed);
+		for (var index = 0; index < children.Count; index++)
+		{
+			var current = Children.IndexOf(children[index]);
+			if (current < 0)
+				Children.Insert(index, children[index]);
+			else if (current != index)
+				Children.Move(current, index);
+		}
+	}
+
+	private static JsonNode? Get(JsonObject? obj, string name) => obj is not null && ModJson.FindName(obj, name) is { } key ? obj[key] : null;
+
+	private ModPiece? m_piece;
 }

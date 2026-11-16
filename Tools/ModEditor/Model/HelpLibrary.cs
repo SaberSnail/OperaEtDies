@@ -207,7 +207,7 @@ public static class HelpLibrary
 			return new HelpDocument(name, title, reader.ReadToEnd());
 		}
 
-		return [Read(ModEditor, "Mod Editor"), Read(Mods, "Mods"), Read(DataFiles, "Data Files")];
+		return [Read(ModEditor, "Mod Editor"), Read(DataFiles, "Data Files"), Read(Mods, "Mods")];
 	}
 
 	private static readonly Lazy<IReadOnlyList<HelpDocument>> s_documents = new(Load);

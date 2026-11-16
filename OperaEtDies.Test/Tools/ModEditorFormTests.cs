@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json.Nodes;
 using ModEditor.Model;
 using ModEditor.ViewModels.Form;
@@ -253,6 +254,62 @@ public sealed class ModEditorFormTests
 		Assert.That(catalog.GetPathSuggestions("families.head.fem"), Does.Contain("families.head.femaleChance"));
 		Assert.That(catalog.GetPathSuggestions("properties[h"), Is.EqualTo(new[] { "properties[hair]" }));
 		Assert.That(catalog.GetPathSuggestions("properties[hair].v"), Does.Contain("properties[hair].values"), "Properties the game reads are offered even if the data doesn't have them.");
+	}
+
+	[Test]
+	public void ListItemsMoveUpAndDown()
+	{
+		var piece = ModPiece.Item("properties", JsonNode.Parse("""{ "id": "hair", "values": [ { "id": "a" }, { "id": "b" }, { "id": "c" } ] }"""));
+		JsonNode? changed = null;
+
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: false, x => changed = x.Value)!;
+		ListFieldViewModel Values() => (ListFieldViewModel) ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "values");
+		IEnumerable<string?> Ids() => ((JsonArray) changed!["values"]!).Select(ModJson.GetId);
+
+		Assert.That(Values().Items[0].CanMoveUp(), Is.False);
+		Assert.That(Values().Items[2].CanMoveDown(), Is.False);
+
+		Values().Items[0].MoveDown();
+		Assert.That(Ids(), Is.EqualTo(new[] { "b", "a", "c" }));
+
+		Values().Items[2].MoveUp();
+		Assert.That(Ids(), Is.EqualTo(new[] { "b", "c", "a" }));
+		Assert.That(Values().Items.Select(x => x.Field.Label), Is.EqualTo(new[] { "1", "2", "3" }), "Items are numbered by their new places.");
+	}
+
+	[Test]
+	public void ReadOnlyListItemsDontMove()
+	{
+		var piece = ModPiece.Item("properties", JsonNode.Parse("""{ "id": "hair", "values": [ { "id": "a" }, { "id": "b" } ] }"""));
+
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: true, _ => { })!;
+		var values = (ListFieldViewModel) ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "values");
+
+		Assert.That(values.Items[0].CanMoveDown(), Is.False);
+	}
+
+	[Test]
+	public void ChangesOnDiskAreTellableFromTheEditorsOwn()
+	{
+		var directory = Path.Combine(Path.GetTempPath(), "OperaEtDiesModEditorTests", Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(Path.Combine(directory, "Folder"));
+		try
+		{
+			File.WriteAllText(Path.Combine(directory, "Folder", "A.json"), "{}");
+			var project = ModProject.Load(directory);
+			Assert.That(ModProject.Load(directory).TakeSnapshot().IsSameAs(project.SavedSnapshot), Is.True, "Nothing changed yet.");
+
+			project.AddFile("B.json", "[]");
+			project.Save();
+			Assert.That(ModProject.Load(directory).TakeSnapshot().IsSameAs(project.SavedSnapshot), Is.True, "The editor's own save isn't a change on disk.");
+
+			File.WriteAllText(Path.Combine(directory, "Folder", "A.json"), """{ "properties": [] }""");
+			Assert.That(ModProject.Load(directory).TakeSnapshot().IsSameAs(project.SavedSnapshot), Is.False, "Another program's change is.");
+		}
+		finally
+		{
+			Directory.Delete(directory, recursive: true);
+		}
 	}
 
 	[Test]

@@ -131,6 +131,79 @@ public partial class HelpWindow : Window
 			Navigate(new HelpTarget(name, heading.Text));
 	}
 
+	protected override void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
+	{
+		base.OnPreviewKeyDown(e);
+		if (e.Key == System.Windows.Input.Key.F && System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control)
+		{
+			FindBox.Focus();
+			FindBox.SelectAll();
+			e.Handled = true;
+		}
+		else if (e.Key == System.Windows.Input.Key.F3)
+		{
+			FindNext();
+			e.Handled = true;
+		}
+	}
+
+	private void OnFindBoxKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+	{
+		if (e.Key == System.Windows.Input.Key.Enter)
+		{
+			FindNext();
+			e.Handled = true;
+		}
+	}
+
+	private void OnFindNextClick(object sender, RoutedEventArgs e) => FindNext();
+
+	/// <summary>
+	/// Selects the next place the search text appears in the document shown, after the selection (or from the start),
+	/// going round to the start after the end. Text split between differently formatted words isn't found.
+	/// </summary>
+	private void FindNext()
+	{
+		var text = FindBox.Text.Trim();
+		if (text.Length == 0 || Reader.Document is not { } document)
+			return;
+
+		var start = Reader.Selection is { IsEmpty: false } selection ? selection.End : document.ContentStart;
+		var found = Find(start, document.ContentEnd, text) ?? Find(document.ContentStart, start, text);
+		if (found is null)
+		{
+			FindStatus.Text = $"\"{text}\" isn't in this document.";
+			return;
+		}
+
+		FindStatus.Text = "";
+		Reader.Selection?.Select(found.Start, found.End);
+		if (found.Start.Paragraph is { } paragraph)
+			ScrollTo(paragraph);
+		else if (found.Start.Parent is TextElement element)
+			ScrollTo(element);
+	}
+
+	private static TextRange? Find(TextPointer from, TextPointer to, string text)
+	{
+		for (var position = from; position is not null && position.CompareTo(to) < 0; position = position.GetNextContextPosition(LogicalDirection.Forward))
+		{
+			if (position.GetPointerContext(LogicalDirection.Forward) != TextPointerContext.Text)
+				continue;
+			var run = position.GetTextInRun(LogicalDirection.Forward);
+			var index = run.IndexOf(text, StringComparison.CurrentCultureIgnoreCase);
+			if (index >= 0)
+			{
+				var start = position.GetPositionAtOffset(index);
+				var end = start?.GetPositionAtOffset(text.Length);
+				if (start is not null && end is not null && end.CompareTo(to) <= 0)
+					return new TextRange(start, end);
+			}
+		}
+
+		return null;
+	}
+
 	private void ClearHighlight()
 	{
 		if (m_highlighted is var (row, background))

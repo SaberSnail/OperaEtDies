@@ -15,12 +15,16 @@ namespace ModEditor.ViewModels;
 /// The editor: the mod being edited (once a folder is opened), its tree, the game data's tree, the JSON of the
 /// selected item, and the problems found in the mod. Changes are kept in memory until they're saved.
 /// </summary>
-public sealed class MainWindowViewModel : ViewModelBase
+public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 {
-	public MainWindowViewModel(IEditorDialogs dialogs, EditorSettings settings)
+	/// <summary>
+	/// Creates the editor. Changed settings are saved with <paramref name="saveSettings"/>, or to the registry if it's null.
+	/// </summary>
+	public MainWindowViewModel(IEditorDialogs dialogs, EditorSettings settings, Action<EditorSettings>? saveSettings = null)
 	{
 		m_dialogs = dialogs;
 		m_settings = settings;
+		m_saveSettings = saveSettings ?? (x => x.Save());
 		m_editorText = "";
 		m_editorHeading = "";
 		m_filter = "";
@@ -34,6 +38,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 		m_editTimer.Tick += (_, _) => ApplyEditorText();
 		m_validateTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher) { Interval = TimeSpan.FromMilliseconds(600) };
 		m_validateTimer.Tick += (_, _) => Validate();
+		m_diskTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher) { Interval = TimeSpan.FromMilliseconds(500) };
+		m_diskTimer.Tick += (_, _) => OnDiskChangeSettled();
 		m_toastTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher) { Interval = TimeSpan.FromSeconds(4) };
 		m_toastTimer.Tick += (_, _) =>
 		{
@@ -246,7 +252,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public void UpdateSettings(EditorSettings settings)
 	{
 		m_settings = settings;
-		m_settings.Save();
+		m_saveSettings(m_settings);
 	}
 
 	public void OpenFolder()
@@ -295,9 +301,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 		foreach (var recent in m_settings.RecentFolders)
 			RecentFolders.Add(recent);
 
-		SetProject(project);
+		// The game data comes first, since checking the mod compares it with the game data.
 		if (GameDataRoots.Count == 0)
 			LoadGameData();
+		SetProject(project);
 	}
 
 	public bool CanSave() => m_project is not null;
@@ -313,19 +320,28 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		if (m_project is null || !ConfirmDiscard())
 			return;
-		try
-		{
-			var location = (m_selectedNode as ModNodeViewModel)?.Location;
-			SetProject(ModProject.Load(m_project.Directory));
-			Select(location);
-		}
-		catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-		{
-			m_dialogs.ShowError($"The mod couldn't be loaded: {e.Message}");
-		}
-
 		LoadGameData();
+		LoadAgain();
 	}
+
+	/// <summary>
+	/// Whether the mod's files changed on disk while there are changes here that loading them again would discard.
+	/// </summary>
+	public bool IsDiskChangePending
+	{
+		get => VerifyAccess(m_isDiskChangePending);
+		private set => SetPropertyField(value, ref m_isDiskChangePending);
+	}
+
+	/// <summary>
+	/// Loads the mod's files again after they changed on disk, discarding the changes here.
+	/// </summary>
+	public void ReloadFromDisk() => LoadAgain();
+
+	/// <summary>
+	/// Keeps the changes here after the mod's files changed on disk. Saving only writes the files changed here.
+	/// </summary>
+	public void DismissDiskChange() => IsDiskChangePending = false;
 
 	/// <summary>
 	/// Whether the window can close: there are no changes, or they were saved or discarded.
@@ -674,6 +690,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		StatusText = "";
 		RaisePropertyChanged(nameof(MoveTargets));
 		LoadEditorText();
+		RefreshChanges();
 	}
 
 	private void Drop(TreeNodeViewModel source, ModLocation target, bool after, bool isCopy)
@@ -731,9 +748,114 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	/// <summary>
+	/// Stops watching the mod folder.
+	/// </summary>
+	public void Dispose() => StopWatching();
+
+	/// <summary>
+	/// Loads the mod's files again, keeping the selection where it can.
+	/// </summary>
+	private void LoadAgain()
+	{
+		if (m_project is null)
+			return;
+		try
+		{
+			var location = (m_selectedNode as ModNodeViewModel)?.Location;
+			SetProject(ModProject.Load(m_project.Directory));
+			Select(location);
+		}
+		catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+		{
+			m_dialogs.ShowError($"The mod couldn't be loaded: {e.Message}");
+		}
+	}
+
+	/// <summary>
+	/// Watches the mod folder (and its subfolders) for changes made by other programs.
+	/// </summary>
+	private void WatchFolder(string directory)
+	{
+		StopWatching();
+		try
+		{
+			m_watcher = new FileSystemWatcher(directory)
+			{
+				IncludeSubdirectories = true,
+				NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size,
+			};
+			m_watcher.Changed += OnFileChanged;
+			m_watcher.Created += OnFileChanged;
+			m_watcher.Deleted += OnFileChanged;
+			m_watcher.Renamed += OnFileChanged;
+			m_watcher.EnableRaisingEvents = true;
+		}
+		catch (Exception e) when (e is IOException or ArgumentException or UnauthorizedAccessException)
+		{
+			// Without a watcher, changes on disk are only seen when the mod is loaded again.
+			StopWatching();
+		}
+	}
+
+	private void StopWatching()
+	{
+		m_diskTimer.Stop();
+		m_watcher?.Dispose();
+		m_watcher = null;
+	}
+
+	// File system events come from other threads, and often several at once, so they're handled once they settle.
+#pragma warning disable VSTHRD001 // Nothing waits for this, so it can't deadlock.
+	private void OnFileChanged(object sender, FileSystemEventArgs e) => _ = Dispatcher.BeginInvoke(() =>
+	{
+		m_diskTimer.Stop();
+		m_diskTimer.Start();
+	});
+#pragma warning restore VSTHRD001
+
+	/// <summary>
+	/// Once changes on disk settle, compares the mod folder with the files as they were last loaded or saved. The
+	/// editor's own saves, and changes that leave the files as they were, are passed over. Otherwise the files are
+	/// loaded again, unless there are changes here, in which case the user is asked first.
+	/// </summary>
+	private void OnDiskChangeSettled()
+	{
+		m_diskTimer.Stop();
+		if (m_project is not { } project)
+			return;
+
+		ModSnapshot onDisk;
+		try
+		{
+			onDisk = ModProject.Load(project.Directory).TakeSnapshot();
+		}
+		catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+		{
+			// A file that's still being written is tried again a moment later.
+			m_diskTimer.Start();
+			return;
+		}
+
+		if (onDisk.IsSameAs(project.SavedSnapshot))
+			return;
+		FlushEditorText();
+		if (project.IsModified)
+		{
+			IsDiskChangePending = true;
+		}
+		else
+		{
+			LoadAgain();
+			ShowToast("The mod's files changed on disk, so they were loaded again.");
+		}
+	}
+
 	private void SetProject(ModProject project)
 	{
 		m_editTimer.Stop();
+		IsDiskChangePending = false;
+		WatchFolder(project.Directory);
 		m_project = project;
 		m_undo.Clear();
 		m_redo.Clear();
@@ -752,16 +874,205 @@ public sealed class MainWindowViewModel : ViewModelBase
 	}
 
 	/// <summary>
+	/// What the mod changes in the game data, as of the last check.
+	/// </summary>
+	internal ModChanges CurrentChanges => m_changes;
+
+	/// <summary>
+	/// Whether the Game Data tab only shows what the mod changes (and the sections it's in).
+	/// </summary>
+	public bool IsOnlyChangedShown
+	{
+		get => VerifyAccess(m_isOnlyChangedShown);
+		set
+		{
+			if (SetPropertyField(value, ref m_isOnlyChangedShown))
+				ApplyFilter();
+		}
+	}
+
+	/// <summary>
+	/// The Changes tab: what the mod changes in the selected piece of the game data, or what the selected piece of the
+	/// mod changes.
+	/// </summary>
+	public IReadOnlyList<ChangeRowViewModel> ChangeRows
+	{
+		get => VerifyAccess(m_changeRows);
+		private set => SetPropertyField(value, ref m_changeRows);
+	}
+
+	/// <summary>
+	/// What the Changes tab says about the selection, such as that the mod doesn't change it.
+	/// </summary>
+	public string ChangesMessage
+	{
+		get => VerifyAccess(m_changesMessage);
+		private set => SetPropertyField(value, ref m_changesMessage);
+	}
+
+	public bool CanGoToModChange() => m_selectedNode is GameDataNodeViewModel { Change: not null, Section: not null } node && GetLastSource(node) is not null;
+
+	/// <summary>
+	/// Goes from a piece of the game data to the part of the mod that last changed it, in the Mod tab.
+	/// </summary>
+	public void GoToModChange()
+	{
+		if (m_selectedNode is GameDataNodeViewModel node && GetLastSource(node) is { } source)
+			GoToSource(source);
+	}
+
+	/// <summary>
+	/// Shows a part of the mod in the Mod tab.
+	/// </summary>
+	public void GoToSource(ModLocation location)
+	{
+		TreeTab = 0;
+		Select(location);
+	}
+
+	/// <summary>
+	/// Works out what a mod changes in the game data, from the game data's JSON. Can be run on any thread.
+	/// </summary>
+	private static ModChanges ComputeChanges(string? gameDataJson, ModSnapshot snapshot)
+	{
+		if (gameDataJson is null || JsonNode.Parse(gameDataJson, new JsonNodeOptions { PropertyNameCaseInsensitive = true }) is not JsonObject gameData)
+			return ModChanges.None;
+		return ModChanges.Compute(gameData, snapshot.Files);
+	}
+
+	/// <summary>
+	/// Shows what the mod changes: in the Game Data tab, on the mod's operations, and in the Changes tab.
+	/// </summary>
+	private void ApplyChanges(ModChanges changes)
+	{
+		m_changes = changes;
+		if (GameDataRoots.FirstOrDefault() is GameDataNodeViewModel root)
+			root.Update(m_gameData, changes, m_gameDataDescription);
+		UpdateChangeMarks();
+		ApplyFilter();
+		RefreshChanges();
+
+		// A piece of the game data shows its value with the mod, which may have changed.
+		if (m_selectedNode is GameDataNodeViewModel)
+			LoadEditorText();
+	}
+
+	/// <summary>
+	/// Marks the operations whose changes don't last, or that change nothing.
+	/// </summary>
+	private void UpdateChangeMarks()
+	{
+		foreach (var node in m_modNodes.Values)
+			node.Warning = node.Location is OperationLocation operation ? m_changes.GetOperationWarning(operation) : null;
+	}
+
+	/// <summary>
+	/// Fills in the Changes tab for the selection.
+	/// </summary>
+	private void RefreshChanges()
+	{
+		IReadOnlyList<DataChange> changes;
+		var showSources = true;
+		switch (m_selectedNode)
+		{
+		case GameDataNodeViewModel { Section: { } section } node:
+			changes = m_changes.GetChanges(section, node.Key);
+			ChangesMessage = changes.Count == 0 ? "The mod doesn't change this." : "";
+			break;
+		case ModNodeViewModel { Location: var location } when GetSourceChanges(location) is { } sourceChanges:
+			changes = sourceChanges;
+			showSources = false;
+			ChangesMessage = changes.Count != 0 ? "What this changes when it's applied:"
+				: location is OperationLocation operation && m_changes.GetOperationWarning(operation) is { } warning ? warning
+				: "This doesn't change the game data.";
+			break;
+		default:
+			changes = [];
+			ChangesMessage = "Select a piece of the game data to see what the mod changes in it, or a piece of the mod to see what it changes.";
+			break;
+		}
+
+		ChangeRows = changes.Select(change => new ChangeRowViewModel(change,
+			showSources ? m_changes.GetSources(change.Path).Select(x => RefineSource(x, change)).Distinct().Select(x => new ChangeSourceViewModel(DescribeSource(x), () => GoToSource(x))).ToList() : [])).ToList();
+	}
+
+	/// <summary>
+	/// Gets what a piece of the mod changes when it's applied, or null if it isn't a piece that's applied on its own (a
+	/// data file, or something in one, or an operation).
+	/// </summary>
+	private IReadOnlyList<DataChange>? GetSourceChanges(ModLocation location) => location switch
+	{
+		OperationLocation x => m_changes.BySource.GetValueOrDefault(x) ?? [],
+		FileLocation x when m_project?.FindFile(x.Path)?.Kind == ModFileKind.Data => m_changes.BySource.GetValueOrDefault(x) ?? [],
+		SectionLocation x => FileChanges(x.File).Where(c => string.Equals(c.Section, x.Section, StringComparison.OrdinalIgnoreCase)).ToList(),
+		ItemLocation x => FileChanges(x.File).Where(c => string.Equals(c.Section, x.Section, StringComparison.OrdinalIgnoreCase) && c.Item == ModJson.GetId(ModEditing.Get(m_project!, x))).ToList(),
+		SettingLocation x => FileChanges(x.File).Where(c => string.Equals(c.Section, x.Section, StringComparison.OrdinalIgnoreCase) && string.Equals(c.Item, x.Name, StringComparison.OrdinalIgnoreCase)).ToList(),
+		_ => null,
+	};
+
+	private IReadOnlyList<DataChange> FileChanges(string path) => m_changes.BySource.GetValueOrDefault(new FileLocation(path)) ?? [];
+
+	/// <summary>
+	/// Gets the part of the mod that last changed the data at a path (or in or around it).
+	/// </summary>
+	internal ModLocation? GetLastSourceAt(string path)
+	{
+		if (m_changes.GetLastChangeAt(path) is not { } change || m_changes.GetSources(change.Path) is not [.., var source])
+			return null;
+		return RefineSource(source, change);
+	}
+
+	/// <summary>
+	/// Gets the part of the mod that last changed a piece of the game data.
+	/// </summary>
+	private ModLocation? GetLastSource(GameDataNodeViewModel node)
+	{
+		if (m_changes.GetChanges(node.Section!, node.Key) is not [.., var change] || m_changes.GetSources(change.Path) is not [.., var source])
+			return null;
+		return RefineSource(source, change);
+	}
+
+	/// <summary>
+	/// Narrows a data file to the item or setting in it that made a change, if it has one, so going to it selects that.
+	/// </summary>
+	private ModLocation RefineSource(ModLocation source, DataChange change)
+	{
+		if (source is not FileLocation file || change.Item is null || m_project?.FindFile(file.Path)?.Root is not JsonObject root ||
+			ModEditing.GetSection(root, change.Section) is not { } section || ModJson.FindName(root, change.Section) is not { } sectionName)
+		{
+			return source;
+		}
+
+		return section switch
+		{
+			JsonArray items when items.Select(ModJson.GetId).ToList().IndexOf(change.Item) is >= 0 and var index => new ItemLocation(file.Path, sectionName, index),
+			JsonObject settings when ModJson.FindName(settings, change.Item) is { } name => new SettingLocation(file.Path, sectionName, name),
+			_ => source,
+		};
+	}
+
+	/// <summary>
+	/// Describes a part of the mod for the Changes tab: where it is in the Mod tab's tree.
+	/// </summary>
+	private string DescribeSource(ModLocation location) =>
+		m_modNodes.TryGetValue(location, out var node) ? string.Join(" › ", node.GetAncestors().Reverse().Skip(1).Select(x => x.Title).Append(node.Title + (node.Detail.Length == 0 ? "" : " " + node.Detail))) : location.FilePath ?? "";
+
+	/// <summary>
 	/// Loads the game data without mods, for its tree and the names of its sections.
 	/// </summary>
 	private void LoadGameData()
 	{
 		var document = DataDocument.Read(ModValidator.DataDirectory, []);
 		m_gameData = document.Value?.Root;
-		var description = document.Value is null ? "couldn't be read" : "";
+		m_gameDataJson = m_gameData?.ToJsonString();
+		m_gameDataDescription = document.Value is null ? "couldn't be read" : "";
 		GameDataRoots.Clear();
-		GameDataRoots.Add(GameDataNodeViewModel.Create(this, m_gameData, description));
-		ApplyFilter();
+		GameDataRoots.Add(GameDataNodeViewModel.CreateRoot(this));
+		ApplyChanges(m_changes);
+
+		// What the mod changes is worked out again from the game data as it is now.
+		if (m_project is not null)
+			Validate();
 	}
 
 	private bool TrySave()
@@ -1134,6 +1445,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		foreach (var location in m_modNodes.Keys.Where(x => !seen.Contains(x)).ToList())
 			m_modNodes.Remove(location);
 		UpdateProblemMarks();
+		UpdateChangeMarks();
 		ApplyFilter();
 	}
 
@@ -1194,8 +1506,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private void ApplyFilter()
 	{
 		var filter = m_filter.Trim();
-		foreach (var root in ModRoots.Concat(GameDataRoots))
+		foreach (var root in ModRoots)
 			root.ApplyFilter(filter);
+		foreach (var root in GameDataRoots)
+			root.ApplyFilter(filter, m_isOnlyChangedShown);
 	}
 
 	private void LoadEditorText()
@@ -1249,7 +1563,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private void BuildForm()
 	{
 		var piece = m_selectedNode?.GetPiece();
-		var form = piece is null ? null : FormViewModel.Create(piece, new IdCatalog(m_gameData, m_project?.Files ?? []), m_selectedNode is GameDataNodeViewModel, OnFormChanged, RequestHelp);
+		var form = piece is null ? null : FormViewModel.Create(piece, new IdCatalog(m_gameData, m_project?.Files ?? []), m_selectedNode is GameDataNodeViewModel, OnFormChanged, RequestHelp,
+			m_selectedNode is GameDataNodeViewModel ? new FormChanges(this) : null);
 		Form = form;
 		FormMessage = form is not null ? null : m_selectedNode switch
 		{
@@ -1376,10 +1691,13 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		var snapshot = project.TakeSnapshot();
 		var name = project.Name;
+		var gameDataJson = m_gameDataJson;
 		IReadOnlyList<ModProblem> problems;
+		ModChanges? changes = null;
 		try
 		{
-			problems = await Task.Run(() => ModValidator.Validate(name, snapshot));
+			// What the mod changes is worked out alongside the check, from a copy of the game data of its own.
+			(problems, changes) = await Task.Run(() => (ModValidator.Validate(name, snapshot), ComputeChanges(gameDataJson, snapshot)));
 		}
 #pragma warning disable CA1031 // Do not catch general exception types (a failed check is shown as a problem, not a crash)
 		catch (Exception e)
@@ -1397,6 +1715,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 			Problems.Add(problem);
 		UpdateProblemMarks();
 		RaisePropertyChanged(nameof(ProblemSummary));
+		if (changes is not null)
+			ApplyChanges(changes);
 	}
 
 	/// <summary>
@@ -1420,9 +1740,13 @@ public sealed class MainWindowViewModel : ViewModelBase
 	}
 
 	private readonly IEditorDialogs m_dialogs;
+	private readonly Action<EditorSettings> m_saveSettings;
 	private readonly DispatcherTimer m_editTimer;
 	private readonly DispatcherTimer m_validateTimer;
 	private readonly DispatcherTimer m_toastTimer;
+	private readonly DispatcherTimer m_diskTimer;
+	private FileSystemWatcher? m_watcher;
+	private bool m_isDiskChangePending;
 	private readonly Stack<ModSnapshot> m_undo = new();
 	private readonly Stack<ModSnapshot> m_redo = new();
 	private readonly Dictionary<ModLocation, ModNodeViewModel> m_modNodes = [];
@@ -1444,6 +1768,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private FormViewModel? m_form;
 	private string? m_formMessage;
 	private ModLocation? m_lastModLocation;
+	private string? m_gameDataJson;
+	private string m_gameDataDescription = "";
+	private ModChanges m_changes = ModChanges.None;
+	private bool m_isOnlyChangedShown;
+	private IReadOnlyList<ChangeRowViewModel> m_changeRows = [];
+	private string m_changesMessage = "";
 	private int m_validationVersion;
 }
 
@@ -1451,3 +1781,15 @@ public sealed class MainWindowViewModel : ViewModelBase
 /// A file the selected piece can be moved to, for the Move To menu.
 /// </summary>
 public sealed record MoveTarget(string Path, System.Windows.Input.ICommand Command);
+
+/// <summary>
+/// What the mod changes, for the fields of a form showing a piece of the game data.
+/// </summary>
+internal sealed class FormChanges(MainWindowViewModel host) : IFormChanges
+{
+	public ChangeKind? GetChange(string path) => host.CurrentChanges.GetChangeAt(path);
+
+	public ModLocation? GetSource(string path) => host.GetLastSourceAt(path);
+
+	public void GoTo(ModLocation location) => host.GoToSource(location);
+}

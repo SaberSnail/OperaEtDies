@@ -45,6 +45,8 @@ public static class MarkdownRenderer
 			FontFamily = new FontFamily("Segoe UI"),
 			FontSize = 13,
 			PagePadding = new Thickness(16, 12, 16, 24),
+			// One column as wide as the window, rather than columns of a fixed width side by side.
+			ColumnWidth = 100000,
 			TextAlignment = TextAlignment.Left,
 		};
 		var renderer = new Renderer(navigate);
@@ -150,12 +152,8 @@ public static class MarkdownRenderer
 		private WpfTable RenderTable(MarkdownTable table)
 		{
 			var result = new WpfTable { CellSpacing = 0, Margin = new Thickness(0, 0, 0, 10), BorderBrush = Lines, BorderThickness = new Thickness(1, 1, 0, 0) };
-			var columnCount = table.OfType<MarkdownTableRow>().Select(x => x.Count).DefaultIfEmpty(0).Max();
-			for (var index = 0; index < columnCount; index++)
-			{
-				// The last column (the notes) takes the room the others don't need.
-				result.Columns.Add(new TableColumn { Width = index == columnCount - 1 ? new GridLength(1, GridUnitType.Star) : new GridLength(index == 0 ? 160 : 150) });
-			}
+			foreach (var weight in GetColumnWeights(table))
+				result.Columns.Add(new TableColumn { Width = new GridLength(weight, GridUnitType.Star) });
 
 			var group = new TableRowGroup();
 			foreach (var row in table.OfType<MarkdownTableRow>())
@@ -192,6 +190,19 @@ public static class MarkdownRenderer
 
 			result.RowGroups.Add(group);
 			return result;
+		}
+
+		/// <summary>
+		/// Shares a table's width among its columns by how much text they hold: each column's longest cell, between a
+		/// short word and a long sentence, so a column of names stays narrow and a column of notes gets the rest.
+		/// </summary>
+		private static IReadOnlyList<double> GetColumnWeights(MarkdownTable table)
+		{
+			var rows = table.OfType<MarkdownTableRow>().ToList();
+			var columnCount = rows.Select(x => x.Count).DefaultIfEmpty(0).Max();
+			return Enumerable.Range(0, columnCount)
+				.Select(column => (double) Math.Clamp(rows.Where(x => column < x.Count).Select(x => HelpDocument.GetText(x[column]).Length).DefaultIfEmpty(0).Max(), 8, 60))
+				.ToList();
 		}
 
 		private void AddInlines(InlineCollection target, ContainerInline container)
