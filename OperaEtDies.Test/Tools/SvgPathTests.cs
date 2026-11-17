@@ -26,7 +26,7 @@ public sealed class SvgPathTests
 		var result = PortraitDataReader.Read(document.Value!.Root, "");
 		Assert.That(result.Value, Is.Not.Null);
 
-		var paths = result.Value!.Layers.SelectMany(x => x.Shapes).Select(x => x.Path).ToList();
+		var paths = result.Value!.Layers.SelectMany(x => x.Shapes).Concat(result.Value.ShapeSets.SelectMany(x => x.Shapes)).Select(x => x.Path).OfType<string>().ToList();
 		var failures = paths.Where(x => !SvgPath.TryParse(x, out var path, out _) || path.ToString() != x).ToList();
 		Assert.That(failures, Is.Empty);
 	}

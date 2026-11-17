@@ -81,6 +81,18 @@ public sealed class CharacterProperty : IIdentified
 	public CharacterRoleSettings? Npc { get; init; }
 
 	/// <summary>
+	/// The ids of the clothing slots (regions of the body) the property shows on. Clothing hides a value when it covers
+	/// every one of them at least as much as the value's prominence. Without any, clothing never hides it.
+	/// </summary>
+	public IReadOnlyList<string> Regions { get; init; } = [];
+
+	/// <summary>
+	/// Whether the property is about the form of the body, such as a paunch, which only clothing whose bulk hides form can
+	/// hide.
+	/// </summary>
+	public bool Form { get; init; }
+
+	/// <summary>
 	/// Creates a copy of the property with the given values.
 	/// </summary>
 	internal CharacterProperty WithValues(IReadOnlyList<CharacterPropertyOption> values) => Copy(values, true, Defaults, Player, Npc);
@@ -133,6 +145,8 @@ public sealed class CharacterProperty : IIdentified
 		Defaults = defaults,
 		Player = player,
 		Npc = npc,
+		Regions = Regions,
+		Form = Form,
 	};
 
 	public CharacterRoleSettings? GetRoleSettings(CharacterRole role) => role switch

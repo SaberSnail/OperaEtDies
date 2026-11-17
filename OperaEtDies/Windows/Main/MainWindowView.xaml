@@ -102,6 +102,21 @@
 					Height="32"
 					Margin="0,8,0,0"
 					HorizontalAlignment="Left"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleInventory}"
+					Content="{x:Static operaEtDies:OurResources.ViewInventory}" />
+				<!--  The wardrobe is only open at home.  -->
+				<Button
+					Width="120"
+					Height="32"
+					Margin="0,8,0,0"
+					HorizontalAlignment="Left"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleWardrobe}"
+					Content="{x:Static operaEtDies:OurResources.ViewWardrobe}" />
+				<Button
+					Width="120"
+					Height="32"
+					Margin="0,8,0,0"
+					HorizontalAlignment="Left"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleMap}"
 					Content="{x:Static operaEtDies:OurResources.ViewMap}" />
 				<Button

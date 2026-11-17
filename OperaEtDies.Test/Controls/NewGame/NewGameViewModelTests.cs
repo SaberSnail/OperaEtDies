@@ -56,7 +56,7 @@ public sealed class NewGameViewModelTests
 	{
 		var viewModel = new NewGameViewModel(CreateMalePlayerGameData(), new Random(0));
 
-		// The player is always male, so the bosom never applies. Build still applies, with one value the player can have.
+		// The player is always male, so braids never apply. Build still applies, with one value the player can have.
 		Assert.That(viewModel.Properties.Select(x => x.Id), Is.EqualTo(new[] { "gender", "beard", "build" }));
 		Assert.That(viewModel.FindProperty("build")!.IsFixed, Is.True);
 	}
@@ -463,8 +463,8 @@ public sealed class NewGameViewModelTests
 			Height = 10,
 			Layers =
 			[
-				new PortraitLayer { Id = "hearth", At = new PortraitPlaceCondition { Home = true }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#FF0000" }] },
-				new PortraitLayer { Id = "apron", When = TestData.Condition("atWork", "atWork"), Shapes = [new PortraitShape { Path = "M0,5 H10", Stroke = "#FFFFFF" }] },
+				new PortraitLayer { Ai = true, Id = "hearth", At = new PortraitPlaceCondition { Home = true }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#FF0000" }] },
+				new PortraitLayer { Ai = true, Id = "apron", When = TestData.Condition("atWork", "atWork"), Shapes = [new PortraitShape { Path = "M0,5 H10", Stroke = "#FFFFFF" }] },
 			],
 		};
 		var gameData = new GameData(TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings(), portraits: portraits);
@@ -492,7 +492,7 @@ public sealed class NewGameViewModelTests
 		{
 			Width = 10,
 			Height = 10,
-			Layers = [new PortraitLayer { Id = "face", Shapes = [new PortraitShape { Path = "M0,0 H10 V10 Z", Fill = "#FFFFFF" }] }],
+			Layers = [new PortraitLayer { Ai = true, Id = "face", Shapes = [new PortraitShape { Path = "M0,0 H10 V10 Z", Fill = "#FFFFFF" }] }],
 		};
 		var gameData = new GameData(TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings(), portraits: portraits);
 		var viewModel = new NewGameViewModel(gameData, new Random(0));
@@ -516,25 +516,25 @@ public sealed class NewGameViewModelTests
 		var viewModel = new NewGameViewModel(CreateMalePlayerGameData(), new Random(0), isDeveloper: true);
 		var gender = (ValueListPropertyEditorViewModel) viewModel.FindProperty("gender")!;
 		var beard = viewModel.FindProperty("beard")!;
-		var bosom = viewModel.FindProperty("bosom")!;
+		var braids = viewModel.FindProperty("braids")!;
 
-		// The bosom only applies to women, so it's only for developers, and unavailable while the player is male.
-		Assert.That(viewModel.Properties.Select(x => x.Id), Is.EqualTo(new[] { "gender", "beard", "bosom", "build" }));
-		Assert.That(viewModel.Properties.Where(x => x.IsDeveloperOnly).Select(x => x.Id), Is.EqualTo(new[] { "bosom" }));
-		Assert.That(bosom.IsAvailable, Is.False);
+		// Braids only apply to women, so it's only for developers, and unavailable while the player is male.
+		Assert.That(viewModel.Properties.Select(x => x.Id), Is.EqualTo(new[] { "gender", "beard", "braids", "build" }));
+		Assert.That(viewModel.Properties.Where(x => x.IsDeveloperOnly).Select(x => x.Id), Is.EqualTo(new[] { "braids" }));
+		Assert.That(braids.IsAvailable, Is.False);
 		Assert.That(beard.IsAvailable, Is.True);
 
 		var changes = new List<string?>();
-		bosom.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+		braids.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
 		gender.DeveloperSelectedOption = gender.DeveloperOptions.Single(x => x.Id == "female");
 
 		Assert.That(changes, Does.Contain(nameof(CharacterPropertyEditorViewModel.IsAvailable)));
-		Assert.That(bosom.IsAvailable, Is.True);
+		Assert.That(braids.IsAvailable, Is.True);
 		Assert.That(beard.IsAvailable, Is.False);
 
 		gender.DeveloperSelectedOption = gender.DeveloperOptions.Single(x => x.Id == "male");
 
-		Assert.That(bosom.IsAvailable, Is.False);
+		Assert.That(braids.IsAvailable, Is.False);
 		Assert.That(beard.IsAvailable, Is.True);
 	}
 
@@ -581,7 +581,7 @@ public sealed class NewGameViewModelTests
 						Player = new CharacterRoleSettings { Values = ["male"] },
 					},
 					new CharacterProperty { Id = "beard", Title = "Beard", Type = CharacterPropertyType.ValueList, When = TestData.Condition("gender", "male"), Values = [Option("full"), Option("none")] },
-					new CharacterProperty { Id = "bosom", Title = "Bosom", Type = CharacterPropertyType.ValueList, When = TestData.Condition("gender", "female"), Values = [Option("small"), Option("full")] },
+					new CharacterProperty { Id = "braids", Title = "Braids", Type = CharacterPropertyType.ValueList, When = TestData.Condition("gender", "female"), Values = [Option("single"), Option("twin")] },
 					new CharacterProperty
 					{
 						Id = "build",

@@ -331,6 +331,42 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; can't be the id of a character property or template, since templates use it for the clothing being worn..
+        /// </summary>
+        public static string CharacterIdReserved {
+            get {
+                return ResourceManager.GetString("CharacterIdReserved", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}, and {1}.
+        /// </summary>
+        public static string ListJoinLast {
+            get {
+                return ResourceManager.GetString("ListJoinLast", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to , .
+        /// </summary>
+        public static string ListJoinSeparator {
+            get {
+                return ResourceManager.GetString("ListJoinSeparator", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} and {1}.
+        /// </summary>
+        public static string ListJoinTwo {
+            get {
+                return ResourceManager.GetString("ListJoinTwo", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The property &quot;{0}&quot; needs a &quot;{1}&quot; setting..
         /// </summary>
         public static string CharacterSettingMissing {
@@ -610,6 +646,15 @@ namespace OperaEtDies {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to The item &quot;{0}&quot; in the &quot;{1}&quot; list has a prominence, but the &quot;{2}&quot; property has no regions, so clothing never hides it..
+        /// </summary>
+        public static string ProminenceWithoutRegions {
+            get {
+                return ResourceManager.GetString("ProminenceWithoutRegions", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to The item &quot;{0}&quot; in the &quot;{1}&quot; list has a prominence of {2}, but it must be from {3} to {4}..
         /// </summary>
         public static string ProminenceInvalid {
@@ -618,69 +663,6 @@ namespace OperaEtDies {
             }
         }
 
-        /// <summary>
-        ///   Looks up a localized string similar to The obscurer &quot;{0}&quot; hides &quot;{1}&quot;, but there is no character property with that id..
-        /// </summary>
-        public static string ObscurerPropertyUnknown {
-            get {
-                return ResourceManager.GetString("ObscurerPropertyUnknown", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to The obscurer &quot;{0}&quot; hides &quot;{1}&quot; with a strength of {2}, but it must be from {3} to {4}..
-        /// </summary>
-        public static string ObscurerStrengthInvalid {
-            get {
-                return ResourceManager.GetString("ObscurerStrengthInvalid", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to The &quot;{0}&quot; list includes &quot;{1}&quot;, but there is no character property with that id..
-        /// </summary>
-        public static string TemplateHiddenPropertyUnknown {
-            get {
-                return ResourceManager.GetString("TemplateHiddenPropertyUnknown", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to The template &quot;{0}&quot; uses more than {1} properties that obscurers can hide, which is too many to check..
-        /// </summary>
-        public static string TemplateHideableTooMany {
-            get {
-                return ResourceManager.GetString("TemplateHideableTooMany", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to The &quot;{0}&quot; chance is {1}, but it must be at least 0..
-        /// </summary>
-        public static string FrequencyChanceInvalid {
-            get {
-                return ResourceManager.GetString("FrequencyChanceInvalid", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to The &quot;{0}&quot; uncommon, rare, and very rare chances add up to {1}, but they must add up to less than 100..
-        /// </summary>
-        public static string FrequencyChancesTooHigh {
-            get {
-                return ResourceManager.GetString("FrequencyChancesTooHigh", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The &quot;{0}&quot; setting is {1}, but it must be more than 0..
-        /// </summary>
-        public static string ShapeMostWithinInvalid {
-            get {
-                return ResourceManager.GetString("ShapeMostWithinInvalid", resourceCulture);
-            }
-        }
-        
         /// <summary>
         ///   Looks up a localized string similar to The value &quot;{0}&quot; of the property &quot;{1}&quot; has a frequency, but the property uses a shape..
         /// </summary>
@@ -1879,6 +1861,42 @@ namespace OperaEtDies {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; includes a shape set, but shapes in a shape set can&apos;t include shape sets..
+        /// </summary>
+        public static string PortraitShapeSetNested {
+            get {
+                return ResourceManager.GetString("PortraitShapeSetNested", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; includes a shape set, so it can only have &quot;include&quot;, &quot;when&quot;, and &quot;clip&quot;..
+        /// </summary>
+        public static string PortraitIncludeDrawn {
+            get {
+                return ResourceManager.GetString("PortraitIncludeDrawn", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; has &quot;clip&quot;, but only shapes that include a shape set can be clipped..
+        /// </summary>
+        public static string PortraitClipWithoutInclude {
+            get {
+                return ResourceManager.GetString("PortraitClipWithoutInclude", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is &quot;{1}&quot;, but it isn&apos;t a color of the clothing &quot;{2}&quot;, a color of the layer, a portrait color, or a color written as #RRGGBB or #AARRGGBB..
+        /// </summary>
+        public static string PortraitClothingColorUnknown {
+            get {
+                return ResourceManager.GetString("PortraitClothingColorUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to &quot;{0}&quot; must have a fill, a stroke, or both..
         /// </summary>
         public static string PortraitShapeNotDrawn {
@@ -2037,6 +2055,42 @@ namespace OperaEtDies {
         public static string SaveFamilyEmpty {
             get {
                 return ResourceManager.GetString("SaveFamilyEmpty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Item {0} in the save is in more than one place..
+        /// </summary>
+        public static string SaveItemPlacedTwice {
+            get {
+                return ResourceManager.GetString("SaveItemPlacedTwice", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Person {0} in the save is wearing clothing {1} in a clothing slot that&apos;s already taken in its layer..
+        /// </summary>
+        public static string SaveClothingSlotTaken {
+            get {
+                return ResourceManager.GetString("SaveClothingSlotTaken", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Clothing {0} in the save doesn&apos;t have exactly one color for each of the colors of &quot;{1}&quot; ({2})..
+        /// </summary>
+        public static string SaveClothingColorsInvalid {
+            get {
+                return ResourceManager.GetString("SaveClothingColorsInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Outfit {0} in the save has the same piece of clothing twice, or two pieces in the same clothing slot and layer..
+        /// </summary>
+        public static string SaveOutfitInvalid {
+            get {
+                return ResourceManager.GetString("SaveOutfitInvalid", resourceCulture);
             }
         }
         
@@ -3643,6 +3697,15 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Changing clothes.
+        /// </summary>
+        public static string PersonChangingClothes {
+            get {
+                return ResourceManager.GetString("PersonChangingClothes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Waiting for {0}.
         /// </summary>
         public static string PersonWaitingFor {
@@ -3919,6 +3982,429 @@ namespace OperaEtDies {
             get {
                 return ResourceManager.GetString("ValueGroupIsValue", resourceCulture);
             }
+        }        
+        /// <summary>
+        ///   Looks up a localized string similar to Inventory.
+        /// </summary>
+        public static string ViewInventory {
+            get {
+                return ResourceManager.GetString("ViewInventory", resourceCulture);
+            }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Wardrobe.
+        /// </summary>
+        public static string ViewWardrobe {
+            get {
+                return ResourceManager.GetString("ViewWardrobe", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Inventory.
+        /// </summary>
+        public static string InventoryHeader {
+            get {
+                return ResourceManager.GetString("InventoryHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Wardrobe.
+        /// </summary>
+        public static string WardrobeHeader {
+            get {
+                return ResourceManager.GetString("WardrobeHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Wearing.
+        /// </summary>
+        public static string ClothingWearingHeader {
+            get {
+                return ResourceManager.GetString("ClothingWearingHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Carrying.
+        /// </summary>
+        public static string ClothingCarryingHeader {
+            get {
+                return ResourceManager.GetString("ClothingCarryingHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Kept at home.
+        /// </summary>
+        public static string ClothingKeptAtHomeHeader {
+            get {
+                return ResourceManager.GetString("ClothingKeptAtHomeHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Outfits.
+        /// </summary>
+        public static string ClothingOutfitsHeader {
+            get {
+                return ResourceManager.GetString("ClothingOutfitsHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Nothing.
+        /// </summary>
+        public static string ClothingNone {
+            get {
+                return ResourceManager.GetString("ClothingNone", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Examine.
+        /// </summary>
+        public static string ClothingExamine {
+            get {
+                return ResourceManager.GetString("ClothingExamine", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Wear.
+        /// </summary>
+        public static string ClothingWear {
+            get {
+                return ResourceManager.GetString("ClothingWear", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Take off.
+        /// </summary>
+        public static string ClothingTakeOff {
+            get {
+                return ResourceManager.GetString("ClothingTakeOff", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Take.
+        /// </summary>
+        public static string ClothingTake {
+            get {
+                return ResourceManager.GetString("ClothingTake", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Put away.
+        /// </summary>
+        public static string ClothingPutAway {
+            get {
+                return ResourceManager.GetString("ClothingPutAway", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Change into.
+        /// </summary>
+        public static string OutfitChangeInto {
+            get {
+                return ResourceManager.GetString("OutfitChangeInto", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You changed your clothes, which took {0}..
+        /// </summary>
+        public static string ClothingChanged {
+            get {
+                return ResourceManager.GetString("ClothingChanged", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to In the wash.
+        /// </summary>
+        public static string ClothingInWash {
+            get {
+                return ResourceManager.GetString("ClothingInWash", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Drying until {0}.
+        /// </summary>
+        public static string ClothingDrying {
+            get {
+                return ResourceManager.GetString("ClothingDrying", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Everyday clothes.
+        /// </summary>
+        public static string OutfitEveryday {
+            get {
+                return ResourceManager.GetString("OutfitEveryday", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Work clothes.
+        /// </summary>
+        public static string OutfitWork {
+            get {
+                return ResourceManager.GetString("OutfitWork", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Night clothes.
+        /// </summary>
+        public static string OutfitNight {
+            get {
+                return ResourceManager.GetString("OutfitNight", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Some of it is in the wash.
+        /// </summary>
+        public static string OutfitInWash {
+            get {
+                return ResourceManager.GetString("OutfitInWash", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Some of it is still drying.
+        /// </summary>
+        public static string OutfitDrying {
+            get {
+                return ResourceManager.GetString("OutfitDrying", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Wearing.
+        /// </summary>
+        public static string OutfitWearing {
+            get {
+                return ResourceManager.GetString("OutfitWearing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}, worn over other clothes.
+        /// </summary>
+        public static string OutfitOverOtherClothes {
+            get {
+                return ResourceManager.GetString("OutfitOverOtherClothes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Nothing.
+        /// </summary>
+        public static string OutfitNothing {
+            get {
+                return ResourceManager.GetString("OutfitNothing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No clothes at all.
+        /// </summary>
+        public static string OutfitNothingDescription {
+            get {
+                return ResourceManager.GetString("OutfitNothingDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; gives &quot;{1}&quot; {2}, but it must be from {3} to {4}..
+        /// </summary>
+        public static string SlotValueOutOfRange {
+            get {
+                return ResourceManager.GetString("SlotValueOutOfRange", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You aren&apos;t dressed enough for that. Cover more of your {0} first..
+        /// </summary>
+        public static string ModestyNotCovered {
+            get {
+                return ResourceManager.GetString("ModestyNotCovered", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is "{1}", but it must be a color written as #RRGGBB..
+        /// </summary>
+        public static string ClothingColorInvalid {
+            get {
+                return ResourceManager.GetString("ClothingColorInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" uses "{1}", but the clothing has no color with that name..
+        /// </summary>
+        public static string ClothingDescriptionColorUnknown {
+            get {
+                return ResourceManager.GetString("ClothingDescriptionColorUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" uses "{1}.{2}", but the only field a color has is "{3}"..
+        /// </summary>
+        public static string ClothingDescriptionFieldUnknown {
+            get {
+                return ResourceManager.GetString("ClothingDescriptionFieldUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The "{0}" chance is {1}, but it must be at least 0..
+        /// </summary>
+        public static string FrequencyChanceInvalid {
+            get {
+                return ResourceManager.GetString("FrequencyChanceInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The "{0}" uncommon, rare, and very rare chances add up to {1}, but they must add up to less than 100..
+        /// </summary>
+        public static string FrequencyChancesTooHigh {
+            get {
+                return ResourceManager.GetString("FrequencyChancesTooHigh", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" has "{1}" and "{2}", which both take the clothing slot "{3}" in the "{4}" layer..
+        /// </summary>
+        public static string OutfitSlotTaken {
+            get {
+                return ResourceManager.GetString("OutfitSlotTaken", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The "{0}" setting is {1}, but it must be more than 0..
+        /// </summary>
+        public static string ShapeMostWithinInvalid {
+            get {
+                return ResourceManager.GetString("ShapeMostWithinInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The "{0}" list includes "{1}", but there is no character property with that id..
+        /// </summary>
+        public static string TemplateHiddenPropertyUnknown {
+            get {
+                return ResourceManager.GetString("TemplateHiddenPropertyUnknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The template "{0}" uses more than {1} properties that obscurers can hide, which is too many to check..
+        /// </summary>
+        public static string TemplateHideableTooMany {
+            get {
+                return ResourceManager.GetString("TemplateHideableTooMany", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You aren&apos;t dressed enough. Cover more of your {0}..
+        /// </summary>
+        public static string ModestyNotCoveredHere {
+            get {
+                return ResourceManager.GetString("ModestyNotCoveredHere", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Modesty: {0}.
+        /// </summary>
+        public static string DeveloperModesty {
+            get {
+                return ResourceManager.GetString("DeveloperModesty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} {1} (needs {2}).
+        /// </summary>
+        public static string DeveloperModestySlot {
+            get {
+                return ResourceManager.GetString("DeveloperModestySlot", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to no modesty rule.
+        /// </summary>
+        public static string DeveloperModestyNoRule {
+            get {
+                return ResourceManager.GetString("DeveloperModestyNoRule", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Coverage: {0}. Bulk: {1}..
+        /// </summary>
+        public static string DeveloperClothingCoverage {
+            get {
+                return ResourceManager.GetString("DeveloperClothingCoverage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} {1}.
+        /// </summary>
+        public static string DeveloperCoverageSlot {
+            get {
+                return ResourceManager.GetString("DeveloperCoverageSlot", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to none.
+        /// </summary>
+        public static string DeveloperNone {
+            get {
+                return ResourceManager.GetString("DeveloperNone", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is set, but only work outfits can be complete..
+        /// </summary>
+        public static string OutfitCompleteNotWork {
+            get {
+                return ResourceManager.GetString("OutfitCompleteNotWork", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Operation {0}: &quot;{1}&quot; must be text..
+        /// </summary>
+        public static string ModOperationCommentsInvalid {
+            get {
+                return ResourceManager.GetString("ModOperationCommentsInvalid", resourceCulture);
+            }
+        }
+
     }
 }

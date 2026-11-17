@@ -5,6 +5,7 @@ using GoldenAnvil.Utility.Calendar;
 using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
 using OperaEtDies.Controls.Characters;
+using OperaEtDies.Controls.Clothing;
 using OperaEtDies.Controls.Conversation;
 using OperaEtDies.Controls.Locations;
 using OperaEtDies.Controls.Map;
@@ -122,6 +123,15 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
+	/// The player's inventory or wardrobe, while it's open.
+	/// </summary>
+	public ClothingScreenViewModel? Clothing
+	{
+		get => VerifyAccess(m_clothing);
+		private set => SetPropertyField([nameof(Clothing), nameof(CurrentView)], value, ref m_clothing);
+	}
+
+	/// <summary>
 	/// The mini-map on the main screen, showing the player's quarter and the quarters connected to it.
 	/// </summary>
 	public TownMapViewModel MiniMap
@@ -140,10 +150,10 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// The view shown in the main part of the window: the list of villagers, the map, or the player's status while one
-	/// is open, or else the player's location.
+	/// The view shown in the main part of the window: the list of villagers, the map, the player's status, inventory, or
+	/// wardrobe while one is open, or else the player's location.
 	/// </summary>
-	public ViewModelBase CurrentView => VerifyAccess((ViewModelBase?) m_villagers ?? (ViewModelBase?) m_map ?? (ViewModelBase?) m_status ?? m_currentLocation);
+	public ViewModelBase CurrentView => VerifyAccess((ViewModelBase?) m_villagers ?? (ViewModelBase?) m_map ?? (ViewModelBase?) m_status ?? (ViewModelBase?) m_clothing ?? m_currentLocation);
 
 	/// <summary>
 	/// The view focused on one person, shown on top of <see cref="CurrentView"/>, or null if it isn't open. Closing it shows
@@ -302,7 +312,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		CloseConversation();
 		CloseVillagers();
 		CloseMap();
-		if (m_status is null)
+		if (TryCloseClothing() && m_status is null)
 		{
 			var status = new StatusViewModel(World, IsDeveloper);
 			status.CloseRequested += OnStatusCloseRequested;
@@ -344,7 +354,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		CloseConversation();
 		CloseMap();
 		CloseStatus();
-		if (m_villagers is null)
+		if (TryCloseClothing() && m_villagers is null)
 		{
 			var villagers = new VillagersViewModel(World.Families, IsDeveloper, World.GameData.PortraitRenderer, World.GameData.Schedules, World.GameData.Relationships, World.GameData.Calendar);
 			villagers.CloseRequested += OnVillagersCloseRequested;
@@ -388,7 +398,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		VerifyAccess();
 		CloseCharacter();
 		CloseConversation();
-		if (m_map is null)
+		if (m_map is null && TryCloseClothing())
 		{
 			CloseVillagers();
 			CloseStatus();
@@ -411,6 +421,78 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 			map.TravelRequested -= OnMapTravelRequested;
 			Map = null;
 		}
+	}
+
+	/// <summary>
+	/// Opens the player's inventory from the sidebar, or closes it if it's already open and nothing is on top of it.
+	/// </summary>
+	public void ToggleInventory() => ToggleClothing(isWardrobe: false);
+
+	/// <summary>
+	/// Opens the player's wardrobe from the sidebar, or closes it if it's already open and nothing is on top of it.
+	/// </summary>
+	public void ToggleWardrobe() => ToggleClothing(isWardrobe: true);
+
+	/// <summary>
+	/// The wardrobe can only be opened at home.
+	/// </summary>
+	public bool CanToggleWardrobe() => World.Player.Location == World.Player.Home;
+
+	/// <summary>
+	/// Opens the player's inventory or wardrobe in place of the player's location, replacing the other one.
+	/// </summary>
+	public void ShowClothing(bool isWardrobe)
+	{
+		VerifyAccess();
+		CloseCharacter();
+		CloseConversation();
+		CloseVillagers();
+		CloseMap();
+		CloseStatus();
+		if (m_clothing?.IsWardrobe != isWardrobe && TryCloseClothing())
+		{
+			var clothing = new ClothingScreenViewModel(World, isWardrobe, IsDeveloper);
+			clothing.CloseRequested += OnClothingCloseRequested;
+			Clothing = clothing;
+		}
+	}
+
+	/// <summary>
+	/// Closes the player's inventory or wardrobe, returning to the player's location, which takes the time to change clothes if they changed
+	/// what they're wearing.
+	/// </summary>
+	public void CloseClothing()
+	{
+		VerifyAccess();
+		if (m_clothing is { } clothing)
+		{
+			clothing.CloseRequested -= OnClothingCloseRequested;
+			Clothing = null;
+
+			// Changing clothes takes its time once the player is done.
+			if (clothing.Finish() is { } result)
+				m_currentLocation.ShowWaitResult(result);
+		}
+	}
+
+	/// <summary>
+	/// Closes the player's inventory or wardrobe, if it's open, unless they aren't dressed enough to leave it, in which case
+	/// it stays open, still warning them. Returns whether it's closed.
+	/// </summary>
+	private bool TryCloseClothing()
+	{
+		var canClose = m_clothing?.CanClose() ?? true;
+		if (canClose)
+			CloseClothing();
+		return canClose;
+	}
+
+	private void ToggleClothing(bool isWardrobe)
+	{
+		if (m_clothing?.IsWardrobe != isWardrobe || Overlay is not null)
+			ShowClothing(isWardrobe);
+		else
+			TryCloseClothing();
 	}
 
 	/// <summary>
@@ -450,16 +532,26 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Moves the player to a location next to theirs, which takes the travel time between them.
+	/// Moves the player to a location next to theirs, which takes the travel time between them. They can't leave home unless
+	/// they're dressed enough to go out.
 	/// </summary>
 	public void TravelTo(Location location)
 	{
 		VerifyAccess();
-		World.AdvanceTime(World.GetTravelTime(World.Player.Location, location));
+		var player = World.Player;
+		var warning = player.Location == player.Home && location != player.Home ? ModestyWarning.Format(World.GetPlayerUncoveredSlotsOutside()) : null;
+		if (warning is not null)
+		{
+			m_currentLocation.ShowWaitResult(warning);
+		}
+		else
+		{
+			World.AdvanceTime(World.GetTravelTime(player.Location, location));
 
-		// Someone asking the player to chat on the way stops them where they are.
-		if (World.Player.TalkRequest is null)
-			MoveTo(location);
+			// Someone asking the player to chat on the way stops them where they are.
+			if (player.TalkRequest is null)
+				MoveTo(location);
+		}
 	}
 
 	/// <summary>
@@ -513,6 +605,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		}
 		if (m_status is not null)
 			m_status.CloseRequested -= OnStatusCloseRequested;
+		if (m_clothing is not null)
+			m_clothing.CloseRequested -= OnClothingCloseRequested;
 		if (m_character is not null)
 		{
 			m_character.CloseRequested -= OnCharacterCloseRequested;
@@ -567,6 +661,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	private void OnMapCloseRequested(object? sender, EventArgs e) => CloseMap();
 
 	private void OnStatusCloseRequested(object? sender, EventArgs e) => CloseStatus();
+
+	private void OnClothingCloseRequested(object? sender, EventArgs e) => CloseClothing();
 
 	private void OnCharacterCloseRequested(object? sender, EventArgs e) => CloseCharacter();
 
@@ -640,6 +736,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	private VillagersViewModel? m_villagers;
 	private TownMapViewModel? m_map;
 	private StatusViewModel? m_status;
+	private ClothingScreenViewModel? m_clothing;
 	private CharacterViewModel? m_character;
 	private StatusViewModel? m_characterStatus;
 	private ConversationViewModel? m_conversation;

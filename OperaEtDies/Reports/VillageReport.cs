@@ -238,12 +238,13 @@ public sealed class VillageReport : ILogDestination
 	{
 		WriteRecord("#village", "village", "seed", "households", "people", "businesses", "quarters", "houses", "businessLocations", "reusedTemplates", "shape", "landmarks", "paths", "deadEnds", "landmarkDeadEnds", "maxExits", "features", "crossings", "time", "season");
 		WriteRecord("#household", "village", "household", "lastName", "members", "wealth", "fortune", "wealthLevel", "house", "quarter", "quarterKind");
-		WriteRecord(["#person", "village", "household", "member", "role", "isPlayer", "work", "businessProfession", "fullName", "location", "place", "portraitLayers", "goal", "task", "taskEnd", "pendingTrip", "friends",
+		WriteRecord(["#person", "village", "household", "member", "role", "isPlayer", "work", "businessProfession", "fullName", "description", "location", "place", "portraitLayers", "goal", "task", "taskEnd", "pendingTrip", "friends",
 			.. gameData.Schedules.Needs.Select(x => x.Id), .. gameData.CharacterProperties.Select(x => x.Id)]);
 		WriteRecord("#activity", "village", "time", "day", "household", "member", "goal", "task", "minutes", "location", "destination");
 		WriteRecord("#relationship", "village", "household", "member", "otherHousehold", "otherMember", "score", "isFriend", "familyTie", "isNeighbor", "lastTalked");
 		WriteRecord("#sighting", "village", "household", "member", "otherHousehold", "otherMember", "location", "time", "activity", "need", "destination", "source", "toldGoal", "toldDestination");
 		WriteRecord("#business", "village", "household", "profession", "ownerRole", "helpers", "location", "quarter", "quarterKind");
+		WriteRecord("#clothing", "village", "household", "member", "clothing", "colors", "outfit", "kind", "place", "description", "laundry");
 		WriteRecord("#location", "village", "id", "template", "type", "quarterKind", "wealth", "connections", "landmark", "x", "y", "width", "height", "borders");
 		WriteRecord("#exit", "village", "from", "to", "direction", "path", "crossing");
 		WriteRecord("#feature", "village", "id", "type", "x", "y", "width", "height", "bordering");
@@ -292,20 +293,24 @@ public sealed class VillageReport : ILogDestination
 				var needs = gameData.Schedules.Needs.Select(x => x.Kind == NeedKind.Level ? person.GetLevel(x).ToString("0.##", CultureInfo.InvariantCulture) : (object) person.GetProgress(x)).ToList();
 				var goal = person.Goal?.Id;
 
-				// Portraits are drawn where the person starts, or at work in their own workplace.
+				var description = person.Description;
+
+				// Portraits are drawn where the person starts, or at work in their own workplace, dressed for work.
 				if (m_arePortraitsAtWork)
 				{
 					person.Location = person.Workplace;
 					person.IsAtWork = true;
+					person.Clothing.TakeOffAll(person.Home.Items);
+					ClothingGenerator.DressAtStart(person, isAtWork: true);
 				}
 
-				var portraitLayers = gameData.PortraitRenderer?.GetLayerIds(person.Traits, person.PortraitPlace) ?? [];
+				var portraitLayers = gameData.PortraitRenderer?.GetLayerIds(person.Traits, person.PortraitPlace, person.Clothing.GetPortraitClothing()) ?? [];
 				WriteRecord(["person", village, index, member, person.Role, person.IsPlayer, work, person.Business?.Profession.Id,
-					startTraits.GetFullName(gameData.CharacterTemplates), names[startLocation], startPlace, string.Join(" ", portraitLayers), goal, task, taskEnd, person.PendingTrip?.Id, person.Relationships.Values.Count(x => relationships.IsFriend(x.Score)), .. needs,
+					startTraits.GetFullName(gameData.CharacterTemplates), description, names[startLocation], startPlace, string.Join(" ", portraitLayers), goal, task, taskEnd, person.PendingTrip?.Id, person.Relationships.Values.Count(x => relationships.IsFriend(x.Score)), .. needs,
 					.. gameData.CharacterProperties.Select(x => FormatValue(startTraits.Values.GetValueOrDefault(x.Id)))]);
 
 				if (m_portraitFolder is not null && gameData.PortraitRenderer is { } portraitRenderer)
-					WritePortrait(portraitRenderer, person.Traits, person.PortraitPlace, Path.Combine(m_portraitFolder, FormattableString.Invariant($"{village}-{index}-{member}.png")));
+					WritePortrait(portraitRenderer, person.Traits, person.PortraitPlace, person.Clothing.GetPortraitClothing(), Path.Combine(m_portraitFolder, FormattableString.Invariant($"{village}-{index}-{member}.png")));
 			}
 		}
 
@@ -330,6 +335,18 @@ public sealed class VillageReport : ILogDestination
 					sighting.Source is { } source ? FormattableString.Invariant($"{members[source].index}-{members[source].member}") : null,
 					sighting.Plan is null ? null : sighting.Plan.Goal?.Id ?? "idle", sighting.Plan?.Destination is { } told ? names[told] : null);
 			}
+		}
+
+		// Each piece of clothing, with its owner, the first outfit it's part of (accessories can be part of several), and where it is: worn, carried, or in a location.
+		var outfits = world.People.SelectMany(x => x.Outfits).SelectMany(outfit => outfit.Pieces.Select(piece => (piece, outfit))).GroupBy(x => x.piece).ToDictionary(x => x.Key, x => x.First().outfit);
+		foreach (var piece in world.Objects.OfType<ClothingPiece>())
+		{
+			var outfit = outfits.GetValueOrDefault(piece);
+			var place = piece.Wearer is not null ? "worn" : piece.Container is { } container && world.People.FirstOrDefault(x => x.Inventory == container) is not null ? "carried" :
+				world.Locations.FirstOrDefault(x => x.Items == piece.Container) is { } location ? names[location] : null;
+			WriteRecord("clothing", village, piece.Owner is { } owner ? members[owner].index : null, piece.Owner is { } member ? members[member].member : null, piece.Clothing.Id,
+				string.Join(" ", piece.Colors.Select(x => $"{x.Key}={x.Value.Id}")), outfit?.Template?.Id, outfit is null ? null : JsonNamingPolicy.CamelCase.ConvertName(outfit.Kind.ToString()),
+				place, piece.Description, piece.IsInWash ? "inWash" : piece.DryAt is { } dryAt ? $"dryAt {gameData.Calendar.FormatTime(dryAt, TimeFormat.Long)}" : null);
 		}
 
 		foreach (var business in world.Businesses)
@@ -398,6 +415,9 @@ public sealed class VillageReport : ILogDestination
 		TalkTask => "talk",
 		WaitTask => "wait",
 		AtWorkTask { IsAtWork: true } => "startWork",
+		FetchClothesTask => "fetchClothes",
+		ChangeClothesTask { IsTakingOff: false } => "changeClothes",
+		ChangeClothesTask => "changeBack",
 		_ => "stopWork",
 	};
 
@@ -406,12 +426,12 @@ public sealed class VillageReport : ILogDestination
 	/// <summary>
 	/// Draws a character's portrait at its full size and saves it as a PNG file.
 	/// </summary>
-	private static void WritePortrait(PortraitRenderer renderer, CharacterTraits traits, PortraitPlace? place, string filePath)
+	private static void WritePortrait(PortraitRenderer renderer, CharacterTraits traits, PortraitPlace? place, PortraitClothing clothing, string filePath)
 	{
 		var size = renderer.Size;
 		var visual = new DrawingVisual();
 		using (var context = visual.RenderOpen())
-			context.DrawImage(renderer.Render(traits, place), new Rect(size));
+			context.DrawImage(renderer.Render(traits, place, clothing), new Rect(size));
 
 		var bitmap = new RenderTargetBitmap((int) Math.Ceiling(size.Width), (int) Math.Ceiling(size.Height), 96, 96, PixelFormats.Pbgra32);
 		bitmap.Render(visual);

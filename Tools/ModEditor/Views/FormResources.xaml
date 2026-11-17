@@ -11,8 +11,15 @@
 		FieldViewModel.LabelWidth). Objects, lists, and maps have a heading row, with their fields indented below it.
 	-->
 
-	<!--  The menu of a field's name: its path, the part of the mod that changed it (for the game data), and its help.  -->
+	<!--  The menu of a field's name: its path, the part of the mod that changed it and replacing or removing it (for the game
+		data), and its help.  -->
 	<ContextMenu x:Key="FieldMenu" x:Shared="False">
+		<MenuItem
+			Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Replace}"
+			FontWeight="SemiBold"
+			Header="Replace" />
+		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Remove}" Header="Remove" />
+		<Separator />
 		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CopyPath}" Header="Copy Path" />
 		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=GoToModChange}" Header="Go to Change in Mod" />
 		<MenuItem Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AddComment}" Header="Add Comment" />
@@ -28,6 +35,8 @@
 		<MenuItem Command="ApplicationCommands.Copy" />
 		<MenuItem Command="ApplicationCommands.Paste" />
 		<Separator />
+		<MenuItem Command="{Binding Field, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Replace}" Header="Replace" />
+		<MenuItem Command="{Binding Field, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Remove}" Header="Remove" />
 		<MenuItem
 			Command="{Binding Field, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CopyPath}"
 			Header="Copy Path" />

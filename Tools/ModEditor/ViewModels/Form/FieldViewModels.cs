@@ -141,6 +141,31 @@ public abstract class FieldViewModel : ViewModelBase
 		_ => null,
 	};
 
+	/// <summary>
+	/// A field of the game data can be replaced or removed by the mod, when there's a mod open.
+	/// </summary>
+	public bool CanReplace() => DataPath is not null && Place.IsCopyable && Form.Changes is { CanChangeMod: true };
+
+	/// <summary>
+	/// Adds an operation to the mod that replaces the field's data, starting from its current value.
+	/// </summary>
+	public void Replace()
+	{
+		if (CanReplace())
+			Form.Changes!.Replace(DataPath!, Slot.Get());
+	}
+
+	public bool CanRemove() => CanReplace();
+
+	/// <summary>
+	/// Adds an operation to the mod that removes the field's data.
+	/// </summary>
+	public void Remove()
+	{
+		if (CanRemove())
+			Form.Changes!.Remove(DataPath!);
+	}
+
 	public bool CanGoToModChange() => DataPath is { } path && Form.Changes?.GetSource(path) is not null;
 
 	/// <summary>
@@ -685,8 +710,8 @@ public sealed class ListFieldViewModel : FieldViewModel
 		{
 			for (var index = 0; index < list.Count; index++)
 			{
-				// Each item is labeled with its number, so its editor lines up with the others.
-				var label = (index + 1).ToString(CultureInfo.CurrentCulture);
+				// Each item is labeled with its index (from 0, as mod paths count), so its editor lines up with the others.
+				var label = index.ToString(CultureInfo.CurrentCulture);
 				var field = FieldFactory.Create(Form, label, m_element, new ItemSlot(list, index), isRequired: true, m_reference, m_propertyId, getPropertyId: m_getPropertyId, place: Place.Item(list[index], index));
 				Items.Add(new ListItemViewModel(this, index, field));
 			}
@@ -806,7 +831,7 @@ public sealed class MapFieldViewModel : FieldViewModel
 		{
 			foreach (var key in map.Select(x => x.Key).ToList())
 			{
-				var valueReference = m_reference?.Value is { } source ? new FieldReference(source) : null;
+				var valueReference = m_reference?.Entries ?? (m_reference?.Value is { } source ? new FieldReference(source) : null);
 				var field = FieldFactory.Create(Form, "", m_element, new PropertySlot(map, key), isRequired: true, valueReference, m_propertyId, getPropertyId: () => key, place: Place.Property(key));
 				Entries.Add(new MapEntryViewModel(this, key, field));
 			}
@@ -897,7 +922,7 @@ public static class FieldFactory
 		return type.Kind switch
 		{
 			DataKind.Text => new TextFieldViewModel(form, label, slot, isRequired,
-				source is not null ? () => form.Catalog.GetIds(source, resolve()) : DataReferences.GetTextChoices(type.ClrType) is { } choices ? () => choices : null,
+				source is ColorIds ? () => form.Catalog.GetColorIds(slot.ParentObject, form.Section, form.ItemId) : source is not null ? () => form.Catalog.GetIds(source, resolve()) : DataReferences.GetTextChoices(type.ClrType) is { } choices ? () => choices : null,
 				isColor: source is ColorIds,
 				isMultiline: slot.ParentObject is not null && IsLongText(slot, label), place),
 			DataKind.Integer => new NumberFieldViewModel(form, label, slot, isRequired, isInteger: true, place),

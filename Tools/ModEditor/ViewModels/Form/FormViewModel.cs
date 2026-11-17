@@ -15,7 +15,7 @@ public sealed class FormViewModel : ViewModelBase
 	/// </summary>
 	public static FormViewModel? Create(ModPiece piece, IdCatalog catalog, bool isReadOnly, Action<FormViewModel> changed, Action<HelpTarget>? showHelp = null, IFormChanges? changes = null)
 	{
-		var form = new FormViewModel(ModJson.Clone(piece.Value), catalog, isReadOnly, changed, showHelp) { Changes = changes };
+		var form = new FormViewModel(ModJson.Clone(piece.Value), catalog, isReadOnly, changed, showHelp) { Changes = changes, Section = piece.Section, ItemId = piece.Kind == ModPieceKind.Item ? ModJson.GetId(piece.Value) : null };
 		var slot = new RootSlot(form);
 		FieldViewModel? root = piece.Kind switch
 		{
@@ -54,6 +54,17 @@ public sealed class FormViewModel : ViewModelBase
 	public FieldViewModel Root { get; private set; }
 
 	public IdCatalog Catalog { get; }
+
+	/// <summary>
+	/// The section of the data the item or setting the form shows is in, or for an operation, that its path leads into, or
+	/// null if neither is known.
+	/// </summary>
+	public string? Section { get; internal set; }
+
+	/// <summary>
+	/// The id of the item the form shows, or for an operation, of the item its path leads into, or null if neither is known.
+	/// </summary>
+	public string? ItemId { get; internal set; }
 
 	/// <summary>
 	/// What the mod changes in the data the form shows, or null if it isn't showing the game data.

@@ -45,11 +45,13 @@ public sealed class CharacterTraits
 	/// <summary>
 	/// Creates text from the template in the set with the given id, using the variant whose conditions this
 	/// character meets. Placeholders can also name other templates in the set. Values hidden by the obscuring are
-	/// treated as if the character didn't have them.
+	/// treated as if the character didn't have them. The clothing placeholder is filled in with the given text, and is
+	/// hidden when there isn't any.
 	/// </summary>
-	public string Format(TextTemplateSet templates, string templateId, CharacterObscuring? obscuring = null)
+	public string Format(TextTemplateSet templates, string templateId, CharacterObscuring? obscuring = null, string? clothing = null)
 	{
 		object? GetVisibleValue(string propertyId) =>
+			propertyId == CharacterData.ClothingPlaceholderId ? (string.IsNullOrEmpty(clothing) ? null : clothing) :
 			m_values.GetValueOrDefault(propertyId) is { } value && !(obscuring?.Hides(propertyId, value) ?? false) ? value : null;
 
 		return templates.Format(templateId, x => GetText(GetVisibleValue(x.Id), x.Field), GetVisibleValue);
@@ -57,7 +59,7 @@ public sealed class CharacterTraits
 
 	public string GetFullName(TextTemplateSet templates, CharacterObscuring? obscuring = null) => Format(templates, CharacterData.FullNameTemplateId, obscuring);
 
-	public string GetDescription(TextTemplateSet templates, CharacterObscuring? obscuring = null) => Format(templates, CharacterData.DescriptionTemplateId, obscuring);
+	public string GetDescription(TextTemplateSet templates, CharacterObscuring? obscuring = null, string? clothing = null) => Format(templates, CharacterData.DescriptionTemplateId, obscuring, clothing);
 
 	private string GetText(TextTemplatePlaceholder placeholder) => GetText(m_values.GetValueOrDefault(placeholder.Id), placeholder.Field);
 

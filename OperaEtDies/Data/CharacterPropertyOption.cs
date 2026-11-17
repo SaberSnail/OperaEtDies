@@ -48,12 +48,12 @@ public sealed class CharacterPropertyOption : IIdentified, IHasFrequency
 	public CharacterCondition? When { get; init; }
 
 	/// <summary>
-	/// How hard the value is to hide, from <see cref="CharacterObscurer.MinStrength"/> (easily hidden) to
-	/// <see cref="CharacterObscurer.MaxStrength"/> (only hidden by the strongest obscurers, the default).
+	/// How hard the value is to hide, from <see cref="CharacterObscuring.MinStrength"/> (easily hidden) to
+	/// <see cref="CharacterObscuring.MaxStrength"/> (only hidden by the strongest obscurers, the default).
 	/// </summary>
 	public int? Prominence { get; init; }
 
-	public int GetProminence() => Prominence ?? CharacterObscurer.MaxStrength;
+	public int GetProminence() => Prominence ?? CharacterObscuring.MaxStrength;
 
 	/// <summary>
 	/// Gets the value's frequency, given a function that gets the condition value id of other properties: the first

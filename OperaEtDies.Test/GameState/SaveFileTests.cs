@@ -164,6 +164,85 @@ public sealed class SaveFileTests
 	}
 
 	[Test]
+	public void ClothingSavesAndLoads()
+	{
+		var (world, person, worn, carried, stored) = CreateWorldWithClothing();
+		stored.IsInWash = true;
+		carried.DryAt = world.GameData.Calendar.AddMinutes(world.Time, 60);
+		var outfit = person.Outfits[0];
+		person.SetPlan(null, [new FetchClothesTask(outfit), new AtWorkTask(true, outfit), new ChangeClothesTask(outfit, IsTakingOff: true) { ResumeMinutes = 3 }]);
+
+		var json = CreateSave(world).Serialize();
+		var loaded = SaveFile.Deserialize(json).Load(world.GameData, GameTitle, new Random(0));
+
+		Assert.That(CreateSave(loaded).Serialize(), Is.EqualTo(json));
+		var loadedOutfit = loaded.Objects.Get<OwnedOutfit>(outfit.Id);
+		Assert.That(loaded.Objects.Get<Person>(person.Id).Tasks, Is.EqualTo(new PersonTask[] { new FetchClothesTask(loadedOutfit), new AtWorkTask(true, loadedOutfit), new ChangeClothesTask(loadedOutfit, IsTakingOff: true) { ResumeMinutes = 3 } }));
+		var loadedPerson = loaded.Objects.Get<Person>(person.Id);
+		var loadedWorn = loaded.Objects.Get<ClothingPiece>(worn.Id);
+		var loadedCarried = loaded.Objects.Get<ClothingPiece>(carried.Id);
+		var loadedStored = loaded.Objects.Get<ClothingPiece>(stored.Id);
+		Assert.That(loadedPerson.Clothing.Pieces, Is.EqualTo(new[] { loadedWorn }));
+		Assert.That(loadedWorn.Wearer, Is.SameAs(loadedPerson));
+		Assert.That(loadedPerson.Inventory.Items, Is.EqualTo(new[] { loadedCarried }));
+		Assert.That(loadedCarried.Container, Is.SameAs(loadedPerson.Inventory));
+		Assert.That(loadedPerson.Home.Items.GetOwnedBy(loadedPerson), Does.Contain(loadedStored));
+		Assert.That(loadedStored.Owner, Is.SameAs(loadedPerson));
+		Assert.That(loadedWorn.Description, Is.EqualTo(worn.Description));
+		Assert.That(loadedStored.Colors.Select(x => (x.Key, x.Value.Id)), Is.EqualTo(stored.Colors.Select(x => (x.Key, x.Value.Id))));
+		Assert.That(loadedStored.IsInWash, Is.True);
+		Assert.That(loadedCarried.DryAt, Is.EqualTo(carried.DryAt));
+		Assert.That(loadedWorn.IsInWash, Is.False);
+		Assert.That(loadedWorn.DryAt, Is.Null);
+	}
+
+	[Test]
+	public void LoadFailsForInvalidClothing()
+	{
+		var (world, person, worn, carried, _) = CreateWorldWithClothing();
+		var save = CreateSave(world);
+		var personRecord = save.Objects.OfType<PersonRecord>().Single(x => x.Id == person.Id);
+		var wornRecord = save.Objects.OfType<ClothingPieceRecord>().Single(x => x.Id == worn.Id);
+		var otherPerson = save.Objects.OfType<PersonRecord>().First(x => x.Id != person.Id);
+
+		AssertLoadFails(Replace(save, wornRecord, wornRecord with { Clothing = "chainmail" }), world.GameData, "chainmail");
+		AssertLoadFails(Replace(save, wornRecord, wornRecord with { Colors = new Dictionary<string, string> { ["main"] = "plaid" } }), world.GameData, "plaid");
+		AssertLoadFails(Replace(save, wornRecord, wornRecord with { Colors = new Dictionary<string, string>() }), world.GameData, worn.Id.ToString().TrimStart('#'));
+		AssertLoadFails(Replace(save, personRecord, personRecord with { Inventory = [carried.Id, worn.Id] }), world.GameData, worn.Id.ToString().TrimStart('#'));
+		AssertLoadFails(Replace(save, otherPerson, otherPerson with { Clothing = [worn.Id] }), world.GameData, worn.Id.ToString().TrimStart('#'));
+		AssertLoadFails(Replace(save, personRecord, personRecord with { Clothing = [worn.Id, carried.Id] }), world.GameData, carried.Id.ToString().TrimStart('#'));
+		AssertLoadFails(Replace(save, personRecord, personRecord with { Clothing = [personRecord.Id] }), world.GameData, nameof(ClothingPiece));
+		var outfit = save.Objects.OfType<OwnedOutfitRecord>().First();
+		AssertLoadFails(Replace(save, outfit, outfit with { Pieces = [outfit.Pieces[0], outfit.Pieces[0]] }), world.GameData, outfit.Id.ToString().TrimStart('#'));
+		AssertLoadFails(Replace(save, outfit, outfit with { Template = "ballgown" }), world.GameData, "ballgown");
+	}
+
+	/// <summary>
+	/// Creates a world from the shipped data in which one person wears only a tunic, carries another, and keeps a coif at home.
+	/// </summary>
+	private static (GameWorld World, Person Person, ClothingPiece Worn, ClothingPiece Carried, ClothingPiece Stored) CreateWorldWithClothing()
+	{
+		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
+		var random = new Random(0);
+		var world = GameWorld.CreateNewGame(gameData, CharacterRandomizer.CreateRandomPlayer(gameData, random), random);
+		var person = world.Npcs[0];
+		ClothingPiece Create(string clothingId, string colorId)
+		{
+			var clothing = gameData.Clothing.Get(clothingId);
+			return world.Objects.Create(id => new ClothingPiece(id, clothing, clothing.Colors.ToDictionary(x => x, _ => gameData.ClothingColors.Get(colorId)), person));
+		}
+
+		var worn = Create("tunic", "russet");
+		var carried = Create("tunic", "woad");
+		var stored = Create("coif", "undyed");
+		person.Clothing.TakeOffAll(person.Home.Items);
+		person.Clothing.Wear(worn);
+		person.Inventory.Add(carried);
+		person.Home.Items.Add(stored);
+		return (world, person, worn, carried, stored);
+	}
+
+	[Test]
 	public void LoadedGameKeepsCreatingNewIds()
 	{
 		var (_, world) = GameWorldTests.CreateWorld();

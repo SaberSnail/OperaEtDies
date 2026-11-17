@@ -18,6 +18,8 @@ public sealed class NewGameViewModel : ViewModelBase
 	{
 		m_character = new CharacterRandomizer(gameData, random, CharacterRole.Player);
 		m_portraitRenderer = gameData.PortraitRenderer;
+		m_gameData = gameData;
+		m_clothingSeed = random.Next();
 		m_atWorkPropertyId = gameData.Families.Roles.Properties.AtWork;
 		m_notAtWork = gameData.CharacterProperties.Find(m_atWorkPropertyId)?.Values?.FirstOrDefault(x => x.Id == gameData.Families.Roles.NotAtWork);
 		m_developerPropertyId = isDeveloper ? gameData.Families.Roles.Properties.Gender : null;
@@ -64,10 +66,10 @@ public sealed class NewGameViewModel : ViewModelBase
 	public CharacterPropertyEditorViewModel? FindProperty(string id) => Properties.FirstOrDefault(x => x.Id == id);
 
 	/// <summary>
-	/// A picture of the player character as currently configured, at home and not at work, or null if there's no
-	/// portrait data.
+	/// A picture of the player character as currently configured, at home and not at work, in everyday clothes, or null
+	/// if there's no portrait data.
 	/// </summary>
-	public ImageSource? Portrait => VerifyAccess(m_portrait ??= m_portraitRenderer?.Render(GetPortraitTraits(), PortraitPlace.Home));
+	public ImageSource? Portrait => VerifyAccess(m_portrait ??= m_portraitRenderer?.Render(GetPortraitTraits(), PortraitPlace.Home, GetPortraitClothing()));
 
 	/// <summary>
 	/// Randomizes everything except string values the player customized.
@@ -110,6 +112,12 @@ public sealed class NewGameViewModel : ViewModelBase
 		return m_notAtWork is null ? traits : traits.With(m_atWorkPropertyId, m_notAtWork);
 	}
 
+	/// <summary>
+	/// Chooses everyday clothes for the portrait. The same seed is used each time, so the clothes only change when the
+	/// character does.
+	/// </summary>
+	private PortraitClothing GetPortraitClothing() => PortraitClothing.ChooseOutfits(m_gameData, GetPortraitTraits(), [OutfitKind.Everyday], new Random(m_clothingSeed));
+
 	private CharacterPropertyEditorViewModel CreateEditor(CharacterProperty property, bool isDeveloperOnly) => property.Type switch
 	{
 		CharacterPropertyType.String => new StringPropertyEditorViewModel(m_character, property) { IsDeveloperOnly = isDeveloperOnly },
@@ -119,6 +127,8 @@ public sealed class NewGameViewModel : ViewModelBase
 	};
 
 	private readonly CharacterRandomizer m_character;
+	private readonly GameData m_gameData;
+	private readonly int m_clothingSeed;
 	private readonly PortraitRenderer? m_portraitRenderer;
 	private readonly string m_atWorkPropertyId;
 	private readonly CharacterPropertyOption? m_notAtWork;

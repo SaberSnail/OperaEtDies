@@ -1274,11 +1274,27 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	/// </summary>
 	private void AddOperationFor(string op, bool includeValue)
 	{
-		if (m_project is not { } project || m_selectedNode?.GetPiece() is not { } piece || ModEditing.GetDataPath(piece) is not { } path)
+		if (m_selectedNode?.GetPiece() is { } piece && ModEditing.GetDataPath(piece) is { } path)
+			AddOperation(op, path, includeValue, piece.Value);
+	}
+
+	/// <summary>
+	/// Whether a mod is open, so operations can be added to it.
+	/// </summary>
+	internal bool CanAddOperation => m_project is not null;
+
+	/// <summary>
+	/// Adds an operation to the mod for a path in the game data: a replace (with the current value, so it's easy to see what
+	/// it was), which is then selected in the mod's tree to be changed, or a remove, after which the selection stays where it
+	/// is.
+	/// </summary>
+	internal void AddOperation(string op, string path, bool includeValue, JsonNode? value)
+	{
+		if (m_project is not { } project)
 			return;
 		var operation = new JsonObject { ["op"] = op, ["path"] = path };
 		if (includeValue)
-			operation["value"] = ModJson.Clone(piece.Value);
+			operation["value"] = ModJson.Clone(value);
 
 		ModLocation? added = null;
 		ChangeOrReport(() =>
@@ -1969,4 +1985,10 @@ internal sealed class FormChanges(MainWindowViewModel host) : IFormChanges
 	public ModLocation? GetSource(string path) => host.GetLastSourceAt(path);
 
 	public void GoTo(ModLocation location) => host.GoToSource(location);
+
+	public bool CanChangeMod => host.CanAddOperation;
+
+	public void Replace(string path, JsonNode? value) => host.AddOperation("replace", path, includeValue: true, value);
+
+	public void Remove(string path) => host.AddOperation("remove", path, includeValue: false, null);
 }

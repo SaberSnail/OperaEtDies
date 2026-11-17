@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using GoldenAnvil.Utility;
 using OperaEtDies.Data;
 
 namespace OperaEtDies.Test.Data;
@@ -93,6 +94,15 @@ public sealed class ModPatcherTests
 	public void ReplaceNeedsExistingTarget()
 	{
 		Assert.That(GetErrors("""[ { "op": "replace", "path": "items[a].missing", "value": 1 } ]"""), Has.Count.EqualTo(1));
+	}
+
+	[Test]
+	public void OperationsCanHaveComments()
+	{
+		var result = Apply("""[ { "comments": "Not needed.", "op": "remove", "path": "items[a]" } ]""");
+		Assert.That(GetIds(result), Does.Not.Contain("a"));
+
+		Assert.That(GetErrors("""[ { "comments": 3, "op": "remove", "path": "items[a]" } ]"""), Is.EqualTo(new[] { OurResources.ModOperationCommentsInvalid.FormatCurrentCulture("1", "comments") }));
 	}
 
 	[Test]

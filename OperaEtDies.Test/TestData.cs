@@ -31,7 +31,8 @@ internal static class TestData
 		{
 			MinimumUrgency = 40,
 			SightingHours = 24,
-			Sleep = new SleepSettings { NapBelow = napBelow, NapMinutes = Range(30, 30), BedtimeLead = 60 },
+			Sleep = new SleepSettings { NapBelow = napBelow, NapMinutes = Range(30, 30), BedtimeLead = 60, DayClothesFactor = 1 },
+			Clothing = new ClothingSchedule { ChangeMinutes = 5, DryingMinutes = 60 },
 			Talking = new TalkingSettings { RefuseUrgency = 95, WakeLevel = 6, AskAboutMinutes = 1, AskDoingMinutes = 5 },
 			Socializing = new SocializingSettings { ChatMinutes = 30, ChatUrgency = 25, ChatGoalWeight = 0.5, WakeUrgency = 90, NearMinutes = 15, SeekFactor = 0.6, SeekMinutes = 15, RecentHours = 12, AskPlayerAgainHours = 4, Clues = new SeekClues { Workplace = 3, Home = 2, Sighting = 4, Gathering = 2 } },
 			UrgencyPower = 2,
@@ -108,7 +109,7 @@ internal static class TestData
 		CreateTemplateList(fullName, description);
 
 	/// <summary>
-	/// Reads character data (properties, templates, and obscurers) from JSON and checks it on its own, the way the game
+	/// Reads character data (properties, templates, and what each item in a "clothing" list obscures) from JSON and checks it on its own, the way the game
 	/// does before checking it against the rest of the data.
 	/// </summary>
 	public static DataLoadResult<CharacterData> LoadCharacterData(string json)
@@ -118,7 +119,9 @@ internal static class TestData
 		try
 		{
 			IReadOnlyList<T> List<T>(string name) => root.TryGetPropertyValue(name, out var node) ? System.Text.Json.JsonSerializer.Deserialize<List<T>>(node, JsonDataLoader.Options)! : [];
-			data = new CharacterData { Properties = List<CharacterProperty>("properties"), Templates = List<CharacterTemplate>("templates"), Obscurers = List<CharacterObscurer>("obscurers") };
+			// Only what the clothing obscures matters to the character data.
+			var obscurers = root.TryGetPropertyValue("clothing", out var clothing) ? clothing!.AsArray().Select(x => (IReadOnlyDictionary<string, int>) System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(x!["obscures"], JsonDataLoader.Options)!).ToList() : [];
+			data = new CharacterData { Properties = List<CharacterProperty>("properties"), Templates = List<CharacterTemplate>("templates"), Obscurers = obscurers };
 		}
 		catch (System.Text.Json.JsonException e)
 		{

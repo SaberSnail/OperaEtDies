@@ -7,7 +7,7 @@ namespace OperaEtDies.Data;
 /// </summary>
 internal static class GameDataValidation
 {
-	public static IReadOnlyList<string> Validate(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, RelationshipSettings relationships, CalendarSettings calendar, ScheduleSettings schedules, PortraitData? portraits = null)
+	public static IReadOnlyList<string> Validate(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, RelationshipSettings relationships, CalendarSettings calendar, ScheduleSettings schedules, PortraitData? portraits = null, ClothingData? clothing = null)
 	{
 		var properties = new Dictionary<string, CharacterProperty>(StringComparer.Ordinal);
 		foreach (var property in characters.Properties.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)))
@@ -23,7 +23,7 @@ internal static class GameDataValidation
 
 		// House titles are filled in from the head's character properties.
 		if (TextTemplate.TryParse(locations.Village.HouseTitle ?? "", out var houseTitle))
-			errors.AddRange(CharacterData.ValidatePlaceholders("village.houseTitle", houseTitle, null, properties, new HashSet<string>(StringComparer.Ordinal)));
+			errors.AddRange(CharacterData.ValidatePlaceholders("village.houseTitle", houseTitle, null, properties, new HashSet<string>(StringComparer.Ordinal), allowsClothing: false));
 
 		// Schedules use the character properties, the kinds of quarter, and the days of the week.
 		errors.AddRange(ValidateSchedules(schedules, properties, locations, calendar));
@@ -32,18 +32,70 @@ internal static class GameDataValidation
 		if (portraits is not null)
 		{
 			var quarterKinds = locations.QuarterKinds.Where(x => x?.Id is not null).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
-			errors.AddRange(ValidatePortraits(portraits, properties, quarterKinds, professionProperty));
+			errors.AddRange(ValidatePortraits(portraits, properties, quarterKinds, professionProperty, clothing ?? ClothingData.None));
+		}
+
+		// Outfits and modesty rules are given to characters by their properties.
+		if (clothing is not null)
+			errors.AddRange(clothing.GetConditions().SelectMany(x => CharacterData.ValidateCondition(x.Path, x.Condition, properties, isTemplate: false)));
+
+		// Properties show on regions of the body, and professions change how well covered people must be in them while
+		// working. Without clothing, there are no regions, and clothing never hides anything.
+		var slotIds = (clothing ?? ClothingData.None).Slots.Where(x => !string.IsNullOrWhiteSpace(x?.Id)).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+		foreach (var property in properties.Values.Where(x => x.Regions is { Count: > 0 } && slotIds.Count != 0))
+			errors.AddRange(ValidateRegions($"properties[{property.Id}].regions", property.Regions, slotIds));
+		var ruleIds = (clothing ?? ClothingData.None).ModestyRules.Where(x => !string.IsNullOrWhiteSpace(x?.Id)).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+		foreach (var profession in professions.Professions.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)))
+		{
+			var path = $"professions[{profession.Id}].modesty";
+			foreach (var (ruleId, adjustments) in profession.Modesty ?? new Dictionary<string, IReadOnlyDictionary<string, int>>())
+			{
+				if (!ruleIds.Contains(ruleId))
+					errors.Add(OurResources.DataIdUnknown.FormatCurrentCulture(path, ruleId, "modestyRules"));
+				errors.AddRange(ClothingData.ValidateSlotValues($"{path}.{ruleId}", adjustments ?? new Dictionary<string, int>(), slotIds, -ClothingItem.MaxCoverage));
+			}
 		}
 
 		return errors;
 	}
 
 	/// <summary>
-	/// Checks the portrait data against the character properties, the kinds of quarter, and the profession property (if
-	/// it's known).
+	/// Checks a list of regions of the body: unique clothing slot ids.
 	/// </summary>
-	public static IEnumerable<string> ValidatePortraits(PortraitData portraits, IReadOnlyDictionary<string, CharacterProperty> properties, IReadOnlySet<string> quarterKinds, CharacterProperty? professionProperty)
+	private static IEnumerable<string> ValidateRegions(string path, IReadOnlyList<string> regions, IReadOnlySet<string> slotIds) =>
+		DataValidation.ValidateStrings(path, regions)
+			.Concat(regions.Where(x => !string.IsNullOrWhiteSpace(x) && !slotIds.Contains(x)).Select(x => OurResources.DataIdUnknown.FormatCurrentCulture(path, x, "clothingSlots")));
+
+	/// <summary>
+	/// Checks the portrait data against the character properties, the kinds of quarter, and the profession property (if
+	/// it's known), and against the clothing: the regions whose coverage hides layers, the clothing layers draw, and the
+	/// colors of that clothing they use.
+	/// </summary>
+	public static IEnumerable<string> ValidatePortraits(PortraitData portraits, IReadOnlyDictionary<string, CharacterProperty> properties, IReadOnlySet<string> quarterKinds, CharacterProperty? professionProperty, ClothingData clothing)
 	{
+		var clothingById = new Dictionary<string, ClothingItem>(StringComparer.Ordinal);
+		foreach (var item in clothing.Items.Where(x => !string.IsNullOrWhiteSpace(x?.Id)))
+			clothingById.TryAdd(item.Id, item);
+
+		// Layers are hidden by how much clothing covers regions of the body.
+		var slotIds = clothing.Slots.Where(x => !string.IsNullOrWhiteSpace(x?.Id)).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+		var clothingErrors = new List<string>();
+		foreach (var layer in portraits.Layers.Where(x => x?.HiddenBy is not null && slotIds.Count != 0))
+			clothingErrors.AddRange(ValidateRegions($"portraitLayers[{layer.Id}].hiddenBy.regions", layer.HiddenBy!.Regions ?? [], slotIds));
+
+		foreach (var layer in portraits.Layers.Where(x => x?.Clothing is not null))
+		{
+			foreach (var id in layer.Clothing!.Where(x => !string.IsNullOrWhiteSpace(x) && !clothingById.ContainsKey(x)))
+				clothingErrors.Add(OurResources.DataIdUnknown.FormatCurrentCulture($"portraitLayers[{layer.Id}].clothing", id, "clothing"));
+		}
+
+		// A clothing layer's shapes can use the colors of each article of clothing it draws.
+		foreach (var (path, layerClothing, color) in portraits.GetClothingColors())
+		{
+			foreach (var item in layerClothing.Select(clothingById.GetValueOrDefault).OfType<ClothingItem>().Where(x => !(x.Colors ?? []).Contains(color, StringComparer.Ordinal)))
+				clothingErrors.Add(OurResources.PortraitClothingColorUnknown.FormatCurrentCulture(path, color, item.Id));
+		}
+
 		var errors = portraits.GetConditions()
 			.SelectMany(x => CharacterData.ValidateCondition(x.Path, x.Condition, properties, isTemplate: false))
 			.ToList();
@@ -60,6 +112,7 @@ internal static class GameDataValidation
 				.Select(x => OurResources.PortraitWorkplaceUnknown.FormatCurrentCulture(x.Path, x.Profession, professionProperty.Id)));
 		}
 
+		errors.AddRange(clothingErrors);
 		return errors;
 	}
 

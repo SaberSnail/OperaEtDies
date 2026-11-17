@@ -82,7 +82,7 @@ public sealed class ModEditorHelpRenderingTests
 
 		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: false, _ => { })!;
 
-		Assert.That(((OperationFieldViewModel) form.Root).Fields.Select(x => x.Help?.Row), Is.EqualTo(new[] { "op", "path" }));
+		Assert.That(((OperationFieldViewModel) form.Root).Fields.Select(x => x.Help?.Row), Is.EqualTo(new[] { "comments", "op", "path" }));
 		Assert.That(((OperationFieldViewModel) form.Root).Fields.All(x => x.Help?.Document == HelpLibrary.Mods), Is.True);
 	}
 }

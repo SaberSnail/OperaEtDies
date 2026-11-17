@@ -17,7 +17,14 @@ Problems are reported against the file holding the item or setting they're about
 | `game` | settings | [Game](#game) |
 | `properties` | list | [Character Property](#character-property) |
 | `templates` | list | [Character Template](#character-template) |
-| `obscurers` | list | [Obscurer](#obscurer). Optional. |
+| `clothingSlots` | list | [Clothing Slot](#clothing-slot). Optional. |
+| `clothingBulks` | list | [Clothing Bulk](#clothing-bulk). Optional. |
+| `clothingSettings` | settings | [Clothing Settings](#clothing-settings). Optional. |
+| `clothingLayers` | list | [Clothing Layer](#clothing-layer). Optional. |
+| `clothingColors` | list | [Clothing Color](#clothing-color). Optional, unless a clothing item has `colors`. |
+| `clothing` | list | [Clothing Item](#clothing-item). Optional. |
+| `outfits` | list | [Outfit](#outfit). Optional. |
+| `modestyRules` | list | [Modesty Rule](#modesty-rule). Optional. |
 | `professions` | list | [Profession](#profession) |
 | `families` | settings | [Families](#families) |
 | `relationships` | settings | [Relationships](#relationships) |
@@ -40,6 +47,7 @@ Problems are reported against the file holding the item or setting they're about
 | `portraitColors` | list | [Portrait Color](#portrait-color). Optional. |
 | `portraitScales` | list | [Portrait Scale](#portrait-scale). Optional. |
 | `portraitOffsets` | list | [Portrait Offset](#portrait-offset). Optional. |
+| `portraitShapeSets` | list | [Portrait Shape Set](#portrait-shape-set). Optional. |
 | `portraitLayers` | list | [Portrait Layer](#portrait-layer). Required with `portraits`. |
 
 ## General Rules
@@ -67,14 +75,14 @@ Text of a sentence or more.
 
 | Property | Type | Notes |
 |---|---|---|
-| `text` | string | |
+| `text` | string | The text. |
 | `ai` | boolean | Whether AI wrote the text. Not used by the game. |
 
 #### Integer Range
 
 | Property | Type | Notes |
 |---|---|---|
-| `minimum` | integer | |
+| `minimum` | integer | The lowest number. |
 | `maximum` | integer | At least `minimum`. |
 | `shape` | [Shape](#shape) | Optional. Weights the numbers by their order. Without it, every number is equally likely. |
 
@@ -91,8 +99,8 @@ Weights an ordered list by a bell curve.
 
 | Property | Type | Notes |
 |---|---|---|
-| `value` | string | |
-| `frequency` | [Frequency](#frequency) | Optional (`common`). |
+| `value` | string | The value. |
+| `frequency` | [Frequency](#frequency) | Optional (`common`). How often it's chosen. |
 
 #### Condition
 
@@ -102,13 +110,13 @@ Has at least one of `values`, `notValues`, and `hidden`, and is met when every p
 |---|---|---|
 | `values` | map of string to list of string | Optional. Each key is a value list property, and each list holds its value ids or value group ids (see [Character Value](#character-value)). Outside templates, a key can also be an integer property with `groups`, with group ids. Met when every listed property has one of its listed values. A property with no value never meets it. |
 | `notValues` | map of string to list of string | Optional. Like `values`, but met when every listed property has a value that isn't listed. |
-| `hidden` | list of string | Optional. Templates only. Property ids that must have no visible value. In templates, a property whose value is obscured counts as having no value. |
+| `hidden` | list of string | Optional. Templates only. Property ids that must have no visible value. Character templates can also list `clothing`. In templates, a property whose value is obscured counts as having no value. |
 
 #### Frequency Override
 
 | Property | Type | Notes |
 |---|---|---|
-| `when` | [Condition](#condition) | Can't use `hidden`. |
+| `when` | [Condition](#condition) | Can't use `hidden`. When the override applies. |
 | `frequency` | [Frequency](#frequency) | Used in place of the usual frequency when `when` is met. |
 
 In a list of overrides, the first whose condition is met is used. The item then has the chance an item of the new frequency has among the list's usual frequencies, and the chances are scaled to add up to 100.
@@ -123,7 +131,7 @@ The hours of the day something happens in.
 
 | Property | Type | Notes |
 |---|---|---|
-| `start` | integer | From 0 to 23. |
+| `start` | integer | From 0 to 23. The hour it starts. |
 | `end` | integer | From 1 to 24 (midnight), and different from `start`. An end before the start runs past midnight. |
 | `days` | list of string | Optional (every day). Only where noted. Day ids, each listed once. |
 | `onSpecialDays` | boolean | Optional (true). Only where noted. |
@@ -136,10 +144,10 @@ The `game` settings section.
 
 | Property | Type | Notes |
 |---|---|---|
-| `title` | string | Mods can't change it. |
-| `description` | [Long Text](#long-text) | |
+| `title` | string | Mods can't change it. The game's name. |
+| `description` | [Long Text](#long-text) | Shown when choosing a game to play. |
 | `icon` | string | Optional. Path of the application icon, relative to the data folder. Not rooted, and no invalid path characters. Mods can't change it. |
-| `frequencyChances` | [Frequency Chances](#frequency-chances) | Optional. |
+| `frequencyChances` | [Frequency Chances](#frequency-chances) | Optional. The chance of each frequency. |
 | `lowChanceWarning` | number | Optional. At least 0 and less than 100. A warning is logged when the data loads for every character value with this chance or less of being chosen, for each role. |
 
 #### Frequency Chances
@@ -148,9 +156,9 @@ Percentages. `uncommon`, `rare`, and `veryRare` together must be less than 100.
 
 | Property | Type | Notes |
 |---|---|---|
-| `uncommon` | number | Optional (20). At least 0. |
-| `rare` | number | Optional (5). At least 0. |
-| `veryRare` | number | Optional (0.5). At least 0. |
+| `uncommon` | number | Optional (20). At least 0. The chance shared by the uncommon items in a list. |
+| `rare` | number | Optional (5). At least 0. The chance shared by the rare items in a list. |
+| `veryRare` | number | Optional (0.5). At least 0. The chance shared by the very rare items in a list. |
 | `stepMultiplier` | number | Optional (1.5). At least 1. How much each `+` multiplies a chance by, and each `-` divides it by. |
 
 ## Characters
@@ -159,7 +167,7 @@ Percentages. `uncommon`, `rare`, and `veryRare` together must be less than 100.
 
 | Property | Type | Notes |
 |---|---|---|
-| `id` | string | Unique within `properties`. |
+| `id` | string | Unique within `properties`, and not `clothing`. |
 | `title` | string | Shown on the new game screen. |
 | `type` | string | `string`, `integer`, or `valueList`. |
 | `role` | string | Optional. See [Roles](#roles). |
@@ -174,6 +182,8 @@ Percentages. `uncommon`, `rare`, and `veryRare` together must be less than 100.
 | `defaults` | [String Defaults](#string-defaults) | Optional. Strings only. |
 | `player` | [Role Settings](#role-settings) | Optional. Replaces settings for the player. |
 | `npc` | [Role Settings](#role-settings) | Optional. Replaces settings for everyone else. |
+| `regions` | list of string | Optional (none). Unique clothing slot ids, when there are clothing slots: the regions of the body the property shows on. Worn clothing hides a value when it covers every one of them at least as much as the value's prominence (string and integer values have a prominence of 10). How much a region is covered is the most `coverage` any worn piece gives it. Without regions, clothing never hides the property. |
+| `form` | boolean | Optional (false). Whether the property is about the form of the body, such as a paunch or broad shoulders: only worn clothing whose `bulk` has `hidesForm` counts toward hiding it. |
 
 A value list property picks a value, by frequency or shape, from those whose conditions are met, and picks again when its value's condition stops being met. An integer picks a number in its range. A string picks a default, or is blank. On the new game screen, the player must fill in every string property they have; a property is hidden while it has no value or only one possible value.
 
@@ -184,21 +194,21 @@ A value list property picks a value, by frequency or shape, from those whose con
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | Unique within the property. |
-| `title` | string | |
+| `title` | string | Shown on the new game screen, and in templates by `{id}`. |
 | `role` | string | Optional. See [Roles](#roles). |
 | `groups` | list of string | Optional. Groups the value is in. A condition listing a group id means every value in the group. A group can't be the id of one of the property's values. |
-| `frequency` | [Frequency](#frequency) | Optional (`common`). |
+| `frequency` | [Frequency](#frequency) | Optional (`common`). How often it's chosen. |
 | `frequencyWhen` | list of [Frequency Override](#frequency-override) | Optional. Frequencies that replace `frequency` when their conditions are met. |
 | `text` | map of string to string | Optional. Named text for templates. |
 | `when` | [Condition](#condition) | Optional. A character can only have the value when it's met. |
-| `prominence` | integer | Optional (3). From 1 to 3: how hard the value is to hide from obscurers. |
+| `prominence` | integer | Optional (10). From 1 to 10: how much clothing must cover the property's `regions` to hide the value. Only allowed when the property has `regions`. |
 
 #### Integer Group
 
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | Unique within `groups`. |
-| `minimum` | integer | Optional (no lower limit). |
+| `minimum` | integer | Optional (no lower limit). The lowest number in the group. |
 | `maximum` | integer | Optional (no upper limit). At least `minimum`. |
 
 #### String Defaults
@@ -207,7 +217,7 @@ Has `values`, or `keyedBy` with `valuesByKey`. A list whose key is a value of th
 
 | Property | Type | Notes |
 |---|---|---|
-| `values` | list of [Weighted Value](#weighted-value) | Optional. |
+| `values` | list of [Weighted Value](#weighted-value) | Optional. The defaults to pick from. |
 | `keyedBy` | string | Optional. A value list property. Its value picks the list, and a new default is picked when it changes. |
 | `valuesByKey` | map of string to list of [Weighted Value](#weighted-value) | Optional. Each key is a value of `keyedBy`. Unless there are `otherValues`, every value `keyedBy` can have (for each role using these defaults) needs a list. |
 | `otherValues` | list of [Weighted Value](#weighted-value) | Optional. Keyed defaults only. Used for keys without a list, and what randomizing just this property on the new game screen picks from. |
@@ -224,12 +234,12 @@ Each setting is only allowed for the property type it applies to, and replaces t
 
 #### Character Template
 
-Has `template` or `variants`. The ids `fullName` and `description` must exist.
+Has `template` or `variants`. The ids `fullName` and `description` must exist. Their templates can also use `{clothing}`, without a named entry: in `description` and the templates it uses, the `description` of each piece of clothing worn that can be seen (see [Clothing Layer](#clothing-layer)), in the order of the first slot each takes in `clothingSlots` and then from the outermost layer in, joined into a list such as "a, b, and c". It has no visible value when nothing is worn, or in `fullName`.
 
 | Property | Type | Notes |
 |---|---|---|
-| `id` | string | Unique within `templates`, and not a property id. |
-| `template` | string | Optional. [Template](#template). |
+| `id` | string | Unique within `templates`, not a property id, and not `clothing`. |
+| `template` | string | Optional. [Template](#template). The text, for a template without variants. |
 | `variants` | list of [Template Variant](#template-variant) | Optional. The first variant whose `when` is met is used. |
 
 #### Template Variant
@@ -237,18 +247,9 @@ Has `template` or `variants`. The ids `fullName` and `description` must exist.
 | Property | Type | Notes |
 |---|---|---|
 | `when` | [Condition](#condition) | Optional. Without it, the variant is always used. |
-| `template` | string | [Template](#template). Can be empty. |
+| `template` | string | [Template](#template). Can be empty. The text. |
 
-#### Obscurer
-
-Something that keeps some properties from being seen or heard, depending on the situation in the game.
-
-| Property | Type | Notes |
-|---|---|---|
-| `id` | string | |
-| `hides` | map of string to integer | Each key is a property id, or `*` for every property, and each strength is from 1 to 3. A value is hidden by a strength at least its prominence. String and integer values have a prominence of 3. |
-
-**Checks.** For each role, conditions are checked in every combination of the values they depend on (leaving out Frequency Overrides). Every value list property must have an allowed value in every combination where its own condition is met. Every template in use (`fullName`, `description`, templates no other template uses, and those their variants use) must, in every combination of what its conditions and placeholders depend on, have a variant that's used and whose placeholders all have visible values, with each property the obscurers could hide checked both visible and hidden. A check can have at most 10000 combinations, and a template can use at most 10 properties the obscurers could hide.
+**Checks.** For each role, conditions are checked in every combination of the values they depend on (leaving out Frequency Overrides). Every value list property must have an allowed value in every combination where its own condition is met. Every template in use (`fullName`, `description`, templates no other template uses, and those their variants use) must, in every combination of what its conditions and placeholders depend on, have a variant that's used and whose placeholders all have visible values, with each property clothing can hide (with every piece of clothing worn at once), and `{clothing}`, checked both visible and hidden. A check can have at most 10000 combinations, and a template can use at most 10 of these.
 
 ### Roles
 
@@ -278,17 +279,17 @@ A value of the `profession` property, and how its businesses work. The roles `ho
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | Unique within `professions`. |
-| `title` | string | |
+| `title` | string | Shown on the new game screen, and in templates by `{profession}`. |
 | `role` | string | Optional. `homemaker` or `infirm`. |
 | `groups` | list of string | Optional. As for a [Character Value](#character-value). |
 | `player` | boolean | Optional (true). Whether the player can choose it. A profession without `business` must have it false. |
-| `frequency` | [Frequency](#frequency) | Optional (`common`). |
+| `frequency` | [Frequency](#frequency) | Optional (`common`). How often it's chosen. |
 | `frequencyWhen` | list of [Frequency Override](#frequency-override) | Optional. Frequencies that replace `frequency` when their conditions are met. |
 | `text` | map of string to string | Optional. Named text for templates. |
 | `when` | [Condition](#condition) | Optional. A character can only have the profession when it's met. |
-| `prominence` | integer | Optional (3). From 1 to 3. |
 | `defaults` | map of string to list of [Weighted Value](#weighted-value) | Optional. Each key is a string property whose defaults are keyed by the `profession` property without their own `valuesByKey`. The profession's usual values, such as its last names. |
 | `business` | [Business](#business) | Optional. Without it, the profession isn't a business. |
+| `modesty` | map of string to map of string to integer | Optional (none). Can be empty. Each key is a modesty rule id, and each value a map whose keys are clothing slot ids and whose values are from -10 to 10: how much more (or less, when negative) that [Modesty Rule](#modesty-rule)'s minimums are for that slot while working, for people following it. |
 
 #### Business
 
@@ -302,6 +303,103 @@ A value of the `profession` property, and how its businesses work. The roles `ho
 | `forHouseholdElders` | boolean | Optional (false). Only with `worksFromHome`. A household elder can take it up. |
 | `hours` | [Hours](#hours) | Optional. Without `days` or `onSpecialDays`. Used in place of the hours of the needs met at the workplace. |
 
+## Clothing
+
+#### Clothing Slot
+
+A region of the body. Clothing is anchored in its `slots`, and someone wears at most one piece of clothing in each slot in each layer. How much of each region clothing covers, whether it's anchored there or not, is its `coverage`. Worn clothing is described in the order of the first slot each piece takes.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | |
+| `title` | string | Shown when the player must cover it more. |
+
+#### Clothing Layer
+
+How close to the body clothing is worn, listed from the innermost out. A worn piece is left out of the description of what someone is wearing when each of its slots is covered at least as much as the [Clothing Settings](#clothing-settings) `hidesClothingAt` by worn pieces in layers outside its own.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | |
+| `title` | string | Its name. |
+
+#### Clothing Bulk
+
+How loose or heavy clothing is.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | |
+| `title` | string | Its name. |
+| `modesty` | integer | Optional (0). From -10 to 10. How much more (or less, when negative) modesty clothing of the bulk gives than its `coverage`, in each region it covers. |
+| `hidesForm` | boolean | Optional (false). Whether clothing of the bulk hides the form of the body under it, for character properties with `form`. |
+
+#### Clothing Settings
+
+The `clothingSettings` settings section. Optional.
+
+| Property | Type | Notes |
+|---|---|---|
+| `hidesClothingAt` | integer | Optional (10). From 0 to 10. How much each slot of a worn piece must be covered, by pieces in layers outside it, to leave it out of the description of what someone is wearing. |
+
+#### Clothing Color
+
+Any clothing can be any color.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | |
+| `name` | string | The color in descriptions. |
+| `color` | string | `#RRGGBB`. How it's drawn in portraits. |
+| `article` | string | Optional (`a`). Goes before `name` where a description asks for it. |
+| `frequency` | [Frequency](#frequency) | Optional (`common`). How often a piece is given it. |
+
+#### Clothing Item
+
+An article of clothing. Each piece of it has a clothing color for each of its `colors`.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | |
+| `title` | string | Its name, such as "Tunic". |
+| `slots` | list of string | Unique clothing slot ids. Where it's anchored, which decides what it can be worn with. |
+| `layer` | string | A clothing layer id. How close to the body it's worn. |
+| `coverage` | map of string to integer | Optional (none). Can be empty. Each key is a clothing slot id, and each value from 0 to 10: how much of that region a worn piece covers, from 0 (none of it) to 10 (all of it), whether it takes the slot or not. A region that isn't listed is 0. |
+| `bulk` | string | Optional. A clothing bulk id. Without it, the piece's coverage counts as it is for modesty, and it doesn't hide form. |
+| `accessory` | boolean | Optional (`false`). Whether it's an accessory, such as shoes or a belt. Accessories aren't washed, and someone given several outfits with the same accessory gets one piece of it, which the outfits share. |
+| `colors` | list of string | Optional (none). Unique names for the clothing's colors. Each piece has a color for each, which `description` and portrait layers use by name. |
+| `description` | string | A few words describing a piece. Its placeholders are names in `colors`, replaced with the color's `name`, or with `article` and `name` when written `{name.a}`. The only format is `first_upper`. |
+| `text` | [Long Text](#long-text) | What it looks like. |
+
+#### Outfit
+
+Clothing worn together, given to people when they're created.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | |
+| `kind` | string | `everyday`, `work`, or `night`. |
+| `when` | [Condition](#condition) | Optional. Can't use `hidden`. Who can be given it. |
+| `frequency` | [Frequency](#frequency) | Optional (`common`). How often it's given. |
+| `clothing` | list of string | Unique clothing item ids, no two of which take the same slot in the same layer. Can be empty when `complete`. The clothing in the outfit. |
+| `complete` | boolean | Optional (false). Work outfits only. Whether it's a complete set of clothes worn on its own, such as a uniform: everything else is taken off when it's put on. Otherwise work clothes go over what's being worn. |
+
+#### Modesty Rule
+
+How well covered people must be. Each person follows the first rule whose `when` they meet, and one who meets none can wear anything. In each slot a rule lists, the modesty of the worn clothing must be at least the minimum: the most any worn piece covering the region gives, which is its `coverage` plus its `bulk`'s `modesty` (kept from 0 to 10), plus the profession's `modesty` for the slot while working (the minimum is kept from 0 to 10). The player can't close the inventory or wardrobe while they aren't covered enough (with the `home` minimums at home, and the `outside` ones elsewhere), and is warned and stopped when they aren't covered enough to leave home or follow someone out of it (`outside`), or start spending time on a need, in the clothes it changes them into, such as work clothes when starting work or night clothes when going to sleep at home (`home` or `outside`, by where they are). The `formal` minimums aren't used yet.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | |
+| `when` | [Condition](#condition) | Optional. Can't use `hidden`. Who follows the rule. Without it, everyone does. |
+| `home` | map of string to integer | Optional (none). Can be empty. Each key is a clothing slot id, and each value from 0 to 10. The minimums at home. |
+| `outside` | map of string to integer | Optional (none). Can be empty. As for `home`. The minimums out of the house. |
+| `formal` | map of string to integer | Optional (none). Can be empty. As for `home`. The minimums at formal occasions, such as church. |
+
+### How Clothing Is Given
+
+Everyone in a new game gets two `everyday` outfits, one `work` outfit, and one `night` outfit, each chosen by frequency from the outfits of that kind whose `when` they meet, with the shares worked out among those outfits alone. A kind with no outfit they can have is skipped. Each piece's colors are chosen by frequency from all the clothing colors. Everyone starts in their night outfit (or, without one, their first everyday outfit), and everything else is kept at home. Someone who starts at work wears their first everyday outfit with their work outfit over it, carrying the everyday pieces it replaces (those in the same slot and layer), or for a `complete` work outfit, wears just that, carrying their first everyday outfit.
+
 ## Families and Relationships
 
 #### Families
@@ -310,14 +408,14 @@ The `families` settings section.
 
 | Property | Type | Notes |
 |---|---|---|
-| `head` | [Head](#head) | |
-| `wife` | [Wife](#wife) | |
-| `children` | [Children](#children) | |
-| `elder` | [Elder](#elder) | |
-| `parentAge` | [Parent Age](#parent-age) | |
+| `head` | [Head](#head) | The head of each household. |
+| `wife` | [Wife](#wife) | The wife of a man at the head of a household. |
+| `children` | [Children](#children) | The children living with a household. |
+| `elder` | [Elder](#elder) | A parent of the head or the wife living with the household. |
+| `parentAge` | [Parent Age](#parent-age) | The ages at which people can have children. |
 | `helperChance` | number | Chance. That a member helps in a household business, when allowed and there's room. |
-| `wealth` | [Family Wealth](#family-wealth) | |
-| `inheritedProperties` | list of [Inherited Property](#inherited-property) | Optional (none). Can be empty. |
+| `wealth` | [Family Wealth](#family-wealth) | How wealthy each household is. |
+| `inheritedProperties` | list of [Inherited Property](#inherited-property) | Optional (none). Can be empty. Properties children get from their parents. |
 
 #### Head
 
@@ -382,7 +480,7 @@ A household elder: a parent of the head or the wife.
 | `infirm` | number | What each infirm member adds. Can be negative. |
 | `fortune` | [Integer Range](#integer-range) | Minimum at least 0. A percentage each household's wealth is multiplied by. |
 | `headAge` | map of string to number | Optional (100 for every group). Each key is an `age` group, and each value a percentage of at least 0 that a household's wealth is multiplied by, by the head's age. |
-| `thresholds` | [Wealth Thresholds](#wealth-thresholds) | |
+| `thresholds` | [Wealth Thresholds](#wealth-thresholds) | The household wealth needed for each wealth level. |
 
 #### Wealth Thresholds
 
@@ -407,10 +505,10 @@ The `relationships` settings section. Every two characters share a score from 0 
 | Property | Type | Notes |
 |---|---|---|
 | `score` | [Integer Range](#integer-range) | From 0 to 100. The starting score. |
-| `familyBonus` | integer | At least 0. |
-| `spouseBonus` | integer | At least 0. |
-| `elderBonus` | integer | At least 0. |
-| `elderInLawBonus` | integer | At least 0. |
+| `familyBonus` | integer | At least 0. Added to the starting score of two members of a household not covered by another bonus. |
+| `spouseBonus` | integer | At least 0. Added for a married couple in a household. |
+| `elderBonus` | integer | At least 0. Added for an elder and their child, or a child of the head. |
+| `elderInLawBonus` | integer | At least 0. Added for an elder and their child's spouse. |
 | `neighborBonus` | integer | At least 0. For characters in different households whose houses share a quarter. |
 | `friendScore` | integer | From 0 to 100. Characters with at least this score are friends. |
 | `levels` | list of [Relationship Level](#relationship-level) | In order of `minimum`: the first's is 0, and each after is higher, up to 100. A score is shown as the title of the last level it reaches. |
@@ -423,13 +521,13 @@ Within a household, the bonus comes from the head relation values: the head and 
 | Property | Type | Notes |
 |---|---|---|
 | `minimum` | integer | The lowest score with this title. |
-| `title` | string | |
+| `title` | string | Shown for a score in the level. |
 
 #### Player Relation
 
 | Property | Type | Notes |
 |---|---|---|
-| `when` | [Condition](#condition) | Can't use `hidden`. |
+| `when` | [Condition](#condition) | Can't use `hidden`. Who the relation is for. |
 | `title` | string | Shown as in "This is your {title}". |
 
 ### How Households Are Generated
@@ -487,7 +585,7 @@ A village with the feature only has a quarter of the kind `chance` percent of th
 | `id` | string | |
 | `shape` | string | `radial`, `linear`, `crossroads`, or `warren`. |
 | `center` | string | A unique village kind without `optional`, the shape is built around. |
-| `frequency` | [Frequency](#frequency) | Optional (`common`). |
+| `frequency` | [Frequency](#frequency) | Optional (`common`). How often it's chosen. |
 
 #### Map Feature
 
@@ -496,7 +594,7 @@ A village with the feature only has a quarter of the kind `chance` percent of th
 | `id` | string | |
 | `title` | string | Shown on the map. |
 | `type` | string | `river`: a channel one cell wide across the map. `area`: a rectangle next to the quarters that border it. |
-| `frequency` | [Frequency](#frequency) | Optional (`common`). |
+| `frequency` | [Frequency](#frequency) | Optional (`common`). How often it's chosen. |
 | `size` | [Quarter Size](#quarter-size) | Areas only, and required for them. |
 | `crossings` | list of string | Rivers only, and required for them. Each unique. What a path across can be called. |
 | `text` | list of [Long Text](#long-text) | Sentences that can be added to a bordering quarter's description. Each is a [Template](#template) whose only placeholder is `{direction}` (optionally `{direction:first_upper}`), the direction the feature is in. |
@@ -516,11 +614,11 @@ A group of houses and businesses, or a landmark if it has neither. Quarter, hous
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | |
-| `title` | string | |
-| `description` | [Location Description](#location-description) | |
-| `frequency` | [Frequency](#frequency) | Optional (`common`). |
+| `title` | string | Its name, shown in the game and on the map. |
+| `description` | [Location Description](#location-description) | What the player reads about it. |
+| `frequency` | [Frequency](#frequency) | Optional (`common`). How often it's chosen. |
 | `kind` | string | A quarter kind. |
-| `houses` | [Quarter Houses](#quarter-houses) | Optional (no houses). |
+| `houses` | [Quarter Houses](#quarter-houses) | Optional (no houses). How many houses it has, and their wealth. |
 | `businesses` | integer | Optional (0). At least 0. The most businesses. |
 | `size` | [Quarter Size](#quarter-size) | Optional (1 by 1). Can be turned either way. |
 | `borders` | string | Optional. Not for unique kinds. A feature it borders beyond its kind's. Only used in villages with it. |
@@ -539,16 +637,16 @@ A group of houses and businesses, or a landmark if it has neither. Quarter, hous
 
 | Property | Type | Notes |
 |---|---|---|
-| `length` | integer | Optional (1). At least 1. |
-| `width` | integer | Optional (1). At least 1. |
+| `length` | integer | Optional (1). At least 1. How many map cells long it is. |
+| `width` | integer | Optional (1). At least 1. How many map cells wide it is. |
 
 #### House
 
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | |
-| `description` | [Location Description](#location-description) | |
-| `frequency` | [Frequency](#frequency) | Optional (`common`). |
+| `description` | [Location Description](#location-description) | What the player reads about it. |
+| `frequency` | [Frequency](#frequency) | Optional (`common`). How often it's chosen. |
 | `wealth` | string | `low`, `medium`, or `high`. |
 
 A house has no `title`; it's titled by the village's `houseTitle`.
@@ -558,9 +656,9 @@ A house has no `title`; it's titled by the village's `houseTitle`.
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | |
-| `title` | string | |
-| `description` | [Location Description](#location-description) | |
-| `frequency` | [Frequency](#frequency) | Optional (`common`). |
+| `title` | string | Its name, shown in the game. |
+| `description` | [Location Description](#location-description) | What the player reads about it. |
+| `frequency` | [Frequency](#frequency) | Optional (`common`). How often it's chosen. |
 | `profession` | string | A business profession that doesn't work from home. |
 | `quarterKinds` | list of string | Each unique and a quarter kind. At least one must have a quarter with room for businesses. |
 
@@ -596,7 +694,7 @@ A day of the week, a week of each season, or a season of the year.
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | |
-| `title` | string | |
+| `title` | string | Shown in dates. |
 
 #### Day Part
 
@@ -605,7 +703,7 @@ Each lasts until the next starts, and the last until the first starts the next d
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | |
-| `title` | string | |
+| `title` | string | Shown with the time of day. |
 | `start` | integer | From 0 to 23, after the one before. |
 | `announcement` | [Long Text](#long-text) | Optional. What the player notices when it starts while they wait. Without it, they're told which part has begun. |
 
@@ -616,7 +714,7 @@ A day of the year with its own title, the same day every year.
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | |
-| `title` | string | |
+| `title` | string | Shown with the date. |
 | `season` | string | A season id. |
 | `week` | string | A week id. |
 | `day` | string | A day id. |
@@ -631,14 +729,15 @@ The `schedules` settings section.
 
 | Property | Type | Notes |
 |---|---|---|
-| `minimumUrgency` | number | At least 0. |
-| `urgencyPower` | number | More than 0. |
+| `minimumUrgency` | number | At least 0. Needs less urgent than this aren't chosen as goals. |
+| `urgencyPower` | number | More than 0. Urgency is raised to this power to weigh the choice of goal. |
 | `sightingHours` | integer | At least 1. How long people remember the last time they saw someone. |
-| `sleep` | [Sleep](#sleep) | |
-| `talking` | [Talking](#talking) | |
-| `socializing` | [Socializing](#socializing) | |
-| `idle` | [Idle](#idle) | |
-| `start` | [Start](#start) | |
+| `sleep` | [Sleep](#sleep) | How sleep works. |
+| `clothing` | [Clothing Schedule](#clothing-schedule) | How people change and wash their clothes. |
+| `talking` | [Talking](#talking) | How talking works. |
+| `socializing` | [Socializing](#socializing) | How people chat with and seek out friends. |
+| `idle` | [Idle](#idle) | What people do without a goal. |
+| `start` | [Start](#start) | How a new game starts. |
 
 #### Sleep
 
@@ -646,9 +745,25 @@ About the need with the `sleep` role. Choosing it below `napBelow` is a nap of `
 
 | Property | Type | Notes |
 |---|---|---|
-| `napBelow` | number | From 0 to 100. |
-| `napMinutes` | [Integer Range](#integer-range) | Minimum at least 1. |
-| `bedtimeLead` | integer | At least 1. |
+| `napBelow` | number | From 0 to 100. Sleep chosen while the sleep need is below this is a nap. |
+| `napMinutes` | [Integer Range](#integer-range) | Minimum at least 1. How long a nap lasts. |
+| `bedtimeLead` | integer | At least 1. Bedtime becomes urgent once there are fewer spare minutes than this before work. |
+| `dayClothesFactor` | number | More than 0, and at most 1. How fast sleep meets the need, as a share of its `satisfyPerHour`, while wearing any of the sleeper's everyday or work clothes. |
+
+#### Clothing Schedule
+
+How people handle their [clothing](#clothing-item). A piece is at hand when it's worn or carried, or kept at home while its wearer is there, and it isn't in the wash or drying.
+
+Someone whose goal is the need with the `sleep` role puts on their first `night` outfit with every piece at hand once they're home, and when they stop sleeping, if they're at home, they change back into their first such `everyday` outfit. Night clothes put on at other times stay on. Neither takes time, and what's taken off is kept at home.
+
+Someone going to work for a need with `atWork` changes into their `work` outfit there as they start work (taking off everything else first, for a `complete` one), which takes no time, if every piece is carried, or kept at home and not in the wash or drying. Pieces kept at home are fetched from home on the way, unless they work at home. Otherwise they work in what they're wearing. They change back as they stop work after the stretch that takes all that's left to do that day, or all the time left in its hours, which also takes no time. Otherwise they change back before their next goal once they're outside its hours or have no work left that day, taking `changeMinutes`. Changing back puts on the rest of the `everyday` outfit they're partly wearing, or after a `complete` outfit, the `everyday` outfit with the most pieces at hand, from the pieces at hand. What's taken off is carried, or kept at home if they're there, and the clothes they carry are put away on getting home, except the pieces of outfits they're partly wearing. The player follows the same rules, taking their work clothes along when they leave home on a day they have work left to do.
+
+When someone on the trip of the need with the `laundry` role starts their time at the place, the household's clothes kept at home, other than accessories, are taken to be washed. When the trip ends at home, they're hung out, and are dry `dryingMinutes` later.
+
+| Property | Type | Notes |
+|---|---|---|
+| `changeMinutes` | integer | At least 1. Also how long the player takes to change clothes in the inventory or wardrobe, taken once as they close it, if they're wearing something different from when they opened it. How long changing out of work clothes takes when it isn't done as work stops. |
+| `dryingMinutes` | integer | At least 0. How long the washing takes to dry once it's hung out. |
 
 #### Talking
 
@@ -672,24 +787,24 @@ Seeking out a friend, the person picks a friend and place from clues, each weigh
 | Property | Type | Notes |
 |---|---|---|
 | `chatMinutes` | integer | At least 1. How long a chat takes. |
-| `chatUrgency` | number | At least 0. |
-| `chatGoalWeight` | number | At least 0. |
-| `wakeUrgency` | number | At least 0. |
-| `seekFactor` | number | More than 0. |
-| `seekMinutes` | integer | At least 1. |
-| `recentHours` | number | More than 0. |
-| `nearMinutes` | number | More than 0. |
-| `askPlayerAgainHours` | number | More than 0. |
-| `clues` | [Seek Clues](#seek-clues) | |
+| `chatUrgency` | number | At least 0. How willing someone must be to start a chat. |
+| `chatGoalWeight` | number | At least 0. How much a goal's urgency counts against stopping to chat. |
+| `wakeUrgency` | number | At least 0. How urgent socializing must be to wake a sleeping friend. |
+| `seekFactor` | number | More than 0. Multiplies socializing's urgency when choosing a goal. |
+| `seekMinutes` | integer | At least 1. How long someone looks around for a friend. |
+| `recentHours` | number | More than 0. How quickly a friend not talked with lately becomes the likelier one to seek. |
+| `nearMinutes` | number | More than 0. How quickly places farther away become less likely to be searched. |
+| `askPlayerAgainHours` | number | More than 0. How long someone the player turned down waits before asking again. |
+| `clues` | [Seek Clues](#seek-clues) | How much each kind of clue weighs. |
 
 #### Seek Clues
 
 | Property | Type | Notes |
 |---|---|---|
-| `workplace` | number | At least 0. |
-| `home` | number | At least 0. |
-| `sighting` | number | At least 0. |
-| `gathering` | number | At least 0. |
+| `workplace` | number | At least 0. The friend's workplace during their work hours. |
+| `home` | number | At least 0. The friend's home outside their work hours. |
+| `sighting` | number | At least 0. Where the friend was last seen, or said they were going. |
+| `gathering` | number | At least 0. Places where people gather for a need met only on some days. |
 
 #### Idle
 
@@ -697,8 +812,8 @@ Someone who doesn't choose a need waits at a place, then decides again.
 
 | Property | Type | Notes |
 |---|---|---|
-| `place` | [Place](#place) | |
-| `minutes` | [Integer Range](#integer-range) | Minimum at least 1. |
+| `place` | [Place](#place) | Where they wait. |
+| `minutes` | [Integer Range](#integer-range) | Minimum at least 1. How long they wait. |
 | `activity` | string | Optional. What they're shown to be doing. |
 
 #### Start
@@ -707,8 +822,8 @@ A new game starts at midnight on the first day of a random week of the calendar'
 
 | Property | Type | Notes |
 |---|---|---|
-| `wakeHour` | integer | From 0 to 23. |
-| `wakeMinutes` | [Integer Range](#integer-range) | |
+| `wakeHour` | integer | From 0 to 23. The hour people wake around. |
+| `wakeMinutes` | [Integer Range](#integer-range) | How many minutes from `wakeHour` each sleeper wakes. |
 
 #### Place
 
@@ -724,7 +839,7 @@ A new game starts at midnight on the first day of a random week of the calendar'
 | Property | Type | Notes |
 |---|---|---|
 | `quarterKind` | string | A quarter kind id. |
-| `frequency` | [Frequency](#frequency) | Optional (`common`). |
+| `frequency` | [Frequency](#frequency) | Optional (`common`). How often the kind is chosen. |
 
 #### Need
 
@@ -734,16 +849,16 @@ Has exactly one of `level` and `quota`.
 |---|---|---|
 | `id` | string | |
 | `title` | string | Shown to the player with its level's title, for a need with `levels`. |
-| `role` | string | Optional. `sleep` (required on one need when there are needs) or `socializing`, each on at most one level need. |
+| `role` | string | Optional. `sleep` (required on one need when there are needs) or `socializing`, each on at most one level need, or `laundry`, on at most one trip need with `returnHome`. |
 | `activity` | string | Optional (the title). What someone meeting it is shown doing. |
 | `when` | [Condition](#condition) | Optional. Can't use `hidden`. Who has the need. Without it, everyone does. |
 | `place` | [Place](#place) | Where it's met. |
 | `atWork` | boolean | Optional (false). People are at work while meeting it. |
 | `returnHome` | boolean | Optional (false). Not for `home`. People walk home afterward. |
 | `hours` | [Hours](#hours) | Required for quota needs, with `days` and `onSpecialDays` allowed. Optional for level needs, without them. |
-| `level` | [Level Need](#level-need) | Optional. |
-| `quota` | [Quota Need](#quota-need) | Optional. |
-| `playerAction` | [Player Action](#player-action) | Optional. |
+| `level` | [Level Need](#level-need) | Optional. Makes it a level need. |
+| `quota` | [Quota Need](#quota-need) | Optional. Makes it a quota need. |
+| `playerAction` | [Player Action](#player-action) | Optional. Lets the player meet it themselves. |
 
 #### Level Need
 
@@ -751,12 +866,12 @@ A level from 0 to 100 that grows by `perHour` each hour, except while it's met (
 
 | Property | Type | Notes |
 |---|---|---|
-| `perHour` | number | At least 0. |
-| `satisfyPerHour` | number | More than 0. |
-| `pausedBy` | list of string | Optional. Need ids. |
-| `urgentFrom` | number | Optional (0). At least 0 and less than 100. |
+| `perHour` | number | At least 0. How much the level grows each hour. |
+| `satisfyPerHour` | number | More than 0. How much the level drops each hour while it's met. |
+| `pausedBy` | list of string | Optional. Need ids. Needs that stop this one growing while they're met. |
+| `urgentFrom` | number | Optional (0). At least 0 and less than 100. The level at which it starts to be urgent. |
 | `wakeUrgency` | number | Optional. At least 0. A sleeper (not the player) wakes once this need's urgency reaches it and passes sleep's, unless sleep pauses it. Without it, the need never wakes anyone. |
-| `startLevel` | [Integer Range](#integer-range) | Optional (0). From 0 to 100. |
+| `startLevel` | [Integer Range](#integer-range) | Optional (0). From 0 to 100. The level at the start of a new game. |
 | `levels` | list of [Level](#level) | Optional. The words for how high it is. Needs with them are shown to the player. |
 
 #### Level
@@ -766,7 +881,7 @@ The title of the last level at or below the need's level is shown.
 | Property | Type | Notes |
 |---|---|---|
 | `minimum` | number | From 0 to 100, higher than the one before. |
-| `title` | string | |
+| `title` | string | Shown to the player. |
 
 #### Quota Need
 
@@ -775,11 +890,11 @@ A quota for each day or week, measured in time or trips, met within its hours. O
 | Property | Type | Notes |
 |---|---|---|
 | `period` | string | Optional (`day`). `day` or `week`. |
-| `lead` | integer | More than 0. |
+| `lead` | integer | More than 0. It starts to become urgent once fewer spare minutes than this are left. |
 | `overdueUrgency` | number | Optional. From 0 to 100. Weekly needs with `hours.days` only. Once its days have passed this week with the quota unmet, it can be met on any day of the week (other than special days it skips) with this urgency. |
 | `sharedByFamily` | boolean | Optional (false). Met for the whole family by anyone in it. |
-| `time` | [Quota Time](#quota-time) | Optional. |
-| `trips` | [Quota Trips](#quota-trips) | Optional. |
+| `time` | [Quota Time](#quota-time) | Optional. Measures the quota in time. |
+| `trips` | [Quota Trips](#quota-trips) | Optional. Measures the quota in trips. |
 
 #### Quota Time
 
@@ -811,7 +926,7 @@ A number, or an object:
 
 | Property | Type | Notes |
 |---|---|---|
-| `base` | number | Optional (0). At least 0. |
+| `base` | number | Optional (0). At least 0. The amount for the whole family. |
 | `perMember` | number | Optional. At least 0. Added for each family member. Only for needs shared by the family. |
 
 The object needs at least one of them.
@@ -822,8 +937,8 @@ Lets the player meet the need where it's met (their home or workplace, or a quar
 
 | Property | Type | Notes |
 |---|---|---|
-| `title` | string | |
-| `result` | string | |
+| `title` | string | What the action is called. |
+| `result` | string | What the player is told after doing it. |
 | `options` | list of [Player Action Option](#player-action-option) | Required unless measured in trips, and not allowed then. |
 | `return` | [Long Text](#long-text) | Required for a trip that returns home, and not allowed otherwise. |
 | `home` | [Player Action Home](#player-action-home) | Required for a trip that returns home, and not allowed otherwise. |
@@ -835,8 +950,8 @@ The action at home that finishes a trip.
 
 | Property | Type | Notes |
 |---|---|---|
-| `title` | string | |
-| `result` | string | |
+| `title` | string | What the action is called. |
+| `result` | string | What the player is told after doing it. |
 
 #### Player Action Option
 
@@ -847,14 +962,14 @@ Exactly one of `untilMet`, `untilHour`, and `minutes`. An option that takes no t
 | `title` | string | Optional with `minutes`, which is otherwise called by its length. |
 | `untilMet` | boolean | Optional (false). Until a level need is 0, or the quota is met. |
 | `untilHour` | integer | Optional. From 0 to 23. Until the next time it's this hour. |
-| `minutes` | integer | Optional. More than 0. |
+| `minutes` | integer | Optional. More than 0. How long it takes. |
 
 #### Urgency Factor
 
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | |
-| `when` | [Condition](#condition) | Can't use `hidden`. |
+| `when` | [Condition](#condition) | Can't use `hidden`. Who it applies to. |
 | `needs` | list of string | Need ids, each listed once. |
 | `factor` | number | More than 0. Multiplies those needs' urgency. |
 
@@ -865,12 +980,12 @@ Walking takes its travel time times every factor that applies, rounded up.
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | |
-| `when` | [Condition](#condition) | Can't use `hidden`. |
-| `factor` | number | More than 0. |
+| `when` | [Condition](#condition) | Can't use `hidden`. Who it applies to. |
+| `factor` | number | More than 0. Multiplies the walking time. |
 
 ## Portraits
 
-A portrait is drawn from its layers, bottom to top, and cut off at its edges. A **color** is `#RRGGBB`, `#AARRGGBB`, or the id of a Portrait Color.
+A portrait is drawn from its layers, bottom to top, and cut off at its edges. A **color** is `#RRGGBB`, `#AARRGGBB`, or the id of a Portrait Color. In a layer, it can also be one of the layer's own `colors`, or a color name of the clothing it draws (which must be a color of every article of clothing in its `clothing`). The layer's own colors take the place of clothing colors and Portrait Colors with the same id, and clothing colors take the place of Portrait Colors.
 
 #### Portraits Settings
 
@@ -897,7 +1012,7 @@ Worked out for each character in list order, using only colors before it.
 
 | Property | Type | Notes |
 |---|---|---|
-| `when` | [Condition](#condition) | Can't use `hidden`. |
+| `when` | [Condition](#condition) | Can't use `hidden`. Who the variant is for. |
 | `color` | string | Color. |
 
 #### Portrait Scale
@@ -909,17 +1024,17 @@ A stretch that doesn't change outline widths.
 | `id` | string | |
 | `originX` | number | Optional (0). The horizontal position that stays in place. |
 | `originY` | number | Optional (0). The vertical position that stays in place. |
-| `x` | number | Optional (1). More than 0. |
-| `y` | number | Optional (1). More than 0. |
+| `x` | number | Optional (1). More than 0. How much it stretches across. |
+| `y` | number | Optional (1). More than 0. How much it stretches up and down. |
 | `variants` | list of [Portrait Scale Variant](#portrait-scale-variant) | Optional. The first whose `when` is met replaces `x` and `y`. |
 
 #### Portrait Scale Variant
 
 | Property | Type | Notes |
 |---|---|---|
-| `when` | [Condition](#condition) | Can't use `hidden`. |
-| `x` | number | Optional (1). More than 0. |
-| `y` | number | Optional (1). More than 0. |
+| `when` | [Condition](#condition) | Can't use `hidden`. Who the variant is for. |
+| `x` | number | Optional (1). More than 0. How much it stretches across. |
+| `y` | number | Optional (1). More than 0. How much it stretches up and down. |
 
 #### Portrait Offset
 
@@ -936,20 +1051,33 @@ A shift, applied after stretching.
 
 | Property | Type | Notes |
 |---|---|---|
-| `when` | [Condition](#condition) | Can't use `hidden`. |
-| `x` | number | Optional (0). |
-| `y` | number | Optional (0). |
+| `when` | [Condition](#condition) | Can't use `hidden`. Who the variant is for. |
+| `x` | number | Optional (0). How far right. |
+| `y` | number | Optional (0). How far down. |
 
 #### Portrait Layer
 
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | |
-| `when` | [Condition](#condition) | Optional. Can't use `hidden`. |
+| `when` | [Condition](#condition) | Optional. Can't use `hidden`. Who the layer is drawn for. |
 | `at` | [Portrait Place](#portrait-place) | Optional. Without it, drawn anywhere. |
 | `scale` | string | Optional. A Portrait Scale id, for shapes without their own. |
 | `offset` | string | Optional. A Portrait Offset id, for all shapes. |
+| `clothing` | list of string | Optional. Unique clothing item ids. The layer is only drawn while one of them is worn, and uses the color names of the first one in the list that is. |
+| `hiddenBy` | [Portrait Hidden By](#portrait-hidden-by) | Optional. Without it, clothing never hides the layer. |
+| `colors` | list of [Portrait Color](#portrait-color) | Optional. Unique ids. The layer's own colors, worked out after the Portrait Colors and its clothing's colors, each using only the layer colors before it. |
 | `shapes` | list of [Portrait Shape](#portrait-shape) | Drawn bottom to top. |
+| `ai` | boolean | Whether AI drew the layer. Not used by the game. |
+
+#### Portrait Hidden By
+
+When worn clothing hides a layer: when it covers every one of the `regions` at least as much as `coverage`. How much a region is covered is the most `coverage` any worn piece gives it.
+
+| Property | Type | Notes |
+|---|---|---|
+| `regions` | list of string | Unique clothing slot ids, when there are clothing slots. The regions of the body that must be covered. |
+| `coverage` | integer | From 1 to 10. How much each region must be covered. |
 
 #### Portrait Place
 
@@ -957,25 +1085,38 @@ Has `home` set to true, `quarterKinds`, `workplaces`, or several. A character is
 
 | Property | Type | Notes |
 |---|---|---|
-| `home` | boolean | Optional (false). |
-| `quarterKinds` | list of string | Optional. Unique quarter kind ids. |
+| `home` | boolean | Optional (false). Drawn in a home. |
+| `quarterKinds` | list of string | Optional. Unique quarter kind ids. Drawn in a quarter of one of the kinds. |
 | `workplaces` | list of string | Optional. Unique professions. Drawn in a place of the profession, or at home for someone working from home in it. |
 
 #### Portrait Shape
 
-Has `fill`, `stroke`, or both.
+Has a `path` and `fill`, `stroke`, or both; or has `include`, with nothing else but `when` and `clip`.
 
 | Property | Type | Notes |
 |---|---|---|
-| `path` | string | WPF path markup (SVG path data, optionally starting with `F0` for even-odd fill, the default, or `F1` for nonzero). |
-| `when` | [Condition](#condition) | Optional. Can't use `hidden`. |
+| `path` | string | Optional. WPF path markup (SVG path data, optionally starting with `F0` for even-odd fill, the default, or `F1` for nonzero). |
+| `when` | [Condition](#condition) | Optional. Can't use `hidden`. Who the shape is drawn for. |
 | `fill` | string | Optional. Color. |
 | `gradient` | string | Optional, with `fill`. `vertical`, `horizontal`, or `radial`, from `fill` to `fillTo` across the shape's bounds. |
 | `fillTo` | string | Optional, with `gradient`. Color. Without it, `fill` fades to transparent. |
 | `stroke` | string | Optional. Color, with rounded ends and corners. |
-| `strokeWidth` | number | Optional (1). More than 0. |
-| `opacity` | number | Optional (1). From 0 to 1. |
+| `strokeWidth` | number | Optional (1). More than 0. How wide the outline is. |
+| `opacity` | number | Optional (1). From 0 to 1. How opaque it is. |
 | `scale` | string | Optional. A Portrait Scale id, used in place of the layer's. |
+| `include` | string | Optional. A Portrait Shape Set id, whose shapes are drawn in its place, in the layer's colors. |
+| `clip` | boolean | Optional (false), with `include`. Whether the included shapes are only drawn over the layer's other drawn shapes that have a `fill`. |
+
+#### Portrait Shape Set
+
+Shapes that are only drawn where layers include them.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | |
+| `scale` | string | Optional. A Portrait Scale id, for shapes without their own. Without it, the including layer's. |
+| `shapes` | list of [Portrait Shape](#portrait-shape) | Drawn bottom to top. None can have `include`. |
+| `ai` | boolean | Whether AI drew the shape set. Not used by the game. |
 
 # Adding to the Data
 
@@ -985,12 +1126,17 @@ Portraits.json is generated, so portrait art is added to SubCorona's `Art/Portra
 
 Saved games refer to properties, values, location and map feature templates, and needs by id, so renaming or removing one stops older saves from loading.
 
-* **Profession:** give it the `text` entries the templates use, and `player: false` if the player shouldn't have it. Make sure there are enough business places for `maxBusinesses`, or businesses end up in full quarters with a warning. Add it to the value groups that fit, and to the conditions that list professions it should be in. Add portrait art: a workplace background and work clothes.
-* **Character property:** use it in a template `description` uses, with the `text` entries those templates need. Add it to the obscurers that should hide it, and to `families.inheritedProperties` if family members share it. Add portrait art if it changes how a character looks.
-* **Character value:** add it to any `player` or `npc` `values` lists and value groups it belongs in, and check the conditions that list other values of the property: a `notValues` list lets it through, and a `values` list leaves it out. Add portrait art if the property shows in portraits. Its place in the list matters for a property with a `shape`, and for an inherited property with a `blend`.
+* **Profession:** give it the `text` entries the templates use, and `player: false` if the player shouldn't have it. Make sure there are enough business places for `maxBusinesses`, or businesses end up in full quarters with a warning. Add it to the value groups that fit, and to the conditions that list professions it should be in, such as those of the outfits it should be given. Give it a `work` outfit if it has work clothes, and `modesty` if it calls for more or less covering while working. Add portrait art: a workplace background, and anything that depends on the work as well as the clothes (drawn with `wears` and a profession condition).
+* **Character property:** use it in a template `description` uses, with the `text` entries those templates need. Give it the `regions` it shows on (and `form` if it's about the body's form) if clothing should hide it, and add it to `families.inheritedProperties` if family members share it. Add portrait art if it changes how a character looks, with `hiddenBy` if clothing should cover it.
+* **Character value:** add it to any `player` or `npc` `values` lists and value groups it belongs in, and check the conditions that list other values of the property: a `notValues` list lets it through, and a `values` list leaves it out. Outfits and modesty rules need checking too, so a character with the value is still given every kind of outfit and follows the right rule. Give it a `prominence` if its property has `regions` and it should be easier to hide. Add portrait art if the property shows in portraits. Its place in the list matters for a property with a `shape`, and for an inherited property with a `blend`.
 * **Template:** use it from `description` or a template it uses, or it's never shown.
 * **Quarter kind:** add quarters of the kind, add it to the `quarterKinds` of the business places that can be in it, and add a portrait background.
 * **Quarter or house:** make sure there are enough for each kind and wealth level, or templates are reused with a warning.
 * **Map feature:** set `borders` on the quarter kinds or quarters that belong beside it; otherwise an area is placed next to an outskirts quarter.
 * **Day:** add it to the `hours.days` of the needs met on it, and check the special days still fall where they should.
 * **Need:** add it to the `pausedBy` of level needs that shouldn't grow while it's met, and to the urgency factors that apply to it.
+* **Clothing item:** add it to the outfits it belongs in, or nobody is given it. Give it `coverage` for every region it covers (which decides its modesty, what it hides from descriptions, and which portrait layers and character properties it hides), a `bulk` if it's light or bulky, and `accessory` if it's shared between outfits and isn't washed. Add portrait art drawn with `wears`, leaving out shapes that show the body's form, such as a paunch, for clothing whose bulk hides form.
+* **Outfit:** make sure every character can be given an outfit of each kind they should have: one with no outfit of a kind they can have goes without. Check its clothing meets the modesty rules: `outside` for everyday clothes, alone and with the work clothes of the professions that can have them, and `home` for night clothes.
+* **Clothing slot:** add it to the modesty rules if it should be checked, to the `slots` of the clothing anchored in it, to the `coverage` of the clothing that covers it, and to the `regions` of the character properties and portrait layers that show on it. Its place in the list decides the order worn clothing is described in.
+* **Clothing layer:** its place in the list decides which clothing covers which, from the innermost out.
+* **Modesty rule:** check every character follows a rule: the first one whose `when` they meet applies, and one who meets none can wear anything. Add it to the `modesty` of the professions that call for more or less covering from people following it.

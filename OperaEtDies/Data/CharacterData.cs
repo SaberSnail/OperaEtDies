@@ -4,7 +4,7 @@ using OperaEtDies.Utility.Random;
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// The properties that describe a character, and the templates used to name and describe characters, from the properties, templates, and obscurers in the data.
+/// The properties that describe a character, and the templates used to name and describe characters, from the properties and templates in the data, and what the clothing in the data can hide.
 /// </summary>
 public sealed class CharacterData : IValidatedData
 {
@@ -17,6 +17,12 @@ public sealed class CharacterData : IValidatedData
 	/// The id of the template that creates a description of a character.
 	/// </summary>
 	public const string DescriptionTemplateId = "description";
+
+	/// <summary>
+	/// The placeholder that the description templates fill in with the clothing a character is wearing. Properties and
+	/// templates can't use it as their id.
+	/// </summary>
+	public const string ClothingPlaceholderId = "clothing";
 
 	/// <summary>
 	/// The role of the property whose values are the professions.
@@ -42,9 +48,10 @@ public sealed class CharacterData : IValidatedData
 	public required IReadOnlyList<CharacterProperty> Properties { get; init; }
 
 	/// <summary>
-	/// Things that can keep some of a character's properties from being seen or heard.
+	/// How strongly clothing can keep some of a character's properties from being seen, by property id, so templates can be
+	/// checked with those properties hidden.
 	/// </summary>
-	public IReadOnlyList<CharacterObscurer> Obscurers { get; init; } = [];
+	public IReadOnlyList<IReadOnlyDictionary<string, int>> Obscurers { get; init; } = [];
 
 	/// <summary>
 	/// Fills in the values of the properties whose values come from the professions, and the defaults of string
@@ -109,7 +116,6 @@ public sealed class CharacterData : IValidatedData
 
 
 		errors.AddRange(ValidateValueGroups(properties));
-		errors.AddRange(ValidateObscurers(allProperties));
 		errors.AddRange(ValidateTemplates(allProperties));
 
 		// Checking every combination of condition values only works once the conditions themselves are valid.
@@ -307,7 +313,7 @@ public sealed class CharacterData : IValidatedData
 			}
 			else
 			{
-				foreach (var error in ValidateOptions(id, property.Values, allProperties))
+				foreach (var error in ValidateOptions(id, property.Values, property.Regions is { Count: > 0 }, allProperties))
 					yield return error;
 			}
 
@@ -387,7 +393,7 @@ public sealed class CharacterData : IValidatedData
 		}
 	}
 
-	private static IEnumerable<string> ValidateOptions(string propertyId, IReadOnlyList<CharacterPropertyOption?> options, IReadOnlyDictionary<string, CharacterProperty> allProperties)
+	private static IEnumerable<string> ValidateOptions(string propertyId, IReadOnlyList<CharacterPropertyOption?> options, bool hasRegions, IReadOnlyDictionary<string, CharacterProperty> allProperties)
 	{
 		var listName = $"{propertyId}.values";
 		foreach (var error in DataValidation.ValidateIdentifiedItems(listName, options, x => x.Id, x => x.Title))
@@ -407,8 +413,11 @@ public sealed class CharacterData : IValidatedData
 					yield return error;
 			}
 
-			if (option.Prominence is { } prominence && !CharacterObscurer.IsValidStrength(prominence))
-				yield return OurResources.ProminenceInvalid.FormatCurrentCulture(option.Id, listName, prominence, CharacterObscurer.MinStrength, CharacterObscurer.MaxStrength);
+			if (option.Prominence is { } prominence && !CharacterObscuring.IsValidStrength(prominence))
+				yield return OurResources.ProminenceInvalid.FormatCurrentCulture(option.Id, listName, prominence, CharacterObscuring.MinStrength, CharacterObscuring.MaxStrength);
+
+			if (option.Prominence is not null && !hasRegions)
+				yield return OurResources.ProminenceWithoutRegions.FormatCurrentCulture(option.Id, listName, propertyId);
 
 			if (option.FrequencyWhen is { } frequencyWhen)
 			{
@@ -474,43 +483,6 @@ public sealed class CharacterData : IValidatedData
 		}
 	}
 
-	private IEnumerable<string> ValidateObscurers(IReadOnlyDictionary<string, CharacterProperty> properties)
-	{
-		var ids = new HashSet<string>(StringComparer.Ordinal);
-		foreach (var obscurer in Obscurers)
-		{
-			// JSON deserialization doesn't stop null list items, even when the type is non-nullable.
-			if (obscurer is null)
-			{
-				yield return OurResources.DataListItemEmpty.FormatCurrentCulture("obscurers");
-			}
-			else if (string.IsNullOrWhiteSpace(obscurer.Id))
-			{
-				yield return OurResources.DataListItemIdMissing.FormatCurrentCulture("obscurers");
-			}
-			else
-			{
-				if (!ids.Add(obscurer.Id))
-					yield return OurResources.DataListItemIdDuplicate.FormatCurrentCulture(obscurer.Id, "obscurers");
-
-				if (obscurer.Hides is null || obscurer.Hides.Count == 0)
-				{
-					yield return OurResources.DataListEmpty.FormatCurrentCulture($"{obscurer.Id}.hides");
-				}
-				else
-				{
-					foreach (var (propertyId, strength) in obscurer.Hides)
-					{
-						if (propertyId != CharacterObscurer.AllProperties && !properties.ContainsKey(propertyId))
-							yield return OurResources.ObscurerPropertyUnknown.FormatCurrentCulture(obscurer.Id, propertyId);
-						if (!CharacterObscurer.IsValidStrength(strength))
-							yield return OurResources.ObscurerStrengthInvalid.FormatCurrentCulture(obscurer.Id, propertyId, strength, CharacterObscurer.MinStrength, CharacterObscurer.MaxStrength);
-					}
-				}
-			}
-		}
-	}
-
 	/// <summary>
 	/// Checks that a condition's values use value list properties and their values, and that its hidden properties
 	/// exist. Only template conditions can use hidden properties.
@@ -541,7 +513,7 @@ public sealed class CharacterData : IValidatedData
 			}
 			else
 			{
-				foreach (var error in ValidateIds(listName, hidden, properties.Keys.ToHashSet(StringComparer.Ordinal), x => OurResources.TemplateHiddenPropertyUnknown.FormatCurrentCulture(listName, x)))
+				foreach (var error in ValidateIds(listName, hidden, properties.Keys.Append(ClothingPlaceholderId).ToHashSet(StringComparer.Ordinal), x => OurResources.TemplateHiddenPropertyUnknown.FormatCurrentCulture(listName, x)))
 					yield return error;
 			}
 		}
@@ -795,6 +767,9 @@ public sealed class CharacterData : IValidatedData
 		foreach (var requiredId in s_requiredTemplateIds.Where(x => !templateIds.Contains(x)))
 			yield return OurResources.TemplateRequired.FormatCurrentCulture(requiredId);
 
+		if (properties.ContainsKey(ClothingPlaceholderId) || templateIds.Contains(ClothingPlaceholderId))
+			yield return OurResources.CharacterIdReserved.FormatCurrentCulture(ClothingPlaceholderId);
+
 		// The ids each template uses in its placeholders, across all of its variants.
 		var references = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
 		foreach (var template in Templates.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)))
@@ -856,7 +831,7 @@ public sealed class CharacterData : IValidatedData
 					else
 					{
 						references.UnionWith(parsed.Placeholders.Select(x => x.Id));
-						foreach (var error in ValidatePlaceholders(name, parsed, variant.When, properties, templateIds).Distinct(StringComparer.Ordinal))
+						foreach (var error in ValidatePlaceholders(name, parsed, variant.When, properties, templateIds, allowsClothing: true).Distinct(StringComparer.Ordinal))
 							yield return error;
 					}
 				}
@@ -898,9 +873,9 @@ public sealed class CharacterData : IValidatedData
 
 	/// <summary>
 	/// Checks the placeholders of a template. A placeholder with a field needs that text on every value the template's
-	/// condition allows for its property.
+	/// condition allows for its property. The clothing placeholder is only allowed in character templates.
 	/// </summary>
-	internal static IEnumerable<string> ValidatePlaceholders(string templateName, TextTemplate template, CharacterCondition? when, IReadOnlyDictionary<string, CharacterProperty> properties, IReadOnlySet<string> templateIds)
+	internal static IEnumerable<string> ValidatePlaceholders(string templateName, TextTemplate template, CharacterCondition? when, IReadOnlyDictionary<string, CharacterProperty> properties, IReadOnlySet<string> templateIds, bool allowsClothing)
 	{
 		foreach (var placeholder in template.Placeholders)
 		{
@@ -908,7 +883,12 @@ public sealed class CharacterData : IValidatedData
 				yield return OurResources.TemplateFormatUnknown.FormatCurrentCulture(templateName, format);
 
 			var property = properties.GetValueOrDefault(placeholder.Id);
-			if (property is null)
+			if (allowsClothing && placeholder.Id == ClothingPlaceholderId)
+			{
+				if (placeholder.Field is { } clothingField)
+					yield return OurResources.TemplateFieldNotAllowed.FormatCurrentCulture(templateName, placeholder.Id, clothingField);
+			}
+			else if (property is null)
 			{
 				if (!templateIds.Contains(placeholder.Id))
 					yield return OurResources.TemplatePropertyUnknown.FormatCurrentCulture(templateName, placeholder.Id);
@@ -938,7 +918,8 @@ public sealed class CharacterData : IValidatedData
 	/// Conditions that only change frequencies are left out, since they can't change which values are allowed.
 	/// Every value list property that applies must have a value whose condition is met. Every template used must
 	/// have a variant whose conditions are met, and every property a used variant shows must have a visible value.
-	/// Each property a template uses that the obscurers can hide is checked both visible and hidden.
+	/// Each property a template uses that the obscurers can hide is checked both visible and hidden, as is the clothing
+	/// placeholder, which is hidden when nothing is worn.
 	/// </summary>
 	private IEnumerable<string> ValidateConditionCombinations(IReadOnlyList<CharacterProperty> properties)
 	{
@@ -952,7 +933,7 @@ public sealed class CharacterData : IValidatedData
 			x => x.Key,
 			x => x.Value.Variants
 				.SelectMany(v => (v.When?.ValuePropertyIds ?? []).Concat(v.When?.Hidden ?? []).Concat(v.Template.Placeholders.Select(p => p.Id)))
-				.Where(propertiesById.ContainsKey)
+				.Where(x => propertiesById.ContainsKey(x) || x == ClothingPlaceholderId)
 				.Distinct(StringComparer.Ordinal)
 				.ToList(),
 			StringComparer.Ordinal);
@@ -961,7 +942,7 @@ public sealed class CharacterData : IValidatedData
 		// have values.
 		var templateConditionProperties = templates.ToDictionary(
 			x => x.Key,
-			x => GetAvailabilityClosure(properties, x.Value.Variants.SelectMany(v => v.When?.ValuePropertyIds ?? []).Concat(templatePropertyIds[x.Key].SelectMany(id => propertiesById[id].GetAvailabilityPropertyIds()))),
+			x => GetAvailabilityClosure(properties, x.Value.Variants.SelectMany(v => v.When?.ValuePropertyIds ?? []).Concat(templatePropertyIds[x.Key].Where(propertiesById.ContainsKey).SelectMany(id => propertiesById[id].GetAvailabilityPropertyIds()))),
 			StringComparer.Ordinal);
 
 		// Templates that aren't used by other templates are used directly, as are the required templates.
@@ -1009,7 +990,7 @@ public sealed class CharacterData : IValidatedData
 					foreach (var combination in combinations)
 					{
 						string? GetValueId(string id) => combination.GetValueOrDefault(id);
-						var hideableIds = templatePropertyIds[templateId].Where(x => !scenario.DecidedIds.Contains(x) && CanBeHidden(propertiesById[x], role, GetValueId, obscuring)).ToList();
+						var hideableIds = templatePropertyIds[templateId].Where(x => !scenario.DecidedIds.Contains(x) && (x == ClothingPlaceholderId || CanBeHidden(propertiesById[x], role, GetValueId, obscuring))).ToList();
 						if (hideableIds.Count > MaxHideablePropertiesPerTemplate)
 						{
 							errors.Add(OurResources.TemplateHideableTooMany.FormatCurrentCulture(templateId, MaxHideablePropertiesPerTemplate));
@@ -1022,7 +1003,7 @@ public sealed class CharacterData : IValidatedData
 							for (var mask = 0; mask < 1 << hideableIds.Count; mask++)
 							{
 								var hiddenIds = scenario.HiddenIds.Concat(hideableIds.Where((_, index) => (mask & (1 << index)) != 0)).ToHashSet(StringComparer.Ordinal);
-								bool HasVisibleValue(string id) => !hiddenIds.Contains(id) && propertiesById[id].HasValue(role, GetValueId);
+								bool HasVisibleValue(string id) => !hiddenIds.Contains(id) && (id == ClothingPlaceholderId || propertiesById[id].HasValue(role, GetValueId));
 								string? GetVisibleValueId(string id) => hiddenIds.Contains(id) ? null : GetValueId(id);
 
 								var index = variants.FindIndex(x => CharacterCondition.IsMet(x.When, GetVisibleValueId, HasVisibleValue));
@@ -1126,7 +1107,7 @@ public sealed class CharacterData : IValidatedData
 		var canBeHidden = false;
 		if (property.HasValue(role, getValueId))
 		{
-			var minProminence = property.Type == CharacterPropertyType.ValueList ? property.GetOptions(role, getValueId).Min(x => x.GetProminence()) : CharacterObscurer.MaxStrength;
+			var minProminence = property.Type == CharacterPropertyType.ValueList ? property.GetOptions(role, getValueId).Min(x => x.GetProminence()) : CharacterObscuring.MaxStrength;
 			canBeHidden = obscuring.GetStrength(property.Id) >= minProminence;
 		}
 

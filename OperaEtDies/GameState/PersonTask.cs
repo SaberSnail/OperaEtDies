@@ -37,11 +37,30 @@ public sealed record BusyTask(int? Minutes) : PersonTask
 }
 
 /// <summary>
-/// Starts or stops working, which takes no time.
+/// Starts or stops working, which takes no time. Changing into or out of work clothes, if given, is part of starting or
+/// stopping work.
 /// </summary>
-public sealed record AtWorkTask(bool IsAtWork) : PersonTask
+public sealed record AtWorkTask(bool IsAtWork, OwnedOutfit? Clothes = null) : PersonTask
 {
-	internal override PersonTaskRecord CreateRecord() => new AtWorkTaskRecord(IsAtWork);
+	internal override PersonTaskRecord CreateRecord() => new AtWorkTaskRecord(IsAtWork, Clothes?.Id);
+}
+
+/// <summary>
+/// Picks up the pieces of the person's outfit kept at home to carry them, such as their work clothes on the way to work,
+/// which takes no time.
+/// </summary>
+public sealed record FetchClothesTask(OwnedOutfit Outfit) : PersonTask
+{
+	internal override PersonTaskRecord CreateRecord() => new FetchClothesTaskRecord(Outfit.Id);
+}
+
+/// <summary>
+/// Changes into an outfit, or out of it, back into the rest of what the person was wearing, such as out of work clothes
+/// still worn after work. The change is made when the task ends.
+/// </summary>
+public sealed record ChangeClothesTask(OwnedOutfit Outfit, bool IsTakingOff) : PersonTask
+{
+	internal override PersonTaskRecord CreateRecord() => new ChangeClothesTaskRecord(Outfit.Id, IsTakingOff) { ResumeMinutes = ResumeMinutes };
 }
 
 /// <summary>
@@ -72,6 +91,8 @@ public sealed record WaitTask(Person For, int Minutes) : PersonTask
 [JsonDerivedType(typeof(AtWorkTaskRecord), "atWork")]
 [JsonDerivedType(typeof(TalkTaskRecord), "talk")]
 [JsonDerivedType(typeof(WaitTaskRecord), "wait")]
+[JsonDerivedType(typeof(FetchClothesTaskRecord), "fetchClothes")]
+[JsonDerivedType(typeof(ChangeClothesTaskRecord), "changeClothes")]
 public abstract record PersonTaskRecord
 {
 	/// <summary>
@@ -92,9 +113,9 @@ public sealed record BusyTaskRecord(int? Minutes) : PersonTaskRecord
 	internal override PersonTask Create(WorldLoader loader) => new BusyTask(Minutes) { ResumeMinutes = ResumeMinutes };
 }
 
-public sealed record AtWorkTaskRecord(bool IsAtWork) : PersonTaskRecord
+public sealed record AtWorkTaskRecord(bool IsAtWork, WorldId? Clothes = null) : PersonTaskRecord
 {
-	internal override PersonTask Create(WorldLoader loader) => new AtWorkTask(IsAtWork);
+	internal override PersonTask Create(WorldLoader loader) => new AtWorkTask(IsAtWork, Clothes is { } clothes ? loader.Get<OwnedOutfit>(clothes) : null);
 }
 
 public sealed record TalkTaskRecord(WorldId With, int Minutes, string? Need = null) : PersonTaskRecord
@@ -107,6 +128,16 @@ public sealed record TalkTaskRecord(WorldId With, int Minutes, string? Need = nu
 public sealed record WaitTaskRecord(WorldId For, int Minutes) : PersonTaskRecord
 {
 	internal override PersonTask Create(WorldLoader loader) => new WaitTask(loader.Get<Person>(For), Minutes) { ResumeMinutes = ResumeMinutes };
+}
+
+public sealed record FetchClothesTaskRecord(WorldId Outfit) : PersonTaskRecord
+{
+	internal override PersonTask Create(WorldLoader loader) => new FetchClothesTask(loader.Get<OwnedOutfit>(Outfit));
+}
+
+public sealed record ChangeClothesTaskRecord(WorldId Outfit, bool IsTakingOff) : PersonTaskRecord
+{
+	internal override PersonTask Create(WorldLoader loader) => new ChangeClothesTask(loader.Get<OwnedOutfit>(Outfit), IsTakingOff) { ResumeMinutes = ResumeMinutes };
 }
 
 /// <summary>

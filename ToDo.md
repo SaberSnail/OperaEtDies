@@ -12,6 +12,7 @@
 
 ### Village Life
 
+* Formal occasions, such as church, where the `formal` modesty minimums apply.
 * Character needs: flesh them out beyond the basic needs added with schedules.
 * More needs and things to do, so every hour is accounted for by a goal. Idle time in the report means there isn't enough to do, so resting should be its own goal. Ideally the day isn't long enough to do everything.
 * Leisure at home: time with the family at home, the household's version of meeting at the well, and a daily chance for the player to spend time with their family.
@@ -29,11 +30,13 @@
 * Negative effects of high fatigue and restlessness.
 * Negative effects of skipped chores, different for each chore.
 * More consequences for waking someone than a little fatigue, such as annoying them.
+* A penalty for working without work clothes (worn in everyday clothes when the work clothes aren't at home, such as on wash day).
 
 ### People and Relationships
 
 * Personality traits.
 * Personality traits that change how urgent each need is for a person (such as loving the market), so villagers fall out of step with each other.
+* Personality traits that lower the modesty minimums (see the modesty rules in Clothing.json).
 * Relations to the player only cover their own household. Relatives in other households (such as married children) will need relationships between characters.
 * Gossip: trust secondhand sightings less than firsthand ones, and let gossip be wrong.
 * Traveling as a group: following someone, being followed, or escorting someone slower.
@@ -41,8 +44,7 @@
 
 ### Economy and Possessions
 
-* Inventory
-* Clothing
+* Inventory beyond clothing: other kinds of items, using the item containers and screens added with clothing.
 * Money and trade: buying, selling, wages, and what the knight takes.
 * The player's own trade: working, earning, and helpers.
 * What the player knows about when businesses are usually open, and a screen showing it.
@@ -54,6 +56,7 @@
 * Locks on the paths into houses and businesses, with ways around them.
 * Seasonal and day/night variants of quarter descriptions and quarter kind portrait backgrounds.
 * Weather: chosen each day, saved, and shown in the game, and maybe affecting descriptions, schedules, and events.
+* Darkness and silence as obscuring states: darkness hiding how people look at night or in unlit places, and silence hiding the voice of someone who hasn't spoken. Clothing replaced the old top-level obscurers, which had both.
 
 ### Starting a Game
 
@@ -87,7 +90,7 @@
 
 ### Portraits
 
-* Portrait variation: people with the same visual properties look identical. Vary clothing color and face proportions from a stored per-person seed, probably alongside the Clothing work and once games can be saved.
+* Portrait variation: people with the same visual properties and clothing look identical. Vary face proportions from a stored per-person seed.
 * Portrait editor: add and remove path points (and change a segment's command) with the mouse, instead of only by typing the path.
 * Portrait editor: copying edits as mod operations, and a way to carry an edited shape back to `Art/Portraits/Portraits.sh`, since Portraits.json is generated.
 
@@ -105,4 +108,3 @@
 * Automatic checks on generation: turn the statistics checked by hand in the village report into tests with limits.
 
 ## Current Work
-

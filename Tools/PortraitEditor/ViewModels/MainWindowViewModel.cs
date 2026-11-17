@@ -240,6 +240,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 			var layer = new JsonObject
 			{
 				["id"] = layers is null ? "new_layer" : GetUnusedId(layers, "new_layer", ""),
+				["ai"] = false,
 				["shapes"] = new JsonArray(CreateNewShape()),
 			};
 			m_pendingSelection = (DataItemKind.Layer, -1, index);
@@ -510,9 +511,10 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable, ITreeItemH
 		{
 			var traits = preview.GetDrawnTraits();
 			var place = preview.GetPlace();
-			var placements = renderer.GetShapePlacements(traits, place);
+			var clothing = preview.GetClothing();
+			var placements = renderer.GetShapePlacements(traits, place, clothing);
 			m_colors = renderer.GetColors(traits);
-			Canvas.SetPortrait(renderer.Render(traits, place, GetLayerOverride, GetShapeOverride), renderer.Size, placements, IsDrawnOnCanvas);
+			Canvas.SetPortrait(renderer.Render(traits, place, clothing, GetLayerOverride, GetShapeOverride), renderer.Size, placements, IsDrawnOnCanvas);
 			UpdateDrawn(placements);
 		}
 		else

@@ -26,6 +26,7 @@ public sealed class Location : NotifyPropertyChangedBase, IWorldObject
 		m_exits = [];
 		m_people = [];
 		People = new ReadOnlyObservableCollection<Person>(m_people);
+		Items = new ItemContainer();
 	}
 
 	public WorldId Id { get; }
@@ -115,10 +116,15 @@ public sealed class Location : NotifyPropertyChangedBase, IWorldObject
 	/// </summary>
 	public ReadOnlyObservableCollection<Person> People { get; }
 
+	/// <summary>
+	/// The items kept in the location, such as what a household keeps at home.
+	/// </summary>
+	public ItemContainer Items { get; }
+
 	public WorldObjectRecord CreateRecord() =>
 		new LocationRecord(Id, GetTemplateType(Template), Template.Id, Bounds,
 			m_exits.Select(x => new LocationExitRecord(x.Location.Id, x.Direction, x.Path, x.IsCrossing)).ToList(),
-			Surroundings.Select(x => new LocationSurroundingRecord(x.Feature.Id, x.Direction, x.Text)).ToList());
+			Surroundings.Select(x => new LocationSurroundingRecord(x.Feature.Id, x.Direction, x.Text)).ToList(), Items.CreateRecord());
 
 	/// <summary>
 	/// Sets the exits once every location in the world has been created, since exits can go in both directions.
@@ -167,9 +173,10 @@ public enum LocationType
 
 /// <summary>
 /// The saved form of a location: its template in the data, its bounds, its exits, and the map features it borders.
-/// The sentence for each map feature is saved, since it was chosen at random.
+/// The sentence for each map feature is saved, since it was chosen at random. Also the items kept there.
 /// </summary>
-public sealed record LocationRecord(WorldId Id, LocationType Type, string Template, MapRect? Bounds, IReadOnlyList<LocationExitRecord> Exits, IReadOnlyList<LocationSurroundingRecord> Surroundings) : WorldObjectRecord(Id)
+public sealed record LocationRecord(WorldId Id, LocationType Type, string Template, MapRect? Bounds, IReadOnlyList<LocationExitRecord> Exits, IReadOnlyList<LocationSurroundingRecord> Surroundings,
+	IReadOnlyList<WorldId>? Items = null) : WorldObjectRecord(Id)
 {
 	internal override IWorldObject Create(WorldLoader loader)
 	{
@@ -185,6 +192,10 @@ public sealed record LocationRecord(WorldId Id, LocationType Type, string Templa
 
 		// Exits lead to other locations, which can lead back, so they're set once every location exists.
 		loader.Defer(() => location.SetExits(Exits.Select(x => new LocationExit(loader.Get<Location>(x.Location), x.Direction, x.Path, x.IsCrossing)).ToList()));
+
+		// Items refer to their owners, who may not exist yet.
+		if (Items is { } items)
+			loader.Defer(() => location.Items.Load(items.Select(loader.Get<Item>)));
 		return location;
 	}
 }

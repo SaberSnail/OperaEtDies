@@ -27,6 +27,12 @@ public sealed class ScheduleSettings
 	public const string SocializingRole = "socializing";
 
 	/// <summary>
+	/// The role of the trip need for washing the household's clothes, which are taken to be washed when the trip's time at
+	/// the place starts, and hung out to dry when its time at home ends.
+	/// </summary>
+	public const string LaundryRole = "laundry";
+
+	/// <summary>
 	/// Settings with no needs, where people stay at home and wake at six, for game data created without schedules.
 	/// </summary>
 	public static ScheduleSettings None { get; } = new()
@@ -34,7 +40,8 @@ public sealed class ScheduleSettings
 		MinimumUrgency = 0,
 		UrgencyPower = 1,
 		SightingHours = 24,
-		Sleep = new SleepSettings { NapBelow = 0, NapMinutes = new IntegerRange { Minimum = 30, Maximum = 30 }, BedtimeLead = 60 },
+		Sleep = new SleepSettings { NapBelow = 0, NapMinutes = new IntegerRange { Minimum = 30, Maximum = 30 }, BedtimeLead = 60, DayClothesFactor = 1 },
+		Clothing = new ClothingSchedule { ChangeMinutes = 5, DryingMinutes = 60 },
 		Talking = new TalkingSettings { RefuseUrgency = 100, WakeLevel = 0, AskAboutMinutes = 1, AskDoingMinutes = 5 },
 		Socializing = new SocializingSettings { ChatMinutes = 30, ChatUrgency = 100, ChatGoalWeight = 1, WakeUrgency = 100, NearMinutes = 15, SeekFactor = 1, SeekMinutes = 15, RecentHours = 12, AskPlayerAgainHours = 4, Clues = new SeekClues { Workplace = 1, Home = 1, Sighting = 1, Gathering = 1 } },
 		Idle = new IdleSettings { Place = new SchedulePlace { Kind = NeedPlace.Home }, Minutes = new IntegerRange { Minimum = 60, Maximum = 60 } },
@@ -60,6 +67,11 @@ public sealed class ScheduleSettings
 	/// How naps work, and how people go to bed in time for work.
 	/// </summary>
 	public required SleepSettings Sleep { get; init; }
+
+	/// <summary>
+	/// How long changing clothes and drying the washing take.
+	/// </summary>
+	public required ClothingSchedule Clothing { get; init; }
 
 	/// <summary>
 	/// When people refuse to talk, and what waking someone to talk costs them.
@@ -113,6 +125,12 @@ public sealed class ScheduleSettings
 	[JsonIgnore]
 	public string? SocializeNeed => FindRole(SocializingRole)?.Id;
 
+	/// <summary>
+	/// The id of the trip need for washing the household's clothes, or null if there's none.
+	/// </summary>
+	[JsonIgnore]
+	public string? LaundryNeed => FindRole(LaundryRole)?.Id;
+
 	private Need? FindRole(string role) => Needs.FirstOrDefault(x => x?.Role == role);
 
 	/// <summary>
@@ -156,11 +174,13 @@ public sealed class ScheduleSettings
 			errors.AddRange(need.Validate(needIds));
 
 		// The engine finds the sleep and socializing needs by their roles.
-		errors.AddRange(DataValidation.ValidateRoles("needs", needs, x => x.Id, x => x.Role, [SleepRole, SocializingRole]));
+		errors.AddRange(DataValidation.ValidateRoles("needs", needs, x => x.Id, x => x.Role, [SleepRole, SocializingRole, LaundryRole]));
 		if (needs.Count != 0 && FindRole(SleepRole) is null)
 			errors.Add(OurResources.RoleMissing.FormatCurrentCulture("needs", SleepRole));
 		foreach (var need in needs.Where(x => x.Role is SleepRole or SocializingRole && x.Kind != NeedKind.Level))
 			errors.Add(OurResources.RoleWrongType.FormatCurrentCulture($"needs[{need.Id}]", need.Role, "level need"));
+		foreach (var need in needs.Where(x => x.Role == LaundryRole && !(x.IsTrips && x.ReturnHome)))
+			errors.Add(OurResources.RoleWrongType.FormatCurrentCulture($"needs[{need.Id}]", need.Role, "trip need that returns home"));
 
 		if (SightingHours < 1)
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.sightingHours", SightingHours, 1));
@@ -177,6 +197,7 @@ public sealed class ScheduleSettings
 		}
 		errors.AddRange(Socializing.Validate());
 		errors.AddRange(Sleep.Validate());
+		errors.AddRange(Clothing.Validate());
 
 		errors.AddRange(Idle.Place.Validate($"{path}.idle.place"));
 		if (Idle.Activity is not null && string.IsNullOrWhiteSpace(Idle.Activity))
@@ -949,6 +970,33 @@ public sealed class PlayerActionOption
 }
 
 /// <summary>
+/// How long people take over their clothes: changing into or out of work clothes, and the washing drying once it's hung
+/// out.
+/// </summary>
+public sealed class ClothingSchedule
+{
+	/// <summary>
+	/// How many minutes changing clothes takes, other than changing into or out of work clothes as part of starting or
+	/// stopping work, which takes no time.
+	/// </summary>
+	public required int ChangeMinutes { get; init; }
+
+	/// <summary>
+	/// How many minutes after the washing is hung out it's dry and can be worn again.
+	/// </summary>
+	public required int DryingMinutes { get; init; }
+
+	internal IEnumerable<string> Validate()
+	{
+		const string path = $"{ScheduleSettings.SectionName}.clothing";
+		if (ChangeMinutes < 1)
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.changeMinutes", ChangeMinutes, 1);
+		if (DryingMinutes < 0)
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.dryingMinutes", DryingMinutes, 0);
+	}
+}
+
+/// <summary>
 /// What people do when none of their needs are urgent enough: wait somewhere for a while, then decide again.
 /// </summary>
 public sealed class IdleSettings
@@ -985,6 +1033,11 @@ public sealed class SleepSettings
 	/// </summary>
 	public required int BedtimeLead { get; init; }
 
+	/// <summary>
+	/// How fast sleep meets the sleep need while wearing everyday or work clothes, as a share of its usual rate.
+	/// </summary>
+	public required double DayClothesFactor { get; init; }
+
 	internal IEnumerable<string> Validate()
 	{
 		const string path = $"{ScheduleSettings.SectionName}.sleep";
@@ -996,6 +1049,10 @@ public sealed class SleepSettings
 			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.napMinutes.minimum", NapMinutes.Minimum, 1);
 		if (BedtimeLead < 1)
 			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.bedtimeLead", BedtimeLead, 1);
+		if (!(DayClothesFactor > 0))
+			yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.dayClothesFactor", DayClothesFactor);
+		else if (DayClothesFactor > 1)
+			yield return OurResources.DataNumberTooLarge.FormatCurrentCulture($"{path}.dayClothesFactor", DayClothesFactor, 1);
 	}
 }
 

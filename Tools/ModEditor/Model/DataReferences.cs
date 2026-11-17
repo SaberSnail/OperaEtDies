@@ -21,7 +21,8 @@ public sealed record SectionIds(string Section) : IdSource;
 public sealed record PropertyValueIds(string? SiblingField = null, bool FromMapKey = false) : IdSource;
 
 /// <summary>
-/// Portrait colors, by id. A field holding one can also hold a color written out, such as #FFAA00.
+/// Portrait colors, by id, and in a portrait layer or shape set, the colors of its own and of the clothing it draws. A
+/// field holding one can also hold a color written out, such as #FFAA00.
 /// </summary>
 public sealed record ColorIds : IdSource;
 
@@ -32,9 +33,9 @@ public sealed record FixedIds(IReadOnlyList<string> Names) : IdSource;
 
 /// <summary>
 /// The ids a field refers to: those its value can be (or that its list or map values can be), and those a map's keys
-/// can be.
+/// can be. A map whose values are maps of their own gives what those maps refer to as its entries.
 /// </summary>
-public sealed record FieldReference(IdSource? Value, IdSource? Key = null);
+public sealed record FieldReference(IdSource? Value, IdSource? Key = null, FieldReference? Entries = null);
 
 /// <summary>
 /// Which fields of the data refer to other things by id (see Docs/DataFiles.md), so the form can offer them. Fields
@@ -56,14 +57,20 @@ public static class DataReferences
 	{
 		_ when type == typeof(OperaEtDies.Utility.Random.FrequencyLevel) => Frequencies,
 		_ when type == typeof(PeakLevel) => ["low", "middle", "high"],
-		_ when type == typeof(ProfessionWealth) => ["veryLow", "low", "medium", "high"],
+		_ when type == typeof(ProfessionWealth) => Wealths,
 		_ => null,
 	};
 
-	private static IReadOnlyList<string> Frequencies { get; } =
-		new[] { "common", "uncommon", "rare", "veryRare" }
-			.SelectMany(x => new[] { x, x + "+", x + "++", x + "-", x + "--" })
-			.ToList();
+	private static IReadOnlyList<string> Frequencies { get; } = WithSteps(["common", "uncommon", "rare", "veryRare"], OperaEtDies.Utility.Random.FrequencyLevel.MaxSteps);
+
+	private static IReadOnlyList<string> Wealths { get; } = WithSteps(Enum.GetValues<WealthLevel>().Select(x => x.GetDataName()), ProfessionWealth.MaxSteps);
+
+	/// <summary>
+	/// Gets names with each of the steps up and down they can take, such as "high", "high+", "high++", "high-", and "high--".
+	/// </summary>
+	private static IReadOnlyList<string> WithSteps(IEnumerable<string> names, int maxSteps) =>
+		names.SelectMany(x => Enumerable.Range(0, maxSteps + 1).Select(steps => x + new string('+', steps))
+			.Concat(Enumerable.Range(1, maxSteps).Select(steps => x + new string('-', steps)))).ToList();
 
 	private static Dictionary<(Type, string), FieldReference> CreateFields()
 	{
@@ -82,7 +89,17 @@ public static class DataReferences
 			[(typeof(CharacterCondition), nameof(CharacterCondition.Values))] = new(new PropertyValueIds(FromMapKey: true), properties),
 			[(typeof(CharacterCondition), nameof(CharacterCondition.NotValues))] = new(new PropertyValueIds(FromMapKey: true), properties),
 			[(typeof(CharacterCondition), nameof(CharacterCondition.Hidden))] = new(properties),
-			[(typeof(CharacterObscurer), nameof(CharacterObscurer.Hides))] = new(null, properties),
+			[(typeof(ClothingItem), nameof(ClothingItem.Slots))] = new(new SectionIds("clothingSlots")),
+			[(typeof(ClothingItem), nameof(ClothingItem.Layer))] = new(new SectionIds("clothingLayers")),
+			[(typeof(ClothingItem), nameof(ClothingItem.Coverage))] = new(null, new SectionIds("clothingSlots")),
+			[(typeof(ClothingItem), nameof(ClothingItem.Bulk))] = new(new SectionIds("clothingBulks")),
+			[(typeof(CharacterProperty), nameof(CharacterProperty.Regions))] = new(new SectionIds("clothingSlots")),
+			[(typeof(PortraitHiddenBy), nameof(PortraitHiddenBy.Regions))] = new(new SectionIds("clothingSlots")),
+			[(typeof(ModestyRule), nameof(ModestyRule.Home))] = new(null, new SectionIds("clothingSlots")),
+			[(typeof(ModestyRule), nameof(ModestyRule.Outside))] = new(null, new SectionIds("clothingSlots")),
+			[(typeof(ModestyRule), nameof(ModestyRule.Formal))] = new(null, new SectionIds("clothingSlots")),
+			[(typeof(Profession), nameof(Profession.Modesty))] = new(null, new SectionIds("modestyRules"), new FieldReference(null, new SectionIds("clothingSlots"))),
+			[(typeof(Outfit), nameof(Outfit.Clothing))] = new(new SectionIds("clothing")),
 			[(typeof(StringDefaults), nameof(StringDefaults.KeyedBy))] = new(properties),
 			[(typeof(StringDefaults), nameof(StringDefaults.ValuesByKey))] = new(null, new PropertyValueIds(SiblingField: "keyedBy")),
 			[(typeof(Profession), nameof(Profession.Role))] = new(new FixedIds(["homemaker", "infirm"])),
@@ -102,11 +119,14 @@ public static class DataReferences
 			[(typeof(CalendarSpecialDay), nameof(CalendarSpecialDay.Day))] = new(new SectionIds("days")),
 			[(typeof(Hours), nameof(Hours.Days))] = new(new SectionIds("days")),
 			[(typeof(QuarterChoice), nameof(QuarterChoice.QuarterKind))] = new(quarterKinds),
-			[(typeof(Need), nameof(Need.Role))] = new(new FixedIds([ScheduleSettings.SleepRole, ScheduleSettings.SocializingRole])),
+			[(typeof(Need), nameof(Need.Role))] = new(new FixedIds([ScheduleSettings.SleepRole, ScheduleSettings.SocializingRole, ScheduleSettings.LaundryRole])),
 			[(typeof(LevelNeedSettings), nameof(LevelNeedSettings.PausedBy))] = new(needs),
 			[(typeof(UrgencyFactor), nameof(UrgencyFactor.Needs))] = new(needs),
 			[(typeof(PortraitLayer), nameof(PortraitLayer.Scale))] = new(new SectionIds("portraitScales")),
 			[(typeof(PortraitLayer), nameof(PortraitLayer.Offset))] = new(new SectionIds("portraitOffsets")),
+			[(typeof(PortraitLayer), nameof(PortraitLayer.Clothing))] = new(new SectionIds("clothing")),
+			[(typeof(PortraitShapeSet), nameof(PortraitShapeSet.Scale))] = new(new SectionIds("portraitScales")),
+			[(typeof(PortraitShape), nameof(PortraitShape.Include))] = new(new SectionIds("portraitShapeSets")),
 			[(typeof(PortraitShape), nameof(PortraitShape.Scale))] = new(new SectionIds("portraitScales")),
 			[(typeof(PortraitShape), nameof(PortraitShape.Fill))] = new(colors),
 			[(typeof(PortraitShape), nameof(PortraitShape.FillTo))] = new(colors),
@@ -225,6 +245,39 @@ public sealed class IdCatalog
 	};
 
 	/// <summary>
+	/// Gets the colors a portrait shape or a layer's own color can use, given the object the field is in: the portrait
+	/// colors, and in a layer, the layer's own colors and the color names of the clothing it draws. A shape set's shapes can
+	/// use those of every layer that includes it. A layer or shape set that a form is editing on its own (or in an operation's
+	/// value) isn't in its section, so the form gives the section, and for an operation, the id of the item it changes,
+	/// which is used when the field isn't in a layer or shape set of its own, such as a shape or color set on its own.
+	/// </summary>
+	public IReadOnlyList<string> GetColorIds(JsonObject? owner, string? section = null, string? itemId = null)
+	{
+		var ids = new List<string>(GetIds("portraitColors"));
+		var container = owner?.Parent is JsonArray shapes && shapes.Parent is JsonObject parent && shapes.GetPropertyName() is "shapes" or "colors" ? parent : null;
+		var containerSection = container?.Parent is JsonArray items && items.Parent is JsonObject ? items.GetPropertyName() : section;
+		if (container is null && itemId is not null && containerSection is "portraitLayers" or "portraitShapeSets")
+			container = FindItem(containerSection, itemId);
+
+		if (container is not null)
+		{
+			var isShapeSet = string.Equals(containerSection, "portraitShapeSets", StringComparison.OrdinalIgnoreCase) ||
+				FindSection("portraitShapeSets").Contains(container);
+			var layers = isShapeSet && (ModJson.GetId(container) ?? itemId) is { } setId
+				? FindSection("portraitLayers").Where(layer => GetObjects(layer, "shapes").Any(shape => GetString(shape, "include") == setId))
+				: [container];
+			foreach (var layer in layers)
+			{
+				ids.AddRange(GetObjects(layer, "colors").Select(ModJson.GetId).OfType<string>());
+				foreach (var clothingId in GetStrings(layer, "clothing"))
+					ids.AddRange(FindItem("clothing", clothingId) is { } clothing ? GetStrings(clothing, "colors") : []);
+			}
+		}
+
+		return ids.Distinct(StringComparer.Ordinal).ToList();
+	}
+
+	/// <summary>
 	/// Gets paths for an operation that go one step further than the path typed so far: the sections, while the first
 	/// step is being typed, and then the items of a list (by id or index), the properties of an object (those it has in
 	/// the game data, and those the game reads there), or the keys of a map.
@@ -304,6 +357,18 @@ public sealed class IdCatalog
 
 	// The mod's items come after the game data's, so the last one with the id is the one the mod changed.
 	private JsonObject? FindItem(string section, string id) => FindSection(section).LastOrDefault(x => ModJson.GetId(x) == id);
+
+	/// <summary>
+	/// Gets a property that's a string or a list of strings, as a list.
+	/// </summary>
+	private static IReadOnlyList<string> GetStrings(JsonObject obj, string name) => obj.TryGetPropertyValue(name, out var node) ? node switch
+	{
+		JsonArray list => list.OfType<JsonValue>().Where(x => x.GetValueKind() == JsonValueKind.String).Select(x => x.GetValue<string>()).ToList(),
+		JsonValue value when value.GetValueKind() == JsonValueKind.String => [value.GetValue<string>()],
+		_ => [],
+	} : [];
+
+	private static IEnumerable<JsonObject> GetObjects(JsonObject obj, string name) => obj.TryGetPropertyValue(name, out var node) && node is JsonArray list ? list.OfType<JsonObject>() : [];
 
 	private static string? GetString(JsonObject obj, string name) =>
 		obj.TryGetPropertyValue(name, out var node) && node is JsonValue value && value.GetValueKind() == JsonValueKind.String ? value.GetValue<string>() : null;

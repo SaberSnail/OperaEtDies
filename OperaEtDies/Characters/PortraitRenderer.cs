@@ -22,8 +22,12 @@ public sealed class PortraitRenderer
 		m_scales = data.Scales;
 		m_offsets = data.Offsets;
 		Size = new Size(data.Width, data.Height);
+
+		var shapeSets = new Dictionary<string, ParsedShapeSet>(StringComparer.Ordinal);
+		foreach (var set in data.ShapeSets)
+			shapeSets.TryAdd(set.Id, new ParsedShapeSet(set, set.Shapes.Select(x => Parse(x, null)).ToList()));
 		m_layers = data.Layers
-			.Select(layer => new ParsedLayer(layer, layer.Shapes.Select(shape => new ParsedShape(shape, PortraitShape.TryParsePath(shape.Path, out var geometry, out _) ? geometry : Geometry.Empty)).ToList()))
+			.Select(layer => new ParsedLayer(layer, layer.Shapes.Select(shape => Parse(shape, shape.Include is { } include ? shapeSets.GetValueOrDefault(include) : null)).ToList()))
 			.ToList();
 
 		var bounds = new RectangleGeometry(new Rect(Size));
@@ -37,26 +41,27 @@ public sealed class PortraitRenderer
 	public Size Size { get; }
 
 	/// <summary>
-	/// Gets the ids of the layers drawn for a character in a place, from bottom to top.
+	/// Gets the ids of the layers drawn for a character in a place wearing clothing, from bottom to top.
 	/// </summary>
-	public IReadOnlyList<string> GetLayerIds(CharacterTraits traits, PortraitPlace? place)
+	public IReadOnlyList<string> GetLayerIds(CharacterTraits traits, PortraitPlace? place, PortraitClothing clothing)
 	{
 		var getValueId = GetValueIdFunc(traits);
-		return m_layers.Where(x => x.Layer.IsDrawn(getValueId, place)).Select(x => x.Layer.Id).ToList();
+		return m_layers.Where(x => x.Layer.IsDrawn(getValueId, place, clothing)).Select(x => x.Layer.Id).ToList();
 	}
 
 	/// <summary>
-	/// Draws a character's portrait in a place. A null place only draws the layers
-	/// that are drawn anywhere.
+	/// Draws a character's portrait in a place, wearing clothing. A null place only draws the layers that are drawn
+	/// anywhere.
 	/// </summary>
-	public DrawingImage Render(CharacterTraits traits, PortraitPlace? place) => Render(traits, place, null, null);
+	public DrawingImage Render(CharacterTraits traits, PortraitPlace? place, PortraitClothing clothing) => Render(traits, place, clothing, null, null);
 
 	/// <summary>
-	/// Draws a character's portrait in a place, with layers and shapes drawn or left out regardless of their conditions
-	/// where the overrides say so. An override gets a layer's index (and a shape's index in its layer) and returns
-	/// true to draw it, false to leave it out, or null to follow its conditions. See <see cref="IsShapeDrawn"/>.
+	/// Draws a character's portrait in a place wearing clothing, with layers and shapes drawn or left out regardless of
+	/// their conditions where the overrides say so. An override gets a layer's index (and a shape's index in its layer)
+	/// and returns true to draw it, false to leave it out, or null to follow its conditions. See
+	/// <see cref="IsShapeDrawn"/>.
 	/// </summary>
-	public DrawingImage Render(CharacterTraits traits, PortraitPlace? place, Func<int, bool?>? layerOverride, Func<int, int, bool?>? shapeOverride)
+	public DrawingImage Render(CharacterTraits traits, PortraitPlace? place, PortraitClothing clothing, Func<int, bool?>? layerOverride, Func<int, int, bool?>? shapeOverride)
 	{
 		var getValueId = GetValueIdFunc(traits);
 		var colors = GetColors(getValueId);
@@ -70,13 +75,31 @@ public sealed class PortraitRenderer
 		for (var layerIndex = 0; layerIndex < m_layers.Count; layerIndex++)
 		{
 			var layer = m_layers[layerIndex];
-			var isLayerDrawn = layer.Layer.IsDrawn(getValueId, place);
+			var isLayerDrawn = layer.Layer.IsDrawn(getValueId, place, clothing);
 			var offset = offsets.GetValueOrDefault(layer.Layer.Offset ?? "");
+			var index = layerIndex;
+			bool IsDrawn(int shapeIndex) =>
+				IsShapeDrawn(isLayerDrawn, CharacterCondition.IsMet(layer.Shapes[shapeIndex].Shape.When, getValueId), layerOverride?.Invoke(index), shapeOverride?.Invoke(index, shapeIndex));
+
+			IReadOnlyDictionary<string, Color>? layerColors = null;
+			Geometry? clip = null;
 			for (var shapeIndex = 0; shapeIndex < layer.Shapes.Count; shapeIndex++)
 			{
-				var shape = layer.Shapes[shapeIndex];
-				if (IsShapeDrawn(isLayerDrawn, CharacterCondition.IsMet(shape.Shape.When, getValueId), layerOverride?.Invoke(layerIndex), shapeOverride?.Invoke(layerIndex, shapeIndex)))
-					portrait.Children.Add(CreateDrawing(shape, colors, CombineTransforms(scales.GetValueOrDefault(shape.Shape.Scale ?? layer.Layer.Scale ?? ""), offset)));
+				if (IsDrawn(shapeIndex))
+				{
+					var shape = layer.Shapes[shapeIndex];
+					layerColors ??= GetLayerColors(layer.Layer, clothing, colors, getValueId);
+					if (shape.Include is { } set)
+					{
+						if (shape.Shape.Clip)
+							clip ??= GetClip(layer, scales, offset, IsDrawn);
+						portrait.Children.Add(CreateIncludeDrawing(set, shape.Shape.Clip ? clip : null, layerColors, getValueId, x => CombineTransforms(scales.GetValueOrDefault(x.Scale ?? set.Set.Scale ?? layer.Layer.Scale ?? ""), offset)));
+					}
+					else
+					{
+						portrait.Children.Add(CreateDrawing(shape, layerColors, CombineTransforms(scales.GetValueOrDefault(shape.Shape.Scale ?? layer.Layer.Scale ?? ""), offset)));
+					}
+				}
 			}
 		}
 
@@ -99,10 +122,11 @@ public sealed class PortraitRenderer
 	public IReadOnlyDictionary<string, Color> GetColors(CharacterTraits traits) => GetColors(GetValueIdFunc(traits));
 
 	/// <summary>
-	/// Gets every shape of every layer as it's placed in a character's portrait in a place, from bottom to top,
-	/// including the shapes that aren't drawn.
+	/// Gets every shape of every layer as it's placed in a character's portrait in a place wearing clothing, from bottom
+	/// to top, including the shapes that aren't drawn. A shape that includes a shape set is placed as the set's shapes
+	/// together, already stretched and moved.
 	/// </summary>
-	public IReadOnlyList<PortraitShapePlacement> GetShapePlacements(CharacterTraits traits, PortraitPlace? place)
+	public IReadOnlyList<PortraitShapePlacement> GetShapePlacements(CharacterTraits traits, PortraitPlace? place, PortraitClothing clothing)
 	{
 		var getValueId = GetValueIdFunc(traits);
 		var scales = GetScales(getValueId);
@@ -113,15 +137,19 @@ public sealed class PortraitRenderer
 			var layer = m_layers[layerIndex];
 			var isLayerConditionMet = CharacterCondition.IsMet(layer.Layer.When, getValueId);
 			var isPlaceMet = layer.Layer.At is null || layer.Layer.At.IsMet(place);
+			var isClothingMet = layer.Layer.IsClothingMet(clothing);
 			var offset = offsets.GetValueOrDefault(layer.Layer.Offset ?? "");
 			for (var shapeIndex = 0; shapeIndex < layer.Shapes.Count; shapeIndex++)
 			{
 				var shape = layer.Shapes[shapeIndex];
-				var transform = CombineTransforms(scales.GetValueOrDefault(shape.Shape.Scale ?? layer.Layer.Scale ?? ""), offset);
-				placements.Add(new PortraitShapePlacement(layerIndex, shapeIndex, shape.Shape, shape.Geometry, transform?.Value ?? Matrix.Identity)
+				var (geometry, matrix) = shape.Include is { } set
+					? (CombineGeometries(set.Shapes.Select(x => Transform(x.Geometry, CombineTransforms(scales.GetValueOrDefault(x.Shape.Scale ?? set.Set.Scale ?? layer.Layer.Scale ?? ""), offset)))), Matrix.Identity)
+					: (shape.Geometry, CombineTransforms(scales.GetValueOrDefault(shape.Shape.Scale ?? layer.Layer.Scale ?? ""), offset)?.Value ?? Matrix.Identity);
+				placements.Add(new PortraitShapePlacement(layerIndex, shapeIndex, shape.Shape, geometry, matrix)
 				{
 					IsLayerConditionMet = isLayerConditionMet,
 					IsPlaceMet = isPlaceMet,
+					IsClothingMet = isClothingMet,
 					IsShapeConditionMet = CharacterCondition.IsMet(shape.Shape.When, getValueId),
 				});
 			}
@@ -129,6 +157,29 @@ public sealed class PortraitRenderer
 
 		return placements;
 	}
+
+	/// <summary>
+	/// Gets a character's portrait in a place wearing clothing, drawing it the first time it's asked for with those
+	/// traits. Portraits are kept for as long as the traits object is.
+	/// </summary>
+	public DrawingImage GetPortrait(CharacterTraits traits, PortraitPlace? place, PortraitClothing clothing)
+	{
+		var portraits = m_portraits.GetValue(traits, _ => []);
+		lock (portraits)
+		{
+			var key = new PortraitKey(place, clothing);
+			if (!portraits.TryGetValue(key, out var portrait))
+			{
+				portrait = Render(traits, place, clothing);
+				portraits.Add(key, portrait);
+			}
+
+			return portrait;
+		}
+	}
+
+	private static ParsedShape Parse(PortraitShape shape, ParsedShapeSet? include) =>
+		new(shape, shape.Path is { } path && PortraitShape.TryParsePath(path, out var geometry, out _) ? geometry : Geometry.Empty, include);
 
 	private Func<string, string?> GetValueIdFunc(CharacterTraits traits) =>
 		propertyId => m_properties.Find(propertyId)?.GetConditionValueId(traits.Values.GetValueOrDefault(propertyId));
@@ -139,7 +190,37 @@ public sealed class PortraitRenderer
 	private Dictionary<string, Color> GetColors(Func<string, string?> getValueId)
 	{
 		var colors = new Dictionary<string, Color>(StringComparer.Ordinal);
-		foreach (var color in m_colors)
+		AddColors(m_colors, colors, getValueId);
+		return colors;
+	}
+
+	/// <summary>
+	/// Gets the colors a layer's shapes use: the portrait colors, then the colors of the piece of clothing it draws, by
+	/// color name, then the layer's own colors, each replacing any with the same id before it.
+	/// </summary>
+	private static IReadOnlyDictionary<string, Color> GetLayerColors(PortraitLayer layer, PortraitClothing clothing, Dictionary<string, Color> colors, Func<string, string?> getValueId)
+	{
+		var piece = layer.FindPiece(clothing);
+		if (piece is null && layer.Colors is null)
+			return colors;
+
+		var layerColors = new Dictionary<string, Color>(colors, StringComparer.Ordinal);
+		foreach (var (name, hex) in piece?.Colors ?? new Dictionary<string, string>())
+		{
+			if (PortraitColor.TryParseHex(hex, out var color))
+				layerColors[name] = color;
+		}
+
+		AddColors(layer.Colors ?? [], layerColors, getValueId);
+		return layerColors;
+	}
+
+	/// <summary>
+	/// Works out colors in order, adding each to the colors so later ones can use it.
+	/// </summary>
+	private static void AddColors(IEnumerable<PortraitColor> toAdd, Dictionary<string, Color> colors, Func<string, string?> getValueId)
+	{
+		foreach (var color in toAdd)
 		{
 			var reference = color.Variants?.FirstOrDefault(x => CharacterCondition.IsMet(x.When, getValueId))?.Color ?? color.Color;
 			var value = Resolve(reference, colors);
@@ -147,8 +228,6 @@ public sealed class PortraitRenderer
 				value = Blend(value, Resolve(mix, colors), amount);
 			colors[color.Id] = value;
 		}
-
-		return colors;
 	}
 
 	/// <summary>
@@ -206,6 +285,38 @@ public sealed class PortraitRenderer
 		return group;
 	}
 
+	/// <summary>
+	/// Gets the area a layer's drawn shapes fill, other than the shape sets it includes, as placed in the portrait.
+	/// </summary>
+	private static Geometry GetClip(ParsedLayer layer, IReadOnlyDictionary<string, Transform> scales, Transform? offset, Func<int, bool> isDrawn) =>
+		CombineGeometries(layer.Shapes
+			.Select((shape, index) => (shape, index))
+			.Where(x => x.shape.Include is null && x.shape.Shape.Fill is not null && isDrawn(x.index))
+			.Select(x => Transform(x.shape.Geometry, CombineTransforms(scales.GetValueOrDefault(x.shape.Shape.Scale ?? layer.Layer.Scale ?? ""), offset))));
+
+	/// <summary>
+	/// Combines geometries into one that covers everywhere any of them does.
+	/// </summary>
+	private static Geometry CombineGeometries(IEnumerable<Geometry> geometries)
+	{
+		var group = new GeometryGroup { FillRule = FillRule.Nonzero };
+		foreach (var geometry in geometries)
+			group.Children.Add(geometry);
+		group.Freeze();
+		return group;
+	}
+
+	private static Geometry Transform(Geometry geometry, Transform? transform)
+	{
+		if (transform is null)
+			return geometry;
+
+		var transformed = geometry.Clone();
+		transformed.Transform = transform;
+		transformed.Freeze();
+		return transformed;
+	}
+
 	private static Color Resolve(string reference, IReadOnlyDictionary<string, Color> colors) =>
 		PortraitColor.TryParseHex(reference, out var color) ? color : colors.GetValueOrDefault(reference, Colors.Magenta);
 
@@ -213,6 +324,18 @@ public sealed class PortraitRenderer
 	{
 		byte Mix(byte a, byte b) => (byte) Math.Round(a + ((b - a) * amount));
 		return Color.FromArgb(Mix(from.A, to.A), Mix(from.R, to.R), Mix(from.G, to.G), Mix(from.B, to.B));
+	}
+
+	/// <summary>
+	/// Draws the shapes of an included shape set whose conditions are met, in the including layer's colors, clipped
+	/// to the given area if there is one.
+	/// </summary>
+	private static Drawing CreateIncludeDrawing(ParsedShapeSet set, Geometry? clip, IReadOnlyDictionary<string, Color> colors, Func<string, string?> getValueId, Func<PortraitShape, Transform?> getTransform)
+	{
+		var group = new DrawingGroup { ClipGeometry = clip };
+		foreach (var shape in set.Shapes.Where(x => CharacterCondition.IsMet(x.Shape.When, getValueId)))
+			group.Children.Add(CreateDrawing(shape, colors, getTransform(shape.Shape)));
+		return group;
 	}
 
 	private static Drawing CreateDrawing(ParsedShape parsed, IReadOnlyDictionary<string, Color> colors, Transform? transform)
@@ -229,15 +352,7 @@ public sealed class PortraitRenderer
 			: null;
 
 		// Transforming the geometry rather than the drawing keeps the outline's width.
-		var geometry = parsed.Geometry;
-		if (transform is not null)
-		{
-			geometry = geometry.Clone();
-			geometry.Transform = transform;
-			geometry.Freeze();
-		}
-
-		Drawing drawing = new GeometryDrawing(fill, pen, geometry);
+		Drawing drawing = new GeometryDrawing(fill, pen, Transform(parsed.Geometry, transform));
 
 		// Group opacity keeps a shape's outline from showing through its own fill.
 		if (shape.Opacity is { } opacity and < 1)
@@ -259,28 +374,16 @@ public sealed class PortraitRenderer
 		};
 	}
 
-	/// <summary>
-	/// Gets a character's portrait in a place, drawing it the first time it's asked for with those traits. Portraits
-	/// are kept for as long as the traits object is.
-	/// </summary>
-	public DrawingImage GetPortrait(CharacterTraits traits, PortraitPlace? place)
-	{
-		var portraits = m_portraits.GetValue(traits, _ => []);
-		lock (portraits)
-		{
-			if (!portraits.TryGetValue(new ValueTuple<PortraitPlace?>(place), out var portrait))
-			{
-				portrait = Render(traits, place);
-				portraits.Add(new ValueTuple<PortraitPlace?>(place), portrait);
-			}
-
-			return portrait;
-		}
-	}
-
 	private sealed record ParsedLayer(PortraitLayer Layer, IReadOnlyList<ParsedShape> Shapes);
 
-	private sealed record ParsedShape(PortraitShape Shape, Geometry Geometry);
+	/// <summary>
+	/// A shape with its parsed path, or the shape set it includes.
+	/// </summary>
+	private sealed record ParsedShape(PortraitShape Shape, Geometry Geometry, ParsedShapeSet? Include);
+
+	private sealed record ParsedShapeSet(PortraitShapeSet Set, IReadOnlyList<ParsedShape> Shapes);
+
+	private readonly record struct PortraitKey(PortraitPlace? Place, PortraitClothing Clothing);
 
 	private readonly DataCatalog<CharacterProperty> m_properties;
 	private readonly IReadOnlyList<PortraitColor> m_colors;
@@ -288,7 +391,7 @@ public sealed class PortraitRenderer
 	private readonly IReadOnlyList<PortraitOffset> m_offsets;
 	private readonly IReadOnlyList<ParsedLayer> m_layers;
 	private readonly Geometry m_bounds;
-	private readonly ConditionalWeakTable<CharacterTraits, Dictionary<ValueTuple<PortraitPlace?>, DrawingImage>> m_portraits = new();
+	private readonly ConditionalWeakTable<CharacterTraits, Dictionary<PortraitKey, DrawingImage>> m_portraits = new();
 }
 
 /// <summary>
@@ -308,11 +411,17 @@ public sealed record PortraitShapePlacement(int LayerIndex, int ShapeIndex, Port
 	public bool IsPlaceMet { get; init; }
 
 	/// <summary>
+	/// Whether the character's clothing lets the layer be drawn: they're wearing clothing it draws, if it draws any, and
+	/// nothing they wear hides its group.
+	/// </summary>
+	public bool IsClothingMet { get; init; } = true;
+
+	/// <summary>
 	/// Whether the character meets the shape's own condition.
 	/// </summary>
 	public bool IsShapeConditionMet { get; init; }
 
-	public bool IsLayerDrawn => IsLayerConditionMet && IsPlaceMet;
+	public bool IsLayerDrawn => IsLayerConditionMet && IsPlaceMet && IsClothingMet;
 
 	public bool IsDrawn => IsLayerDrawn && IsShapeConditionMet;
 }

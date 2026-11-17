@@ -79,6 +79,10 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 			}
 		}
 
+		// Everyone has their own clothing, kept at home until they dress for the start of the game.
+		foreach (var person in people)
+			ClothingGenerator.GiveOutfits(gameData, objects, random, person);
+
 		var world = new GameWorld(gameData, objects, random, startTime);
 		world.StartAsleep();
 		return world;
@@ -161,10 +165,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		{
 			if (m_isHeadless && !value)
 			{
-				var player = Player;
-				player.UpdateNeeds(Time);
-				player.IsAtWork = false;
-				player.SetPlan(null, []);
+				DropPlan(Player);
 			}
 			m_isHeadless = value;
 		}
@@ -222,9 +223,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		// Someone asking the player to chat stops time, and whatever the player was doing, so they can answer.
 		if (player.TalkRequest is not null && player.Tasks.Count != 0 && player.CurrentTask is not TalkTask)
 		{
-			player.UpdateNeeds(Time);
-			player.IsAtWork = false;
-			player.SetPlan(null, []);
+			DropPlan(player);
 		}
 
 		// Sightings are only remembered for so long.
@@ -237,9 +236,9 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// <summary>
 	/// Passes time until someone arrives at or leaves the location, or until the next part of the day starts, whichever
 	/// comes first. While following someone, the wait stops instead when they start spending time on a different goal (or
-	/// on being idle), or when they leave, and if they leave, the player goes with them, arriving when they do. Starting
-	/// another stretch of the same goal, such as resting again, doesn't stop it. Returns whether the wait was stopped by
-	/// someone.
+	/// on being idle), or when they leave, and if they leave, the player goes with them, arriving when they do, unless
+	/// they'd be leaving home without being dressed enough to go out. Starting another stretch of the same goal, such as
+	/// resting again, doesn't stop it. Returns whether the wait was stopped by someone.
 	/// </summary>
 	public bool WaitForPeople(Location location, Person? following = null)
 	{
@@ -268,7 +267,8 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 			TaskStarted -= OnTaskStarted;
 		}
 
-		if (following is not null && following.Location != location)
+		// The player can't follow someone out of their home unless they're dressed enough to go out.
+		if (following is not null && following.Location != location && (location != Player.Home || GetPlayerUncoveredSlotsOutside().Count == 0))
 			MovePlayer(following.Location);
 
 		return isChanged;
@@ -324,6 +324,10 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		var minutes = GetPlayerTripMinutes(need, isHome) ?? throw new InvalidOperationException($"The player can't do the trip {need.Id} now.");
 		var player = Player;
 		player.PendingTrip = isHome || !need.ReturnHome ? null : need;
+
+		// With no time to spend at home, washing is hung out straight away.
+		if (minutes == 0 && isHome && need.Id == GameData.Schedules.LaundryNeed)
+			m_scheduler.HangOutWashing(player.Home, Time);
 		return minutes == 0 ? GameData.Calendar.CreateTimeOffset(0, 0, 0) : DoPlayerAction(need, minutes);
 	}
 
@@ -335,7 +339,9 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 
 	/// <summary>
 	/// Has the player spend the given number of minutes on a need, starting and stopping work around it for a need met at
-	/// work, while time passes for everyone. Returns how much time passed.
+	/// work, while time passes for everyone. As with everyone else, starting work changes them into their work clothes if they
+	/// have them at hand, and stopping work changes them back if it's the last of their work for the day. Returns how much
+	/// time passed.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">The minutes aren't more than 0.</exception>
 	public TimeOffset DoPlayerAction(Need need, int minutes)
@@ -343,15 +349,214 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		ArgumentNullException.ThrowIfNull(need);
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minutes);
 
+		var player = Player;
+		var change = need.AtWork ? ClothingRules.GetWorkChange(player, player.Location, Time) : null;
+		var changeInto = change is { Fetch: false } ? change.Value.Outfit : null;
+		var workOutfit = changeInto ?? (need.AtWork ? player.GetOutfits(OutfitKind.Work).FirstOrDefault(x => ClothingRules.IsWearing(player, x)) : null);
+		var changeOutOf = workOutfit is not null && m_scheduler.IsLastShift(player, need, Time, minutes) ? workOutfit : null;
+
 		var tasks = new List<PersonTask>();
 		if (need.AtWork)
-			tasks.Add(new AtWorkTask(true));
+			tasks.Add(new AtWorkTask(true, changeInto));
 		tasks.Add(new BusyTask(minutes));
 		if (need.AtWork)
-			tasks.Add(new AtWorkTask(false));
+			tasks.Add(new AtWorkTask(false, changeOutOf));
+
+		player.SetPlan(need, tasks);
+		m_scheduler.Continue(player, Time);
+		return AdvanceTime(GameData.Calendar.CreateTimeOffset(0, 0, minutes), () => player.Tasks.Count == 0);
+	}
+
+	/// <summary>
+	/// Whether the player can put on a piece of clothing: it's at hand and they aren't wearing it.
+	/// </summary>
+	public bool CanPlayerWear(ClothingPiece piece) => piece.Wearer != Player && ClothingRules.IsAtHand(Player, piece, Time);
+
+	/// <summary>
+	/// Has the player put on a piece of clothing, taking off whatever they're wearing in its slots in its layer. What
+	/// they take off is kept at home if they're there, or carried. It takes no time until they're done changing (see
+	/// <see cref="FinishPlayerChanging"/>).
+	/// </summary>
+	/// <exception cref="InvalidOperationException">The player can't put the piece on.</exception>
+	public void PlayerWear(ClothingPiece piece)
+	{
+		if (!CanPlayerWear(piece))
+			throw new InvalidOperationException($"The player can't put on {piece.Id}.");
 
 		var player = Player;
-		player.SetPlan(need, tasks);
+		var container = GetPlayerClothesContainer();
+		foreach (var worn in player.Clothing.Pieces.Where(x => x.Clothing.Overlaps(piece.Clothing)).ToList())
+		{
+			player.Clothing.TakeOff(worn);
+			container.Add(worn);
+		}
+
+		piece.Container?.Remove(piece);
+		player.Clothing.Wear(piece);
+	}
+
+	/// <summary>
+	/// Has the player take off a piece of clothing they're wearing. It's kept at home if they're there, or carried. It takes
+	/// no time until they're done changing (see <see cref="FinishPlayerChanging"/>).
+	/// </summary>
+	/// <exception cref="InvalidOperationException">The player isn't wearing the piece.</exception>
+	public void PlayerTakeOff(ClothingPiece piece)
+	{
+		if (piece.Wearer != Player)
+			throw new InvalidOperationException($"The player isn't wearing {piece.Id}.");
+
+		Player.Clothing.TakeOff(piece);
+		GetPlayerClothesContainer().Add(piece);
+	}
+
+	/// <summary>
+	/// Has the player take off everything they're wearing. It's kept at home if they're there, or carried. It takes no time
+	/// until they're done changing (see <see cref="FinishPlayerChanging"/>).
+	/// </summary>
+	/// <exception cref="InvalidOperationException">The player isn't wearing anything.</exception>
+	public void PlayerTakeOffAll()
+	{
+		if (Player.Clothing.Pieces.Count == 0)
+			throw new InvalidOperationException("The player isn't wearing anything.");
+
+		Player.Clothing.TakeOffAll(GetPlayerClothesContainer());
+	}
+
+	/// <summary>
+	/// Whether the player can change into one of their outfits: every piece is at hand, and they aren't already wearing
+	/// just that (or for work clothes that go over other clothes, all of it).
+	/// </summary>
+	public bool CanPlayerChangeInto(OwnedOutfit outfit) =>
+		outfit.Owner == Player && ClothingRules.IsAtHand(outfit, Time) &&
+		!ClothingRules.IsDressedIn(Player, outfit);
+
+	/// <summary>
+	/// Has the player change into one of their outfits, taking off everything else.
+	/// Work clothes that aren't complete go over what they're wearing instead, taking off only what's in the same slots in
+	/// the same layers.
+	/// What they take off is kept at home if they're there, or carried. It takes no time until they're done changing (see
+	/// <see cref="FinishPlayerChanging"/>).
+	/// </summary>
+	/// <exception cref="InvalidOperationException">The player can't change into the outfit.</exception>
+	public void PlayerChangeInto(OwnedOutfit outfit)
+	{
+		if (!CanPlayerChangeInto(outfit))
+			throw new InvalidOperationException($"The player can't change into {outfit.Id}.");
+
+		var player = Player;
+		var container = GetPlayerClothesContainer();
+		foreach (var worn in player.Clothing.Pieces.Where(x => outfit.IsComplete && !outfit.Pieces.Contains(x)).ToList())
+		{
+			player.Clothing.TakeOff(worn);
+			container.Add(worn);
+		}
+
+		player.Clothing.PutOn(outfit, container);
+	}
+
+	/// <summary>
+	/// Finishes the player's changing of clothes, such as when they close their wardrobe: if they're wearing something
+	/// different from what they were wearing before, however many things they tried, it takes the time to change clothes,
+	/// while time passes for everyone. Returns how much time passed, or null if nothing changed.
+	/// </summary>
+	public TimeOffset? FinishPlayerChanging(IReadOnlyCollection<ClothingPiece> wornBefore) =>
+		Player.Clothing.Pieces.ToHashSet().SetEquals(wornBefore) ? null : PassPlayerChangingTime();
+
+	/// <summary>
+	/// Whether the player can pick up a piece of clothing kept at home to carry it: they're at home, and it's there and
+	/// isn't in the wash or drying.
+	/// </summary>
+	public bool CanPlayerTake(ClothingPiece piece) => Player.Location == Player.Home && piece.Container == Player.Home.Items && piece.IsReady(Time);
+
+	/// <summary>
+	/// Has the player pick up a piece of clothing kept at home to carry it, which takes no time.
+	/// </summary>
+	/// <exception cref="InvalidOperationException">The player can't take the piece.</exception>
+	public void PlayerTake(ClothingPiece piece)
+	{
+		if (!CanPlayerTake(piece))
+			throw new InvalidOperationException($"The player can't take {piece.Id}.");
+
+		Player.Home.Items.Remove(piece);
+		Player.Inventory.Add(piece);
+	}
+
+	/// <summary>
+	/// Whether the player can put away a piece of clothing they're carrying: they're at home.
+	/// </summary>
+	public bool CanPlayerPutAway(ClothingPiece piece) => Player.Location == Player.Home && piece.Container == Player.Inventory;
+
+	/// <summary>
+	/// Has the player put away a piece of clothing they're carrying at home, which takes no time.
+	/// </summary>
+	/// <exception cref="InvalidOperationException">The player can't put the piece away.</exception>
+	public void PlayerPutAway(ClothingPiece piece)
+	{
+		if (!CanPlayerPutAway(piece))
+			throw new InvalidOperationException($"The player can't put away {piece.Id}.");
+
+		Player.Inventory.Remove(piece);
+		Player.Home.Items.Add(piece);
+	}
+
+	/// <summary>
+	/// Gets the clothing slots in which the player isn't covered enough for where they are: at home, or out of the house,
+	/// and for their work while they're working.
+	/// </summary>
+	public IReadOnlyList<ClothingSlot> GetPlayerUncoveredSlots() =>
+		GetPlayerUncoveredSlots(Player.Clothing.Pieces.Select(x => x.Clothing), Player.Location == Player.Home ? ModestyLevel.Home : ModestyLevel.Outside, Player.IsAtWork);
+
+	/// <summary>
+	/// Gets how modest the player is in each clothing slot their modesty rule checks, and the least it calls for where they
+	/// are, such as for developers to see.
+	/// </summary>
+	public IReadOnlyList<(ClothingSlot Slot, int Modesty, int Minimum)> GetPlayerModesty() =>
+		ClothingRules.GetModesty(GameData, Player, Player.Clothing.Pieces.Select(x => x.Clothing), Player.Location == Player.Home ? ModestyLevel.Home : ModestyLevel.Outside, Player.IsAtWork);
+
+	/// <summary>
+	/// Gets the clothing slots in which the player isn't covered enough to go out of the house.
+	/// </summary>
+	public IReadOnlyList<ClothingSlot> GetPlayerUncoveredSlotsOutside() => GetPlayerUncoveredSlots(Player.Clothing.Pieces.Select(x => x.Clothing), ModestyLevel.Outside, isAtWork: false);
+
+	/// <summary>
+	/// Gets the clothing slots in which the player wouldn't be covered enough, where they are, after the change of clothes
+	/// that spending time on a need starts with: into their work clothes when starting work, or their night clothes when
+	/// going to sleep at home.
+	/// </summary>
+	public IReadOnlyList<ClothingSlot> GetPlayerActionUncoveredSlots(Need need)
+	{
+		var player = Player;
+		var worn = player.Clothing.Pieces.Select(x => x.Clothing).ToList();
+		if (need.AtWork && ClothingRules.GetWorkChange(player, player.Location, Time) is { Fetch: false } change)
+		{
+			var work = change.Outfit.Pieces.Select(x => x.Clothing).ToList();
+			worn = change.Outfit.IsComplete ? work : worn.Where(x => !work.Any(y => y.Overlaps(x))).Concat(work).ToList();
+		}
+		else if (need.Id == GameData.Schedules.SleepNeed && player.Location == player.Home && !ClothingRules.IsWearingAny(player, OutfitKind.Night) &&
+			ClothingRules.FindAtHand(player, OutfitKind.Night, Time) is { } night)
+		{
+			worn = night.Pieces.Select(x => x.Clothing).ToList();
+		}
+
+		return GetPlayerUncoveredSlots(worn, player.Location == player.Home ? ModestyLevel.Home : ModestyLevel.Outside, need.AtWork);
+	}
+
+	private IReadOnlyList<ClothingSlot> GetPlayerUncoveredSlots(IEnumerable<ClothingItem> worn, ModestyLevel level, bool isAtWork) =>
+		ClothingRules.GetUncoveredSlots(GameData, Player, worn, level, isAtWork);
+
+	/// <summary>
+	/// Where the player's clothes go when they take them off: their home, if they're there, or what they're carrying.
+	/// </summary>
+	private ItemContainer GetPlayerClothesContainer() => Player.Location == Player.Home ? Player.Home.Items : Player.Inventory;
+
+	/// <summary>
+	/// Passes the time it takes the player to change clothes, while time passes for everyone.
+	/// </summary>
+	private TimeOffset PassPlayerChangingTime()
+	{
+		var player = Player;
+		var minutes = GameData.Schedules.Clothing.ChangeMinutes;
+		player.SetPlan(null, [new BusyTask(minutes)]);
 		m_scheduler.Continue(player, Time);
 		return AdvanceTime(GameData.Calendar.CreateTimeOffset(0, 0, minutes), () => player.Tasks.Count == 0);
 	}
@@ -375,6 +580,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 			if (!person.IsPlayer && m_scheduler.IsInWorkHours(person, Time))
 			{
 				person.Location = person.Workplace;
+				ClothingGenerator.DressAtStart(person, isAtWork: true);
 			}
 			else
 			{
@@ -383,6 +589,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 					person.SetLevel(sleep, sleep.SatisfyPerHour!.Value * minutes / 60);
 				person.SetPlan(sleep, [new BusyTask(minutes)]);
 				person.StartTask(calendar.AddMinutes(Time, minutes));
+				ClothingGenerator.DressAtStart(person, isAtWork: false);
 			}
 		}
 
@@ -552,29 +759,56 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 				person.SetProgress(trip, Math.Max(person.GetProgress(trip) - unfinished, 0));
 			}
 
-			person.IsAtWork = false;
-			person.SetPlan(null, []);
+			DropPlan(person);
 			m_scheduler.Continue(person, Time);
 		}
 	}
 
 	/// <summary>
-	/// Moves the player to another location now, such as along a path, and has them see the people there and be seen.
+	/// Has someone stop whatever they were doing, with no goal, bringing their needs up to now. They stop working, and if
+	/// they were sleeping, their night clothes come off.
+	/// </summary>
+	private void DropPlan(Person person)
+	{
+		var wasSleeping = person.Goal is { } goal && goal.Id == GameData.Schedules.SleepNeed;
+		person.UpdateNeeds(Time);
+		person.IsAtWork = false;
+		person.SetPlan(null, []);
+		if (wasSleeping)
+			ClothingRules.DressAfterSleep(person, Time);
+	}
+
+	/// <summary>
+	/// Moves the player to another location now, such as along a path, and has them see the people there and be seen. They
+	/// take their work clothes along when they leave home on a day they still have work to do.
 	/// </summary>
 	public void MovePlayer(Location location)
 	{
+		// Like everyone else, the player takes their work clothes with them when they leave home on a day they still have work
+		// to do.
+		var player = Player;
+		if (player.Location == player.Home && location != player.Home && m_scheduler.HasWorkToday(player, Time) &&
+			ClothingRules.GetWorkChange(player, player.Workplace, Time) is { Fetch: true } change)
+		{
+			ClothingRules.Fetch(player, change.Outfit, Time);
+		}
+
 		MovePerson(Player, location, Time);
 		SeeEachOther(Player, Time);
 	}
 
 	/// <summary>
-	/// Moves someone to another location at the given time. Everyone awake where they were sees them leave for it, and
+	/// Moves someone to another location at the given time. They put away the clothes they're carrying when they get home. Everyone awake where they were sees them leave for it, and
 	/// so does anyone who left there at the same moment, and the person sees those people where they last saw them.
 	/// </summary>
 	internal void MovePerson(Person person, Location location, TimePoint time)
 	{
 		var from = person.Location;
 		person.Location = location;
+
+		// Clothes carried home are put away.
+		if (location == person.Home)
+			ClothingRules.PutAway(person);
 
 		var left = new Sighting(from, time, SightingActivity.Left, Destination: location);
 		foreach (var other in from.People.Where(x => x != person))

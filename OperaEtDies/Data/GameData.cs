@@ -11,9 +11,18 @@ namespace OperaEtDies.Data;
 /// </summary>
 public sealed class GameData
 {
-	public GameData(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, RelationshipSettings relationships, CalendarSettings calendar, FrequencyChances? frequencyChances = null, PortraitData? portraits = null, ScheduleSettings? schedules = null)
+	public GameData(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, RelationshipSettings relationships, CalendarSettings calendar, FrequencyChances? frequencyChances = null, PortraitData? portraits = null, ScheduleSettings? schedules = null, ClothingData? clothing = null)
 	{
 		Schedules = schedules ?? ScheduleSettings.None;
+		var clothingData = clothing ?? ClothingData.None;
+		ClothingSlots = new DataCatalog<ClothingSlot>(clothingData.Slots);
+		ClothingLayers = new DataCatalog<ClothingLayer>(clothingData.Layers);
+		ModestyRules = clothingData.ModestyRules;
+		ClothingColors = new DataCatalog<ClothingColor>(clothingData.Colors);
+		ClothingBulks = new DataCatalog<ClothingBulk>(clothingData.Bulks);
+		ClothingSettings = clothingData.Settings ?? ClothingSettings.None;
+		Clothing = new DataCatalog<ClothingItem>(clothingData.Items);
+		Outfits = new DataCatalog<Outfit>(clothingData.Outfits);
 		FrequencyChances = frequencyChances ?? new FrequencyChances();
 		Calendar = new GameCalendar(calendar);
 
@@ -25,7 +34,6 @@ public sealed class GameData
 
 		// The character data is validated on load, so the templates are always valid.
 		CharacterTemplates = new TextTemplateSet(characters.Templates.Select(x => KeyValuePair.Create(x.Id, x.ParseVariants())));
-		CharacterObscurers = new DataCatalog<CharacterObscurer>(characters.Obscurers);
 		CharacterLowChanceWarning = characters.LowChanceWarning;
 
 		Village = locations.Village;
@@ -98,11 +106,25 @@ public sealed class GameData
 
 		var game = Section<GameInfo>(GameInfo.SectionName);
 		var professions = new ProfessionList { Professions = List<Profession>("professions") };
+		var clothing = new ClothingData
+		{
+			Slots = List<ClothingSlot>("clothingSlots"),
+			Layers = List<ClothingLayer>("clothingLayers"),
+			Bulks = List<ClothingBulk>("clothingBulks"),
+			Colors = List<ClothingColor>("clothingColors"),
+			Items = List<ClothingItem>("clothing"),
+			Outfits = List<Outfit>("outfits"),
+			ModestyRules = List<ModestyRule>("modestyRules"),
+			Settings = Section<ClothingSettings>(ClothingSettings.SectionName, isRequired: false) ?? ClothingSettings.None,
+		};
+		var properties = List<CharacterProperty>("properties");
+		var bulks = clothing.Bulks.Where(x => !string.IsNullOrWhiteSpace(x?.Id)).GroupBy(x => x.Id, StringComparer.Ordinal).ToDictionary(x => x.Key, x => x.First(), StringComparer.Ordinal);
 		var characters = new CharacterData
 		{
-			Properties = List<CharacterProperty>("properties"),
+			Properties = properties,
 			Templates = List<CharacterTemplate>("templates"),
-			Obscurers = List<CharacterObscurer>("obscurers"),
+			// Templates are checked with every property hidden as strongly as all the clothing together could hide it.
+			Obscurers = [CharacterObscuring.GetStrengths(properties.OfType<CharacterProperty>(), clothing.Items.OfType<ClothingItem>().Where(x => x.Coverage is not null), bulks.GetValueOrDefault)],
 			LowChanceWarning = game?.LowChanceWarning,
 		}.WithProfessions(professions.Professions);
 
@@ -136,6 +158,7 @@ public sealed class GameData
 			Scales = List<PortraitScale>("portraitScales"),
 			Offsets = List<PortraitOffset>("portraitOffsets"),
 			Layers = List<PortraitLayer>("portraitLayers"),
+			ShapeSets = List<PortraitShapeSet>("portraitShapeSets"),
 		};
 
 		if (errors.Count != 0 || game is null || village is null || families is null || relationships is null || calendarSection is null || schedules is null)
@@ -148,7 +171,7 @@ public sealed class GameData
 		schedules.UrgencyFactors = urgencyFactors;
 
 		// Conditions can name groups of values, which stand for every value in the group.
-		ResolveGroups(characters, professions, relationships, schedules, portraits);
+		ResolveGroups(characters, professions, relationships, schedules, portraits, clothing);
 
 		var messages = new List<string>();
 		messages.AddRange(characters.Validate());
@@ -159,16 +182,17 @@ public sealed class GameData
 		messages.AddRange(relationships.Validate());
 		messages.AddRange(calendar.Validate());
 		messages.AddRange(schedules.Validate());
+		messages.AddRange(clothing.Validate());
 		if (portraits is not null)
 			messages.AddRange(portraits.Validate());
 
 		// Each part is fine on its own, so check that they agree with each other.
 		if (messages.Count == 0)
-			messages.AddRange(GameDataValidation.Validate(characters, locations, professions, families, relationships, calendar, schedules, portraits));
+			messages.AddRange(GameDataValidation.Validate(characters, locations, professions, families, relationships, calendar, schedules, portraits, clothing));
 		if (messages.Count != 0)
 			return Fail(messages.Distinct(StringComparer.Ordinal).Select(document.CreateError).ToList());
 
-		var gameData = new GameData(characters, locations, professions, families, relationships, calendar, game.FrequencyChances, portraits, schedules);
+		var gameData = new GameData(characters, locations, professions, families, relationships, calendar, game.FrequencyChances, portraits, schedules, clothing);
 		foreach (var warning in gameData.GetLowChanceWarnings())
 			Log.Warn(warning);
 
@@ -185,7 +209,7 @@ public sealed class GameData
 	/// <summary>
 	/// Replaces the group ids in every condition with the ids of the values in each group.
 	/// </summary>
-	private static void ResolveGroups(CharacterData characters, ProfessionList professions, RelationshipSettings relationships, ScheduleSettings schedules, PortraitData? portraits)
+	private static void ResolveGroups(CharacterData characters, ProfessionList professions, RelationshipSettings relationships, ScheduleSettings schedules, PortraitData? portraits, ClothingData clothing)
 	{
 		var properties = new Dictionary<string, CharacterProperty>(StringComparer.Ordinal);
 		foreach (var property in characters.Properties.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)))
@@ -197,20 +221,22 @@ public sealed class GameData
 			.Concat(professions.Professions.Where(x => x is not null).SelectMany(x => new[] { x.When, x.HelperWhen }.Concat((x.FrequencyWhen ?? []).Select(y => y?.When))))
 			.Concat(relationships.PlayerRelations.Select(x => x?.When))
 			.Concat(schedules.GetConditions().Select(x => x.Condition))
-			.Concat(portraits?.GetConditions().Select(x => x.Condition) ?? []);
+			.Concat(portraits?.GetConditions().Select(x => x.Condition) ?? [])
+			.Concat(clothing.GetConditions().Select(x => x.Condition));
 		foreach (var condition in conditions.OfType<CharacterCondition>().Distinct())
 			condition.ResolveGroups(GetGroupValues);
 	}
 
 	/// <summary>
 	/// Checks portrait data, which has already been checked on its own, against the rest of the game data: the
-	/// character properties its conditions use, and the kinds of quarter and professions its layers are drawn in.
+	/// character properties its conditions use, the kinds of quarter and professions its layers are drawn in, and the
+	/// clothing its layers draw and the regions of the body whose coverage hides them.
 	/// </summary>
 	public IReadOnlyList<string> ValidatePortraits(PortraitData portraits)
 	{
 		var properties = CharacterProperties.ToDictionary(x => x.Id, StringComparer.Ordinal);
 		var quarterKinds = QuarterKinds.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
-		return GameDataValidation.ValidatePortraits(portraits, properties, quarterKinds, CharacterProperties.Find(Families.Roles.Properties.Profession)).ToList();
+		return GameDataValidation.ValidatePortraits(portraits, properties, quarterKinds, CharacterProperties.Find(Families.Roles.Properties.Profession), new ClothingData { Slots = ClothingSlots, Items = Clothing }).ToList();
 	}
 
 	/// <summary>
@@ -244,14 +270,50 @@ public sealed class GameData
 	public TextTemplateSet CharacterTemplates { get; }
 
 	/// <summary>
-	/// The things that can keep some of a character's properties from being seen or heard.
+	/// The places on the body clothing is worn, in the order worn clothing is described.
 	/// </summary>
-	public DataCatalog<CharacterObscurer> CharacterObscurers { get; }
+	public DataCatalog<ClothingSlot> ClothingSlots { get; }
 
 	/// <summary>
-	/// Gets the obscuring caused by the obscurers with the given ids, which must exist.
+	/// How close to the body clothing is worn, from the innermost out.
 	/// </summary>
-	public CharacterObscuring GetObscuring(IEnumerable<string> obscurerIds) => new(obscurerIds.Select(CharacterObscurers.Get));
+	public DataCatalog<ClothingLayer> ClothingLayers { get; }
+
+	/// <summary>
+	/// How well covered people must be. Each person follows the first rule whose condition they meet.
+	/// </summary>
+	public IReadOnlyList<ModestyRule> ModestyRules { get; }
+
+	/// <summary>
+	/// The colors clothing can be.
+	/// </summary>
+	public DataCatalog<ClothingColor> ClothingColors { get; }
+
+	/// <summary>
+	/// How loose or heavy clothing can be.
+	/// </summary>
+	public DataCatalog<ClothingBulk> ClothingBulks { get; }
+
+	/// <summary>
+	/// Settings for clothing as a whole.
+	/// </summary>
+	public ClothingSettings ClothingSettings { get; }
+
+	/// <summary>
+	/// The articles of clothing.
+	/// </summary>
+	public DataCatalog<ClothingItem> Clothing { get; }
+
+	/// <summary>
+	/// The outfits people are given when they're created.
+	/// </summary>
+	public DataCatalog<Outfit> Outfits { get; }
+
+	/// <summary>
+	/// Gets what wearing articles of clothing together keeps from being seen, from how much they cover the regions of the
+	/// body each character property shows on.
+	/// </summary>
+	public CharacterObscuring GetObscuring(IEnumerable<ClothingItem> clothing) => new([CharacterObscuring.GetStrengths(CharacterProperties, clothing, ClothingBulks.Find)]);
 
 	/// <summary>
 	/// Settings for the village as a whole.

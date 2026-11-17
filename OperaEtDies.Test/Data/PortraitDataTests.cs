@@ -32,15 +32,15 @@ public sealed class PortraitDataTests
 		for (var seed = 0; seed < 20; seed++)
 		{
 			var player = CharacterRandomizer.CreateRandomPlayer(gameData, new Random(seed));
-			Assert.That(renderer.Render(player, PortraitPlace.InWorkplace("profession_baker")).IsFrozen, Is.True);
-			Assert.That(renderer.GetLayerIds(player, PortraitPlace.Home), Is.Not.Empty);
+			Assert.That(renderer.Render(player, PortraitPlace.InWorkplace("profession_baker"), PortraitClothing.None).IsFrozen, Is.True);
+			Assert.That(renderer.GetLayerIds(player, PortraitPlace.Home, PortraitClothing.None), Is.Not.Empty);
 		}
 	}
 
 	[Test]
 	public void WithoutPortraitFileThereAreNoPortraits()
 	{
-		CopyShippedDataWithoutPortraits();
+		CopyShippedDataWithoutPortraitsOrClothing();
 
 		var result = GameData.Load(m_directory);
 
@@ -51,7 +51,7 @@ public sealed class PortraitDataTests
 	[Test]
 	public void InvalidPortraitsReportErrors()
 	{
-		CopyShippedDataWithoutPortraits();
+		CopyShippedDataWithoutPortraitsOrClothing();
 		File.WriteAllText(Path.Combine(m_directory, "Portraits.json"), """
 			{
 				"portraits": { "width": 0, "height": 100 },
@@ -69,12 +69,12 @@ public sealed class PortraitDataTests
 					{ "id": "up2", "y": -10 }
 				],
 				"portraitLayers": [
-					{ "id": "a", "scale": "narrow", "offset": "down", "shapes": [ { "path": "M0,0 L10,10 Q" , "fill": "skin", "scale": "tall" } ] },
-					{ "id": "a2", "when": { "values": { "gender": [ "gender_unknown" ] } }, "shapes": [ { "path": "M0,0 H10", "opacity": 1.5 } ] },
-					{ "id": "b", "shapes": [ { "path": "M0,0 H10", "stroke": "skin", "strokeWidth": 0, "gradient": "radial", "fillTo": "#000000" } ] },
-					{ "id": "c", "shapes": [ { "path": "M0,0 H10", "fill": "skin", "fillTo": "#000000" } ] },
-					{ "id": "d", "at": {}, "shapes": [ { "path": "M0,0 H10", "stroke": "#000000" } ] },
-					{ "id": "e", "at": { "quarterKinds": [] }, "shapes": [ { "path": "M0,0 H10", "stroke": "#000000" } ] }
+					{ "id": "a", "ai": true, "scale": "narrow", "offset": "down", "shapes": [ { "path": "M0,0 L10,10 Q" , "fill": "skin", "scale": "tall" } ] },
+					{ "id": "a2", "ai": true, "when": { "values": { "gender": [ "gender_unknown" ] } }, "shapes": [ { "path": "M0,0 H10", "opacity": 1.5 } ] },
+					{ "id": "b", "ai": true, "shapes": [ { "path": "M0,0 H10", "stroke": "skin", "strokeWidth": 0, "gradient": "radial", "fillTo": "#000000" } ] },
+					{ "id": "c", "ai": true, "shapes": [ { "path": "M0,0 H10", "fill": "skin", "fillTo": "#000000" } ] },
+					{ "id": "d", "ai": true, "at": {}, "shapes": [ { "path": "M0,0 H10", "stroke": "#000000" } ] },
+					{ "id": "e", "ai": true, "at": { "quarterKinds": [] }, "shapes": [ { "path": "M0,0 H10", "stroke": "#000000" } ] }
 				]
 			}
 			""");
@@ -108,7 +108,7 @@ public sealed class PortraitDataTests
 	[Test]
 	public void ConditionsMustUseCharacterProperties()
 	{
-		CopyShippedDataWithoutPortraits();
+		CopyShippedDataWithoutPortraitsOrClothing();
 		File.WriteAllText(Path.Combine(m_directory, "Portraits.json"), """
 			{
 				"portraits": { "width": 10, "height": 10 },
@@ -116,7 +116,7 @@ public sealed class PortraitDataTests
 				"portraitScales": [ { "id": "wide", "variants": [ { "when": { "values": { "gender": [ "gender_unknown" ] } }, "x": 2 } ] } ],
 				"portraitOffsets": [ { "id": "up", "variants": [ { "when": { "values": { "height": [ "height_unknown" ] } }, "y": -10 } ] } ],
 				"portraitLayers": [
-					{ "id": "a", "when": { "values": { "gender": [ "gender_unknown" ] } }, "shapes": [ { "path": "M0,0 H10", "stroke": "skin", "when": { "hidden": [ "gender" ] } } ] }
+					{ "id": "a", "ai": true, "when": { "values": { "gender": [ "gender_unknown" ] } }, "shapes": [ { "path": "M0,0 H10", "stroke": "skin", "when": { "hidden": [ "gender" ] } } ] }
 				]
 			}
 			""");
@@ -136,12 +136,12 @@ public sealed class PortraitDataTests
 	[Test]
 	public void PlacesMustBeQuarterKindsAndProfessions()
 	{
-		CopyShippedDataWithoutPortraits();
+		CopyShippedDataWithoutPortraitsOrClothing();
 		File.WriteAllText(Path.Combine(m_directory, "Portraits.json"), """
 			{
 				"portraits": { "width": 10, "height": 10 },
 				"portraitLayers": [
-					{ "id": "a", "at": { "home": true, "quarterKinds": [ "square", "office" ], "workplaces": [ "profession_baker", "profession_knight" ] }, "shapes": [ { "path": "M0,0 H10", "stroke": "#000000" } ] }
+					{ "id": "a", "ai": true, "at": { "home": true, "quarterKinds": [ "square", "office" ], "workplaces": [ "profession_baker", "profession_knight" ] }, "shapes": [ { "path": "M0,0 H10", "stroke": "#000000" } ] }
 				]
 			}
 			""");
@@ -167,13 +167,13 @@ public sealed class PortraitDataTests
 		var atWork = man.With("atWork", gameData.CharacterProperties.Get("atWork").Values!.First(x => x.Id == "atWork"));
 		var smithy = PortraitPlace.InWorkplace("smith");
 
-		Assert.That(renderer.Renderer.GetLayerIds(atWork, smithy), Is.EqualTo(new[] { "face", "beard", "forge", "apron" }));
-		Assert.That(renderer.Renderer.GetLayerIds(man, smithy), Is.EqualTo(new[] { "face", "beard", "forge" }));
-		Assert.That(renderer.Renderer.GetLayerIds(woman, smithy), Is.EqualTo(new[] { "face", "wrinkles", "forge" }));
-		Assert.That(renderer.Renderer.GetLayerIds(woman, PortraitPlace.InWorkplace("miller")), Is.EqualTo(new[] { "face", "wrinkles" }));
-		Assert.That(renderer.Renderer.GetLayerIds(woman, PortraitPlace.Home), Is.EqualTo(new[] { "face", "wrinkles", "hearth" }));
-		Assert.That(renderer.Renderer.GetLayerIds(woman, PortraitPlace.InQuarter("lane")), Is.EqualTo(new[] { "face", "wrinkles", "street" }));
-		Assert.That(renderer.Renderer.GetLayerIds(woman, null), Is.EqualTo(new[] { "face", "wrinkles" }));
+		Assert.That(renderer.Renderer.GetLayerIds(atWork, smithy, PortraitClothing.None), Is.EqualTo(new[] { "face", "beard", "forge", "apron" }));
+		Assert.That(renderer.Renderer.GetLayerIds(man, smithy, PortraitClothing.None), Is.EqualTo(new[] { "face", "beard", "forge" }));
+		Assert.That(renderer.Renderer.GetLayerIds(woman, smithy, PortraitClothing.None), Is.EqualTo(new[] { "face", "wrinkles", "forge" }));
+		Assert.That(renderer.Renderer.GetLayerIds(woman, PortraitPlace.InWorkplace("miller"), PortraitClothing.None), Is.EqualTo(new[] { "face", "wrinkles" }));
+		Assert.That(renderer.Renderer.GetLayerIds(woman, PortraitPlace.Home, PortraitClothing.None), Is.EqualTo(new[] { "face", "wrinkles", "hearth" }));
+		Assert.That(renderer.Renderer.GetLayerIds(woman, PortraitPlace.InQuarter("lane"), PortraitClothing.None), Is.EqualTo(new[] { "face", "wrinkles", "street" }));
+		Assert.That(renderer.Renderer.GetLayerIds(woman, null, PortraitClothing.None), Is.EqualTo(new[] { "face", "wrinkles" }));
 	}
 
 	[Test]
@@ -186,8 +186,8 @@ public sealed class PortraitDataTests
 
 		// The face is the second drawing, after the one that fixes the bounds. The man's skin is the variant, and the
 		// woman's is the usual color. Both are blended halfway with black.
-		Assert.That(GetFill(renderer.Renderer.Render(man, null), 1), Is.EqualTo(Color.FromRgb(0x40, 0x20, 0x10)));
-		Assert.That(GetFill(renderer.Renderer.Render(woman, null), 1), Is.EqualTo(Color.FromRgb(0x80, 0x80, 0x80)));
+		Assert.That(GetFill(renderer.Renderer.Render(man, null, PortraitClothing.None), 1), Is.EqualTo(Color.FromRgb(0x40, 0x20, 0x10)));
+		Assert.That(GetFill(renderer.Renderer.Render(woman, null, PortraitClothing.None), 1), Is.EqualTo(Color.FromRgb(0x80, 0x80, 0x80)));
 	}
 
 	[Test]
@@ -200,10 +200,10 @@ public sealed class PortraitDataTests
 
 		// The face uses the layer's scale, which doubles the man's width around x = 50 and leaves the woman alone. The
 		// wrinkles use their own scale, which halves their height around y = 30 for everyone.
-		var manDrawings = ((DrawingGroup) renderer.Renderer.Render(man, null).Drawing).Children;
+		var manDrawings = ((DrawingGroup) renderer.Renderer.Render(man, null, PortraitClothing.None).Drawing).Children;
 		Assert.That(((GeometryDrawing) manDrawings[1]).Geometry.Bounds, Is.EqualTo(new Rect(-30, 10, 160, 100)));
 
-		var womanDrawings = ((DrawingGroup) renderer.Renderer.Render(woman, null).Drawing).Children;
+		var womanDrawings = ((DrawingGroup) renderer.Renderer.Render(woman, null, PortraitClothing.None).Drawing).Children;
 		Assert.That(((GeometryDrawing) womanDrawings[1]).Geometry.Bounds, Is.EqualTo(new Rect(10, 10, 80, 100)));
 		var wrinkles = (GeometryDrawing) ((DrawingGroup) womanDrawings[2]).Children[0];
 		Assert.That(wrinkles.Geometry.Bounds, Is.EqualTo(new Rect(20, 30, 60, 0)));
@@ -218,7 +218,7 @@ public sealed class PortraitDataTests
 		var man = TestData.CreateTraits(gameData, "male", "John", "Smith", "smith", "tall", "slim", 40);
 
 		// The beard is halved in height around y = 30, from 80-110 to 55-70, then moved up 10 because the man is tall.
-		var drawings = ((DrawingGroup) renderer.Renderer.Render(man, null).Drawing).Children;
+		var drawings = ((DrawingGroup) renderer.Renderer.Render(man, null, PortraitClothing.None).Drawing).Children;
 		Assert.That(((GeometryDrawing) drawings[2]).Geometry.Bounds, Is.EqualTo(new Rect(20, 45, 60, 15)));
 	}
 
@@ -247,22 +247,23 @@ public sealed class PortraitDataTests
 			],
 			Layers =
 			[
-				new PortraitLayer { Id = "face", Scale = "wide", Shapes = [new PortraitShape { Path = "M10,10 H90 V110 H10 Z", Fill = "skin" }] },
-				new PortraitLayer { Id = "beard", When = TestData.Condition("gender", "male"), Scale = "short", Offset = "height", Shapes = [new PortraitShape { Path = "M20,80 H80 V110 H20 Z", Fill = "#202020" }] },
-				new PortraitLayer { Id = "wrinkles", When = TestData.Condition("age", "old"), Scale = "wide", Shapes = [new PortraitShape { Path = "M20,30 H80", Stroke = "#000000", StrokeWidth = 2, Opacity = 0.5, Scale = "short" }] },
-				new PortraitLayer { Id = "forge", At = new PortraitPlaceCondition { Workplaces = ["smith"] }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#FF8000" }] },
-				new PortraitLayer { Id = "apron", When = TestData.Condition("atWork", "atWork"), Shapes = [new PortraitShape { Path = "M30,90 H70", Stroke = "#FFFFFF" }] },
-				new PortraitLayer { Id = "hearth", At = new PortraitPlaceCondition { Home = true }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#FF0000" }] },
-				new PortraitLayer { Id = "street", At = new PortraitPlaceCondition { QuarterKinds = ["lane", "square"] }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#808080" }] },
+				new PortraitLayer { Ai = true, Id = "face", Scale = "wide", Shapes = [new PortraitShape { Path = "M10,10 H90 V110 H10 Z", Fill = "skin" }] },
+				new PortraitLayer { Ai = true, Id = "beard", When = TestData.Condition("gender", "male"), Scale = "short", Offset = "height", Shapes = [new PortraitShape { Path = "M20,80 H80 V110 H20 Z", Fill = "#202020" }] },
+				new PortraitLayer { Ai = true, Id = "wrinkles", When = TestData.Condition("age", "old"), Scale = "wide", Shapes = [new PortraitShape { Path = "M20,30 H80", Stroke = "#000000", StrokeWidth = 2, Opacity = 0.5, Scale = "short" }] },
+				new PortraitLayer { Ai = true, Id = "forge", At = new PortraitPlaceCondition { Workplaces = ["smith"] }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#FF8000" }] },
+				new PortraitLayer { Ai = true, Id = "apron", When = TestData.Condition("atWork", "atWork"), Shapes = [new PortraitShape { Path = "M30,90 H70", Stroke = "#FFFFFF" }] },
+				new PortraitLayer { Ai = true, Id = "hearth", At = new PortraitPlaceCondition { Home = true }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#FF0000" }] },
+				new PortraitLayer { Ai = true, Id = "street", At = new PortraitPlaceCondition { QuarterKinds = ["lane", "square"] }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#808080" }] },
 			],
 		};
 		var gameData = new GameData(TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings(), portraits: portraits);
 		return (gameData, gameData.PortraitRenderer!);
 	}
 
-	private void CopyShippedDataWithoutPortraits()
+	// The shipped clothing hides groups of the shipped portraits, so it's left out along with them.
+	private void CopyShippedDataWithoutPortraitsOrClothing()
 	{
-		foreach (var path in Directory.GetFiles(JsonDataLoader.DefaultDataDirectory, "*.json").Where(x => Path.GetFileName(x) != "Portraits.json"))
+		foreach (var path in Directory.GetFiles(JsonDataLoader.DefaultDataDirectory, "*.json").Where(x => Path.GetFileName(x) is not ("Portraits.json" or "Clothing.json")))
 			File.Copy(path, Path.Combine(m_directory, Path.GetFileName(path)));
 	}
 

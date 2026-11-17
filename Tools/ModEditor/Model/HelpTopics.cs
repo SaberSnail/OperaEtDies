@@ -20,7 +20,6 @@ public static partial class HelpTopics
 		[typeof(CharacterPropertyOption)] = "Character Value",
 		[typeof(CharacterRoleSettings)] = "Role Settings",
 		[typeof(CharacterTemplateVariant)] = "Template Variant",
-		[typeof(CharacterObscurer)] = "Obscurer",
 		[typeof(CharacterCondition)] = "Condition",
 		[typeof(WeightShape)] = "Shape",
 		[typeof(WeightedString)] = "Weighted Value",

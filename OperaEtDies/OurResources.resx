@@ -213,6 +213,22 @@
 		<value>The template "{0}" is blank.</value>
 		<comment>{0} is the template's id.</comment>
 	</data>
+	<data name="CharacterIdReserved" xml:space="preserve">
+		<value>&quot;{0}&quot; can&apos;t be the id of a character property or template, since templates use it for the clothing being worn.</value>
+		<comment>{0} is the reserved id.</comment>
+	</data>
+	<data name="ListJoinTwo" xml:space="preserve">
+		<value>{0} and {1}</value>
+		<comment>Joins a list of two items, such as the clothing someone is wearing.</comment>
+	</data>
+	<data name="ListJoinSeparator" xml:space="preserve">
+		<value>, </value>
+		<comment>Separates the items of a list of three or more, except the last two.</comment>
+	</data>
+	<data name="ListJoinLast" xml:space="preserve">
+		<value>{0}, and {1}</value>
+		<comment>Joins the last item of a list of three or more to the ones before it.</comment>
+	</data>
 	<data name="TemplateIdIsProperty" xml:space="preserve">
 		<value>The template "{0}" has the same id as a character property.</value>
 		<comment>{0} is the template's id.</comment>
@@ -272,17 +288,29 @@
 		<value>{0} is hidden</value>
 		<comment>Describes a property whose value is obscured in a combination of condition values. {0} is the property id.</comment>
 	</data>
+	<data name="ProminenceWithoutRegions" xml:space="preserve">
+		<value>The item "{0}" in the "{1}" list has a prominence, but the "{2}" property has no regions, so clothing never hides it.</value>
+		<comment>{0} is the value's id. {1} is the name of the list in the data file. {2} is the property's id.</comment>
+	</data>
 	<data name="ProminenceInvalid" xml:space="preserve">
 		<value>The item "{0}" in the "{1}" list has a prominence of {2}, but it must be from {3} to {4}.</value>
 		<comment>{0} is the value's id. {1} is the name of the list in the data file. {2} is the prominence found. {3} and {4} are the allowed minimum and maximum.</comment>
 	</data>
-	<data name="ObscurerPropertyUnknown" xml:space="preserve">
-		<value>The obscurer "{0}" hides "{1}", but there is no character property with that id.</value>
-		<comment>{0} is the obscurer's id. {1} is the property id it hides.</comment>
+	<data name="ClothingColorInvalid" xml:space="preserve">
+		<value>"{0}" is "{1}", but it must be a color written as #RRGGBB.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the color found.</comment>
 	</data>
-	<data name="ObscurerStrengthInvalid" xml:space="preserve">
-		<value>The obscurer "{0}" hides "{1}" with a strength of {2}, but it must be from {3} to {4}.</value>
-		<comment>{0} is the obscurer's id. {1} is the property id it hides. {2} is the strength found. {3} and {4} are the allowed minimum and maximum.</comment>
+	<data name="ClothingDescriptionColorUnknown" xml:space="preserve">
+		<value>"{0}" uses "{1}", but the clothing has no color with that name.</value>
+		<comment>{0} is the location of the description in the data file. {1} is the placeholder's name.</comment>
+	</data>
+	<data name="ClothingDescriptionFieldUnknown" xml:space="preserve">
+		<value>"{0}" uses "{1}.{2}", but the only field a color has is "{3}".</value>
+		<comment>{0} is the location of the description in the data file. {1} is the color's name. {2} is the field used. {3} is the only supported field.</comment>
+	</data>
+	<data name="OutfitSlotTaken" xml:space="preserve">
+		<value>"{0}" has "{1}" and "{2}", which both take the clothing slot "{3}" in the "{4}" layer.</value>
+		<comment>{0} is the location of the outfit in the data file. {1} and {2} are clothing ids. {3} is the slot id. {4} is the layer id.</comment>
 	</data>
 	<data name="TemplateHiddenPropertyUnknown" xml:space="preserve">
 		<value>The "{0}" list includes "{1}", but there is no character property with that id.</value>
@@ -802,6 +830,22 @@
 		<value>&quot;{0}&quot; isn&apos;t valid path data. {1}</value>
 		<comment>{0} is the path in the file, {1} is the reason.</comment>
 	</data>
+	<data name="PortraitShapeSetNested" xml:space="preserve">
+		<value>&quot;{0}&quot; includes a shape set, but shapes in a shape set can&apos;t include shape sets.</value>
+		<comment>{0} is the path to the shape in the shape set.</comment>
+	</data>
+	<data name="PortraitIncludeDrawn" xml:space="preserve">
+		<value>&quot;{0}&quot; includes a shape set, so it can only have &quot;include&quot;, &quot;when&quot;, and &quot;clip&quot;.</value>
+		<comment>{0} is the path to the portrait shape.</comment>
+	</data>
+	<data name="PortraitClipWithoutInclude" xml:space="preserve">
+		<value>&quot;{0}&quot; has &quot;clip&quot;, but only shapes that include a shape set can be clipped.</value>
+		<comment>{0} is the path to the portrait shape.</comment>
+	</data>
+	<data name="PortraitClothingColorUnknown" xml:space="preserve">
+		<value>&quot;{0}&quot; is &quot;{1}&quot;, but it isn&apos;t a color of the clothing &quot;{2}&quot;, a color of the layer, a portrait color, or a color written as #RRGGBB or #AARRGGBB.</value>
+		<comment>{0} is the path, {1} is the color, {2} is the id of an article of clothing the layer draws.</comment>
+	</data>
 	<data name="PortraitShapeNotDrawn" xml:space="preserve">
 		<value>&quot;{0}&quot; must have a fill, a stroke, or both.</value>
 		<comment>{0} is the path to the portrait shape.</comment>
@@ -873,6 +917,22 @@
 	<data name="SaveFamilyEmpty" xml:space="preserve">
 		<value>Family {0} in the save has no members.</value>
 		<comment>{0} is the family's id.</comment>
+	</data>
+	<data name="SaveItemPlacedTwice" xml:space="preserve">
+		<value>Item {0} in the save is in more than one place.</value>
+		<comment>{0} is the item's id.</comment>
+	</data>
+	<data name="SaveClothingSlotTaken" xml:space="preserve">
+		<value>Person {0} in the save is wearing clothing {1} in a clothing slot that's already taken in its layer.</value>
+		<comment>{0} is the person's id. {1} is the clothing's id.</comment>
+	</data>
+	<data name="SaveClothingColorsInvalid" xml:space="preserve">
+		<value>Clothing {0} in the save doesn't have exactly one color for each of the colors of "{1}" ({2}).</value>
+		<comment>{0} is the piece of clothing's id. {1} is the id of its clothing in the data. {2} lists the clothing's color names.</comment>
+	</data>
+	<data name="SaveOutfitInvalid" xml:space="preserve">
+		<value>Outfit {0} in the save has the same piece of clothing twice, or two pieces in the same clothing slot and layer.</value>
+		<comment>{0} is the outfit's id.</comment>
 	</data>
 	<data name="SaveFamiliesInvalid" xml:space="preserve">
 		<value>Everyone in the save must be in exactly one family.</value>
@@ -1575,6 +1635,10 @@
 		<value>{0} couldn&apos;t chat after all.</value>
 		<comment>Shown in the player&apos;s location when someone who asked to chat has left or is busy by the time the player agrees. {0} is their name.</comment>
 	</data>
+	<data name="PersonChangingClothes" xml:space="preserve">
+		<value>Changing clothes</value>
+		<comment>What someone is doing while changing into or out of their work clothes.</comment>
+	</data>
 	<data name="PersonWaitingFor" xml:space="preserve">
 		<value>Waiting for {0}</value>
 		<comment>What someone is doing while waiting for someone who called out to them. {0} is that person&apos;s name.</comment>
@@ -1669,5 +1733,157 @@
 	</data>
 	<data name="ValueGroupIsValue" xml:space="preserve">
 		<value>"{0}" has the group "{1}", but that's the id of a value of "{2}".</value>
+	</data>
+	<data name="ViewInventory" xml:space="preserve">
+		<value>Inventory</value>
+		<comment>The sidebar button that opens the player&apos;s inventory.</comment>
+	</data>
+	<data name="ViewWardrobe" xml:space="preserve">
+		<value>Wardrobe</value>
+		<comment>The sidebar button that opens the player&apos;s wardrobe, only at home.</comment>
+	</data>
+	<data name="InventoryHeader" xml:space="preserve">
+		<value>Inventory</value>
+		<comment>The title of the player&apos;s inventory.</comment>
+	</data>
+	<data name="WardrobeHeader" xml:space="preserve">
+		<value>Wardrobe</value>
+		<comment>The title of the player&apos;s wardrobe at home.</comment>
+	</data>
+	<data name="ClothingWearingHeader" xml:space="preserve">
+		<value>Wearing</value>
+		<comment>The heading over the clothes the player is wearing.</comment>
+	</data>
+	<data name="ClothingCarryingHeader" xml:space="preserve">
+		<value>Carrying</value>
+		<comment>The heading over the things the player is carrying.</comment>
+	</data>
+	<data name="ClothingKeptAtHomeHeader" xml:space="preserve">
+		<value>Kept at home</value>
+		<comment>The heading over the player&apos;s clothes kept at home.</comment>
+	</data>
+	<data name="ClothingOutfitsHeader" xml:space="preserve">
+		<value>Outfits</value>
+		<comment>The heading over the player&apos;s outfits.</comment>
+	</data>
+	<data name="ClothingNone" xml:space="preserve">
+		<value>Nothing</value>
+		<comment>Shown in place of a list of clothes that&apos;s empty.</comment>
+	</data>
+	<data name="ClothingExamine" xml:space="preserve">
+		<value>Examine</value>
+		<comment>The button that shows what a piece of clothing looks like.</comment>
+	</data>
+	<data name="ClothingWear" xml:space="preserve">
+		<value>Wear</value>
+		<comment>The button that puts on a piece of clothing.</comment>
+	</data>
+	<data name="ClothingTakeOff" xml:space="preserve">
+		<value>Take off</value>
+		<comment>The button that takes off a piece of clothing.</comment>
+	</data>
+	<data name="ClothingTake" xml:space="preserve">
+		<value>Take</value>
+		<comment>The button that picks up a piece of clothing kept at home to carry it.</comment>
+	</data>
+	<data name="ClothingPutAway" xml:space="preserve">
+		<value>Put away</value>
+		<comment>The button that puts away a piece of clothing carried at home.</comment>
+	</data>
+	<data name="OutfitChangeInto" xml:space="preserve">
+		<value>Change into</value>
+		<comment>The button that changes into an outfit.</comment>
+	</data>
+	<data name="ClothingChanged" xml:space="preserve">
+		<value>You changed your clothes, which took {0}.</value>
+		<comment>{0} is how long it took, such as &quot;5 minutes&quot;.</comment>
+	</data>
+	<data name="ClothingInWash" xml:space="preserve">
+		<value>In the wash</value>
+		<comment>Why a piece of clothing can&apos;t be worn.</comment>
+	</data>
+	<data name="ClothingDrying" xml:space="preserve">
+		<value>Drying until {0}</value>
+		<comment>Why a piece of clothing can&apos;t be worn. {0} is the time on the clock it&apos;s dry.</comment>
+	</data>
+	<data name="OutfitEveryday" xml:space="preserve">
+		<value>Everyday clothes</value>
+		<comment>The title of an everyday outfit.</comment>
+	</data>
+	<data name="OutfitWork" xml:space="preserve">
+		<value>Work clothes</value>
+		<comment>The title of a work outfit.</comment>
+	</data>
+	<data name="OutfitNight" xml:space="preserve">
+		<value>Night clothes</value>
+		<comment>The title of a night outfit.</comment>
+	</data>
+	<data name="OutfitInWash" xml:space="preserve">
+		<value>Some of it is in the wash</value>
+		<comment>Why an outfit can&apos;t be changed into.</comment>
+	</data>
+	<data name="OutfitDrying" xml:space="preserve">
+		<value>Some of it is still drying</value>
+		<comment>Why an outfit can&apos;t be changed into.</comment>
+	</data>
+	<data name="OutfitWearing" xml:space="preserve">
+		<value>Wearing</value>
+		<comment>Shown beside the outfit the player is wearing.</comment>
+	</data>
+	<data name="OutfitOverOtherClothes" xml:space="preserve">
+		<value>{0}, worn over other clothes</value>
+		<comment>Describes work clothes, which go over other clothes. {0} lists their pieces.</comment>
+	</data>
+	<data name="OutfitNothing" xml:space="preserve">
+		<value>Nothing</value>
+		<comment>The title of the outfit that takes off everything the player is wearing, always listed last.</comment>
+	</data>
+	<data name="OutfitNothingDescription" xml:space="preserve">
+		<value>No clothes at all</value>
+		<comment>Describes the outfit that takes off everything the player is wearing.</comment>
+	</data>
+	<data name="SlotValueOutOfRange" xml:space="preserve">
+		<value>&quot;{0}&quot; gives &quot;{1}&quot; {2}, but it must be from {3} to {4}.</value>
+		<comment>{0} is the location of the values in the data file. {1} is the slot id. {2} is the value found. {3} and {4} are the allowed minimum and maximum.</comment>
+	</data>
+	<data name="ModestyNotCovered" xml:space="preserve">
+		<value>You aren&apos;t dressed enough for that. Cover more of your {0} first.</value>
+		<comment>{0} lists the clothing slots that aren&apos;t covered enough, such as &quot;torso and hips&quot;.</comment>
+	</data>
+	<data name="ModestyNotCoveredHere" xml:space="preserve">
+		<value>You aren&apos;t dressed enough. Cover more of your {0}.</value>
+		<comment>Shown in the inventory or wardrobe while the player isn&apos;t dressed enough to leave it. {0} lists the clothing slots that aren&apos;t covered enough, such as &quot;torso and hips&quot;.</comment>
+	</data>
+	<data name="DeveloperModesty" xml:space="preserve">
+		<value>Modesty: {0}</value>
+		<comment>For developers, how modest the player is. {0} lists each clothing slot their modesty rule checks.</comment>
+	</data>
+	<data name="DeveloperModestySlot" xml:space="preserve">
+		<value>{0} {1} (needs {2})</value>
+		<comment>For developers, how modest the player is in one clothing slot. {0} is the slot, {1} how modest they are, and {2} the least their modesty rule calls for where they are.</comment>
+	</data>
+	<data name="DeveloperModestyNoRule" xml:space="preserve">
+		<value>no modesty rule</value>
+		<comment>For developers, shown when the player follows no modesty rule.</comment>
+	</data>
+	<data name="DeveloperClothingCoverage" xml:space="preserve">
+		<value>Coverage: {0}. Bulk: {1}.</value>
+		<comment>For developers, how much an article of clothing covers. {0} lists the regions it covers, and {1} is its bulk.</comment>
+	</data>
+	<data name="DeveloperCoverageSlot" xml:space="preserve">
+		<value>{0} {1}</value>
+		<comment>For developers, how much an article of clothing covers one region. {0} is the region, and {1} how much it covers.</comment>
+	</data>
+	<data name="DeveloperNone" xml:space="preserve">
+		<value>none</value>
+		<comment>For developers, shown when something has no value.</comment>
+	</data>
+	<data name="OutfitCompleteNotWork" xml:space="preserve">
+		<value>&quot;{0}&quot; is set, but only work outfits can be complete.</value>
+		<comment>{0} is the location of the outfit&apos;s complete flag in the data file.</comment>
+	</data>
+	<data name="ModOperationCommentsInvalid" xml:space="preserve">
+		<value>Operation {0}: &quot;{1}&quot; must be text.</value>
+		<comment>{0} is the operation&apos;s number in the file. {1} is the property&apos;s name as written.</comment>
 	</data>
 </root>

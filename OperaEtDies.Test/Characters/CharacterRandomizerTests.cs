@@ -265,10 +265,34 @@ public sealed class CharacterRandomizerTests
 	}
 
 	[Test]
-	public void ObscurersHideValuesUpToTheirStrength()
+	public void OnlyClothingThatHidesFormHidesFormProperties()
+	{
+		var paunch = new CharacterProperty { Id = "paunch", Title = "Paunch", Type = CharacterPropertyType.ValueList, Regions = ["torso"], Form = true };
+		var hair = new CharacterProperty { Id = "hair", Title = "Hair", Type = CharacterPropertyType.ValueList, Regions = ["scalp", "ears"] };
+		ClothingItem Create(string id, string? bulk, params (string Region, int Coverage)[] coverage) =>
+			new() { Id = id, Title = id, Slots = [id], Layer = "clothes", Description = id, Text = new LongText { Text = id, Ai = true }, Bulk = bulk, Coverage = coverage.ToDictionary(x => x.Region, x => x.Coverage) };
+		var bulky = new ClothingBulk { Id = "bulky", Title = "Bulky", HidesForm = true };
+		ClothingBulk? FindBulk(string id) => id == bulky.Id ? bulky : null;
+		var kirtle = Create("kirtle", null, ("torso", 10));
+		var cloak = Create("cloak", "bulky", ("torso", 6));
+		var kerchief = Create("kerchief", null, ("scalp", 7));
+		var coif = Create("coif", null, ("scalp", 9), ("ears", 9));
+
+		Assert.That(CharacterObscuring.GetStrengths([paunch, hair], [kirtle, kerchief], FindBulk), Is.Empty);
+		Assert.That(CharacterObscuring.GetStrengths([paunch, hair], [kirtle, cloak, coif], FindBulk), Is.EquivalentTo(new Dictionary<string, int> { ["paunch"] = 6, ["hair"] = 9 }));
+	}
+
+	[Test]
+	public void ClothingHidesValuesUpToItsCoverage()
 	{
 		CharacterPropertyOption CreateOption(string id, int prominence) =>
 			new() { Id = id, Title = id, Prominence = prominence, Text = new Dictionary<string, string> { ["description"] = $"a {id} beard" } };
+		ClothingItem CreateClothing(string id, int coverage) => new()
+		{
+			Id = id, Title = id, Slots = [id], Layer = "clothes", Description = id, Text = new LongText { Text = id, Ai = false }, Coverage = new Dictionary<string, int> { ["face"] = coverage },
+		};
+		var clothing = new ClothingData { Items = [CreateClothing("mask", 8), CreateClothing("veil", 10)] };
+		var beard = new CharacterProperty { Id = "beard", Title = "Beard", Type = CharacterPropertyType.ValueList, Regions = ["face"], Values = [CreateOption("short", 5), CreateOption("long", 10)] };
 		var gameData = new GameData(
 			new CharacterData
 			{
@@ -287,17 +311,13 @@ public sealed class CharacterRandomizerTests
 				],
 				Properties =
 				[
-					new CharacterProperty { Id = "beard", Title = "Beard", Type = CharacterPropertyType.ValueList, Values = [CreateOption("short", 1), CreateOption("long", 3)] },
+					beard,
 				],
-				Obscurers =
-				[
-					new CharacterObscurer { Id = "mask", Hides = new Dictionary<string, int> { ["beard"] = 2 } },
-					new CharacterObscurer { Id = "darkness", Hides = new Dictionary<string, int> { [CharacterObscurer.AllProperties] = 3 } },
-				],
+				Obscurers = [CharacterObscuring.GetStrengths([beard], clothing.Items, _ => null)],
 			},
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings());
+			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings(), clothing: clothing);
 		var randomizer = new CharacterRandomizer(gameData, new Random(0), CharacterRole.Npc);
-		string Describe(params string[] obscurerIds) => randomizer.GetTraits().GetDescription(gameData.CharacterTemplates, gameData.GetObscuring(obscurerIds));
+		string Describe(params string[] clothingIds) => randomizer.GetTraits().GetDescription(gameData.CharacterTemplates, gameData.GetObscuring(clothingIds.Select(gameData.Clothing.Get)));
 
 		randomizer["beard"].Value = gameData.CharacterProperties.Get("beard").Values![0];
 		Assert.That(Describe(), Is.EqualTo("Hugh has a short beard."));
@@ -305,7 +325,7 @@ public sealed class CharacterRandomizerTests
 
 		randomizer["beard"].Value = gameData.CharacterProperties.Get("beard").Values![1];
 		Assert.That(Describe("mask"), Is.EqualTo("Hugh has a long beard."));
-		Assert.That(Describe("mask", "darkness"), Is.EqualTo("Hugh stands here."));
+		Assert.That(Describe("mask", "veil"), Is.EqualTo("Hugh stands here."));
 	}
 
 	private static CharacterRandomizer CreateRandomizer(int seed) => new(s_gameData, new Random(seed), CharacterRole.Npc);

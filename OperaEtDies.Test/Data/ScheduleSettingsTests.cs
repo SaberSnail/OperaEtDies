@@ -223,7 +223,7 @@ public sealed class ScheduleSettingsTests
 
 		Assert.That(settings.Validate(), Is.EquivalentTo(new[]
 		{
-			OurResources.RoleUnknown.FormatCurrentCulture("needs[odd]", "dreaming", "\"sleep\", \"socializing\""),
+			OurResources.RoleUnknown.FormatCurrentCulture("needs[odd]", "dreaming", "\"sleep\", \"socializing\", \"laundry\""),
 			OurResources.RoleDuplicate.FormatCurrentCulture("needs", "sleep", "\"sleep\", \"other\""),
 			OurResources.RoleWrongType.FormatCurrentCulture("needs[sleep]", "sleep", "level need"),
 		}));

@@ -30,7 +30,7 @@ OperaEtDies/bin/Debug/net9.0-windows/OperaEtDies.exe --no-mods --generate-villag
 * `--seed <n>` is optional. Village `i` uses seed `n + i`, so `--generate-villages 1 --seed <seed>` reproduces any village from its `seed` column. Without it, the first seed is random.
 * Exit code 0 is success, 1 means the data failed to load (errors go to standard error), and 2 means invalid arguments.
 * About 500 villages take 5 seconds.
-* The first field of each line is the record type. The output starts with one header line per type (the type prefixed with `#`) naming its columns, so check the headers rather than assuming column positions. The types are `village`, `household`, `person` (with one column per need and one per character property, holding the value id), `business`, `relationship` (each pair of people, with their score and whether they're friends), `sighting` (the last time each person saw each other person), `location` (with each quarter's position and size on the map), `exit` (one per direction of each path between quarters), `feature` (map features such as the river), `activity` (with `--simulate-days`), and `log` (warnings and errors logged while loading or generating, such as reused templates). To see a village's layout, draw each quarter's rectangle from its `location` record as a grid of letters with awk.
+* The first field of each line is the record type. The output starts with one header line per type (the type prefixed with `#`) naming its columns, so check the headers rather than assuming column positions. The types are `village`, `household`, `person` (with one column per need and one per character property, holding the value id), `business`, `clothing` (each piece of clothing, with its owner, its outfit, and where it is), `relationship` (each pair of people, with their score and whether they're friends), `sighting` (the last time each person saw each other person), `location` (with each quarter's position and size on the map), `exit` (one per direction of each path between quarters), `feature` (map features such as the river), `activity` (with `--simulate-days`), and `log` (warnings and errors logged while loading or generating, such as reused templates). To see a village's layout, draw each quarter's rectangle from its `location` record as a grid of letters with awk.
 * Analyze the file with `awk -F'\t'`, `sort`, and `uniq -c` (Python and jq aren't available). For example, the owners of each profession: `awk -F'\t' '$1=="business"{print $4}' villages.tsv | sort | uniq -c | sort -rn`.
 * `--portraits <folder>` also saves each person's portrait to the folder as `<village>-<household>-<member>.png`, and the `portraitLayers` column of each `person` record lists the portrait layers drawn for them.
 * `--simulate-days <days>` runs each village for that many days after it's created and writes an `activity` record each time someone starts a task (when, who, their goal need, the task, how long it takes, and where). Use it to check schedules and needs, such as when people sleep, eat, and work.
@@ -70,10 +70,16 @@ Never run the mod editor (`Tools/ModEditor`, documented in `Docs/ModEditor.md`) 
 
 Every NuGet package is a supply-chain risk, so adding or updating one (including a version bump, or a package another package brings in) follows `Docs/Dependencies.md`: ask me first, inspect the package before it's restored, pin it exactly, update the lock files on purpose, and add its license to `ThirdPartyNotices.txt`. Never loosen the safeguards in `nuget.config` and `Directory.Build.props` (locked restores, one source, required signatures, the vulnerability audit) to get a build working; fix the cause instead.
 
-## AI-Written Text
+## AI-Written Text and Art
 
 Every long text field in the data (one that typically holds a full sentence or more, not a title or short fragment) is an object holding the `text` and a required `ai` flag (see `Docs/DataFiles.md`).
 
 * When you create a long text field, set `ai` to true.
 * When you make a significant change to one (anything more than an isolated short phrase), set `ai` to true.
 * If a field's `ai` is false, ask me to confirm before changing its text and setting the flag to true. Don't change it until I say so.
+
+Every portrait layer and portrait shape set also has a required `ai` flag. Portraits.json is generated, so the flag comes from SubCorona's `Art/Portraits/Portraits.sh`, where each layer and shape set is marked as drawn by AI unless it's started after `handDrawn`.
+
+* When you create a layer or shape set, leave it marked as drawn by AI.
+* When you make a significant change to one (anything more than an isolated small tweak to a shape), mark it as drawn by AI, removing its `handDrawn`.
+* If one is marked as hand-drawn, ask me to confirm before changing it and marking it as drawn by AI. Don't change it until I say so.

@@ -31,11 +31,13 @@ public static class IconRenderer
 		if (data.GameData is { } gameData && portraits?.Value is { } portraitData)
 		{
 			var renderer = new PortraitRenderer(portraitData, gameData.CharacterProperties);
-			var traits = new PreviewCharacterViewModel(gameData, new Random(1), new PreviewSettings(s_character, "none")).GetDrawnTraits();
-			var crop = GetFaceCrop(renderer, portraitData, traits);
+			var preview = new PreviewCharacterViewModel(gameData, new Random(1), new PreviewSettings(s_character, "none"));
+			var traits = preview.GetDrawnTraits();
+			var clothing = preview.GetClothing();
+			var crop = GetFaceCrop(renderer, portraitData, traits, clothing);
 			if (crop is { } faceCrop)
 			{
-				var portrait = renderer.Render(traits, null);
+				var portrait = renderer.Render(traits, null, clothing);
 				var images = Sizes.Select(x => (Size: x, Png: RenderPng(portrait, faceCrop, x))).ToList();
 				try
 				{
@@ -69,10 +71,10 @@ public static class IconRenderer
 	/// Gets the square around the character's face: the drawn shapes of the head layer, with some room around them for
 	/// the hair.
 	/// </summary>
-	private static Rect? GetFaceCrop(PortraitRenderer renderer, PortraitData data, CharacterTraits traits)
+	private static Rect? GetFaceCrop(PortraitRenderer renderer, PortraitData data, CharacterTraits traits, PortraitClothing clothing)
 	{
 		var bounds = Rect.Empty;
-		foreach (var placement in renderer.GetShapePlacements(traits, null).Where(x => x.IsDrawn && data.Layers[x.LayerIndex].Id == HeadLayerId))
+		foreach (var placement in renderer.GetShapePlacements(traits, null, clothing).Where(x => x.IsDrawn && data.Layers[x.LayerIndex].Id == HeadLayerId))
 		{
 			var geometry = placement.Geometry.Clone();
 			geometry.Transform = new MatrixTransform(placement.Transform);

@@ -20,6 +20,7 @@ internal sealed class Scheduler
 		m_settings = world.GameData.Schedules;
 		m_socializeNeed = m_settings.Needs.FirstOrDefault(x => x.Id == m_settings.SocializeNeed);
 		m_sleepNeed = m_settings.Needs.FirstOrDefault(x => x.Id == m_settings.SleepNeed && x.Kind == NeedKind.Level);
+		m_laundryNeed = m_settings.Needs.FirstOrDefault(x => x.Id == m_settings.LaundryNeed);
 	}
 
 	/// <summary>
@@ -37,9 +38,20 @@ internal sealed class Scheduler
 		{
 			var time = next.TaskEnd! > start ? next.TaskEnd! : start;
 			next.UpdateNeeds(time);
+			var goal = next.Goal;
 			var task = next.FinishTask();
 			if (task is TravelTask travel)
 				m_world.MovePerson(next, travel.Destination, time);
+			else if (task is ChangeClothesTask change)
+				ClothingRules.Change(next, change.Outfit, change.IsTakingOff, time);
+
+			// Night clothes come off once sleep is over.
+			if (goal is not null && goal == m_sleepNeed && next.Goal != goal)
+				ClothingRules.DressAfterSleep(next, time);
+
+			// The washing is hung out at home at the end of the trip to wash it.
+			if (goal is not null && goal == m_laundryNeed && next.Tasks.Count == 0 && next.Location == next.Home)
+				HangOutWashing(next.Home, time);
 			Continue(next, time);
 
 			// The player has nothing to do until they choose, but still sees who's around, such as when they wake.
@@ -62,10 +74,14 @@ internal sealed class Scheduler
 	public void Continue(Person person, TimePoint time)
 	{
 		person.UpdateNeeds(time);
+		ClothingRules.DressForSleep(person, m_sleepNeed, time);
 		while (person.TaskEnd is null && (person.Tasks.Count != 0 || m_world.IsAutomatic(person)))
 		{
 			if (person.Tasks.Count == 0)
+			{
 				ChooseGoal(person, time);
+				ClothingRules.DressForSleep(person, m_sleepNeed, time);
+			}
 
 			var task = person.Tasks[0];
 			if (task.ResumeMinutes is not null && person.Goal is { Kind: NeedKind.Quota } goal && !CanResume(person, goal, time))
@@ -77,6 +93,13 @@ internal sealed class Scheduler
 			else if (task is AtWorkTask atWork)
 			{
 				person.IsAtWork = atWork.IsAtWork;
+				if (atWork.Clothes is { } clothes)
+					ClothingRules.Change(person, clothes, isTakingOff: !atWork.IsAtWork, time);
+				person.FinishTask();
+			}
+			else if (task is FetchClothesTask fetch)
+			{
+				ClothingRules.Fetch(person, fetch.Outfit, time);
 				person.FinishTask();
 			}
 			else
@@ -87,12 +110,22 @@ internal sealed class Scheduler
 				if (task is BusyTask && person.Goal is { } sleepGoal && sleepGoal == m_sleepNeed && m_world.IsAutomatic(person))
 					minutes = GetMinutesUntilWoken(person, time, minutes);
 				person.StartTask(m_calendar.AddMinutes(time, minutes));
+
+				// The household's washing is taken along to be washed.
+				if (task is BusyTask { ResumeMinutes: null } && person.Goal is { } laundry && laundry == m_laundryNeed && person.Location != person.Home)
+					ClothingRules.TakeWashing(person.Home);
+
 				m_world.OnTaskStarted(person, task, time);
 				if (task is TravelTask travel && person.CurrentTask == task)
 					CallOutToFriend(person, travel.Destination, minutes, time);
 			}
 		}
 	}
+
+	/// <summary>
+	/// Hangs out a household's washing at home, to be dry once the drying time has passed.
+	/// </summary>
+	internal void HangOutWashing(Location home, TimePoint time) => ClothingRules.HangOutWashing(home, m_calendar.AddMinutes(time, m_settings.Clothing.DryingMinutes));
 
 	/// <summary>
 	/// Whether someone can carry on with a quota need after being interrupted: it's within its hours, and isn't done yet.
@@ -127,11 +160,25 @@ internal sealed class Scheduler
 		var choice = candidates.Count == 0 ? null : m_world.Random.NextWeighted(candidates, x => m_settings.GetGoalWeight(x.Need, x.Urgency)).Need;
 		var seeking = choice is not null && choice == m_socializeNeed ? ChooseWhereToSeek(person, distances, time) : null;
 		var place = choice is null ? null : choice == m_socializeNeed ? seeking?.Place : FindPlace(person, choice.Place, choice.QuarterKinds, distances, choice.Nearest);
+
+		// Someone going to work changes into their work clothes there, fetching them from home first if they need to.
+		var workChange = choice is { AtWork: true } && place is not null ? ClothingRules.GetWorkChange(person, place, time) : null;
+		var travelMinutes = place is null ? 0 :
+			workChange is { Fetch: true } && person.Location != person.Home ? distances[person.Home].Minutes + GetDistances(person.Home)[place].Minutes : distances[place].Minutes;
+		var isLastShift = false;
 		var minutes = seeking is not null ? m_settings.Socializing.SeekMinutes :
 			choice is not null && choice == m_sleepNeed && isNap ? m_world.Random.NextInRange(m_settings.Sleep.NapMinutes) :
-			choice is { Kind: NeedKind.Quota } && place is not null ? GetShiftMinutes(person, choice, time, distances[place].Minutes) : (int?) null;
+			choice is { Kind: NeedKind.Quota } && place is not null ? GetShiftMinutes(person, choice, time, travelMinutes, out isLastShift) : (int?) null;
 		var result = choice is null ? GoalChoiceResult.NothingUrgent : place is null ? GoalChoiceResult.NoPlace : minutes is 0 or < 0 ? GoalChoiceResult.NoTime : GoalChoiceResult.Chosen;
 		var goalChoice = new GoalChoice(time, urgencies, choice, result, seeking);
+
+		// Someone still in their work clothes once their work for the day is over changes out of them first. Someone going to
+		// sleep changes into their night clothes instead.
+		var isWorkingOrSleeping = result == GoalChoiceResult.Chosen && (choice!.AtWork || choice == m_sleepNeed);
+		var leftover = isWorkingOrSleeping || (IsInWorkHours(person, time) && HasWorkToday(person, time)) ? null :
+			person.GetOutfits(OutfitKind.Work).FirstOrDefault(x => x.Pieces.Any(y => y.Wearer == person));
+		IReadOnlyList<PersonTask> ChangingOutFirst(IReadOnlyList<PersonTask> tasks) => leftover is null ? tasks : [new ChangeClothesTask(leftover, IsTakingOff: true), .. tasks];
+
 		if (result == GoalChoiceResult.Chosen)
 		{
 			// A trip's time is spent at the place first, and whatever's left at home afterward.
@@ -139,14 +186,18 @@ internal sealed class Scheduler
 			var homeMinutes = minutes - placeMinutes ?? 0;
 			if (choice == m_sleepNeed)
 				person.HasNapped = isNap;
-			person.SetPlan(choice, PlanTasks(person, place!, distances, choice.AtWork, placeMinutes, choice.ReturnHome ? person.Home : null, homeMinutes), goalChoice);
+
+			// Work clothes are changed out of after the last stretch of work for the day.
+			var workOutfit = workChange?.Outfit ?? (choice.AtWork ? person.GetOutfits(OutfitKind.Work).FirstOrDefault(x => ClothingRules.IsWearing(person, x)) : null);
+			var clothes = workOutfit is null ? null : new WorkClothesPlan(workOutfit, workChange?.Fetch ?? false, workChange is not null, isLastShift);
+			person.SetPlan(choice, ChangingOutFirst(PlanTasks(person, place!, distances, choice.AtWork, placeMinutes, choice.ReturnHome ? person.Home : null, homeMinutes, clothes)), goalChoice);
 		}
 		else
 		{
 			// Without an urgent need that can be met now, the person waits a while before deciding again.
 			var idle = m_settings.Idle;
 			var idlePlace = FindPlace(person, idle.Place.Kind, idle.Place.QuarterKinds, distances, isNearest: false) ?? person.Location;
-			person.SetPlan(null, PlanTasks(person, idlePlace, distances, isAtWork: false, m_world.Random.NextInRange(idle.Minutes), returnTo: null, returnMinutes: 0), goalChoice);
+			person.SetPlan(null, ChangingOutFirst(PlanTasks(person, idlePlace, distances, isAtWork: false, m_world.Random.NextInRange(idle.Minutes), returnTo: null, returnMinutes: 0, clothes: null)), goalChoice);
 		}
 	}
 
@@ -391,11 +442,12 @@ internal sealed class Scheduler
 			.Select(x => (Need: x, Level: person.GetLevel(x), Factor: GetUrgencyFactor(person, x)))
 			.ToList();
 		var (sleepLevel, sleepFactor) = (person.GetLevel(sleep), GetUrgencyFactor(person, sleep));
+		var sleepRate = person.GetSatisfyPerHour(sleep);
 		var woken = minutes;
 		for (var minute = WakeCheckMinutes; minute < woken && wakers.Count != 0; minute += WakeCheckMinutes)
 		{
 			var hour = m_calendar.GetParts(m_calendar.AddMinutes(time, minute)).Hour;
-			var sleepUrgency = sleep.GetLevelUrgency(Math.Max(sleepLevel - (sleep.SatisfyPerHour!.Value * minute / 60), 0)) * sleepFactor;
+			var sleepUrgency = sleep.GetLevelUrgency(Math.Max(sleepLevel - (sleepRate * minute / 60), 0)) * sleepFactor;
 			var isWoken = wakers.Any(x =>
 			{
 				var urgency = x.Need.IsWithinHours(hour) ? x.Need.GetLevelUrgency(Math.Min(x.Level + (x.Need.PerHour!.Value * minute / 60), Need.MaximumLevel)) * x.Factor : 0;
@@ -407,6 +459,19 @@ internal sealed class Scheduler
 
 		return woken;
 	}
+
+	/// <summary>
+	/// Whether someone still has work to do today: a need met at their workplace that can be met today and isn't done.
+	/// </summary>
+	internal bool HasWorkToday(Person person, TimePoint time) =>
+		m_settings.Needs.Any(x => x.Place == NeedPlace.Workplace && x.Kind == NeedKind.Quota && HasNeed(person, x) && IsQuotaDayOpen(person, x, time) && GetRemainingMinutes(person, x, time) > 0);
+
+	/// <summary>
+	/// Whether spending the given minutes on a quota need, starting now, is the last of it for the day: it takes all that's
+	/// left to do, or all the time left in its hours.
+	/// </summary>
+	internal bool IsLastShift(Person person, Need need, TimePoint time, int minutes) =>
+		need.Kind == NeedKind.Quota && minutes >= Math.Min(GetRemainingMinutes(person, need, time), GetMinutesUntilEnd(person, need, time));
 
 	/// <summary>
 	/// Whether someone is within their work hours on a day they work.
@@ -467,9 +532,16 @@ internal sealed class Scheduler
 
 		return need.Kind == NeedKind.Quota && !IsPlayerActionOpen(person, need, time) ? 0 :
 			!option.UntilMet ? option.Minutes ?? 0 :
-			need.Kind == NeedKind.Level ? (int) Math.Ceiling(Math.Round(person.GetLevel(need) / need.SatisfyPerHour!.Value * 60, 6)) :
+			need.Kind == NeedKind.Level ? (int) Math.Ceiling(Math.Round(person.GetLevel(need) / GetActionSatisfyPerHour(person, need, time) * 60, 6)) :
 			(int) Math.Clamp(GetRemainingMinutes(person, need, time), 0, int.MaxValue);
 	}
+
+	/// <summary>
+	/// Gets how much a level need would drop each hour once a person starts meeting it: sleeping at home is in night clothes,
+	/// if they have them at hand.
+	/// </summary>
+	private double GetActionSatisfyPerHour(Person person, Need need, TimePoint time) =>
+		need == m_sleepNeed && person.Location == person.Home && person.GetOutfits(OutfitKind.Night).Any(x => ClothingRules.IsAtHand(x, time)) ? need.SatisfyPerHour!.Value : person.GetSatisfyPerHour(need);
 
 	/// <summary>
 	/// Gets how many minutes a person would spend on one part of a trip, starting now, or null if they can't do that part:
@@ -544,19 +616,23 @@ internal sealed class Scheduler
 		WaitTask wait => Math.Max(wait.Minutes, 1),
 		TravelTask travel => GetTravelMinutes(person, person.Location, travel.Destination),
 		BusyTask { Minutes: { } minutes } => Math.Max(minutes, 1),
-		BusyTask when person.Goal is { Kind: NeedKind.Level, SatisfyPerHour: { } satisfy } goal => Math.Max((int) Math.Ceiling(person.GetLevel(goal) / satisfy * 60), 1),
+		ChangeClothesTask => m_settings.Clothing.ChangeMinutes,
+		BusyTask when person.Goal is { Kind: NeedKind.Level, SatisfyPerHour: not null } goal => Math.Max((int) Math.Ceiling(person.GetLevel(goal) / person.GetSatisfyPerHour(goal) * 60), 1),
 		_ => 1,
 	};
 
 	/// <summary>
 	/// Gets how long to spend on a quota need this time: a shift or a trip, unless less is left to do or less time is left
-	/// in today's hours once the person gets there.
+	/// in today's hours once the person gets there. It's the last shift for the day when it takes
+	/// all that's left to do or all the time left.
 	/// </summary>
-	private int GetShiftMinutes(Person person, Need need, TimePoint time, int travelMinutes)
+	private int GetShiftMinutes(Person person, Need need, TimePoint time, int travelMinutes, out bool isLast)
 	{
 		var remaining = GetRemainingMinutes(person, need, time);
 		var available = GetMinutesUntilEnd(person, need, time) - travelMinutes;
-		return (int) Math.Min(Math.Min(need.GetShiftMinutes(person.Family.Members.Count), remaining), available);
+		var minutes = (int) Math.Min(Math.Min(need.GetShiftMinutes(person.Family.Members.Count), remaining), available);
+		isLast = minutes >= Math.Min(remaining, available);
+		return minutes;
 	}
 
 	/// <summary>
@@ -668,17 +744,30 @@ internal sealed class Scheduler
 	}
 
 	/// <summary>
-	/// Plans the tasks to reach a place and spend time there: a path to walk, then starting work if needed, the time
-	/// spent, stopping work, and the path back to where they return to, if anywhere, with time spent there.
+	/// Plans the tasks to reach a place and spend time there: a path to walk (by way of home to fetch work clothes, if
+	/// needed), then starting work (changing into work clothes, if needed), the time spent, stopping work (changing
+	/// out of work clothes, if needed), and the path back to where they return to, if anywhere, with time spent there.
 	/// </summary>
-	private IReadOnlyList<PersonTask> PlanTasks(Person person, Location place, IReadOnlyDictionary<Location, Route> distances, bool isAtWork, int? minutes, Location? returnTo, int returnMinutes)
+	private IReadOnlyList<PersonTask> PlanTasks(Person person, Location place, IReadOnlyDictionary<Location, Route> distances, bool isAtWork, int? minutes, Location? returnTo, int returnMinutes, WorkClothesPlan? clothes)
 	{
-		var tasks = GetPath(person.Location, place, distances).Select(PersonTask (x) => new TravelTask(x)).ToList();
+		var tasks = new List<PersonTask>();
+		if (clothes is { Fetch: true })
+		{
+			var home = person.Home;
+			tasks.AddRange(GetPath(person.Location, home, distances).Select(PersonTask (x) => new TravelTask(x)));
+			tasks.Add(new FetchClothesTask(clothes.Outfit));
+			tasks.AddRange(GetPath(home, place, GetDistances(home)).Select(PersonTask (x) => new TravelTask(x)));
+		}
+		else
+		{
+			tasks.AddRange(GetPath(person.Location, place, distances).Select(PersonTask (x) => new TravelTask(x)));
+		}
+
 		if (isAtWork)
-			tasks.Add(new AtWorkTask(true));
+			tasks.Add(new AtWorkTask(true, clothes is { IsChangingInto: true } ? clothes.Outfit : null));
 		tasks.Add(new BusyTask(minutes));
 		if (isAtWork)
-			tasks.Add(new AtWorkTask(false));
+			tasks.Add(new AtWorkTask(false, clothes is { IsChangingOutOf: true } ? clothes.Outfit : null));
 		if (returnTo is not null && returnTo != place)
 		{
 			tasks.AddRange(GetPath(place, returnTo, GetDistances(place)).Select(PersonTask (x) => new TravelTask(x)));
@@ -733,6 +822,12 @@ internal sealed class Scheduler
 	/// </summary>
 	private sealed record Route(int Minutes, Location? Previous);
 
+	/// <summary>
+	/// What someone going to work does with their work clothes: fetches them from home on the way, changes into them, and
+	/// changes out of them afterward.
+	/// </summary>
+	private sealed record WorkClothesPlan(OwnedOutfit Outfit, bool Fetch, bool IsChangingInto, bool IsChangingOutOf);
+
 	private const int MinutesPerDay = 24 * 60;
 
 	/// <summary>
@@ -745,4 +840,5 @@ internal sealed class Scheduler
 	private readonly ScheduleSettings m_settings;
 	private readonly Need? m_socializeNeed;
 	private readonly Need? m_sleepNeed;
+	private readonly Need? m_laundryNeed;
 }

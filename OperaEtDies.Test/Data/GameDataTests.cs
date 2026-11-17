@@ -354,25 +354,17 @@ public sealed class GameDataTests
 					{ "id": "description", "variants": [ { "when": { "hidden": [ "nobody", "age", "age" ] }, "template": "" }, { "when": { "hidden": [] }, "template": "{age}" } ] }
 				],
 				"properties": [
-					{ "id": "gender", "title": "Gender", "type": "valueList", "values": [ { "id": "male", "title": "Male", "prominence": 0 } ] },
+					{ "id": "gender", "title": "Gender", "type": "valueList", "regions": [ "torso" ], "values": [ { "id": "male", "title": "Male", "prominence": 0 } ] },
+					{ "id": "eyes", "title": "Eyes", "type": "valueList", "values": [ { "id": "blue", "title": "Blue", "prominence": 5 } ] },
 					{ "id": "age", "title": "Age", "type": "integer", "range": { "minimum": 1, "maximum": 5, "shape": { "peak": "low", "mostWithin": 2 } } }
-				],
-				"obscurers": [
-					{ "id": "mask", "hides": { "nobody": 2, "age": 4, "*": 1 } },
-					{ "id": "mask", "hides": {} },
-					{ "id": "", "hides": { "age": 1 } }
 				]
 			}
 			""");
 
 		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
-			OurResources.ProminenceInvalid.FormatCurrentCulture("male", "gender.values", 0, 1, 3),
-			OurResources.ObscurerPropertyUnknown.FormatCurrentCulture("mask", "nobody"),
-			OurResources.ObscurerStrengthInvalid.FormatCurrentCulture("mask", "age", 4, 1, 3),
-			OurResources.DataListItemIdDuplicate.FormatCurrentCulture("mask", "obscurers"),
-			OurResources.DataListEmpty.FormatCurrentCulture("mask.hides"),
-			OurResources.DataListItemIdMissing.FormatCurrentCulture("obscurers"),
+			OurResources.ProminenceInvalid.FormatCurrentCulture("male", "gender.values", 0, 1, 10),
+			OurResources.ProminenceWithoutRegions.FormatCurrentCulture("blue", "eyes.values", "eyes"),
 			OurResources.TemplateHiddenPropertyUnknown.FormatCurrentCulture("description.variants[0].when.hidden", "nobody"),
 			OurResources.DataListItemIdDuplicate.FormatCurrentCulture("age", "description.variants[0].when.hidden"),
 			OurResources.DataListEmpty.FormatCurrentCulture("description.variants[1].when.hidden"),
@@ -393,12 +385,13 @@ public sealed class GameDataTests
 					{
 						"id": "beard",
 						"title": "Beard",
+						"regions": [ "face" ],
 						"type": "valueList",
 						"values": [ { "id": "full", "title": "Full" }, { "id": "stubble", "title": "Stubble", "prominence": 1 } ]
 					},
-					{ "id": "hat", "title": "Hat", "type": "valueList", "values": [ { "id": "tall", "title": "Tall", "prominence": 3 } ] }
+					{ "id": "hat", "title": "Hat", "type": "valueList", "regions": [ "scalp" ], "values": [ { "id": "tall", "title": "Tall", "prominence": 3 } ] }
 				],
-				"obscurers": [ { "id": "mask", "hides": { "beard": 1, "hat": 2 } } ]
+				"clothing": [ { "obscures": { "beard": 1, "hat": 2 } } ]
 			}
 			""");
 

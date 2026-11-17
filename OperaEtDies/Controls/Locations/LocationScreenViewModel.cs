@@ -3,6 +3,7 @@ using System.ComponentModel;
 using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Calendar;
 using OperaEtDies.Characters;
+using OperaEtDies.Controls.Clothing;
 using OperaEtDies.Data;
 using OperaEtDies.GameState;
 
@@ -156,8 +157,10 @@ public sealed class LocationScreenViewModel : ViewModelBase
 		var isChanged = m_world.WaitForPeople(Location, following);
 		var calendar = m_world.GameData.Calendar;
 		var waited = calendar.FormatOffsetFrom(start, m_world.Time - start, TimeFormat.Long);
-		if (following is not null && following.Location != Location)
+		if (following is not null && following.Location != Location && m_world.Player.Location != Location)
 			Followed.Raise(this, new GenericEventArgs<Location>(following.Location));
+		else if (following is not null && following.Location != Location)
+			WaitResult = ModestyWarning.Format(m_world.GetPlayerUncoveredSlotsOutside());
 		else if (isChanged || m_world.Player.TalkRequest is not null)
 			WaitResult = OurResources.WaitResultChanged.FormatCurrentCulture(waited);
 		else
@@ -209,15 +212,25 @@ public sealed class LocationScreenViewModel : ViewModelBase
 		var need = choice.Need;
 		var action = need.PlayerAction!;
 		var start = m_world.Time;
-		if (need.IsTrips)
-			m_world.DoPlayerTrip(need, choice.IsHome);
-		else
-			m_world.DoPlayerAction(need, minutes);
 
-		var spent = m_world.GameData.Calendar.FormatOffsetFrom(start, m_world.Time - start, TimeFormat.Long);
-		var result = choice.IsHome ? action.Home!.Result : action.Result;
-		var text = minutes == 0 ? OurResources.PlayerActionResultInstant.FormatCurrentCulture(result) : OurResources.PlayerActionResult.FormatCurrentCulture(result, spent);
-		WaitResult = !choice.IsHome && action.Return is { } returnText ? OurResources.PlayerActionResultReturn.FormatCurrentCulture(text, returnText) : text;
+		// Changing clothes for it, such as into work clothes, mustn't leave the player too uncovered.
+		var warning = ModestyWarning.Format(m_world.GetPlayerActionUncoveredSlots(need));
+		if (warning is not null)
+		{
+			WaitResult = warning;
+		}
+		else
+		{
+			if (need.IsTrips)
+				m_world.DoPlayerTrip(need, choice.IsHome);
+			else
+				m_world.DoPlayerAction(need, minutes);
+
+			var spent = m_world.GameData.Calendar.FormatOffsetFrom(start, m_world.Time - start, TimeFormat.Long);
+			var result = choice.IsHome ? action.Home!.Result : action.Result;
+			var text = minutes == 0 ? OurResources.PlayerActionResultInstant.FormatCurrentCulture(result) : OurResources.PlayerActionResult.FormatCurrentCulture(result, spent);
+			WaitResult = !choice.IsHome && action.Return is { } returnText ? OurResources.PlayerActionResultReturn.FormatCurrentCulture(text, returnText) : text;
+		}
 
 		// Finishing a trip at home can take no time, so the actions are brought up to date here too.
 		Actions = CreateActions();

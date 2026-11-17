@@ -179,12 +179,12 @@ public sealed class ModEditorFormTests
 		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: false, _ => { })!;
 		var operation = (OperationFieldViewModel) form.Root;
 
-		Assert.That(operation.Fields.Select(x => x.Label), Is.EqualTo(new[] { "op", "path", "value" }));
-		Assert.That(operation.Fields[2], Is.InstanceOf<ObjectFieldViewModel>());
+		Assert.That(operation.Fields.Select(x => x.Label), Is.EqualTo(new[] { "comments", "op", "path", "value" }));
+		Assert.That(operation.Fields.Single(x => x.Label == "value"), Is.InstanceOf<ObjectFieldViewModel>());
 
-		((ChoiceFieldViewModel) operation.Fields[0]).Selected = "remove";
-		Assert.That(operation.Fields.Select(x => x.Label), Is.EqualTo(new[] { "op", "path", "value" }));
-		Assert.That(operation.Fields[2], Is.InstanceOf<JsonFieldViewModel>(), "A value a remove doesn't take is shown as JSON, so it can be seen and removed.");
+		((ChoiceFieldViewModel) operation.Fields.Single(x => x.Label == "op")).Selected = "remove";
+		Assert.That(operation.Fields.Select(x => x.Label), Is.EqualTo(new[] { "comments", "op", "path", "value" }));
+		Assert.That(operation.Fields.Single(x => x.Label == "value"), Is.InstanceOf<JsonFieldViewModel>(), "A value a remove doesn't take is shown as JSON, so it can be seen and removed.");
 	}
 
 	[Test]
@@ -200,7 +200,7 @@ public sealed class ModEditorFormTests
 		Assert.That(description.DataPath, Is.EqualTo("houses[cottage].description"));
 		Assert.That(shortText.Fields.Single(x => x.Label == "text").DataPath, Is.EqualTo("houses[cottage].description.short.text"));
 		Assert.That(longText.Items.Single().Field.DataPath, Is.EqualTo("houses[cottage].description.long[0]"));
-		Assert.That(longText.Items.Single().Field.Label, Is.EqualTo("1"));
+		Assert.That(longText.Items.Single().Field.Label, Is.EqualTo("0"));
 	}
 
 	[Test]
@@ -335,7 +335,7 @@ public sealed class ModEditorFormTests
 
 		Values().Items[2].MoveUp();
 		Assert.That(Ids(), Is.EqualTo(new[] { "b", "c", "a" }));
-		Assert.That(Values().Items.Select(x => x.Field.Label), Is.EqualTo(new[] { "1", "2", "3" }), "Items are numbered by their new places.");
+		Assert.That(Values().Items.Select(x => x.Field.Label), Is.EqualTo(new[] { "0", "1", "2" }), "Items are numbered by their new places, from 0.");
 	}
 
 	[Test]
@@ -381,6 +381,167 @@ public sealed class ModEditorFormTests
 		var (_, error) = ModEditing.Insert(project, ModPiece.Item("houses", JsonNode.Parse("""{ "id": "cottage" }""")), new FileLocation("Ops.json"), after: true);
 
 		Assert.That(error, Does.Contain("\"cottage\", an item of \"houses\""));
+	}
+
+	[Test]
+	public void PortraitShapesCanUseTheirLayersColors()
+	{
+		var gameData = JsonNode.Parse("""
+			{
+				"portraitColors": [ { "id": "skin", "color": "#FFFFFF" } ],
+				"clothing": [ { "id": "tunic", "colors": [ "main", "trim" ] }, { "id": "hat", "colors": "band" } ],
+				"portraitShapeSets": [ { "id": "set", "shapes": [ { "fill": "shade" } ] }, { "id": "unused", "shapes": [ { "fill": "skin" } ] } ],
+				"portraitLayers": [
+					{ "id": "tunic", "clothing": [ "tunic" ], "colors": [ { "id": "shade", "color": "main" } ], "shapes": [ { "fill": "main" }, { "include": "set" } ] },
+					{ "id": "hat", "clothing": "hat", "shapes": [ { "fill": "band" } ] }
+				]
+			}
+			""")!.AsObject();
+		var catalog = new IdCatalog(gameData, []);
+		JsonObject Shape(string section, int index) => gameData[section]![index]!["shapes"]![0]!.AsObject();
+
+		Assert.That(catalog.GetColorIds(Shape("portraitLayers", 0)), Is.EquivalentTo(new[] { "skin", "shade", "main", "trim" }));
+		Assert.That(catalog.GetColorIds(gameData["portraitLayers"]![0]!["colors"]![0]!.AsObject()), Is.EquivalentTo(new[] { "skin", "shade", "main", "trim" }));
+		Assert.That(catalog.GetColorIds(Shape("portraitLayers", 1)), Is.EquivalentTo(new[] { "skin", "band" }));
+		Assert.That(catalog.GetColorIds(Shape("portraitShapeSets", 0)), Is.EquivalentTo(new[] { "skin", "shade", "main", "trim" }));
+		Assert.That(catalog.GetColorIds(Shape("portraitShapeSets", 1)), Is.EquivalentTo(new[] { "skin" }));
+		Assert.That(catalog.GetColorIds(gameData["portraitColors"]![0]!.AsObject()), Is.EquivalentTo(new[] { "skin" }));
+
+		// A form edits a copy of the item, outside of its section.
+		var copy = gameData["portraitShapeSets"]![0]!.DeepClone().AsObject();
+		Assert.That(catalog.GetColorIds(copy["shapes"]![0]!.AsObject(), "portraitShapeSets"), Is.EquivalentTo(new[] { "skin", "shade", "main", "trim" }));
+	}
+
+	[Test]
+	public void OperationsOnShapeSetsUseTheirLayersColors()
+	{
+		var gameData = JsonNode.Parse("""
+			{
+				"portraitColors": [ { "id": "skin", "color": "#FFFFFF" } ],
+				"portraitShapeSets": [ { "id": "set", "shapes": [ { "fill": "shade" } ] } ],
+				"portraitLayers": [ { "id": "tunic", "colors": [ { "id": "shade", "color": "#000000" } ], "shapes": [ { "include": "set" } ] } ]
+			}
+			""")!.AsObject();
+		var catalog = new IdCatalog(gameData, []);
+		TextFieldViewModel Value(string operation)
+		{
+			var form = FormViewModel.Create(ModPiece.Operation(JsonNode.Parse(operation)), catalog, isReadOnly: true, _ => { })!;
+			form.Root.Refresh();
+			var value = ((OperationFieldViewModel) form.Root).Fields.Single(x => x.Label == "value");
+			return value as TextFieldViewModel ?? ((ListFieldViewModel) ((ObjectFieldViewModel) value).Fields.Single(x => x.Label == "shapes")).Items.Select(x => (ObjectFieldViewModel) x.Field).SelectMany(x => x.Fields).OfType<TextFieldViewModel>().Single(x => x.Label == "fill");
+		}
+
+		// Replacing the whole shape set, and setting one of its shapes' fills on its own.
+		var replaced = Value("""{ "op": "replace", "path": "portraitShapeSets[set]", "value": { "id": "set", "shapes": [ { "fill": "shade" } ] } }""");
+		Assert.That(replaced.Warning, Is.Null);
+		var fill = Value("""{ "op": "set", "path": "portraitShapeSets[set].shapes[0].fill", "value": "shade" }""");
+		Assert.That(fill.Suggestions, Is.EquivalentTo(new[] { "skin", "shade" }));
+		Assert.That(fill.Warning, Is.Null);
+	}
+
+	[Test]
+	public void ShippedPortraitColorsAreAllKnown()
+	{
+		var data = DataDocument.Read(JsonDataLoader.DefaultDataDirectory, []).Value!.Root;
+		var catalog = new IdCatalog(data, []);
+		foreach (var section in new[] { "portraitLayers", "portraitShapeSets" })
+		{
+			foreach (var item in data[section]!.AsArray().OfType<JsonObject>())
+			{
+				var owners = (item["shapes"]?.AsArray() ?? []).Concat(item["colors"]?.AsArray() ?? []).OfType<JsonObject>();
+				foreach (var owner in owners)
+				{
+					var known = catalog.GetColorIds(owner);
+					foreach (var name in new[] { "fill", "fillTo", "stroke", "color", "mix" })
+					{
+						if (owner[name] is JsonValue value && value.GetValue<string>() is var color && !color.StartsWith('#'))
+							Assert.That(known, Does.Contain(color), $"{section}[{item["id"]}].{name}");
+					}
+				}
+			}
+		}
+	}
+
+	[Test]
+	public void TheShippedShapeSetsColorsAreKnownInTheirForm()
+	{
+		var data = DataDocument.Read(JsonDataLoader.DefaultDataDirectory, []).Value!.Root;
+		var catalog = new IdCatalog(data, []);
+		foreach (var set in data["portraitShapeSets"]!.AsArray())
+		{
+			var form = FormViewModel.Create(ModPiece.Item("portraitShapeSets", set), catalog, isReadOnly: true, _ => { })!;
+			form.Root.Refresh();
+			var shapes = (ListFieldViewModel) ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "shapes");
+			var colors = shapes.Items.Select(x => (ObjectFieldViewModel) x.Field).SelectMany(x => x.Fields).OfType<TextFieldViewModel>().Where(x => x.Label is "fill" or "fillTo" or "stroke").ToList();
+			Assert.That(colors.Where(x => x.Text.Length != 0), Is.Not.Empty);
+			Assert.That(colors.Select(x => x.Warning), Is.All.Null, set!["id"]!.GetValue<string>());
+		}
+	}
+
+	[Test]
+	public void WealthAndFrequencySuggestionsIncludeTheirSteps()
+	{
+		Assert.That(DataReferences.GetTextChoices(typeof(ProfessionWealth)), Is.SupersetOf(new[] { "veryLow", "low++", "medium", "high-", "high--" }));
+		Assert.That(DataReferences.GetTextChoices(typeof(OperaEtDies.Utility.Random.FrequencyLevel)), Is.SupersetOf(new[] { "common", "common-", "rare+", "veryRare--" }));
+
+		// Every wealth in the shipped data is one of the suggestions.
+		var data = DataDocument.Read(JsonDataLoader.DefaultDataDirectory, []).Value!.Root;
+		var wealths = data["professions"]!.AsArray().Select(x => x?["business"]?["wealth"]?.GetValue<string>()).OfType<string>().ToList();
+		Assert.That(wealths, Is.Not.Empty);
+		Assert.That(DataReferences.GetTextChoices(typeof(ProfessionWealth)), Is.SupersetOf(wealths.Distinct()));
+	}
+
+	[Test]
+	public void GameDataFieldsCanBeReplacedOrRemovedByTheMod()
+	{
+		var changes = new RecordingChanges();
+		var piece = ModPiece.Item("quarterKinds", JsonNode.Parse("""{ "id": "square", "path": "lane" }"""));
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: true, _ => { }, changes: changes)!;
+		var path = ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "path");
+
+		Assert.That(path.CanReplace(), Is.True);
+		path.Replace();
+		path.Remove();
+		Assert.That(changes.Calls, Is.EqualTo(new[] { "replace quarterKinds[square].path \"lane\"", "remove quarterKinds[square].path" }));
+
+		// Without a mod open, the mod can't be changed.
+		changes.CanChangeMod = false;
+		Assert.That(path.CanReplace(), Is.False);
+		Assert.That(path.CanRemove(), Is.False);
+	}
+
+	private sealed class RecordingChanges : IFormChanges
+	{
+		public IReadOnlyList<string> Calls => m_calls;
+
+		public bool CanChangeMod { get; set; } = true;
+
+		public ChangeKind? GetChange(string path) => null;
+
+		public ModLocation? GetSource(string path) => null;
+
+		public void GoTo(ModLocation location)
+		{
+		}
+
+		public void Replace(string path, JsonNode? value) => m_calls.Add($"replace {path} {value?.ToJsonString()}");
+
+		public void Remove(string path) => m_calls.Add($"remove {path}");
+
+		private readonly System.Collections.ObjectModel.Collection<string> m_calls = [];
+	}
+
+	[Test]
+	public void OperationsHaveComments()
+	{
+		JsonNode? changed = null;
+		var form = FormViewModel.Create(ModPiece.Operation(JsonNode.Parse("""{ "op": "remove", "path": "properties[hair]" }""")), new IdCatalog(null, []), isReadOnly: false, x => changed = x.Value)!;
+		var comments = (TextFieldViewModel) ((OperationFieldViewModel) form.Root).Fields.Single(x => x.Label == "comments");
+
+		comments.Text = "Nobody has hair.";
+		Assert.That(changed?["comments"]?.GetValue<string>(), Is.EqualTo("Nobody has hair."));
+		comments.Text = "";
+		Assert.That(changed?.AsObject().ContainsKey("comments"), Is.False);
 	}
 
 	[Test]

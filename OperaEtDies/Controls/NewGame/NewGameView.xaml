@@ -43,7 +43,7 @@
 						Focusable="False"
 						Grid.IsSharedSizeScope="True"
 						ItemsSource="{Binding Properties}">
-						<!--  A developer-only property has the developer border, and is hidden while it doesn't apply, such as the bosom of a male player.  -->
+						<!--  A developer-only property has the developer border, and is hidden while it doesn't apply, such as the beard of a female player.  -->
 						<ItemsControl.ItemTemplate>
 							<DataTemplate>
 								<Grid>

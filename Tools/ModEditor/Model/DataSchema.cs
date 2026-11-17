@@ -70,7 +70,13 @@ public static class DataSchema
 	{
 		["properties"] = typeof(CharacterProperty),
 		["templates"] = typeof(CharacterTemplate),
-		["obscurers"] = typeof(CharacterObscurer),
+		["clothingSlots"] = typeof(ClothingSlot),
+		["clothingLayers"] = typeof(ClothingLayer),
+		["clothingBulks"] = typeof(ClothingBulk),
+		["modestyRules"] = typeof(ModestyRule),
+		["clothingColors"] = typeof(ClothingColor),
+		["clothing"] = typeof(ClothingItem),
+		["outfits"] = typeof(Outfit),
 		["professions"] = typeof(Profession),
 		["quarterKinds"] = typeof(QuarterKind),
 		["layouts"] = typeof(TownLayoutChoice),
@@ -89,6 +95,7 @@ public static class DataSchema
 		["portraitColors"] = typeof(PortraitColor),
 		["portraitScales"] = typeof(PortraitScale),
 		["portraitOffsets"] = typeof(PortraitOffset),
+		["portraitShapeSets"] = typeof(PortraitShapeSet),
 		["portraitLayers"] = typeof(PortraitLayer),
 	};
 
@@ -103,6 +110,7 @@ public static class DataSchema
 		[VillageSettings.SectionName] = typeof(VillageSettings),
 		["calendar"] = typeof(CalendarSection),
 		[ScheduleSettings.SectionName] = typeof(ScheduleSettings),
+		[ClothingSettings.SectionName] = typeof(ClothingSettings),
 		["portraits"] = typeof(PortraitSection),
 	};
 
@@ -151,6 +159,40 @@ public static class DataSchema
 		}
 
 		return type;
+	}
+
+	/// <summary>
+	/// Gets the property a path ends at, or whose items or values it ends at (such as "clothing[tunic].slots[0]"), or null if
+	/// it ends somewhere else, such as at a whole item or section.
+	/// </summary>
+	public static DataField? GetPathField(string path)
+	{
+		var steps = ParsePath(path);
+		if (steps.Count == 0 || steps[0].IsIndex)
+			return null;
+
+		DataType? type = ListSections.TryGetValue(steps[0].Text, out var itemType) ? new DataType(DataKind.List, typeof(List<>).MakeGenericType(itemType), GetType(itemType)) :
+			SettingsSections.TryGetValue(steps[0].Text, out var settingsType) ? GetType(settingsType) : null;
+		DataField? field = null;
+		foreach (var step in steps.Skip(1))
+		{
+			if (type is { Kind: DataKind.Object } && !step.IsIndex)
+			{
+				field = type.Fields.FirstOrDefault(x => string.Equals(x.Name, step.Text, StringComparison.OrdinalIgnoreCase));
+				type = field?.Type;
+			}
+			else
+			{
+				// An item of a list or a value of a map belongs to the property the list or map is, if there is one.
+				field = type is { Kind: DataKind.List or DataKind.Map } && field?.Type == type ? field : null;
+				type = type is { Kind: DataKind.List or DataKind.Map } ? type.Element : null;
+			}
+
+			if (type is null)
+				return null;
+		}
+
+		return field;
 	}
 
 	/// <summary>

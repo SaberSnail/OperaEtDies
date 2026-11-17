@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows.Media;
 using GoldenAnvil.Utility;
@@ -40,6 +41,7 @@ public sealed class LocationPersonViewModel : ViewModelBase
 
 		// The person outlives the view model, so it's listened to weakly.
 		PropertyChangedEventManager.AddHandler(person, OnPersonPropertyChanged, "");
+		CollectionChangedEventManager.AddHandler(person.Clothing.Pieces, OnClothingChanged);
 	}
 
 	/// <summary>
@@ -69,7 +71,7 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	/// <summary>
 	/// A picture of the person where they are, or null if there's no portrait data.
 	/// </summary>
-	public ImageSource? Portrait => VerifyAccess(m_portraitRenderer?.GetPortrait(Person.Traits, Person.PortraitPlace));
+	public ImageSource? Portrait => VerifyAccess(m_portraitRenderer?.GetPortrait(Person.Traits, Person.PortraitPlace, Person.Clothing.GetPortraitClothing()));
 
 	/// <summary>
 	/// Whether to label the person as the player.
@@ -152,7 +154,7 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Describes what the person is doing: walking to the next place on their way, talking with someone, or the activity of the need they're
+	/// Describes what the person is doing: walking to the next place on their way, talking with someone, changing clothes, or the activity of the need they're
 	/// spending time on (or of being idle). Time at home after a trip has the need's home activity, if it has one.
 	/// </summary>
 	private string? GetActivity()
@@ -169,6 +171,10 @@ public sealed class LocationPersonViewModel : ViewModelBase
 		else if (Person.CurrentTask is WaitTask wait)
 		{
 			activity = OurResources.PersonWaitingFor.FormatCurrentCulture(wait.For.FullName);
+		}
+		else if (Person.CurrentTask is ChangeClothesTask)
+		{
+			activity = OurResources.PersonChangingClothes;
 		}
 		else if (Person.CurrentTask is BusyTask)
 		{
@@ -259,6 +265,8 @@ public sealed class LocationPersonViewModel : ViewModelBase
 		if (e.PropertyName is nameof(Person.GoalChoice) or null or "")
 			RaisePropertyChanged(nameof(DeveloperGoalReason));
 	}
+
+	private void OnClothingChanged(object? sender, NotifyCollectionChangedEventArgs e) => RaisePropertyChanged(nameof(Portrait));
 
 	private readonly PortraitRenderer? m_portraitRenderer;
 	private readonly ScheduleSettings? m_schedules;

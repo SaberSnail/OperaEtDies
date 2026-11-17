@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using ModEditor.Model;
 
 namespace ModEditor.ViewModels.Form;
@@ -22,4 +23,20 @@ public interface IFormChanges
 	/// Shows a part of the mod in the Mod tab.
 	/// </summary>
 	void GoTo(ModLocation location);
+
+	/// <summary>
+	/// Whether the mod can be changed, by adding operations to it.
+	/// </summary>
+	bool CanChangeMod { get; }
+
+	/// <summary>
+	/// Adds an operation to the mod that replaces the data at a path, starting from its current value, and shows it in the
+	/// Mod tab to be changed.
+	/// </summary>
+	void Replace(string path, JsonNode? value);
+
+	/// <summary>
+	/// Adds an operation to the mod that removes the data at a path.
+	/// </summary>
+	void Remove(string path);
 }

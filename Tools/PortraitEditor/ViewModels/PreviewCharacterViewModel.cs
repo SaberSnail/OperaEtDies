@@ -17,6 +17,8 @@ public sealed class PreviewCharacterViewModel : ViewModelBase
 	public PreviewCharacterViewModel(GameData gameData, Random random, PreviewSettings? settings)
 	{
 		m_character = new CharacterRandomizer(gameData, random, CharacterRole.Npc);
+		m_gameData = gameData;
+		m_clothingSeed = random.Next();
 		var families = gameData.Families;
 		m_atWorkPropertyId = families.Roles.Properties.AtWork;
 		m_professionPropertyId = families.Roles.Properties.Profession;
@@ -34,6 +36,7 @@ public sealed class PreviewCharacterViewModel : ViewModelBase
 		Places = [
 			new PlaceOption("Anywhere", NoPlaceKey),
 			new PlaceOption("Home", HomeKey),
+			new PlaceOption("Asleep at home", AsleepKey),
 			new PlaceOption("At work", WorkKey),
 			.. gameData.QuarterKinds.Select(x => new PlaceOption($"Quarter: {x.Id}", QuarterKeyPrefix + x.Id)),
 		];
@@ -98,9 +101,21 @@ public sealed class PreviewCharacterViewModel : ViewModelBase
 	{
 		NoPlaceKey => null,
 		HomeKey => PortraitPlace.Home,
+		AsleepKey => PortraitPlace.Home,
 		WorkKey => m_character.GetTraits().GetValueId(m_professionPropertyId) is { } profession ? PortraitPlace.InWorkplace(profession) : PortraitPlace.Home,
 		var key => PortraitPlace.InQuarter(key[QuarterKeyPrefix.Length..]),
 	};
+
+	/// <summary>
+	/// The clothes the character is drawn in: everyday clothes, with work clothes over them at work, or night clothes
+	/// when asleep. They're chosen the same way each time, so they only change when the character does.
+	/// </summary>
+	public PortraitClothing GetClothing() => PortraitClothing.ChooseOutfits(m_gameData, GetDrawnTraits(), m_place.Key switch
+	{
+		AsleepKey => [OutfitKind.Night],
+		WorkKey => [OutfitKind.Everyday, OutfitKind.Work],
+		_ => [OutfitKind.Everyday],
+	}, new Random(m_clothingSeed));
 
 	/// <summary>
 	/// Draws the portrait again with a renderer, as the game would draw it.
@@ -155,7 +170,7 @@ public sealed class PreviewCharacterViewModel : ViewModelBase
 		Changed.Raise(this);
 	}
 
-	private void UpdatePortrait() => Portrait = m_renderer?.Render(GetDrawnTraits(), GetPlace());
+	private void UpdatePortrait() => Portrait = m_renderer?.Render(GetDrawnTraits(), GetPlace(), GetClothing());
 
 	private CharacterPropertyEditorViewModel CreateEditor(CharacterProperty property) => property.Type switch
 	{
@@ -167,10 +182,13 @@ public sealed class PreviewCharacterViewModel : ViewModelBase
 
 	private const string NoPlaceKey = "none";
 	private const string HomeKey = "home";
+	private const string AsleepKey = "asleep";
 	private const string WorkKey = "work";
 	private const string QuarterKeyPrefix = "quarter:";
 
 	private readonly CharacterRandomizer m_character;
+	private readonly GameData m_gameData;
+	private readonly int m_clothingSeed;
 	private readonly string m_atWorkPropertyId;
 	private readonly string m_professionPropertyId;
 	private readonly CharacterPropertyOption? m_atWork;

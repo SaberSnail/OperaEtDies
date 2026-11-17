@@ -98,6 +98,10 @@ public static class ModPatcher
 		}
 		else
 		{
+			// Comments are only for the people editing the mod.
+			if (FindKey(operation, DataFileParts.CommentsName) is { } commentsName && !(operation[commentsName] is JsonValue comments && comments.GetValueKind() == System.Text.Json.JsonValueKind.String))
+				errors.Add(OurResources.ModOperationCommentsInvalid.FormatCurrentCulture(number, commentsName));
+
 			var type = GetString(operation, "op");
 			var path = GetString(operation, "path");
 			if (type is null)

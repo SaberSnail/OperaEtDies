@@ -31,7 +31,6 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 		IsPlayer = isPlayer;
 		m_traits = traits;
 		m_fullName = traits.GetFullName(gameData.CharacterTemplates);
-		m_description = traits.GetDescription(gameData.CharacterTemplates);
 		m_location = location;
 		m_location.AddPerson(this);
 
@@ -41,9 +40,46 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 		m_needsTime = time;
 		m_progressDay = gameData.Calendar.GetStartOfDay(time);
 		m_progressWeek = gameData.Calendar.GetStartOfWeek(time);
+		Inventory = new ItemContainer();
+		Clothing = new WornClothing(this);
+		m_outfits = [];
 	}
 
 	public WorldId Id { get; }
+
+	/// <summary>
+	/// What the person is carrying.
+	/// </summary>
+	public ItemContainer Inventory { get; }
+
+	/// <summary>
+	/// What the person is wearing.
+	/// </summary>
+	public WornClothing Clothing { get; }
+
+	/// <summary>
+	/// The outfits the person owns, in the order they were created.
+	/// </summary>
+	public IReadOnlyList<OwnedOutfit> Outfits => m_outfits;
+
+	/// <summary>
+	/// Gets the outfits of one kind the person owns.
+	/// </summary>
+	public IEnumerable<OwnedOutfit> GetOutfits(OutfitKind kind) => m_outfits.Where(x => x.Kind == kind);
+
+	internal void AddOutfit(OwnedOutfit outfit) => m_outfits.Add(outfit);
+
+	/// <summary>
+	/// Whether the person is wearing any of their everyday or work clothes.
+	/// </summary>
+	public bool IsInDayClothes => Clothing.Pieces.Any(piece => m_outfits.Any(x => x.Kind != OutfitKind.Night && x.Pieces.Contains(piece)));
+
+	/// <summary>
+	/// Gets how much a level need drops each hour while the person is meeting it. Sleep meets the sleep need more slowly
+	/// in day clothes.
+	/// </summary>
+	public double GetSatisfyPerHour(Need need) =>
+		need.SatisfyPerHour!.Value * (need.Id == m_gameData.Schedules.SleepNeed && IsInDayClothes ? m_gameData.Schedules.Sleep.DayClothesFactor : 1);
 
 	public bool IsPlayer { get; }
 
@@ -60,9 +96,18 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	public string FullName => m_fullName;
 
 	/// <summary>
-	/// Describes the person in a few sentences.
+	/// Describes the person in a few sentences, with what can be seen through their clothing and what they're wearing.
 	/// </summary>
-	public string Description => m_description;
+	public string Description => m_description ??= m_traits.GetDescription(m_gameData.CharacterTemplates, m_gameData.GetObscuring(Clothing.Pieces.Select(x => x.Clothing)), Clothing.Describe(m_gameData.ClothingSlots, m_gameData.ClothingLayers, m_gameData.ClothingSettings.HidesClothingAt));
+
+	/// <summary>
+	/// Called by the worn clothing when it changes, since it changes the description.
+	/// </summary>
+	internal void OnClothingChanged()
+	{
+		using (ScopedPropertyChange(nameof(Description)))
+			m_description = null;
+	}
 
 	/// <summary>
 	/// The id of the person's profession, or null if they have none.
@@ -105,7 +150,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 				using (ScopedPropertyChange(nameof(IsAtWork), nameof(Traits), nameof(Description), nameof(PortraitPlace)))
 				{
 					m_traits = m_traits.With(m_atWorkPropertyId, value ? m_atWork : m_notAtWork);
-					m_description = m_traits.GetDescription(m_gameData.CharacterTemplates);
+					m_description = null;
 				}
 			}
 		}
@@ -248,7 +293,8 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 			var value => value,
 		}), StringComparer.Ordinal), m_goal?.Id, m_tasks.Select(x => x.CreateRecord()).ToList(), m_taskEnd?.SaveToString(),
 			new Dictionary<string, double>(m_levels, StringComparer.Ordinal), new Dictionary<string, long>(m_progress, StringComparer.Ordinal), m_pendingTrip?.Id,
-			m_goalChoice?.CreateRecord(), m_sightings.Count == 0 ? null : m_sightings.Select(x => x.Value.CreateRecord(x.Key)).ToList(), m_talkRequest?.Id, HasNapped);
+			m_goalChoice?.CreateRecord(), m_sightings.Count == 0 ? null : m_sightings.Select(x => x.Value.CreateRecord(x.Key)).ToList(), m_talkRequest?.Id, HasNapped,
+			Inventory.CreateRecord(), Clothing.CreateRecord());
 
 	internal void SetFamily(Family family) => m_family = family;
 
@@ -393,7 +439,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 			{
 				var level = GetLevel(need);
 				if (need == active)
-					SetLevel(need, level - (need.SatisfyPerHour!.Value * hours));
+					SetLevel(need, level - (GetSatisfyPerHour(need) * hours));
 				else if (active is null || need.PausedBy?.Contains(active.Id, StringComparer.Ordinal) != true)
 					SetLevel(need, level + (need.PerHour!.Value * hours));
 			}
@@ -443,10 +489,11 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	private readonly CharacterPropertyOption m_notAtWork;
 	private readonly string m_fullName;
 	private readonly Collection<PersonTask> m_tasks;
+	private readonly Collection<OwnedOutfit> m_outfits;
 	private readonly Dictionary<string, double> m_levels;
 	private readonly Dictionary<string, long> m_progress;
 	private CharacterTraits m_traits;
-	private string m_description;
+	private string? m_description;
 	private Family? m_family;
 	private readonly Dictionary<Person, Relationship> m_relationships = [];
 	private readonly Dictionary<Person, Sighting> m_sightings = [];
@@ -465,11 +512,12 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 /// The saved form of a person: whether they're the player, their role in their family, where they are, their
 /// character property values (with value list properties saved as the value's id), and their schedule: their goal, the
 /// tasks left toward it, when the current task ends, their level needs, and the minutes spent on quota needs this day or week, and any trip
-/// they still have to finish at home, and how they last chose their goal. Their home and workplace come from their family and business.
+/// they still have to finish at home, and how they last chose their goal, and the items they carry and the clothing they wear. Their home and workplace come from their family and business.
 /// </summary>
 public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, WorldId Location, IReadOnlyDictionary<string, JsonElement> Traits,
 	string? Goal, IReadOnlyList<PersonTaskRecord> Tasks, string? TaskEnd, IReadOnlyDictionary<string, double> Needs, IReadOnlyDictionary<string, long> Progress,
-	string? PendingTrip = null, GoalChoiceRecord? GoalChoice = null, IReadOnlyList<SightingRecord>? Sightings = null, WorldId? TalkRequest = null, bool HasNapped = false)
+	string? PendingTrip = null, GoalChoiceRecord? GoalChoice = null, IReadOnlyList<SightingRecord>? Sightings = null, WorldId? TalkRequest = null, bool HasNapped = false,
+	IReadOnlyList<WorldId>? Inventory = null, IReadOnlyList<WorldId>? Clothing = null)
 	: WorldObjectRecord(Id)
 {
 	internal override IWorldObject Create(WorldLoader loader)
@@ -529,6 +577,12 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 			loader.Defer(() => LoadSightings(loader, person, sightings));
 		if (TalkRequest is { } talkRequest)
 			loader.Defer(() => person.TalkRequest = loader.Get<Person>(talkRequest));
+
+		// Items refer to their owners, who may not exist yet.
+		if (Inventory is { } inventory)
+			loader.Defer(() => person.Inventory.Load(inventory.Select(loader.Get<Item>)));
+		if (Clothing is { } clothing)
+			loader.Defer(() => person.Clothing.Load(clothing.Select(loader.Get<ClothingPiece>)));
 
 		return person;
 	}

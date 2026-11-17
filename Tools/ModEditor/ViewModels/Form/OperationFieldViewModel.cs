@@ -1,11 +1,12 @@
 using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
 using ModEditor.Model;
+using OperaEtDies.Data;
 
 namespace ModEditor.ViewModels.Form;
 
 /// <summary>
-/// A mod operation (see Docs/Mods.md): its op and path, and the properties that op takes. A value is edited with a
+/// A mod operation (see Docs/Mods.md): its comments, op, and path, and the properties that op takes. A value is edited with a
 /// field for the kind of data the path leads to, when that's known, and as JSON otherwise. The fields after the path
 /// change when the op or the path does.
 /// </summary>
@@ -18,6 +19,8 @@ public sealed class OperationFieldViewModel : FieldViewModel
 		if (slot.Get() is not JsonObject)
 			slot.Set(new JsonObject());
 		var operation = (JsonObject) slot.Get()!;
+		// An operation always has a box for its comments, as the object a form is for does.
+		Fields.Add(new TextFieldViewModel(form, DataFileParts.CommentsName, new PropertySlot(operation, DataFileParts.CommentsName), isRequired: false, getSuggestions: null, isColor: false, isMultiline: true, OperationPlace(DataFileParts.CommentsName)));
 		Fields.Add(new ChoiceFieldViewModel(form, "op", new PropertySlot(operation, "op"), isRequired: true, ModOperations.Names, OperationPlace("op")));
 		// The suggestions follow the path typed so far. They're only some of what a path can be, so it's checked against
 		// the shape of the data instead.
@@ -29,6 +32,11 @@ public sealed class OperationFieldViewModel : FieldViewModel
 	}
 
 	public ObservableCollection<FieldViewModel> Fields { get; }
+
+	/// <summary>
+	/// How many fields every operation has before the ones its op takes: its comments, op, and path.
+	/// </summary>
+	private const int FixedFieldCount = 3;
 
 	public override void Refresh()
 	{
@@ -108,22 +116,26 @@ public sealed class OperationFieldViewModel : FieldViewModel
 	}
 
 	/// <summary>
-	/// Replaces the fields after the op and path with the ones the op takes.
+	/// Replaces the fields after the op and path with the ones the op takes, which suggest what the property the path leads
+	/// to refers to.
 	/// </summary>
 	private void BuildDetails()
 	{
 		var operation = (JsonObject) Slot.Get()!;
 		m_op = ModOperations.GetString(operation, "op");
 		m_path = ModOperations.GetString(operation, "path");
-		while (Fields.Count > 2)
+		while (Fields.Count > FixedFieldCount)
 			Fields.RemoveAt(Fields.Count - 1);
 
 		var op = m_op?.ToLowerInvariant();
 		var path = m_path ?? "";
 		var pathType = DataSchema.GetPathType(path);
 		var (section, itemId) = DataSchema.GetPathItem(path);
+		Form.Section = section;
+		Form.ItemId = itemId;
+		var reference = DataSchema.GetPathField(path) is { } pathField ? DataReferences.Find(pathField) : null;
 		var propertyId = string.Equals(section, "properties", StringComparison.OrdinalIgnoreCase) ? itemId : null;
-		var shown = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "op", "path" };
+		var shown = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { DataFileParts.CommentsName, "op", "path" };
 
 		// A value's fields can copy the paths of the data they'll change.
 		void Add(string name, DataType? type, bool isRequired, string? dataPath)
@@ -133,7 +145,7 @@ public sealed class OperationFieldViewModel : FieldViewModel
 			var place = new FieldPlace(0, dataPath, IsCopyable: false, HelpTopics.ForOperation(name));
 			Fields.Add(type is null
 				? new JsonFieldViewModel(Form, name, slot, isRequired, place: place)
-				: FieldFactory.Create(Form, name, type, slot, isRequired, reference: null, propertyId, place: place));
+				: FieldFactory.Create(Form, name, type, slot, isRequired, reference, propertyId, place: place));
 		}
 
 		void AddPlacement()

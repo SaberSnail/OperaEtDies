@@ -28,6 +28,8 @@ public interface IWorldObject
 [JsonDerivedType(typeof(FamilyRecord), "family")]
 [JsonDerivedType(typeof(BusinessRecord), "business")]
 [JsonDerivedType(typeof(RelationshipRecord), "relationship")]
+[JsonDerivedType(typeof(ClothingPieceRecord), "clothing")]
+[JsonDerivedType(typeof(OwnedOutfitRecord), "outfit")]
 public abstract record WorldObjectRecord(WorldId Id)
 {
 	/// <summary>

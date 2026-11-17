@@ -20,6 +20,7 @@ A mod is a folder of JSON files that change the data described in [DataFiles.md]
 | `index` | integer | Optional. `insert`, `move`, and `copy` only. A position in the list, from 0. |
 | `before` | string | Optional. `insert`, `move`, and `copy` only. The id of the item to go before. |
 | `after` | string | Optional. `insert`, `move`, and `copy` only. The id of the item to go after. |
+| `comments` | string | Optional. What the operation is for, for the people editing the mod. Not used by the game. Can be empty. |
 
 At most one of `index`, `before`, and `after` can be given.
 
@@ -160,27 +161,27 @@ Add a `copper` value right after `red` by copying it:
 ]
 ```
 
-Draw the sixth shape of the `bosom` portrait layer with a different outline for barmaids. The copy goes right after the original, which is then left out for barmaids. This only works if the shape has a `when` with `values`:
+Draw the second shape of the `beard` portrait layer with a different outline for priests. The copy goes right after the original, which is then left out for priests. This only works if the shape has a `when` with `values`:
 
 ```json
 [
 	{
 		"op": "copy",
-		"path": "portraitLayers[bosom].shapes[5]",
+		"path": "portraitLayers[beard].shapes[1]",
 		"changes": [
-			{ "op": "set", "path": "stroke", "value": "skinShade" },
-			{ "op": "set", "path": "when.values.profession", "value": [ "barmaid" ] }
+			{ "op": "set", "path": "stroke", "value": "hairShade" },
+			{ "op": "set", "path": "when.values.profession", "value": [ "priest" ] }
 		]
 	},
-	{ "op": "set", "path": "portraitLayers[bosom].shapes[5].when.notValues", "value": { "profession": [ "barmaid" ] } }
+	{ "op": "set", "path": "portraitLayers[beard].shapes[1].when.notValues", "value": { "profession": [ "priest" ] } }
 ]
 ```
 
-Make an obscurer hide every property more strongly, using a quoted step for the `*` key:
+Make hoods hide hair styles completely, using a quoted step for the map key:
 
 ```json
 [
-	{ "op": "set", "path": "obscurers[hood].hides['*']", "value": 2 }
+	{ "op": "set", "path": "clothing[hood].obscures['hairStyle']", "value": 3 }
 ]
 ```
 
