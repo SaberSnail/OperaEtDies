@@ -83,6 +83,24 @@
 						Padding="12,0"
 						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Socialize}"
 						Content="{Binding SocializeText}" />
+					<!--  Asking the question of the player's next "ask" step comes last, so the other buttons don't move.  -->
+					<Button
+						MinWidth="120"
+						Height="32"
+						Margin="8,0,0,0"
+						Padding="12,0"
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AskStep}"
+						Content="{Binding AskStepText}"
+						Visibility="{Binding AskStepText, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+					<Button
+						MinWidth="120"
+						Height="32"
+						Margin="8,0,0,0"
+						Padding="12,0"
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CallOff}"
+						Content="{x:Static operaEtDies:OurResources.ConversationCallOff}"
+						ToolTip="{x:Static operaEtDies:OurResources.ConversationCallOffToolTip}"
+						Visibility="{Binding HasCallOff, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
 				</StackPanel>
 				<StackPanel Margin="0,8,0,0" Orientation="Horizontal">
 					<TextBlock VerticalAlignment="Center" Text="{x:Static operaEtDies:OurResources.ConversationAskAboutLabel}" />

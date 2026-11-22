@@ -4,14 +4,14 @@ using OperaEtDies.Data;
 namespace OperaEtDies.GameState;
 
 /// <summary>
-/// The rules everyone follows for their clothes as they go about their day: night clothes for sleeping at home, work
-/// clothes carried to work and changed into there, and the household's washing.
+/// The rules everyone follows for their clothes as they go about their day, and how the steps of their needs handle
+/// clothes: changing into and out of outfits, and picking up and putting away clothes kept at home.
 /// </summary>
 internal static class ClothingRules
 {
 	/// <summary>
 	/// Whether a piece of clothing is at hand for a person to put on at the given time: they're wearing or carrying it, or
-	/// they're at home and it's kept there, and it isn't in the wash or drying.
+	/// they're at home and it's kept there, and it isn't drying.
 	/// </summary>
 	public static bool IsAtHand(Person person, ClothingPiece piece, TimePoint time) =>
 		piece.Wearer == person || ((piece.Container == person.Inventory || (person.Location == person.Home && piece.Container == person.Home.Items)) && piece.IsReady(time));
@@ -38,49 +38,30 @@ internal static class ClothingRules
 	public static bool IsWearingAny(Person person, OutfitKind kind) => person.GetOutfits(kind).Any(x => x.Pieces.Any(y => y.Wearer == person));
 
 	/// <summary>
-	/// Puts night clothes on someone who's going to sleep at home, if they aren't wearing any, which takes no time. It's only
-	/// done when a whole night outfit is at hand: the first that is, so the same clothes are worn until they're in the wash.
-	/// Everything taken off is put away at home.
+	/// Whether a person has changed into an outfit and not out of it: they're wearing any of it, or for an outfit of
+	/// nothing at all, they changed into it from the clothes it replaced.
 	/// </summary>
-	public static void DressForSleep(Person person, Need? sleep, TimePoint time)
-	{
-		if (sleep is not null && person.Goal == sleep && person.Location == person.Home && !IsWearingAny(person, OutfitKind.Night))
-			ChangeInto(person, OutfitKind.Night, time);
-	}
+	public static bool IsChangedInto(Person person, OwnedOutfit outfit) =>
+		outfit.Pieces.Count == 0 ? person.ReplacedClothes.ContainsKey(outfit) : outfit.Pieces.Any(x => x.Wearer == person);
 
 	/// <summary>
-	/// Takes off someone's night clothes once they've stopped sleeping at home, putting on the first everyday outfit at hand,
-	/// which takes no time. Everything taken off is put away at home.
+	/// Whether a person already has on an outfit of a kind that changing into one would put on: all of one (for an outfit
+	/// of nothing at all, nothing else either).
 	/// </summary>
-	public static void DressAfterSleep(Person person, TimePoint time)
-	{
-		if (person.Location == person.Home && IsWearingAny(person, OutfitKind.Night))
-			ChangeInto(person, OutfitKind.Everyday, time);
-	}
+	public static bool IsWearingKind(Person person, OutfitKind kind) =>
+		person.GetOutfits(kind).Any(x => x.Pieces.Count == 0 ? person.Clothing.Pieces.Count == 0 : IsWearing(person, x));
 
 	/// <summary>
-	/// Changes someone at home into the first of their outfits of a kind that's all at hand, if any is, putting away
-	/// everything else.
-	/// </summary>
-	private static void ChangeInto(Person person, OutfitKind kind, TimePoint time)
-	{
-		if (FindAtHand(person, kind, time) is { } outfit)
-		{
-			person.UpdateNeeds(time);
-			person.Clothing.TakeOffAll(person.Home.Items);
-			PutAway(person);
-			person.Clothing.PutOn(outfit, person.Home.Items);
-		}
-	}
-
-	/// <summary>
-	/// Puts away the clothes someone is carrying in their home, except the pieces of outfits they're partly wearing, such
-	/// as the everyday clothes their work clothes replaced, which they'll change back into.
+	/// Puts away the household's clothes someone is carrying in their home, except the pieces of outfits they're partly
+	/// wearing (other than through accessories, which outfits share), the clothes a later step of theirs will need (such
+	/// as the everyday clothes their work clothes replaced, which they'll change back into), and the clothes in their
+	/// bundles, which their steps will put away.
 	/// </summary>
 	public static void PutAway(Person person)
 	{
-		var keep = person.Outfits.Where(x => x.Pieces.Any(y => y.Wearer == person)).SelectMany(x => x.Pieces).ToHashSet();
-		foreach (var piece in person.Inventory.Clothing.Where(x => x.Owner == person && !keep.Contains(x)).ToList())
+		var keep = person.Outfits.Where(x => x.Pieces.Any(y => y.Wearer == person && !y.Clothing.Accessory)).SelectMany(x => x.Pieces).ToHashSet();
+		keep.UnionWith(person.Sequences.SelectMany(x => GetNeededClothes(person, x)));
+		foreach (var piece in person.Inventory.Clothing.Where(x => x.Owner is { } owner && person.Family.Members.Contains(owner) && !keep.Contains(x) && !person.IsInBundle(x)).ToList())
 		{
 			person.Inventory.Remove(piece);
 			person.Home.Items.Add(piece);
@@ -88,52 +69,36 @@ internal static class ClothingRules
 	}
 
 	/// <summary>
-	/// Gets the work clothes someone would change into for work at a place, and whether they'd have to fetch them from
-	/// home first, or null if they wouldn't change: they have none, they're already dressed in them, or they don't have
-	/// them all at hand, at home or carried (in which case they work in what they're wearing). Someone who works at home
-	/// changes there without fetching them.
+	/// Gets the clothes the steps of a sequence from the one it's on will need: for an "undress" step, the clothes that
+	/// changing into the outfit it takes off replaced, which it puts back on. Someone taking part in someone else's steps
+	/// needs none, since the steps aren't theirs.
 	/// </summary>
-	public static (OwnedOutfit Outfit, bool Fetch)? GetWorkChange(Person person, Location workplace, TimePoint time)
-	{
-		var outfit = person.GetOutfits(OutfitKind.Work).FirstOrDefault();
-		(OwnedOutfit, bool)? change = null;
-		if (outfit is not null && !IsDressedIn(person, outfit))
-		{
-			var isCarried = outfit.Pieces.All(x => x.Wearer == person || x.Container == person.Inventory);
-			var isAtHome = outfit.Pieces.All(x => x.Wearer == person || x.Container == person.Inventory || (x.Container == person.Home.Items && x.IsReady(time)));
-			if (isCarried || (isAtHome && workplace == person.Home))
-				change = (outfit, false);
-			else if (isAtHome)
-				change = (outfit, true);
-		}
-
-		return change;
-	}
+	public static IEnumerable<ClothingPiece> GetNeededClothes(Person person, StepSequence sequence) =>
+		sequence.Role != SequenceRole.Steps ? [] :
+		sequence.Need.Steps.Skip(sequence.Step)
+			.Where(x => x.Kind == StepKind.Undress)
+			.Select(x => x.Outfit!.Value)
+			.Distinct()
+			.SelectMany(person.GetOutfits)
+			.SelectMany(x => person.ReplacedClothes.GetValueOrDefault(x) ?? []);
 
 	/// <summary>
-	/// Picks up the pieces of an outfit kept at home, to carry them. The person must be at home.
+	/// Whether any of the clothes the steps of a sequence from the one it's on will need isn't at hand (see
+	/// <see cref="GetNeededClothes"/>).
 	/// </summary>
-	public static void Fetch(Person person, OwnedOutfit outfit, TimePoint time)
-	{
-		if (person.Location == person.Home)
-		{
-			foreach (var piece in outfit.Pieces.Where(x => x.Container == person.Home.Items && x.IsReady(time)))
-			{
-				person.Home.Items.Remove(piece);
-				person.Inventory.Add(piece);
-			}
-		}
-	}
+	public static bool IsMissingNeededClothes(Person person, StepSequence sequence, TimePoint time) =>
+		GetNeededClothes(person, sequence).Any(x => !IsAtHand(person, x, time));
 
 	/// <summary>
-	/// Changes into an outfit's pieces that are at hand (taking off everything else first, for a complete outfit), or out of
-	/// the outfit, back into the rest of the day clothes the person is partly wearing (the outfit with the most pieces on),
-	/// or after a complete outfit, into the everyday outfit with the most pieces at hand, from the pieces of it at hand.
-	/// What's taken off is carried, or put away when at home.
+	/// Changes into an outfit's pieces that are at hand (taking off everything else first, for a complete outfit),
+	/// remembering the pieces it replaced, or out of the outfit, back into the pieces it replaced that are at hand, and
+	/// then into the rest of the day clothes the person is partly wearing (the outfit with the most pieces on), or after a
+	/// complete outfit, into the everyday outfit with the most pieces at hand, from the pieces of it at hand, wherever
+	/// there's room. What's taken off is carried, even at home.
 	/// </summary>
 	public static void Change(Person person, OwnedOutfit outfit, bool isTakingOff, TimePoint time)
 	{
-		var container = person.Location == person.Home ? person.Home.Items : person.Inventory;
+		var container = person.Inventory;
 		if (isTakingOff)
 		{
 			foreach (var piece in outfit.Pieces.Where(x => x.Wearer == person))
@@ -142,7 +107,14 @@ internal static class ClothingRules
 				container.Add(piece);
 			}
 
-			var rest = person.Outfits.Where(x => x != outfit && x.Kind != OutfitKind.Night && x.Pieces.Any(y => y.Wearer == person)).MaxBy(x => x.Pieces.Count(y => y.Wearer == person));
+			// What the outfit replaced goes back on first, as long as it's still at hand.
+			foreach (var piece in person.RemoveReplacedClothes(outfit).Where(x => x.Wearer != person && IsAtHand(person, x, time) && person.Clothing.AreSlotsFree(x)))
+			{
+				piece.Container?.Remove(piece);
+				person.Clothing.Wear(piece);
+			}
+
+			var rest = person.Outfits.Where(x => x != outfit && x.Kind is not (OutfitKind.Night or OutfitKind.Nothing) && x.Pieces.Any(y => y.Wearer == person)).MaxBy(x => x.Pieces.Count(y => y.Wearer == person));
 			rest ??= person.GetOutfits(OutfitKind.Everyday).MaxBy(x => x.Pieces.Count(y => IsAtHand(person, y, time)));
 			foreach (var piece in (rest?.Pieces ?? []).Where(x => x.Wearer != person && IsAtHand(person, x, time) && person.Clothing.AreSlotsFree(x)))
 			{
@@ -152,12 +124,14 @@ internal static class ClothingRules
 		}
 		else
 		{
+			var replaced = new List<ClothingPiece>();
 			if (outfit.IsComplete)
 			{
 				foreach (var worn in person.Clothing.Pieces.Where(x => !outfit.Pieces.Contains(x)).ToList())
 				{
 					person.Clothing.TakeOff(worn);
 					container.Add(worn);
+					replaced.Add(worn);
 				}
 			}
 
@@ -167,11 +141,16 @@ internal static class ClothingRules
 				{
 					person.Clothing.TakeOff(worn);
 					container.Add(worn);
+					replaced.Add(worn);
 				}
 
 				piece.Container?.Remove(piece);
 				person.Clothing.Wear(piece);
 			}
+
+			// Changing into it again keeps what it replaced the first time, since that's what the person was dressed in.
+			if (!person.ReplacedClothes.ContainsKey(outfit) || replaced.Count != 0)
+				person.SetReplacedClothes(outfit, replaced);
 		}
 	}
 
@@ -191,7 +170,7 @@ internal static class ClothingRules
 	/// </summary>
 	public static IReadOnlyList<(ClothingSlot Slot, int Modesty, int Minimum)> GetModesty(GameData gameData, Person person, IEnumerable<ClothingItem> worn, ModestyLevel level, bool isAtWork)
 	{
-		var rule = gameData.ModestyRules.FirstOrDefault(x => CharacterCondition.IsMet(x.When, person.Traits.GetValueId));
+		var rule = gameData.ModestyRules.FirstOrDefault(x => CharacterCondition.IsMet(x.When, person.GetConditionValueId));
 		var adjustments = isAtWork && rule is not null ? person.Business?.Profession.Modesty.GetValueOrDefault(rule.Id) : null;
 		var clothing = worn.ToList();
 		var minimums = rule?.GetMinimums(level) ?? new Dictionary<string, int>();
@@ -212,29 +191,57 @@ internal static class ClothingRules
 			.Max();
 
 	/// <summary>
-	/// Takes the household's clothes kept at home to be washed, other than accessories. They can't be worn until they've been hung out to dry and
-	/// are dry.
+	/// Picks up clothes kept at home that can be worn now, to carry them, if the person is at home: their own or their
+	/// household's, only the pieces of their own outfits of a kind if one is given, and only if they aren't accessories,
+	/// unless accessories are taken. Returns the pieces picked up.
 	/// </summary>
-	public static void TakeWashing(Location home)
+	public static IReadOnlyList<ClothingPiece> Take(Person person, StepOwner owner, OutfitKind? outfit, bool accessories, TimePoint time)
 	{
-		foreach (var piece in home.Items.Clothing.Where(x => !x.Clothing.Accessory))
+		var taken = new List<ClothingPiece>();
+		if (person.Location == person.Home)
 		{
-			piece.IsInWash = true;
-			piece.DryAt = null;
+			var outfitPieces = outfit is { } kind ? person.GetOutfits(kind).SelectMany(x => x.Pieces).ToHashSet() : null;
+			taken.AddRange(person.Home.Items.Clothing.Where(x => x.IsReady(time) && (accessories || !x.Clothing.Accessory) && (outfitPieces?.Contains(x) ?? true) &&
+				(owner == StepOwner.Household ? x.Owner is { } pieceOwner && person.Family.Members.Contains(pieceOwner) : x.Owner == person)));
+			foreach (var piece in taken)
+			{
+				person.Home.Items.Remove(piece);
+				person.Inventory.Add(piece);
+			}
+		}
+
+		return taken;
+	}
+
+	/// <summary>
+	/// Puts away clothes the person is still carrying in their home, if they're at home, to be ready to wear at the given
+	/// time, if one is given, shown to be doing something until then, such as drying.
+	/// </summary>
+	public static void Put(Person person, IEnumerable<Item> items, TimePoint? readyAt, string? delayActivity = null)
+	{
+		if (person.Location == person.Home)
+		{
+			foreach (var item in items.Where(x => x.Container == person.Inventory).ToList())
+			{
+				person.Inventory.Remove(item);
+				person.Home.Items.Add(item);
+				if (item is ClothingPiece piece && readyAt is not null)
+				{
+					piece.ReadyAt = readyAt;
+					piece.DelayActivity = delayActivity;
+				}
+			}
 		}
 	}
 
 	/// <summary>
-	/// Hangs out the household's washing at home, which is dry and can be worn again at the given time.
+	/// Whether a person has an outfit of a kind that they aren't dressed in, with every piece of it worn, carried, or kept
+	/// at home ready to wear at the given time, and some of it at home.
 	/// </summary>
-	public static void HangOutWashing(Location home, TimePoint dryAt)
-	{
-		foreach (var piece in home.Items.Clothing.Where(x => x.IsInWash))
-		{
-			piece.IsInWash = false;
-			piece.DryAt = dryAt;
-		}
-	}
+	public static bool IsOutfitAtHome(Person person, OutfitKind kind, TimePoint time) =>
+		person.GetOutfits(kind).FirstOrDefault() is { } outfit && !IsDressedIn(person, outfit) &&
+		outfit.Pieces.All(x => x.Wearer == person || x.Container == person.Inventory || (x.Container == person.Home.Items && x.IsReady(time))) &&
+		outfit.Pieces.Any(x => x.Container == person.Home.Items);
 
 	/// <summary>
 	/// Finds the first of a person's outfits of a kind that's all at hand, or null if none is.

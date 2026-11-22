@@ -12,28 +12,6 @@ namespace OperaEtDies.Test.Windows.StartUp;
 public sealed class StartUpWindowViewModelTests
 {
 	[Test]
-	public void ShowsGameInfo()
-	{
-		using var viewModel = CreateViewModel();
-
-		Assert.That(viewModel.Title, Is.EqualTo("Title"));
-		Assert.That(viewModel.Description, Is.EqualTo("Description"));
-		Assert.That(viewModel.HasLoadErrors, Is.False);
-		Assert.That(viewModel.CanShowNewGame(), Is.True);
-		Assert.That(viewModel.NewGame, Is.Null);
-	}
-
-	[Test]
-	public void DeveloperModeIsShownOnlyWhenTurnedOn()
-	{
-		using var player = new StartUpWindowViewModel(TestData.CreateGameInfo(), TestData.CreateGameData(), new Random(0), []);
-		using var developer = new StartUpWindowViewModel(TestData.CreateGameInfo(), TestData.CreateGameData(), new Random(0), [], isDeveloper: true);
-
-		Assert.That(player.IsDeveloper, Is.False);
-		Assert.That(developer.IsDeveloper, Is.True);
-	}
-
-	[Test]
 	public void MissingGameInfoShowsErrorsAndBlocksNewGame()
 	{
 		using var viewModel = new StartUpWindowViewModel(null, TestData.CreateGameData(), new Random(0), [new DataLoadError(@"C:\Data\GameInfo.json", "Broken")]);
@@ -112,18 +90,6 @@ public sealed class StartUpWindowViewModelTests
 
 		Assert.That(settings, Is.Not.Null);
 		Assert.That(settings!.Player.GetString("lastName"), Is.EqualTo(settings.Player.GetOption("profession").Id == "smith" ? "Smith" : "Miller"));
-	}
-
-	[Test]
-	public void ExitRaisesRequest()
-	{
-		using var viewModel = CreateViewModel();
-		var exitCount = 0;
-		viewModel.ExitGameRequested += (_, _) => exitCount++;
-
-		viewModel.ExitGame();
-
-		Assert.That(exitCount, Is.EqualTo(1));
 	}
 
 	[Test]

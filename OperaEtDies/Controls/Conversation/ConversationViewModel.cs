@@ -9,9 +9,10 @@ using OperaEtDies.GameState;
 namespace OperaEtDies.Controls.Conversation;
 
 /// <summary>
-/// Talking with someone in the player's location: asking what they're doing, asking whether they've seen someone, or
-/// chatting with them. Each takes time, shown on its button, and what was said is kept as a list of lines. It's shown on
-/// top of the player's location, which is shown again when it closes.
+/// Talking with someone in the player's location: asking what they're doing, asking whether they've seen someone,
+/// chatting with them, or asking them the question of the next "ask" step of the player's pending steps, if it asks
+/// them. Each takes time, shown on its button, and what was said is kept as a list of lines. It's shown on top of the
+/// player's location, which is shown again when it closes.
 /// </summary>
 public sealed class ConversationViewModel : ViewModelBase
 {
@@ -82,6 +83,56 @@ public sealed class ConversationViewModel : ViewModelBase
 
 	public string SocializeText { get; }
 
+	/// <summary>
+	/// The text of the button that asks the question of the player's next "ask" step, with how long it takes, or null if
+	/// they have none to ask the person now.
+	/// </summary>
+	public string? AskStepText
+	{
+		get
+		{
+			VerifyAccess();
+			return m_world.GetPlayerAsk(m_person) is { } ask ? OurResources.ConversationAskStep.FormatCurrentCulture(ask.Step.Player!.Title, FormatMinutes(GetMinutes(ask))) : null;
+		}
+	}
+
+	public bool CanAskStep() => m_world.GetPlayerAsk(m_person) is not null;
+
+	/// <summary>
+	/// Asks the person the question of the player's next "ask" step, saying what its player text says (or its title), and
+	/// tells how they answered, and when and where they agreed to meet, if they did.
+	/// </summary>
+	public void AskStep()
+	{
+		VerifyAccess();
+		if (m_world.GetPlayerAsk(m_person) is { } ask)
+		{
+			Say(ask.Step.Player!.Text?.Text ?? ask.Step.Player.Title!);
+			var answer = m_world.AskPlayerQuestion(m_person);
+			Say(answer.Appointment is { } appointment ?
+				OurResources.ConversationAgreedToMeet.FormatCurrentCulture(m_person.FullName, AppointmentText.FormatPlace(m_world, appointment), AppointmentText.FormatWhen(m_world, appointment.Time)) :
+				(answer.IsYes ? OurResources.ConversationAgreed : OurResources.ConversationSaidNo).FormatCurrentCulture(m_person.FullName));
+		}
+		Refresh();
+	}
+
+	/// <summary>
+	/// Whether the player can tell the person they're calling off what they're doing together, such as an appointment, or
+	/// the player following them.
+	/// </summary>
+	public bool HasCallOff => m_world.CanCallOffWith(m_person);
+
+	/// <summary>
+	/// Tells the person the player is calling off what they're doing together. They carry on without the player.
+	/// </summary>
+	public void CallOff()
+	{
+		VerifyAccess();
+		m_world.CallOffWith(m_person);
+		Say(OurResources.ConversationCalledOff.FormatCurrentCulture(m_person.FullName));
+		Refresh();
+	}
+
 	public bool CanAskWhatDoing() => m_world.CanTalkTo(m_person);
 
 	/// <summary>
@@ -96,7 +147,7 @@ public sealed class ConversationViewModel : ViewModelBase
 			var answer = m_world.AskWhatDoing(m_person);
 			Say(DescribePlan(m_person, answer.Sighting?.Location ?? m_person.Location, answer.Sighting?.Plan));
 		}
-		RaisePropertyChanged(nameof(Unavailable));
+		Refresh();
 	}
 
 	public bool CanAskAbout() => m_selectedSubject is not null && m_world.CanTalkTo(m_person);
@@ -113,7 +164,7 @@ public sealed class ConversationViewModel : ViewModelBase
 			var answer = m_world.AskAbout(m_person, subject);
 			Say(answer.Sighting is { } sighting ? DescribeSighting(subject, sighting) : OurResources.TalkNotSeen.FormatCurrentCulture(subject.FullName));
 		}
-		RaisePropertyChanged(nameof(Unavailable));
+		Refresh();
 	}
 
 	public bool CanSocialize() => m_world.CanTalkTo(m_person);
@@ -130,8 +181,24 @@ public sealed class ConversationViewModel : ViewModelBase
 			var time = m_world.Socialize(m_person);
 			Say(OurResources.ConversationSocialized.FormatCurrentCulture(m_person.FullName, m_world.GameData.Calendar.FormatOffsetFrom(start, time, TimeFormat.Long)));
 		}
-		RaisePropertyChanged(nameof(Unavailable));
+		Refresh();
 	}
+
+	/// <summary>
+	/// Updates what can be said, once time has passed.
+	/// </summary>
+	private void Refresh()
+	{
+		RaisePropertyChanged(nameof(Unavailable));
+		RaisePropertyChanged(nameof(AskStepText));
+		RaisePropertyChanged(nameof(HasCallOff));
+	}
+
+	/// <summary>
+	/// Gets how many minutes asking an "ask" step's question takes.
+	/// </summary>
+	private int GetMinutes(PlayerAsk ask) =>
+		Math.Max((int) ask.Step.Minutes!.GetAmount(ask.Sequence.Need.SharedByFamily ? m_world.Player.Family.Members.Count : 0), 1);
 
 	public void Close()
 	{
@@ -145,12 +212,12 @@ public sealed class ConversationViewModel : ViewModelBase
 	/// </summary>
 	internal static string DescribePlan(Person person, Location location, SightingPlan? plan) => plan switch
 	{
-		{ Goal: { } goal, Destination: { } end } when end == person.Home => OurResources.TalkPlanWalkingHome.FormatCurrentCulture(GetActivity(person, goal, end)),
-		{ Goal: { } goal, Destination: { } end } when GetBuildingQuarter(end) is { } quarter => OurResources.TalkPlanWalkingAt.FormatCurrentCulture(quarter.Title, GetActivity(person, goal, end), end.Title),
-		{ Goal: { } goal, Destination: { } end } => OurResources.TalkPlanWalking.FormatCurrentCulture(end.Title, GetActivity(person, goal, end)),
+		{ Goal: { } goal, Destination: { } end } when end == person.Home => OurResources.TalkPlanWalkingHome.FormatCurrentCulture(GetActivity(person, goal, end, plan.Doing)),
+		{ Goal: { } goal, Destination: { } end } when GetBuildingQuarter(end) is { } quarter => OurResources.TalkPlanWalkingAt.FormatCurrentCulture(quarter.Title, GetActivity(person, goal, end, plan.Doing), end.Title),
+		{ Goal: { } goal, Destination: { } end } => OurResources.TalkPlanWalking.FormatCurrentCulture(end.Title, GetActivity(person, goal, end, plan.Doing)),
 		{ Goal: null, Destination: { } end } when end == person.Home => OurResources.TalkPlanWalkingIdleHome,
 		{ Goal: null, Destination: { } end } => OurResources.TalkPlanWalkingIdle.FormatCurrentCulture(end.Title),
-		{ Goal: { } goal } => OurResources.TalkPlanBusy.FormatCurrentCulture(GetActivity(person, goal, location)),
+		{ Goal: { } goal } => OurResources.TalkPlanBusy.FormatCurrentCulture(GetActivity(person, goal, location, plan.Doing)),
 		_ => OurResources.TalkPlanIdle,
 	};
 
@@ -160,11 +227,12 @@ public sealed class ConversationViewModel : ViewModelBase
 	private static Location? GetBuildingQuarter(Location place) => place.Template is QuarterTemplate ? null : place.Quarter;
 
 	/// <summary>
-	/// Gets what someone does for a need at a place, to go in a sentence, such as "eating": its activity at home after a
-	/// trip, if they're at home, or its activity (or title, without one) otherwise.
+	/// Gets what someone does for a need at a place, to go in a sentence, such as "eating": what they were seen or said to
+	/// be doing, if it's known, or otherwise the activity of the need's first step done at a place like it, or its activity
+	/// (or title, without one).
 	/// </summary>
-	private static string GetActivity(Person person, Need need, Location place) =>
-		LowerFirst(need.HomeActivity is { } homeActivity && need.ReturnHome && place == person.Home ? homeActivity : need.Activity ?? need.Title);
+	private static string GetActivity(Person person, Need need, Location place, string? doing) =>
+		LowerFirst(doing ?? need.GetActivityAt(x => Scheduler.IsPlaceFor(person, null, x, place), person.Business?.Profession.Id));
 
 	/// <summary>
 	/// Describes a sighting of someone in the words of the person who saw them (or was told about it), with what that
@@ -178,7 +246,7 @@ public sealed class ConversationViewModel : ViewModelBase
 		var (place, destination) = (sighting.Location.Title, sighting.Destination?.Title);
 		var where = sighting.Activity switch
 		{
-			SightingActivity.Busy when sighting.Need is { } need => OurResources.TalkSeenBusy.FormatCurrentCulture(place, GetActivity(subject, need, sighting.Location)),
+			SightingActivity.Busy when sighting.Need is { } need => OurResources.TalkSeenBusy.FormatCurrentCulture(place, GetActivity(subject, need, sighting.Location, sighting.Doing)),
 			SightingActivity.Walking => OurResources.TalkSeenWalking.FormatCurrentCulture(place, destination),
 			SightingActivity.Left => OurResources.TalkSeenLeaving.FormatCurrentCulture(place, destination),
 			SightingActivity.Talking => OurResources.TalkSeenTalking.FormatCurrentCulture(place),
@@ -192,13 +260,13 @@ public sealed class ConversationViewModel : ViewModelBase
 		{
 			text += " " + plan switch
 			{
-				{ Goal: { } goal, Destination: { } end } when end == subject.Home => OurResources.TalkToldWalkingHome.FormatCurrentCulture(subject.FullName, GetActivity(subject, goal, end)),
+				{ Goal: { } goal, Destination: { } end } when end == subject.Home => OurResources.TalkToldWalkingHome.FormatCurrentCulture(subject.FullName, GetActivity(subject, goal, end, plan.Doing)),
 				{ Goal: { } goal, Destination: { } end } when GetBuildingQuarter(end) is { } quarter =>
-					OurResources.TalkToldWalkingAt.FormatCurrentCulture(subject.FullName, quarter.Title, GetActivity(subject, goal, end), end.Title),
-				{ Goal: { } goal, Destination: { } end } => OurResources.TalkToldWalking.FormatCurrentCulture(subject.FullName, end.Title, GetActivity(subject, goal, end)),
+					OurResources.TalkToldWalkingAt.FormatCurrentCulture(subject.FullName, quarter.Title, GetActivity(subject, goal, end, plan.Doing), end.Title),
+				{ Goal: { } goal, Destination: { } end } => OurResources.TalkToldWalking.FormatCurrentCulture(subject.FullName, end.Title, GetActivity(subject, goal, end, plan.Doing)),
 				{ Goal: null, Destination: { } end } when end == subject.Home => OurResources.TalkToldWalkingIdleHome.FormatCurrentCulture(subject.FullName),
 				{ Goal: null, Destination: { } end } => OurResources.TalkToldWalkingIdle.FormatCurrentCulture(subject.FullName, end.Title),
-				{ Goal: { } goal } => OurResources.TalkToldBusy.FormatCurrentCulture(subject.FullName, GetActivity(subject, goal, sighting.Location)),
+				{ Goal: { } goal } => OurResources.TalkToldBusy.FormatCurrentCulture(subject.FullName, GetActivity(subject, goal, sighting.Location, plan.Doing)),
 				_ => OurResources.TalkToldIdle.FormatCurrentCulture(subject.FullName),
 			};
 		}

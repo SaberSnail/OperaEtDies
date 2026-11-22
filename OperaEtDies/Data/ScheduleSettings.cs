@@ -27,12 +27,6 @@ public sealed class ScheduleSettings
 	public const string SocializingRole = "socializing";
 
 	/// <summary>
-	/// The role of the trip need for washing the household's clothes, which are taken to be washed when the trip's time at
-	/// the place starts, and hung out to dry when its time at home ends.
-	/// </summary>
-	public const string LaundryRole = "laundry";
-
-	/// <summary>
 	/// Settings with no needs, where people stay at home and wake at six, for game data created without schedules.
 	/// </summary>
 	public static ScheduleSettings None { get; } = new()
@@ -41,9 +35,9 @@ public sealed class ScheduleSettings
 		UrgencyPower = 1,
 		SightingHours = 24,
 		Sleep = new SleepSettings { NapBelow = 0, NapMinutes = new IntegerRange { Minimum = 30, Maximum = 30 }, BedtimeLead = 60, DayClothesFactor = 1 },
-		Clothing = new ClothingSchedule { ChangeMinutes = 5, DryingMinutes = 60 },
-		Talking = new TalkingSettings { RefuseUrgency = 100, WakeLevel = 0, AskAboutMinutes = 1, AskDoingMinutes = 5 },
-		Socializing = new SocializingSettings { ChatMinutes = 30, ChatUrgency = 100, ChatGoalWeight = 1, WakeUrgency = 100, NearMinutes = 15, SeekFactor = 1, SeekMinutes = 15, RecentHours = 12, AskPlayerAgainHours = 4, Clues = new SeekClues { Workplace = 1, Home = 1, Sighting = 1, Gathering = 1 } },
+		Clothing = new ClothingSchedule { ChangeMinutes = 5},
+		Talking = new TalkingSettings { RefuseUrgency = 100, AgreeUrgency = 100, WakeLevel = 0, AskAboutMinutes = 1, AskDoingMinutes = 5 },
+		Socializing = new SocializingSettings { ChatMinutes = 30, ChatUrgency = 100, ChatGoalWeight = 1, WakeUrgency = 100, NearMinutes = 15, SeekFactor = 1, RecentHours = 12, AskPlayerAgainHours = 4, Clues = new SeekClues { Workplace = 1, Home = 1, Sighting = 1, Gathering = 1 } },
 		Idle = new IdleSettings { Place = new SchedulePlace { Kind = NeedPlace.Home }, Minutes = new IntegerRange { Minimum = 60, Maximum = 60 } },
 		Start = new ScheduleStart { WakeHour = 6, WakeMinutes = new IntegerRange { Minimum = 0, Maximum = 0 } },
 	};
@@ -97,7 +91,73 @@ public sealed class ScheduleSettings
 	/// The needs, from the needs section of the data.
 	/// </summary>
 	[JsonIgnore]
-	public IReadOnlyList<Need> Needs { get; internal set; } = [];
+	public IReadOnlyList<Need> Needs
+	{
+		get => m_needs;
+		internal set
+		{
+			m_needs = value;
+			ConnectStepLists();
+		}
+	}
+
+	/// <summary>
+	/// The step lists "call" steps can carry out, from the step lists section of the data.
+	/// </summary>
+	[JsonIgnore]
+	public IReadOnlyList<StepList> StepLists
+	{
+		get => m_stepLists;
+		internal set
+		{
+			m_stepLists = value;
+			ConnectStepLists();
+		}
+	}
+
+	/// <summary>
+	/// Gives every need the step lists by id, so their "call" steps can carry them out.
+	/// </summary>
+	private void ConnectStepLists()
+	{
+		var byId = m_stepLists.OfType<StepList>().Where(x => !string.IsNullOrWhiteSpace(x.Id)).GroupBy(x => x.Id, StringComparer.Ordinal).ToDictionary(x => x.Key, x => x.First(), StringComparer.Ordinal);
+		foreach (var need in m_needs.OfType<Need>())
+		{
+			need.StepLists = byId;
+			need.ProfessionSteps = m_professionSteps;
+			need.ProfessionActivities = m_professionActivities;
+		}
+	}
+
+	/// <summary>
+	/// The activities of the professions that have them, by profession id, from the professions section of the data, which
+	/// are shown for needs that are work.
+	/// </summary>
+	[JsonIgnore]
+	public IReadOnlyDictionary<string, string> ProfessionActivities
+	{
+		get => m_professionActivities;
+		internal set
+		{
+			m_professionActivities = value;
+			ConnectStepLists();
+		}
+	}
+
+	/// <summary>
+	/// The steps of the professions that have their own, by profession id, from the professions section of the data,
+	/// which replace the steps of needs that are work for the people in a business in that profession.
+	/// </summary>
+	[JsonIgnore]
+	public IReadOnlyDictionary<string, IReadOnlyList<Step>> ProfessionSteps
+	{
+		get => m_professionSteps;
+		internal set
+		{
+			m_professionSteps = value;
+			ConnectStepLists();
+		}
+	}
 
 	/// <summary>
 	/// Factors that make some people slower to travel, from the travel time factors section of the data. Every factor
@@ -125,13 +185,12 @@ public sealed class ScheduleSettings
 	[JsonIgnore]
 	public string? SocializeNeed => FindRole(SocializingRole)?.Id;
 
-	/// <summary>
-	/// The id of the trip need for washing the household's clothes, or null if there's none.
-	/// </summary>
-	[JsonIgnore]
-	public string? LaundryNeed => FindRole(LaundryRole)?.Id;
-
 	private Need? FindRole(string role) => Needs.FirstOrDefault(x => x?.Role == role);
+
+	private IReadOnlyList<Need> m_needs = [];
+	private IReadOnlyList<StepList> m_stepLists = [];
+	private IReadOnlyDictionary<string, IReadOnlyList<Step>> m_professionSteps = new Dictionary<string, IReadOnlyList<Step>>(StringComparer.Ordinal);
+	private IReadOnlyDictionary<string, string> m_professionActivities = new Dictionary<string, string>(StringComparer.Ordinal);
 
 	/// <summary>
 	/// Whether a need this urgent is considered when choosing a goal.
@@ -166,6 +225,7 @@ public sealed class ScheduleSettings
 		if (!(UrgencyPower > 0))
 			errors.Add(OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.urgencyPower", UrgencyPower));
 
+		errors.AddRange(DataValidation.ValidateIdentifiedItems("stepLists", StepLists, x => x.Id, null, allowEmpty: true));
 		if (Needs.Count != 0)
 			errors.AddRange(DataValidation.ValidateIdentifiedItems("needs", Needs, x => x.Id, x => x.Title));
 		var needs = Needs.OfType<Need>().Where(x => !string.IsNullOrWhiteSpace(x.Id)).ToList();
@@ -173,24 +233,34 @@ public sealed class ScheduleSettings
 		foreach (var need in needs)
 			errors.AddRange(need.Validate(needIds));
 
+		// A profession's steps are checked as the steps of each need that's work, which they replace.
+		foreach (var (professionId, steps) in ProfessionSteps)
+		{
+			var workNeeds = needs.Where(x => x.IsWork).ToList();
+			if (workNeeds.Count == 0)
+				errors.Add(OurResources.ProfessionStepsWithoutWork.FormatCurrentCulture(professionId));
+			foreach (var need in workNeeds)
+				errors.AddRange(need.ValidateProfessionSteps($"professions[{professionId}].business", professionId, steps));
+		}
+
 		// The engine finds the sleep and socializing needs by their roles.
-		errors.AddRange(DataValidation.ValidateRoles("needs", needs, x => x.Id, x => x.Role, [SleepRole, SocializingRole, LaundryRole]));
+		errors.AddRange(DataValidation.ValidateRoles("needs", needs, x => x.Id, x => x.Role, [SleepRole, SocializingRole]));
 		if (needs.Count != 0 && FindRole(SleepRole) is null)
 			errors.Add(OurResources.RoleMissing.FormatCurrentCulture("needs", SleepRole));
 		foreach (var need in needs.Where(x => x.Role is SleepRole or SocializingRole && x.Kind != NeedKind.Level))
 			errors.Add(OurResources.RoleWrongType.FormatCurrentCulture($"needs[{need.Id}]", need.Role, "level need"));
-		foreach (var need in needs.Where(x => x.Role == LaundryRole && !(x.IsTrips && x.ReturnHome)))
-			errors.Add(OurResources.RoleWrongType.FormatCurrentCulture($"needs[{need.Id}]", need.Role, "trip need that returns home"));
 
 		if (SightingHours < 1)
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.sightingHours", SightingHours, 1));
 		if (!(Talking.RefuseUrgency >= 0) || !double.IsFinite(Talking.RefuseUrgency))
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.talking.refuseUrgency", Talking.RefuseUrgency, 0));
+		if (!(Talking.AgreeUrgency >= 0) || !double.IsFinite(Talking.AgreeUrgency))
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.talking.agreeUrgency", Talking.AgreeUrgency, 0));
 		if (!(Talking.WakeLevel >= 0))
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.talking.wakeLevel", Talking.WakeLevel, 0));
 		else if (Talking.WakeLevel > Need.MaximumLevel)
 			errors.Add(OurResources.DataNumberTooLarge.FormatCurrentCulture($"{path}.talking.wakeLevel", Talking.WakeLevel, Need.MaximumLevel));
-		foreach (var (name, minutes) in new[] { ("talking.askAboutMinutes", Talking.AskAboutMinutes), ("talking.askDoingMinutes", Talking.AskDoingMinutes) })
+		foreach (var (name, minutes) in new[] { ("talking.askAboutMinutes", Talking.AskAboutMinutes.Minutes), ("talking.askDoingMinutes", Talking.AskDoingMinutes.Minutes) })
 		{
 			if (minutes < 1)
 				errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.{name}", minutes, 1));
@@ -199,12 +269,12 @@ public sealed class ScheduleSettings
 		errors.AddRange(Sleep.Validate());
 		errors.AddRange(Clothing.Validate());
 
-		errors.AddRange(Idle.Place.Validate($"{path}.idle.place"));
+		errors.AddRange(Idle.Place.Validate($"{path}.idle.place", allowRemembered: false));
 		if (Idle.Activity is not null && string.IsNullOrWhiteSpace(Idle.Activity))
 			errors.Add(OurResources.DataValueMissing.FormatCurrentCulture($"{path}.idle.activity"));
 		errors.AddRange(CharacterData.ValidateRange($"{path}.idle.minutes", Idle.Minutes));
 		if (Idle.Minutes.Minimum < 1)
-			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.idle.minutes.minimum", Idle.Minutes.Minimum, 1));
+			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.idle.minutes.minimum", Idle.Minutes.Minimum.Minutes, 1));
 
 		if (Start.WakeHour is < 0 or > 23)
 			errors.Add(OurResources.ScheduleHourInvalid.FormatCurrentCulture($"{path}.start.wakeHour", Start.WakeHour, 23));
@@ -224,7 +294,82 @@ public sealed class ScheduleSettings
 			errors.AddRange(factor.Needs.Where(x => x is not null && !needIds.Contains(x)).Select(x => OurResources.DataIdUnknown.FormatCurrentCulture($"{factorPath}.needs", x, "needs")));
 		}
 
-		return errors;
+		// A step list no need or profession calls is checked on its own, without what depends on the need calling it.
+		var stepListsById = GetStepListsById();
+		var called = GetCalledStepLists(stepListsById);
+		foreach (var list in stepListsById.Values.Where(x => !called.Contains(x.Id)))
+			errors.AddRange(Need.ValidateUncalledStepList(list, stepListsById));
+
+		// The needs steps meet for their partners must be needs.
+		foreach (var (stepPath, step) in GetAllSteps().Where(x => x.Step.PartnerMeets is { } id && !string.IsNullOrWhiteSpace(id) && !needIds.Contains(id)))
+			errors.Add(OurResources.DataIdUnknown.FormatCurrentCulture($"{stepPath}.partnerMeets", step.PartnerMeets, "needs"));
+
+		// Steps in a step list are checked for each need that calls it, so the same problem can be found more than once.
+		return errors.Distinct(StringComparer.Ordinal);
+	}
+
+	/// <summary>
+	/// Gets warnings about the schedules that don't stop the game loading: step lists that no need or profession calls,
+	/// which are never carried out.
+	/// </summary>
+	public IReadOnlyList<string> GetWarnings()
+	{
+		var stepListsById = GetStepListsById();
+		var called = GetCalledStepLists(stepListsById);
+		return stepListsById.Keys.Where(x => !called.Contains(x)).Order(StringComparer.Ordinal).Select(x => OurResources.StepListNotCalled.FormatCurrentCulture(x)).ToList();
+	}
+
+	private Dictionary<string, StepList> GetStepListsById() =>
+		StepLists.OfType<StepList>().Where(x => !string.IsNullOrWhiteSpace(x.Id)).GroupBy(x => x.Id, StringComparer.Ordinal).ToDictionary(x => x.Key, x => x.First(), StringComparer.Ordinal);
+
+	/// <summary>
+	/// Gets the ids of the step lists the needs' and professions' steps call, directly or through other step lists.
+	/// </summary>
+	private HashSet<string> GetCalledStepLists(IReadOnlyDictionary<string, StepList> stepListsById)
+	{
+		var called = new HashSet<string>(StringComparer.Ordinal);
+		var pending = new Queue<IReadOnlyList<Step?>>(Needs.OfType<Need>().Select(x => (IReadOnlyList<Step?>) (x.StepSettings ?? [])).Concat(ProfessionSteps.Values));
+		while (pending.TryDequeue(out var steps))
+		{
+			foreach (var (_, step) in GetSteps("", steps))
+			{
+				if (step is { Kind: StepKind.Call, List: { } id } && called.Add(id) && stepListsById.TryGetValue(id, out var list))
+					pending.Enqueue(list.Steps ?? []);
+			}
+		}
+
+		return called;
+	}
+
+	/// <summary>
+	/// Gets every step of the needs, step lists, and professions, with where each one is, and the steps they carry out.
+	/// </summary>
+	private IEnumerable<(string Path, Step Step)> GetAllSteps() =>
+		Needs.OfType<Need>().SelectMany(need => GetSteps($"needs[{need.Id}]", need.StepSettings ?? []))
+			.Concat(StepLists.OfType<StepList>().SelectMany(x => GetSteps($"stepLists[{x.Id}]", x.Steps ?? [])))
+			.Concat(ProfessionSteps.SelectMany(x => GetSteps($"professions[{x.Key}].business", x.Value)));
+
+	/// <summary>
+	/// Gets the steps of a list, with where each one is, and the steps they carry out (but not the steps of the step lists
+	/// they call).
+	/// </summary>
+	private static IEnumerable<(string Path, Step Step)> GetSteps(string path, IReadOnlyList<Step?> steps)
+	{
+		for (var index = 0; index < steps.Count; index++)
+		{
+			var stepPath = $"{path}.steps[{index}]";
+			if (steps[index] is not { } step)
+				continue;
+			yield return (stepPath, step);
+			foreach (var nested in GetSteps(stepPath, step.Steps ?? []).Concat(GetSteps($"{stepPath}.appointment", step.Appointment?.Steps ?? [])))
+				yield return nested;
+			var options = step.Options ?? [];
+			for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
+			{
+				foreach (var nested in GetSteps($"{stepPath}.options[{optionIndex}]", options[optionIndex]?.Steps ?? []))
+					yield return nested;
+			}
+		}
 	}
 
 	/// <summary>
@@ -233,14 +378,119 @@ public sealed class ScheduleSettings
 	internal IEnumerable<(string Path, CharacterCondition Condition)> GetConditions() =>
 		Needs.OfType<Need>().Where(x => x.When is not null).Select(x => ($"needs[{x.Id}].when", x.When!))
 			.Concat(TravelTimeFactors.OfType<TravelTimeFactor>().Select(x => ($"travelTimeFactors[{x.Id}].when", x.When)))
-			.Concat(UrgencyFactors.OfType<UrgencyFactor>().Select(x => ($"urgencyFactors[{x.Id}].when", x.When)));
+			.Concat(UrgencyFactors.OfType<UrgencyFactor>().Select(x => ($"urgencyFactors[{x.Id}].when", x.When)))
+			.Concat(Needs.OfType<Need>().SelectMany(need => GetCharacterConditions($"needs[{need.Id}]", need.StepSettings ?? [])))
+			.Concat(StepLists.OfType<StepList>().SelectMany(x => GetCharacterConditions($"stepLists[{x.Id}]", x.Steps ?? [])))
+			.Concat(ProfessionSteps.SelectMany(x => GetCharacterConditions($"professions[{x.Key}].business", x.Value)));
+
+	/// <summary>
+	/// Gets the character conditions of steps (who they talk with, and their chances' factors) and the steps they carry
+	/// out, with where each one is.
+	/// </summary>
+	private static IEnumerable<(string Path, CharacterCondition Condition)> GetCharacterConditions(string path, IReadOnlyList<Step?> steps)
+	{
+		for (var index = 0; index < steps.Count; index++)
+		{
+			var stepPath = $"{path}.steps[{index}]";
+			if (steps[index] is not { } step)
+				continue;
+			if (step.Who is { } who)
+				yield return ($"{stepPath}.who", who);
+			var factors = step.Chance?.Factors ?? [];
+			for (var factorIndex = 0; factorIndex < factors.Count; factorIndex++)
+			{
+				if (factors[factorIndex]?.When is { } when)
+					yield return ($"{stepPath}.chance.factors[{factorIndex}].when", when);
+			}
+
+			foreach (var nested in GetCharacterConditions(stepPath, step.Steps ?? []).Concat(GetCharacterConditions($"{stepPath}.appointment", step.Appointment?.Steps ?? [])))
+				yield return nested;
+			var options = step.Options ?? [];
+			for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
+			{
+				foreach (var nested in GetCharacterConditions($"{stepPath}.options[{optionIndex}]", options[optionIndex]?.Steps ?? []))
+					yield return nested;
+			}
+		}
+	}
 
 	/// <summary>
 	/// Gets the kinds of quarter the schedules name, with where each one is, for checking against the quarter kinds.
 	/// </summary>
 	internal IEnumerable<(string Path, string QuarterKind)> GetQuarterKinds() =>
-		Needs.OfType<Need>().SelectMany(need => (need.QuarterKinds ?? []).OfType<QuarterChoice>().Select(x => ($"needs[{need.Id}].place.quarterKinds", x.QuarterKind)))
-			.Concat((Idle.Place.QuarterKinds ?? []).OfType<QuarterChoice>().Select(x => ($"{SectionName}.idle.place.quarterKinds", x.QuarterKind)));
+		Needs.OfType<Need>().SelectMany(need => (need.PlaceSetting is { } place ? [($"needs[{need.Id}].place", place)] : Array.Empty<(string, SchedulePlace)>())
+				.Concat(GetStepPlaces($"needs[{need.Id}]", need.StepSettings ?? [])))
+			.Concat(StepLists.OfType<StepList>().SelectMany(x => GetStepPlaces($"stepLists[{x.Id}]", x.Steps ?? [])))
+			.Concat(ProfessionSteps.SelectMany(x => GetStepPlaces($"professions[{x.Key}].business", x.Value)))
+			.Append(($"{SectionName}.idle.place", Idle.Place))
+			.SelectMany(place => (place.Item2.QuarterKinds ?? []).OfType<QuarterChoice>().Select(x => ($"{place.Item1}.quarterKinds", x.QuarterKind)));
+
+	/// <summary>
+	/// Gets the professions step conditions name, with where each one is, for checking against the professions.
+	/// </summary>
+	internal IEnumerable<(string Path, string Profession)> GetBusinessProfessions() =>
+		Needs.OfType<Need>().SelectMany(need => GetStepConditions($"needs[{need.Id}]", need.StepSettings ?? []))
+			.Concat(StepLists.OfType<StepList>().SelectMany(x => GetStepConditions($"stepLists[{x.Id}]", x.Steps ?? [])))
+			.Concat(ProfessionSteps.SelectMany(x => GetStepConditions($"professions[{x.Key}].business", x.Value)))
+			.Where(x => x.Condition.BusinessProfession is not null)
+			.Select(x => ($"{x.Path}.businessProfession", x.Condition.BusinessProfession!));
+
+	/// <summary>
+	/// Gets the conditions of steps and their options, and of the steps they carry out, with where each one is.
+	/// </summary>
+	private static IEnumerable<(string Path, StepCondition Condition)> GetStepConditions(string path, IReadOnlyList<Step?> steps)
+	{
+		for (var index = 0; index < steps.Count; index++)
+		{
+			var stepPath = $"{path}.steps[{index}]";
+			if (steps[index] is not { } step)
+				continue;
+			foreach (var condition in Need.GetConditionsWithin($"{stepPath}.when", step.When))
+				yield return condition;
+			foreach (var nested in GetStepConditions(stepPath, step.Steps ?? []).Concat(GetStepConditions($"{stepPath}.appointment", step.Appointment?.Steps ?? [])))
+				yield return nested;
+			var options = step.Options ?? [];
+			for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
+			{
+				foreach (var condition in Need.GetConditionsWithin($"{stepPath}.options[{optionIndex}].when", options[optionIndex]?.When))
+					yield return condition;
+				foreach (var nested in GetStepConditions($"{stepPath}.options[{optionIndex}]", options[optionIndex]?.Steps ?? []))
+					yield return nested;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Gets the places named in steps (where they go, and where their conditions are met) and the steps they carry out,
+	/// with where each one is.
+	/// </summary>
+	private static IEnumerable<(string Path, SchedulePlace Place)> GetStepPlaces(string path, IReadOnlyList<Step?> steps)
+	{
+		for (var index = 0; index < steps.Count; index++)
+		{
+			var stepPath = $"{path}.steps[{index}]";
+			if (steps[index] is not { } step)
+				continue;
+			if (step.Place is { } place)
+				yield return ($"{stepPath}.place", place);
+			foreach (var (conditionPath, condition) in Need.GetConditionsWithin($"{stepPath}.when", step.When).Where(x => x.Condition.At is not null))
+				yield return ($"{conditionPath}.at", condition.At!);
+			if (step.Appointment?.Place is { } appointmentPlace)
+				yield return ($"{stepPath}.appointment.place", appointmentPlace);
+			if (step.Job?.Place is { } jobPlace)
+				yield return ($"{stepPath}.job.place", jobPlace);
+			foreach (var nested in GetStepPlaces(stepPath, step.Steps ?? []).Concat(GetStepPlaces($"{stepPath}.appointment", step.Appointment?.Steps ?? [])))
+				yield return nested;
+			var options = step.Options ?? [];
+			for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
+			{
+				foreach (var (conditionPath, condition) in Need.GetConditionsWithin($"{stepPath}.options[{optionIndex}].when", options[optionIndex]?.When).Where(x => x.Condition.At is not null))
+					yield return ($"{conditionPath}.at", condition.At!);
+				foreach (var nested in GetStepPlaces($"{stepPath}.options[{optionIndex}]", options[optionIndex]?.Steps ?? []))
+					yield return nested;
+			}
+		}
+	}
 
 	/// <summary>
 	/// Gets the days of the week the schedules name, with where each one is, for checking against the calendar.
@@ -267,7 +517,12 @@ public sealed class SchedulePlace
 	/// </summary>
 	public bool Nearest { get; init; }
 
-	internal IEnumerable<string> Validate(string path)
+	/// <summary>
+	/// For a remembered place, the name a "remember" step remembered it by.
+	/// </summary>
+	public string? Remembered { get; init; }
+
+	internal IEnumerable<string> Validate(string path, bool allowRemembered = true)
 	{
 		if (Kind == NeedPlace.Quarter)
 		{
@@ -276,6 +531,17 @@ public sealed class SchedulePlace
 			else if (QuarterKinds.Any(x => x is null || string.IsNullOrWhiteSpace(x.QuarterKind)))
 				yield return OurResources.DataListItemBlank.FormatCurrentCulture($"{path}.quarterKinds");
 		}
+
+		if (Kind == NeedPlace.Remembered)
+		{
+			if (!allowRemembered)
+				yield return OurResources.SchedulePlaceRememberedNotAllowed.FormatCurrentCulture($"{path}.remembered");
+			else if (string.IsNullOrWhiteSpace(Remembered))
+				yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.remembered");
+		}
+
+		if (Kind is NeedPlace.PartnerHome or NeedPlace.JobSite && !allowRemembered)
+			yield return OurResources.SchedulePlaceRememberedNotAllowed.FormatCurrentCulture(path);
 	}
 }
 
@@ -283,7 +549,7 @@ public sealed class SchedulePlace
 /// An amount that can grow with the size of the family: a base amount, plus an amount for each family member.
 /// </summary>
 [JsonConverter(typeof(FamilyAmountConverter))]
-public sealed class FamilyAmount
+public class FamilyAmount
 {
 	public double Base { get; init; }
 
@@ -314,8 +580,18 @@ public sealed class FamilyAmount
 }
 
 /// <summary>
+/// A length of time that can grow with the size of the family: a base number of minutes, plus a number for each family
+/// member, either of which can be a duration's text.
+/// </summary>
+[JsonConverter(typeof(FamilyDurationConverter))]
+public sealed class FamilyDuration : FamilyAmount
+{
+}
+
+/// <summary>
 /// Something people need, which grows more urgent until they do something about it. A need is either a level need or a
-/// quota need, depending on which of <see cref="Level"/> and <see cref="Quota"/> it has.
+/// quota need, depending on which of <see cref="Level"/> and <see cref="Quota"/> it has. What people do to meet it is
+/// either a list of steps, or going to its place and spending time there.
 /// </summary>
 public sealed class Need : IIdentified
 {
@@ -339,59 +615,192 @@ public sealed class Need : IIdentified
 	public CharacterCondition? When { get; init; }
 
 	/// <summary>
-	/// Where the need is met.
+	/// Where the need is met, for a need without steps: people go there and spend time there.
 	/// </summary>
+	[AllowedFor(nameof(StepSettings), Unset = true)]
+	[RequiredFor(nameof(StepSettings), Unset = true)]
 	[JsonPropertyName("place")]
-	public required SchedulePlace PlaceSetting { get; init; }
+	public SchedulePlace? PlaceSetting { get; init; }
 
 	/// <summary>
-	/// Whether people are at work while meeting the need.
+	/// What people do to meet the need, in order, for a need without a place.
 	/// </summary>
-	public bool AtWork { get; init; }
+	[AllowedFor(nameof(PlaceSetting), Unset = true)]
+	[RequiredFor(nameof(PlaceSetting), Unset = true)]
+	[JsonPropertyName("steps")]
+	public IReadOnlyList<Step>? StepSettings { get; init; }
 
 	/// <summary>
-	/// Whether people go home after meeting the need, such as to carry water back.
+	/// What happens when one of its steps fails, for causes nothing closer to the step says anything about. Without it,
+	/// the steps are given up.
 	/// </summary>
-	public bool ReturnHome { get; init; }
+	public StepFailure? OnFail { get; init; }
 
 	/// <summary>
 	/// The hours and days the need can be met in. A quota need must have them. A level need can only have a start and an
 	/// end.
 	/// </summary>
+	[RequiredFor(nameof(Quota))]
 	public Hours? Hours { get; init; }
 
 	/// <summary>
 	/// The settings of a level need: a level that grows steadily over time, and drops while it's being met.
 	/// </summary>
+	[AllowedFor(nameof(Quota), Unset = true)]
+	[RequiredFor(nameof(Quota), Unset = true)]
 	public LevelNeedSettings? Level { get; init; }
 
 	/// <summary>
-	/// The settings of a quota need: a quota of time or trips to spend each day or week, which grows more urgent as time
+	/// The settings of a quota need: a quota of time or runs to spend each day or week, which grows more urgent as time
 	/// runs out.
 	/// </summary>
+	[AllowedFor(nameof(Level), Unset = true)]
+	[RequiredFor(nameof(Level), Unset = true)]
 	public QuotaNeedSettings? Quota { get; init; }
 
 	/// <summary>
-	/// What someone meeting the need is shown to be doing, such as "Sleeping". Defaults to the title.
+	/// What someone meeting the need is shown to be doing, such as "Sleeping", unless the step they're doing says
+	/// otherwise. Defaults to the title.
 	/// </summary>
 	public string? Activity { get; init; }
-
-	/// <summary>
-	/// How the player can spend time on the need where it's met, such as sleeping at home, or null if they can't.
-	/// </summary>
-	public PlayerAction? PlayerAction { get; init; }
 
 	[JsonIgnore]
 	public NeedKind Kind => Level is null ? NeedKind.Quota : NeedKind.Level;
 
+	/// <summary>
+	/// The steps people take to meet the need, in the order they're carried out: its own, or for a need with a place, going
+	/// there and spending time there (which counts toward a quota measured in time). A "repeat" step comes after the steps
+	/// it repeats, where it decides whether to go back to the first of them.
+	/// </summary>
 	[JsonIgnore]
-	public NeedPlace Place => PlaceSetting.Kind;
+	public IReadOnlyList<Step> Steps => Layout.Steps;
+
+	/// <summary>
+	/// Gets the index in <see cref="Steps"/> of the first step a "repeat" step repeats.
+	/// </summary>
+	public int GetLoopStart(int repeatStep) => Layout.LoopStarts[repeatStep];
+
+	/// <summary>
+	/// Gets the index in <see cref="Steps"/> of the step carried out after one: the next one, or after the last step of a
+	/// "choose" step's option (or the "choose" step, when it chooses none), the step after all its options.
+	/// </summary>
+	public int GetNextStep(int step) => Layout.Next.TryGetValue(step, out var next) ? next : step + 1;
+
+	/// <summary>
+	/// Gets the first of the steps of the appointment an "ask" step makes, the index of its "meet" step, and the index after
+	/// the last of them, or null if it doesn't make one.
+	/// </summary>
+	public (int Start, int Meet, int End)? GetAppointmentSteps(int askStep) => Layout.Appointments.TryGetValue(askStep, out var steps) ? steps : null;
+
+	/// <summary>
+	/// Gets a "choose" step's options, with the index in <see cref="Steps"/> of the first of their steps and the index
+	/// after the last of them.
+	/// </summary>
+	public IReadOnlyList<(StepOption Option, int Start, int End)> GetOptions(int chooseStep) => Layout.Options.GetValueOrDefault(chooseStep) ?? [];
+
+	/// <summary>
+	/// Whether a step is part of a "choose" step's option, so only some runs carry it out.
+	/// </summary>
+	public bool IsOptional(int step) => Layout.Optional.Contains(step);
+
+	/// <summary>
+	/// Gets what happens when a step fails for a cause, with the index of the step to carry on from for skipping to a step
+	/// (see <see cref="StepLayout.GetFailure"/>).
+	/// </summary>
+	public (StepFailureKind Kind, int? Target) GetFailure(int step, FailCause cause) => Layout.GetFailure(step, cause);
+
+	/// <summary>
+	/// Gets the "choose" step and the start of the option a step is in, the innermost if there are several, or null if it
+	/// isn't in one.
+	/// </summary>
+	public (int Choose, int Start)? GetOptionOf(int step) => Layout.GetOption(step);
+
+	/// <summary>
+	/// The step lists "call" steps can carry out, by id, set along with the needs.
+	/// </summary>
+	internal IReadOnlyDictionary<string, StepList>? StepLists
+	{
+		get => m_stepLists;
+		set
+		{
+			m_stepLists = value;
+			m_layout = null;
+			m_ownLayout = null;
+		}
+	}
+
+	/// <summary>
+	/// The steps of the professions that have their own, by profession id, set along with the needs. For a need that's
+	/// work, they replace the need's own steps for the people in a business in that profession.
+	/// </summary>
+	internal IReadOnlyDictionary<string, IReadOnlyList<Step>>? ProfessionSteps
+	{
+		get => m_professionSteps;
+		set
+		{
+			m_professionSteps = value;
+			m_layout = null;
+		}
+	}
+
+	/// <summary>
+	/// The need's steps laid out: for a need that's work, when professions have steps of their own, a "choose" step that
+	/// takes the steps of the person's business's profession, or failing that, the need's own steps.
+	/// </summary>
+	private StepLayout Layout => m_layout ??= StepLayout.Create(IsWork && m_professionSteps is { Count: > 0 } professionSteps
+		? [new Step
+		{
+			Kind = StepKind.Choose,
+			First = true,
+			Options = [.. professionSteps.OrderBy(x => x.Key, StringComparer.Ordinal).Select(x => new StepOption { When = new StepCondition { BusinessProfession = x.Key }, Steps = x.Value, HasOwnIds = true }),
+				new StepOption { Steps = OwnSteps.OfType<Step>().ToList() }],
+		}]
+		: OwnSteps, m_stepLists, OnFail);
+
+	/// <summary>
+	/// The need's own steps laid out, without any profession's.
+	/// </summary>
+	private StepLayout OwnLayout => m_ownLayout ??= StepLayout.Create(OwnSteps, m_stepLists, OnFail);
+
+	private IReadOnlyList<Step?> OwnSteps => StepSettings ?? (PlaceSetting is { } place
+		? [new Step { Kind = StepKind.GoTo, Place = place }, new Step { Kind = StepKind.Do, MeetsQuota = Quota?.Time is not null }]
+		: []);
+
+	/// <summary>
+	/// Whether a step takes from the time chosen for the goal: a "do" step without minutes of its own (which takes the
+	/// rest of it), or a "do" or "wander" step that meets a quota measured in time (which takes at most what's left of it).
+	/// </summary>
+	public bool TakesChosenTime(Step step) =>
+		(step.Kind == StepKind.Do && step.Minutes is null) ||
+		(step.Kind is StepKind.Do or StepKind.Wander or StepKind.Seek or StepKind.Talk or StepKind.Ask && step.MeetsQuota && Quota?.Time is not null);
+
+	/// <summary>
+	/// The need's main place: where the first "do" step of its own steps is done (the place of the last "goTo" step before
+	/// it), or null if there's none.
+	/// </summary>
+	[JsonIgnore]
+	public SchedulePlace? MainPlace => OwnLayout.GetPlaceOf(OwnLayout.Steps.ToList().FindIndex(x => x.Kind == StepKind.Do));
 
 	[JsonIgnore]
-	public IReadOnlyList<QuarterChoice>? QuarterKinds => PlaceSetting.QuarterKinds;
+	public NeedPlace? Place => MainPlace?.Kind;
 
 	[JsonIgnore]
-	public bool Nearest => PlaceSetting.Nearest;
+	public IReadOnlyList<QuarterChoice>? QuarterKinds => MainPlace?.QuarterKinds;
+
+	[JsonIgnore]
+	public bool Nearest => MainPlace?.Nearest ?? false;
+
+	/// <summary>
+	/// Whether the need has a "seek" step that looks for a friend, so only people with friends to look for choose it.
+	/// </summary>
+	[JsonIgnore]
+	public bool Seeks => Steps.Any(x => x is { Kind: StepKind.Seek, Who.Friends: true });
+
+	/// <summary>
+	/// Whether the need is work: some of its own steps are at a workplace. Only people with a business have it.
+	/// </summary>
+	[JsonIgnore]
+	public bool IsWork => OwnLayout.Steps.Any(x => x.Place?.Kind == NeedPlace.Workplace);
 
 	[JsonIgnore]
 	public int? Start => Hours?.Start;
@@ -439,82 +848,444 @@ public sealed class Need : IIdentified
 	public double? OverdueUrgency => Quota?.OverdueUrgency;
 
 	/// <summary>
-	/// For a quota need measured in trips with time at home afterward, what someone is shown to be doing during that time.
-	/// Defaults to <see cref="Activity"/>.
-	/// </summary>
-	[JsonIgnore]
-	public string? HomeActivity => Quota?.Trips?.Home?.Activity;
-
-	/// <summary>
 	/// For a quota need measured in time, the most minutes spent on it at once.
 	/// </summary>
 	[JsonIgnore]
 	public int? Shift => Quota?.Time?.Shift;
 
 	/// <summary>
-	/// Whether the quota is measured in trips rather than time.
+	/// Whether the quota is measured in runs (each time the steps are carried out) rather than time.
 	/// </summary>
 	[JsonIgnore]
-	public bool IsTrips => Quota?.Trips is not null;
+	public bool IsRuns => Quota?.Runs is not null;
 
 	/// <summary>
-	/// For a quota need measured in trips, how many minutes each trip takes at the place for a family with the given number
-	/// of members (or for one person, for a need that isn't shared).
+	/// Gets where a step is done: the place of the last "goTo" step before it, or null if there's none.
 	/// </summary>
-	public int GetVisitMinutes(int members) => (int) (Quota?.Trips?.Minutes.GetAmount(GetMemberCount(members)) ?? 0);
+	public SchedulePlace? GetPlaceOf(int step) => Layout.GetPlaceOf(step);
 
 	/// <summary>
-	/// For a quota need measured in trips, how many minutes each trip takes at home afterward.
+	/// Gets what someone doing a step of the need is shown to be doing: the step's activity, or for a need that's work, the
+	/// activity of the profession of the business they're in, if it has one, or otherwise the need's.
 	/// </summary>
-	public int GetHomeMinutes(int members) => (int) (Quota?.Trips?.Home?.Minutes.GetAmount(GetMemberCount(members)) ?? 0);
+	public string GetActivity(int? step, string? businessProfession = null) =>
+		(step is { } index && index >= 0 && index < Steps.Count ? Steps[index].Activity : null) ??
+		(IsWork && businessProfession is not null ? m_professionActivities?.GetValueOrDefault(businessProfession) : null) ??
+		Activity ?? Title;
 
 	/// <summary>
-	/// For a quota need, the most minutes spent on it at once: a shift, or one trip (at the place and at home afterward).
+	/// The activities of the professions that have them, by profession id, set along with the needs, which are shown for a
+	/// need that's work.
 	/// </summary>
-	public int GetShiftMinutes(int members) => IsTrips ? GetVisitMinutes(members) + GetHomeMinutes(members) : Shift ?? 0;
+	internal IReadOnlyDictionary<string, string>? ProfessionActivities
+	{
+		get => m_professionActivities;
+		set => m_professionActivities = value;
+	}
+
+	/// <summary>
+	/// Gets what someone seen meeting the need at a place was probably doing: the activity of the first "do" step done at
+	/// a place like it, of the steps of their business's profession if it has its own, or the need's own steps otherwise,
+	/// or the need's activity.
+	/// </summary>
+	public string GetActivityAt(Func<SchedulePlace, bool> isPlace, string? businessProfession = null)
+	{
+		var (start, end) = GetProfessionRange(businessProfession);
+		var index = Enumerable.Range(start, end - start).FirstOrDefault(x => Steps[x].Kind == StepKind.Do && GetPlaceOf(x) is { } place && isPlace(place), -1);
+		return GetActivity(index, businessProfession);
+	}
+
+	/// <summary>
+	/// Gets the range of the steps someone in a business in a profession carries out: those of the profession's own steps,
+	/// if it has them, or the need's own steps otherwise. Without professions' steps, it's all the steps.
+	/// </summary>
+	private (int Start, int End) GetProfessionRange(string? businessProfession)
+	{
+		var options = IsWork && m_professionSteps is { Count: > 0 } ? GetOptions(0) : [];
+		var option = options.Count == 0 ? default : options.FirstOrDefault(x => x.Option.When?.BusinessProfession == businessProfession, options[^1]);
+		return options.Count == 0 ? (0, Steps.Count) : (option.Start, option.End);
+	}
+
+	/// <summary>
+	/// For a quota need measured in runs, the most minutes the "do" steps of a run could take for a family with the given
+	/// number of members (or for one person, for a need that isn't shared), which is what each run counts for toward the
+	/// quota (see <see cref="GetRunMinuteRange"/>).
+	/// </summary>
+	public int GetRunMinutes(int members) => GetRunMinuteRange(members).Max;
+
+	/// <summary>
+	/// For a quota need measured in runs, the fewest and most minutes the "do" steps of a run could take for a family with
+	/// the given number of members (or for one person, for a need that isn't shared). Each way through the steps is
+	/// followed: every option of a "choose" step (and none, for one that takes the first and might find none), and steps
+	/// with conditions both carried out and passed by. The steps a "repeat" step repeats count once.
+	/// </summary>
+	public MinuteRange GetRunMinuteRange(int members) => GetMinuteRangeFrom(members, 0);
+
+	/// <summary>
+	/// The fewest and most minutes the "do" steps from one of the steps to the end could take for a family with the given
+	/// number of members (or for one person, for a need that isn't shared), following every way as
+	/// <see cref="GetRunMinuteRange"/> does. "do" steps without minutes of their own count for nothing.
+	/// </summary>
+	public MinuteRange GetMinuteRangeFrom(int members, int start)
+	{
+		var memberCount = GetMemberCount(members);
+		var ranges = new MinuteRange?[Steps.Count];
+
+		// The range of the minutes from a step to the end of the steps, worked out once for each step. A step comes before
+		// every step that can come after it, so working back from the end finds each one when it's needed.
+		MinuteRange From(int index) => index >= Steps.Count ? MinuteRange.Zero : ranges[index] ?? MinuteRange.Zero;
+		for (var index = Steps.Count - 1; index >= 0; index--)
+		{
+			var step = Steps[index];
+			var next = From(GetNextStep(index));
+			ranges[index] = step.Kind switch
+			{
+				StepKind.Choose => GetOptions(index).Select(x => x.End > x.Start ? From(x.Start) : next)
+					.Concat(step.First && GetOptions(index).All(x => x.Option.When is not null) ? [next] : [])
+					.Aggregate((MinuteRange?) null, (total, x) => total?.Or(x) ?? x) ?? next,
+				StepKind.Do when step.Minutes is { } amount => step.When is null ? next + (int) amount.GetAmount(memberCount) : (next + (int) amount.GetAmount(memberCount)).Or(next),
+				StepKind.Stop => step.When is null ? MinuteRange.Zero : MinuteRange.Zero.Or(next),
+				_ => next,
+			};
+		}
+
+		return From(start);
+	}
+
+	/// <summary>
+	/// For a quota need, the most minutes spent on it at once: a shift, or one run.
+	/// </summary>
+	public int GetShiftMinutes(int members) => IsRuns ? GetRunMinutes(members) : Shift ?? 0;
 
 	/// <summary>
 	/// For a quota need, how many minutes it takes each period for a family with the given number of members (or for one
-	/// person, for a need that isn't shared). Trips are counted by the minutes spent at the place and at home afterward.
+	/// person, for a need that isn't shared). Runs are counted by the minutes their "do" steps take.
 	/// </summary>
 	public long GetQuotaMinutes(int members) =>
-		Quota?.Trips is { } trips
-			? (long) Math.Ceiling(trips.Visits.GetAmount(GetMemberCount(members))) * GetShiftMinutes(members)
+		Quota?.Runs is not null
+			? GetQuotaRuns(members) * GetRunMinutes(members)
 			: (long) (Quota?.Time?.Minutes.GetAmount(GetMemberCount(members)) ?? 0);
+
+	/// <summary>
+	/// For a quota need measured in runs, how many runs it takes each period. The total is rounded up.
+	/// </summary>
+	public long GetQuotaRuns(int members) => (long) Math.Ceiling(Quota?.Runs?.GetAmount(GetMemberCount(members)) ?? 0);
 
 	private int GetMemberCount(int members) => SharedByFamily ? members : 0;
 
 	internal IEnumerable<string> Validate(IReadOnlySet<string> needIds)
 	{
 		var path = $"needs[{Id}]";
-		foreach (var error in PlaceSetting.Validate($"{path}.place"))
-			yield return error;
-		if (ReturnHome && Place == NeedPlace.Home)
-			yield return OurResources.NeedSettingNotAllowed.FormatCurrentCulture(Id, "returnHome", "home");
 		if (Activity is not null && string.IsNullOrWhiteSpace(Activity))
 			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.activity");
 
-		if ((Level is null) == (Quota is null))
+		if (IsBroken(nameof(Level), Level is not null) || IsBroken(nameof(Quota), Quota is not null))
 		{
 			yield return OurResources.NeedKindInvalid.FormatCurrentCulture(Id);
 			yield break;
 		}
 
-		if (PlayerAction is { } playerAction)
+		if (IsBroken(nameof(PlaceSetting), PlaceSetting is not null) || IsBroken(nameof(StepSettings), StepSettings is not null))
+			yield return OurResources.NeedPlaceOrSteps.FormatCurrentCulture(Id);
+		if (PlaceSetting is { } placeSetting)
 		{
-			foreach (var error in playerAction.Validate($"{path}.playerAction", Quota is not null, IsTrips, ReturnHome))
+			foreach (var error in placeSetting.Validate($"{path}.place", allowRemembered: false))
+				yield return error;
+		}
+
+		if (StepSettings is { } steps)
+		{
+			foreach (var error in ValidateSteps(path, steps))
 				yield return error;
 		}
 
 		if (Hours is { } hours)
 		{
-			foreach (var error in hours.Validate($"{path}.hours", allowDays: Quota is not null))
+			foreach (var error in hours.Validate($"{path}.hours", this))
 				yield return error;
 		}
 
 		var errors = Level is { } level ? ValidateLevel(path, level, needIds) : ValidateQuota(path, Quota!);
 		foreach (var error in errors)
 			yield return error;
+	}
+
+	/// <summary>
+	/// Whether one of the need's settings breaks the rules marked on it, which say which settings each kind of need allows
+	/// and requires.
+	/// </summary>
+	private bool IsBroken(string property, bool isSet) => DataRules.Check(this, property, isSet) != DataRuleViolation.None;
+
+	private IEnumerable<string> ValidateSteps(string path, IReadOnlyList<Step> steps)
+	{
+		if (steps.Count == 0)
+		{
+			yield return OurResources.DataListEmpty.FormatCurrentCulture($"{path}.steps");
+			yield break;
+		}
+
+		foreach (var error in ValidateScope(this, m_stepLists, path, steps, new StepNames(), [], OnFail is null ? [] : [($"{path}.onFail", OnFail)]))
+			yield return error;
+
+		if (!OwnLayout.Steps.Any(x => x.Kind is StepKind.Do or StepKind.Wander or StepKind.Seek))
+			yield return OurResources.NeedStepsWithoutDo.FormatCurrentCulture(Id);
+		var countsRuns = OwnLayout.Steps.Any(x => x.Kind == StepKind.CountRun);
+		if (countsRuns && !IsRuns)
+			yield return OurResources.NeedCountRunNotRuns.FormatCurrentCulture(Id);
+		else if (!countsRuns && IsRuns)
+			yield return OurResources.NeedRunsWithoutCountRun.FormatCurrentCulture(Id);
+		if (Quota?.Time is not null && !OwnLayout.Steps.Any(x => x is { Kind: StepKind.Do, MeetsQuota: true }))
+			yield return OurResources.NeedTimeWithoutMeetsQuota.FormatCurrentCulture(Id);
+	}
+
+	/// <summary>
+	/// Validates a profession's steps, which replace the need's own for the people in a business in that profession: as
+	/// the need's own steps would be, with at least one "do" step, and one that meets a quota measured in time.
+	/// </summary>
+	internal IEnumerable<string> ValidateProfessionSteps(string path, string professionId, IReadOnlyList<Step?> steps)
+	{
+		if (steps.Count == 0)
+		{
+			yield return OurResources.DataListEmpty.FormatCurrentCulture($"{path}.steps");
+			yield break;
+		}
+
+		foreach (var error in ValidateScope(this, m_stepLists, path, steps, new StepNames(), [], []))
+			yield return error;
+		var laidOut = StepLayout.Create(steps, m_stepLists).Steps;
+		if (!laidOut.Any(x => x.Kind == StepKind.Do))
+			yield return OurResources.ProfessionStepsWithoutDo.FormatCurrentCulture(professionId);
+		if (Quota?.Time is not null && !laidOut.Any(x => x is { Kind: StepKind.Do or StepKind.Wander, MeetsQuota: true }))
+			yield return OurResources.ProfessionStepsWithoutMeetsQuota.FormatCurrentCulture(professionId, Id);
+	}
+
+	/// <summary>
+	/// Validates a step list that no need or profession calls, on its own: without the need calling it, and without knowing
+	/// what the steps that would come before it took, remembered, or asked for.
+	/// </summary>
+	internal static IEnumerable<string> ValidateUncalledStepList(StepList list, IReadOnlyDictionary<string, StepList> stepLists) =>
+		ValidateScope(null, stepLists, $"stepLists[{list.Id}]", list.Steps ?? [], new StepNames { IsOpen = true }, [list.Id],
+			list.OnFail is null ? [] : [($"stepLists[{list.Id}].onFail", list.OnFail)]);
+
+	/// <summary>
+	/// Validates the steps of a need, step list, or appointment, as <see cref="ValidateStepList"/> does, along with the
+	/// "onFail" settings of the need or step list, and checks that every step they skip to has a unique id among them.
+	/// </summary>
+	private static IEnumerable<string> ValidateScope(Need? need, IReadOnlyDictionary<string, StepList>? stepLists, string path, IReadOnlyList<Step?> steps, StepNames names, IReadOnlyList<string> calling, IReadOnlyList<(string Path, StepFailure Failure)> failures,
+		bool isAppointment = false)
+	{
+		var scope = new StepScope();
+		foreach (var (failurePath, failure) in failures)
+			scope.AddSkips(failurePath, failure);
+		foreach (var error in ValidateStepList(need, stepLists, path, steps, names, calling, scope, isAppointment))
+			yield return error;
+		foreach (var (skipPath, id) in scope.Skips.Where(x => !scope.Ids.Contains(x.Id)))
+			yield return OurResources.StepSkipToUnknown.FormatCurrentCulture(skipPath, id);
+	}
+
+	/// <summary>
+	/// Validates a list of steps, and the steps that "repeat" steps, "choose" options, and called step lists in it carry
+	/// out, given the names of the bundles and places taken and remembered by the steps before them, the step lists being
+	/// called, and the ids of the steps of the need, step list, or appointment they're in. Steps in a called step list are
+	/// reported at their place in the step list. A "meet" step is only allowed directly among an appointment's steps.
+	/// </summary>
+	private static IEnumerable<string> ValidateStepList(Need? need, IReadOnlyDictionary<string, StepList>? stepLists, string path, IReadOnlyList<Step?> steps, StepNames names, IReadOnlyList<string> calling, StepScope scope, bool isAppointment = false)
+	{
+		for (var index = 0; index < steps.Count; index++)
+		{
+			var stepPath = $"{path}.steps[{index}]";
+			if (steps[index] is not { } step)
+			{
+				yield return OurResources.DataListItemEmpty.FormatCurrentCulture($"{path}.steps");
+				continue;
+			}
+
+			foreach (var error in step.Validate(stepPath, need))
+				yield return error;
+			if (step.Kind == StepKind.Meet && !isAppointment)
+				yield return OurResources.StepMeetNotAllowed.FormatCurrentCulture(stepPath);
+			if (step.Id is { } stepId && !string.IsNullOrWhiteSpace(stepId) && !scope.Ids.Add(stepId))
+				yield return OurResources.StepIdDuplicate.FormatCurrentCulture($"{stepPath}.id", stepId);
+			if (step.OnFail is { } onFail)
+				scope.AddSkips($"{stepPath}.onFail", onFail);
+			if (step.Kind == StepKind.Make && step.Replaces is { } replaced && !string.IsNullOrWhiteSpace(replaced) && !names.Bundles.Remove(replaced) && !names.IsOpen)
+				yield return OurResources.StepBundleUnknown.FormatCurrentCulture($"{stepPath}.replaces", replaced);
+			if (step.Kind is StepKind.Take or StepKind.Make && step.Bundle is { } taken && !string.IsNullOrWhiteSpace(taken.Id))
+				names.Bundles[taken.Id] = step.ItemKind;
+			if (step.Kind == StepKind.Put && step.Bundle is { } bundle && !string.IsNullOrWhiteSpace(bundle.Id))
+			{
+				if (!names.Bundles.TryGetValue(bundle.Id, out var bundleKind))
+				{
+					if (!names.IsOpen)
+						yield return OurResources.StepBundleUnknown.FormatCurrentCulture($"{stepPath}.bundle", bundle.Id);
+				}
+				else if (bundleKind != step.ItemKind)
+					yield return OurResources.StepPutKindMismatch.FormatCurrentCulture($"{stepPath}.kind", bundle.Id);
+			}
+			var conditionPlaces = GetConditionsWithin($"{stepPath}.when", step.When).Select(x => ($"{x.Path}.at", x.Condition.At));
+			foreach (var (placePath, place) in conditionPlaces.Prepend(($"{stepPath}.place", step.Place)))
+			{
+				if (place is { Kind: NeedPlace.Remembered, Remembered: { } remembered } && !string.IsNullOrWhiteSpace(remembered) && !names.Places.Contains(remembered) && !names.IsOpen)
+					yield return OurResources.StepPlaceUnknown.FormatCurrentCulture($"{placePath}.remembered", remembered);
+			}
+
+			if (step.Kind == StepKind.Remember && step.Name is { } name)
+				names.Places.Add(name);
+			foreach (var error in ValidateAnswers($"{stepPath}.when", step.When, names))
+				yield return error;
+			if (step.Kind == StepKind.Ask && step.Name is { } answer)
+				names.Answers.Add(answer);
+
+			if (step is { Kind: StepKind.Repeat, Steps: { } repeated })
+			{
+				if (need is not null && need.Quota?.Time is null)
+					yield return OurResources.StepRepeatNotAllowed.FormatCurrentCulture(stepPath);
+				if (repeated.Count == 0)
+					yield return OurResources.DataListEmpty.FormatCurrentCulture($"{stepPath}.steps");
+				else if (!StepLayout.Create(repeated, stepLists).Steps.Any(x => x is { Kind: StepKind.Do, MeetsQuota: true }))
+					yield return OurResources.StepRepeatWithoutMeetsQuota.FormatCurrentCulture(stepPath);
+				foreach (var error in ValidateStepList(need, stepLists, stepPath, repeated, names, calling, scope))
+					yield return error;
+			}
+
+			if (step is { Kind: StepKind.Choose, Options: { } options })
+			{
+				if (options.Count == 0)
+					yield return OurResources.DataListEmpty.FormatCurrentCulture($"{stepPath}.options");
+				for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
+				{
+					var optionPath = $"{stepPath}.options[{optionIndex}]";
+					if (options[optionIndex] is not { } option)
+					{
+						yield return OurResources.DataListItemEmpty.FormatCurrentCulture($"{stepPath}.options");
+						continue;
+					}
+
+					// The player chooses among the options of a "choose" step that doesn't take the first, so each needs a title.
+					if (!step.First && string.IsNullOrWhiteSpace(option.Player?.Title))
+						yield return OurResources.DataValueMissing.FormatCurrentCulture($"{optionPath}.player.title");
+					if (option.OnFail is { } optionFailure)
+						scope.AddSkips($"{optionPath}.onFail", optionFailure);
+					if (option.When is { } when)
+					{
+						foreach (var error in when.Validate($"{optionPath}.when", need))
+							yield return error;
+						foreach (var error in ValidateAnswers($"{optionPath}.when", when, names))
+							yield return error;
+					}
+
+					foreach (var error in ValidateStepList(need, stepLists, optionPath, option.Steps ?? [], names, calling, scope))
+						yield return error;
+				}
+			}
+
+			if (step is { Kind: StepKind.Ask, Appointment.Steps: { } appointmentSteps })
+			{
+				// The appointment's steps are carried out on their own, later, so they start with nothing taken, remembered, or
+				// asked. They take set times, so the one asked knows how long they'll be.
+				var appointmentPath = $"{stepPath}.appointment";
+				var laidOut = StepLayout.Create(appointmentSteps, stepLists);
+				if (!laidOut.Steps.Any(x => x.Kind == StepKind.Do))
+					yield return OurResources.StepAppointmentWithoutDo.FormatCurrentCulture(appointmentPath);
+				if (laidOut.Steps.Any(x => x.Appointment is not null))
+					yield return OurResources.StepAppointmentNested.FormatCurrentCulture(appointmentPath);
+				for (var appointmentIndex = 0; appointmentIndex < appointmentSteps.Count; appointmentIndex++)
+				{
+					if (appointmentSteps[appointmentIndex] is { Kind: StepKind.Do, Minutes: null })
+						yield return OurResources.StepSettingMissing.FormatCurrentCulture($"{appointmentPath}.steps[{appointmentIndex}].minutes", "do");
+				}
+
+				// Going there and meeting is its one "meet" step, directly among its steps. The steps before it are done once they set
+				// off, before walking there, so they can only go somewhere, handle things, change clothes, choose, or stop.
+				var meetCount = appointmentSteps.Count(x => x?.Kind == StepKind.Meet);
+				if (meetCount != 1 || laidOut.Steps.Count(x => x.Kind == StepKind.Meet) != meetCount)
+					yield return OurResources.StepAppointmentMeetCount.FormatCurrentCulture(appointmentPath);
+				var meetIndex = laidOut.Steps.ToList().FindIndex(x => x.Kind == StepKind.Meet);
+				if (meetIndex >= 0 && laidOut.Steps.Take(meetIndex).Any(x => x.Kind is not (StepKind.GoTo or StepKind.Take or StepKind.Put or StepKind.Make or StepKind.Dress or StepKind.Undress or
+					StepKind.Remember or StepKind.Choose or StepKind.Stop)))
+				{
+					yield return OurResources.StepAppointmentBeforeMeet.FormatCurrentCulture(appointmentPath);
+				}
+
+				foreach (var error in ValidateScope(need, stepLists, appointmentPath, appointmentSteps, new StepNames(), calling, [], isAppointment: true))
+					yield return error;
+			}
+
+			if (step is { Kind: StepKind.Call, List: { } id } && !string.IsNullOrWhiteSpace(id))
+			{
+				if (stepLists is null || !stepLists.TryGetValue(id, out var list))
+				{
+					yield return OurResources.DataIdUnknown.FormatCurrentCulture($"{stepPath}.list", id, "stepLists");
+				}
+				else if (calling.Contains(id, StringComparer.Ordinal))
+				{
+					yield return OurResources.StepListCalledInItself.FormatCurrentCulture($"{stepPath}.list", id);
+				}
+				else
+				{
+					foreach (var error in ValidateScope(need, stepLists, $"stepLists[{id}]", list.Steps ?? [], names, [.. calling, id], list.OnFail is null ? [] : [($"stepLists[{id}].onFail", list.OnFail)]))
+						yield return error;
+				}
+			}
+		}
+	}
+
+	/// <summary>
+	/// Checks that the answers a condition names were asked for by steps before it.
+	/// </summary>
+	private static IEnumerable<string> ValidateAnswers(string path, StepCondition? when, StepNames names)
+	{
+		foreach (var (conditionPath, condition) in GetConditionsWithin(path, when))
+		{
+			foreach (var (name, answer) in new[] { ("answeredYes", condition.AnsweredYes), ("answeredNo", condition.AnsweredNo) })
+			{
+				if (answer is not null && !names.Answers.Contains(answer) && !names.IsOpen)
+					yield return OurResources.StepAnswerUnknown.FormatCurrentCulture($"{conditionPath}.{name}", answer);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Gets a condition and the conditions it's made of, each with its path, or nothing if there's no condition.
+	/// </summary>
+	internal static IEnumerable<(string Path, StepCondition Condition)> GetConditionsWithin(string path, StepCondition? when) =>
+		when is null ? [] : when.GetNested(path).Prepend((path, when));
+
+	/// <summary>
+	/// The names of the bundles, places, and answers taken into, remembered, and asked for by the steps validated so far.
+	/// </summary>
+	private sealed class StepNames
+	{
+		/// <summary>
+		/// Whether names that weren't taken, remembered, or asked for by the steps validated so far are allowed, since steps
+		/// that would come before could have, as for a step list no need calls.
+		/// </summary>
+		public bool IsOpen { get; init; }
+
+		/// <summary>
+		/// The bundles taken or made, with the kind of things taken into them, or null for a bundle that was made.
+		/// </summary>
+		public Dictionary<string, StepItemKind?> Bundles { get; } = new(StringComparer.Ordinal);
+
+		public HashSet<string> Places { get; } = new(StringComparer.Ordinal);
+
+		public HashSet<string> Answers { get; } = new(StringComparer.Ordinal);
+	}
+
+	/// <summary>
+	/// The ids of the steps of a need, step list, or appointment, and the steps "onFail" settings among them skip to.
+	/// </summary>
+	private sealed class StepScope
+	{
+		public HashSet<string> Ids { get; } = new(StringComparer.Ordinal);
+
+		public System.Collections.ObjectModel.Collection<(string Path, string Id)> Skips { get; } = [];
+
+		public void AddSkips(string path, StepFailure failure)
+		{
+			foreach (var result in failure.Results.Where(x => x.Kind == StepFailureKind.SkipTo))
+				Skips.Add(($"{path}.skipTo", result.SkipTo ?? ""));
+		}
 	}
 
 	private static IEnumerable<string> ValidateLevel(string path, LevelNeedSettings level, IReadOnlySet<string> needIds)
@@ -565,9 +1336,9 @@ public sealed class Need : IIdentified
 
 	private IEnumerable<string> ValidateQuota(string path, QuotaNeedSettings quota)
 	{
-		if (Hours is null)
+		if (IsBroken(nameof(Hours), Hours is not null))
 			yield return OurResources.NeedSettingMissing.FormatCurrentCulture(Id, "hours", "quota");
-		if ((quota.Time is null) == (quota.Trips is null))
+		if (DataRules.Check(quota, nameof(QuotaNeedSettings.Time), quota.Time is not null) != DataRuleViolation.None || DataRules.Check(quota, nameof(QuotaNeedSettings.Runs), quota.Runs is not null) != DataRuleViolation.None)
 			yield return OurResources.NeedQuotaMeasureInvalid.FormatCurrentCulture(Id);
 
 		var amounts = new List<(string Path, FamilyAmount Amount, bool IsWhole)>();
@@ -578,21 +1349,15 @@ public sealed class Need : IIdentified
 				yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.quota.time.shift", time.Shift);
 		}
 
-		if (quota.Trips is { } trips)
+		if (quota.Runs is { } runs)
 		{
-			amounts.Add(($"{path}.quota.trips.visits", trips.Visits, false));
-			amounts.Add(($"{path}.quota.trips.minutes", trips.Minutes, true));
-			if (trips.Home is { } home)
-			{
-				amounts.Add(($"{path}.quota.trips.home.minutes", home.Minutes, true));
-				if (home.Activity is not null && string.IsNullOrWhiteSpace(home.Activity))
-					yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.quota.trips.home.activity");
-				if (!ReturnHome)
-					yield return OurResources.NeedHomeMinutesWithoutReturn.FormatCurrentCulture(Id);
-			}
+			amounts.Add(($"{path}.quota.runs", runs, false));
 
-			if (GetVisitMinutes(1) < 1)
-				yield return OurResources.NeedVisitMinutesNotPositive.FormatCurrentCulture(Id);
+			// A run's time is only worked out once it's otherwise valid: measured in runs alone, with minutes for each "do" step.
+			if (quota.Time is null && StepSettings is null)
+				yield return OurResources.NeedRunsWithoutCountRun.FormatCurrentCulture(Id);
+			else if (quota.Time is null && Steps.Where(x => x?.Kind == StepKind.Do).All(x => x.Minutes is not null) && GetRunMinutes(1) < 1)
+				yield return OurResources.NeedRunMinutesNotPositive.FormatCurrentCulture(Id);
 		}
 
 		foreach (var (amountPath, amount, isWhole) in amounts)
@@ -601,12 +1366,13 @@ public sealed class Need : IIdentified
 				yield return error;
 		}
 
-		if (!quota.SharedByFamily && amounts.Any(x => x.Amount.PerMember is not null))
+		var stepAmounts = Steps.Where(x => x?.Minutes is not null).Select(x => x.Minutes!);
+		if (!quota.SharedByFamily && amounts.Select(x => x.Amount).Concat(stepAmounts).Any(x => x.PerMember is not null))
 			yield return OurResources.NeedPerMemberNotShared.FormatCurrentCulture(Id);
 
 		if (quota.OverdueUrgency is { } overdue)
 		{
-			if (quota.Period != NeedPeriod.Week || Days is null)
+			if (!DataRules.IsAllowed(quota, nameof(QuotaNeedSettings.OverdueUrgency)) || Days is null)
 				yield return OurResources.NeedOverdueNotAllowed.FormatCurrentCulture(Id);
 			else if (overdue is < 0 or > MaximumLevel)
 				yield return OurResources.NeedLevelOutOfRange.FormatCurrentCulture($"{path}.quota.overdueUrgency", MaximumLevel);
@@ -643,6 +1409,12 @@ public sealed class Need : IIdentified
 	/// Gets the words for a level of the need, or null if it isn't shown to the player.
 	/// </summary>
 	public string? GetLevelTitle(double level) => Levels is { Count: > 0 } levels ? (levels.LastOrDefault(x => x.Minimum <= level) ?? levels[0]).Title : null;
+
+	private StepLayout? m_layout;
+	private StepLayout? m_ownLayout;
+	private IReadOnlyDictionary<string, IReadOnlyList<Step>>? m_professionSteps;
+	private IReadOnlyDictionary<string, string>? m_professionActivities;
+	private IReadOnlyDictionary<string, StepList>? m_stepLists;
 }
 
 /// <summary>
@@ -690,7 +1462,7 @@ public sealed class LevelNeedSettings
 }
 
 /// <summary>
-/// The settings of a quota need: a quota of time or trips to spend each day or week within its hours, such as work or
+/// The settings of a quota need: a quota of time or runs to spend each day or week within its hours, such as work or
 /// fetching water, which grows more urgent as time runs out.
 /// </summary>
 public sealed class QuotaNeedSettings
@@ -710,6 +1482,7 @@ public sealed class QuotaNeedSettings
 	/// For a quota by the week with days, the urgency it has once those days have passed this week and its quota still
 	/// isn't met. It can then be met on any day for the rest of the week.
 	/// </summary>
+	[AllowedFor(nameof(Period), NeedPeriod.Week)]
 	public double? OverdueUrgency { get; init; }
 
 	/// <summary>
@@ -720,12 +1493,17 @@ public sealed class QuotaNeedSettings
 	/// <summary>
 	/// A quota measured in time.
 	/// </summary>
+	[AllowedFor(nameof(Runs), Unset = true)]
+	[RequiredFor(nameof(Runs), Unset = true)]
 	public QuotaTime? Time { get; init; }
 
 	/// <summary>
-	/// A quota measured in trips.
+	/// A quota measured in runs: how many times each period its steps must be carried out to the end. The total is rounded
+	/// up. A run is counted by its "countRun" step.
 	/// </summary>
-	public QuotaTrips? Trips { get; init; }
+	[AllowedFor(nameof(Time), Unset = true)]
+	[RequiredFor(nameof(Time), Unset = true)]
+	public FamilyAmount? Runs { get; init; }
 }
 
 /// <summary>
@@ -736,7 +1514,7 @@ public sealed class QuotaTime
 	/// <summary>
 	/// How many minutes it takes each period.
 	/// </summary>
-	public required FamilyAmount Minutes { get; init; }
+	public required FamilyDuration Minutes { get; init; }
 
 	/// <summary>
 	/// The most minutes spent on it at once, before deciding again what to do.
@@ -744,39 +1522,6 @@ public sealed class QuotaTime
 	public required int Shift { get; init; }
 }
 
-/// <summary>
-/// A quota measured in trips to the place the need is met.
-/// </summary>
-public sealed class QuotaTrips
-{
-	/// <summary>
-	/// How many trips it takes each period. The total is rounded up.
-	/// </summary>
-	public required FamilyAmount Visits { get; init; }
-
-	/// <summary>
-	/// How many minutes each trip takes once the person gets there.
-	/// </summary>
-	public required FamilyAmount Minutes { get; init; }
-
-	/// <summary>
-	/// The time each trip takes at home afterward, such as hanging up washing, for a need that returns home.
-	/// </summary>
-	public QuotaTripHome? Home { get; init; }
-}
-
-/// <summary>
-/// The time each trip takes at home afterward.
-/// </summary>
-public sealed class QuotaTripHome
-{
-	public required FamilyAmount Minutes { get; init; }
-
-	/// <summary>
-	/// What someone is shown to be doing during that time, such as "Hanging out the washing". Defaults to the need's activity.
-	/// </summary>
-	public string? Activity { get; init; }
-}
 
 /// <summary>
 /// How a need grows.
@@ -789,7 +1534,7 @@ public enum NeedKind
 	Level,
 
 	/// <summary>
-	/// A quota of time or trips to spend on something each day or week within certain hours, such as work or fetching
+	/// A quota of time or runs to spend on something each day or week within certain hours, such as work or fetching
 	/// water, which grows more urgent as time runs out.
 	/// </summary>
 	Quota,
@@ -823,6 +1568,26 @@ public enum NeedPlace
 	/// A quarter of one of the listed kinds. Nearer quarters are more likely to be chosen.
 	/// </summary>
 	Quarter,
+
+	/// <summary>
+	/// The place a "remember" step remembered, by its name.
+	/// </summary>
+	Remembered,
+
+	/// <summary>
+	/// The home of another household, chosen at random, with nearer homes more likely.
+	/// </summary>
+	OtherHome,
+
+	/// <summary>
+	/// The home of the person the steps last talked with or asked.
+	/// </summary>
+	PartnerHome,
+
+	/// <summary>
+	/// The place of the person's job for the need, taken on by an "ask" step, while it isn't done.
+	/// </summary>
+	JobSite,
 }
 
 /// <summary>
@@ -846,153 +1611,20 @@ public sealed class NeedLevel
 }
 
 /// <summary>
-/// How the player can spend time on a need, with a choice of how long, such as sleeping until rested or for an hour.
-/// </summary>
-public sealed class PlayerAction
-{
-	/// <summary>
-	/// The name of the action, such as "Sleep".
-	/// </summary>
-	public required string Title { get; init; }
-
-	/// <summary>
-	/// The start of the sentence telling the player what they did, followed by how long it took, such as "You slept".
-	/// </summary>
-	public required string Result { get; init; }
-
-	/// <summary>
-	/// The choices of how long to spend, for a need whose quota isn't measured in trips. A trip always spends one trip's
-	/// time at the place.
-	/// </summary>
-	public IReadOnlyList<PlayerActionOption> Options { get; init; } = [];
-
-	/// <summary>
-	/// For a trip that returns home, what to tell the player once they've spent the trip's time at the place, such as
-	/// "Take it home to finish."
-	/// </summary>
-	public LongText? Return { get; init; }
-
-	/// <summary>
-	/// For a trip that returns home, the action at home that finishes it, once the player has been to the place.
-	/// </summary>
-	public PlayerActionHome? Home { get; init; }
-
-	/// <summary>
-	/// For a quota need, whether the player can only do it within the need's hours on its days, such as shopping at a
-	/// market that's only open then. Otherwise they can do it at any hour of its days. While it's closed, the player is
-	/// told when it's open instead.
-	/// </summary>
-	public bool OnlyInHours { get; init; }
-
-	internal IEnumerable<string> Validate(string path, bool isQuota, bool isTrips, bool isReturnHome)
-	{
-		if (OnlyInHours && !isQuota)
-			yield return OurResources.PlayerActionSettingNotAllowed.FormatCurrentCulture($"{path}.onlyInHours");
-		if (string.IsNullOrWhiteSpace(Title))
-			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.title");
-		if (string.IsNullOrWhiteSpace(Result))
-			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.result");
-		if (isTrips && Options.Count != 0)
-			yield return OurResources.PlayerActionSettingNotAllowed.FormatCurrentCulture($"{path}.options");
-		else if (!isTrips && Options.Count == 0)
-			yield return OurResources.DataListEmpty.FormatCurrentCulture($"{path}.options");
-
-		var isReturnTrip = isTrips && isReturnHome;
-		if (isReturnTrip && string.IsNullOrWhiteSpace(Return?.Text))
-			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.return");
-		else if (!isReturnTrip && Return is not null)
-			yield return OurResources.PlayerActionSettingNotAllowed.FormatCurrentCulture($"{path}.return");
-		if (isReturnTrip && Home is null)
-			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.home");
-		else if (!isReturnTrip && Home is not null)
-			yield return OurResources.PlayerActionSettingNotAllowed.FormatCurrentCulture($"{path}.home");
-		if (Home is { } home)
-		{
-			if (string.IsNullOrWhiteSpace(home.Title))
-				yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.home.title");
-			if (string.IsNullOrWhiteSpace(home.Result))
-				yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.home.result");
-		}
-
-		for (var index = 0; index < Options.Count; index++)
-		{
-			var optionPath = $"{path}.options[{index}]";
-			if (Options[index] is not { } option)
-			{
-				yield return OurResources.DataListItemEmpty.FormatCurrentCulture($"{path}.options");
-			}
-			else
-			{
-				if ((option.UntilMet ? 1 : 0) + (option.UntilHour is null ? 0 : 1) + (option.Minutes is null ? 0 : 1) != 1)
-					yield return OurResources.PlayerActionOptionInvalid.FormatCurrentCulture(optionPath);
-				if (option.Title is null ? option.Minutes is null : string.IsNullOrWhiteSpace(option.Title))
-					yield return OurResources.DataValueMissing.FormatCurrentCulture($"{optionPath}.title");
-				if (option.UntilHour is { } hour && hour is < 0 or > 23)
-					yield return OurResources.ScheduleHourInvalid.FormatCurrentCulture($"{optionPath}.untilHour", hour, 23);
-				if (option.Minutes is { } minutes && minutes <= 0)
-					yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"{optionPath}.minutes", minutes);
-			}
-		}
-	}
-}
-
-/// <summary>
-/// The action at home that finishes a trip, such as putting away the water.
-/// </summary>
-public sealed class PlayerActionHome
-{
-	public required string Title { get; init; }
-
-	/// <summary>
-	/// The start of the sentence telling the player what they did, such as "You put away the water", followed by how long
-	/// it took if it took any time.
-	/// </summary>
-	public required string Result { get; init; }
-}
-
-/// <summary>
-/// How long the player spends on a player action: until the need is met (a level need's level is 0, or a quota need's
-/// quota is met), until the next time it's a given hour, or for a number of minutes. It has exactly one of these.
-/// </summary>
-public sealed class PlayerActionOption
-{
-	/// <summary>
-	/// What the option is called, such as "Until rested". Without it, an option for a number of minutes is called by how
-	/// long it takes.
-	/// </summary>
-	public string? Title { get; init; }
-
-	public bool UntilMet { get; init; }
-
-	public int? UntilHour { get; init; }
-
-	public int? Minutes { get; init; }
-}
-
-/// <summary>
-/// How long people take over their clothes: changing into or out of work clothes, and the washing drying once it's hung
-/// out.
+/// How long people take over their clothes.
 /// </summary>
 public sealed class ClothingSchedule
 {
 	/// <summary>
-	/// How many minutes changing clothes takes, other than changing into or out of work clothes as part of starting or
-	/// stopping work, which takes no time.
+	/// How many minutes changing clothes takes.
 	/// </summary>
-	public required int ChangeMinutes { get; init; }
-
-	/// <summary>
-	/// How many minutes after the washing is hung out it's dry and can be worn again.
-	/// </summary>
-	public required int DryingMinutes { get; init; }
+	public required Duration ChangeMinutes { get; init; }
 
 	internal IEnumerable<string> Validate()
 	{
 		const string path = $"{ScheduleSettings.SectionName}.clothing";
 		if (ChangeMinutes < 1)
-			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.changeMinutes", ChangeMinutes, 1);
-		if (DryingMinutes < 0)
-			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.dryingMinutes", DryingMinutes, 0);
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.changeMinutes", ChangeMinutes.Minutes, 1);
 	}
 }
 
@@ -1003,7 +1635,7 @@ public sealed class IdleSettings
 {
 	public required SchedulePlace Place { get; init; }
 
-	public required IntegerRange Minutes { get; init; }
+	public required DurationRange Minutes { get; init; }
 
 	/// <summary>
 	/// What someone idle is shown to be doing, such as "Resting". Without it, nothing is shown.
@@ -1025,7 +1657,7 @@ public sealed class SleepSettings
 	/// <summary>
 	/// How long a nap lasts.
 	/// </summary>
-	public required IntegerRange NapMinutes { get; init; }
+	public required DurationRange NapMinutes { get; init; }
 
 	/// <summary>
 	/// Sleep grows urgent once the time before someone's next work hours, less the sleep they still need, drops below this
@@ -1046,7 +1678,7 @@ public sealed class SleepSettings
 		foreach (var error in CharacterData.ValidateRange($"{path}.napMinutes", NapMinutes))
 			yield return error;
 		if (NapMinutes.Minimum < 1)
-			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.napMinutes.minimum", NapMinutes.Minimum, 1);
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.napMinutes.minimum", NapMinutes.Minimum.Minutes, 1);
 		if (BedtimeLead < 1)
 			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.bedtimeLead", BedtimeLead, 1);
 		if (!(DayClothesFactor > 0))
@@ -1064,7 +1696,7 @@ public sealed class SocializingSettings
 	/// <summary>
 	/// How long a chat with a friend takes.
 	/// </summary>
-	public required int ChatMinutes { get; init; }
+	public required Duration ChatMinutes { get; init; }
 
 	/// <summary>
 	/// How willing someone must be to stop and chat with a friend they meet: their socializing urgency, times their
@@ -1091,11 +1723,6 @@ public sealed class SocializingSettings
 	/// What socializing's urgency is multiplied by when choosing a goal, so seeking out friends gives way to other goals.
 	/// </summary>
 	public required double SeekFactor { get; init; }
-
-	/// <summary>
-	/// How long someone seeking a friend looks around a place before choosing what to do again.
-	/// </summary>
-	public required int SeekMinutes { get; init; }
 
 	/// <summary>
 	/// Someone talked with this many hours ago is half as likely to be sought out as someone not talked with lately.
@@ -1125,10 +1752,8 @@ public sealed class SocializingSettings
 			if (!(value > 0) || !double.IsFinite(value))
 				yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.{name}", value);
 		}
-		if (SeekMinutes < 1)
-			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.seekMinutes", SeekMinutes, 1);
 		if (ChatMinutes < 1)
-			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.chatMinutes", ChatMinutes, 1);
+			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.chatMinutes", ChatMinutes.Minutes, 1);
 	}
 }
 
@@ -1170,6 +1795,12 @@ public sealed class TalkingSettings
 	public required double RefuseUrgency { get; init; }
 
 	/// <summary>
+	/// Someone asked to spend time with the one asking (an "ask" step's <see cref="Step.ForMinutes"/>) only says yes if
+	/// none of their needs would be at least this urgent by the end of that time.
+	/// </summary>
+	public required double AgreeUrgency { get; init; }
+
+	/// <summary>
 	/// How much someone woken up to talk has their sleep need rise.
 	/// </summary>
 	public required double WakeLevel { get; init; }
@@ -1177,12 +1808,12 @@ public sealed class TalkingSettings
 	/// <summary>
 	/// How long it takes to ask someone whether they've seen a person.
 	/// </summary>
-	public required int AskAboutMinutes { get; init; }
+	public required Duration AskAboutMinutes { get; init; }
 
 	/// <summary>
 	/// How long it takes to ask someone what they're doing.
 	/// </summary>
-	public required int AskDoingMinutes { get; init; }
+	public required Duration AskDoingMinutes { get; init; }
 }
 
 /// <summary>

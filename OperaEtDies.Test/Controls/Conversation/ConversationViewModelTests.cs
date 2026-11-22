@@ -1,5 +1,6 @@
 using GoldenAnvil.Utility;
 using OperaEtDies.Controls.Conversation;
+using OperaEtDies.Data;
 using OperaEtDies.GameState;
 using OperaEtDies.Test.GameState;
 
@@ -29,6 +30,36 @@ public sealed class ConversationViewModelTests
 
 		viewModel.Socialize();
 		Assert.That(viewModel.Lines[^1], Does.StartWith(OurResources.ConversationSocialized.FormatCurrentCulture(person.FullName, "")[..^2]));
+	}
+
+	[Test]
+	public void TheNextAskStepCanBeAsked()
+	{
+		var (world, person) = TalkingTests.CreateWorldWithSomeoneHere();
+		var viewModel = new ConversationViewModel(person, world);
+		Assert.That((viewModel.AskStepText, viewModel.CanAskStep()), Is.EqualTo(((string?) null, false)));
+
+		// With an "ask" step next, its title is a button, and asking says its text and the answer.
+		var need = new Need
+		{
+			Id = "errand", Title = "Errand", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			StepSettings =
+			[
+				new Step
+				{
+					Kind = StepKind.Ask, With = StepTarget.Anyone, Name = "agreed", Minutes = TestData.Amount(5), Chance = new StepChance { Base = 100 },
+					Player = new StepPlayer { Title = "Offer help", Text = TestData.Text("Can I help?") },
+				},
+			],
+		};
+		need.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);
+		Scheduler.StartSequence(world.Player, need, 0, null, [], null);
+		Assert.That(viewModel.AskStepText, Is.EqualTo(OurResources.ConversationAskStep.FormatCurrentCulture("Offer help", "5 minutes")));
+
+		viewModel.AskStep();
+
+		Assert.That(viewModel.Lines, Is.EqualTo(new[] { "Can I help?", OurResources.ConversationAgreed.FormatCurrentCulture(person.FullName) }));
+		Assert.That(viewModel.AskStepText, Is.Null);
 	}
 
 	[Test]

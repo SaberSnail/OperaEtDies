@@ -17,7 +17,7 @@ public sealed class ModLoadingTests
 			{
 				// Comments are allowed.
 				"professions": [
-					{ "id": "smith", "title": "Smith", "business": { "wealth": "high", "worksFromHome": true } },
+					{ "id": "smith", "title": "Smith", "business": { "wealth": "high" } },
 				],
 			}
 			""");
@@ -75,7 +75,7 @@ public sealed class ModLoadingTests
 	{
 		var document = DataDocument.Read(m_dataDirectory, []).Value!;
 
-		var error = document.CreateError(OurResources.ProfessionLocationsMissing.FormatCurrentCulture("smith"));
+		var error = document.CreateError(OurResources.ProfessionElderTradeNotFromHome.FormatCurrentCulture("smith"));
 
 		Assert.That(Path.GetFileName(error.FilePath), Is.EqualTo("Trades.json"));
 	}
@@ -85,7 +85,7 @@ public sealed class ModLoadingTests
 	{
 		var first = WriteMod("First", "Any.json", """
 			[
-				{ "op": "insert", "path": "professions", "value": { "id": "baker", "title": "Baker", "business": { "wealth": "low", "worksFromHome": true } } },
+				{ "op": "insert", "path": "professions", "value": { "id": "baker", "title": "Baker", "business": { "wealth": "low" } } },
 			]
 			""");
 		var second = WriteMod("Second", "Other.json", """[ { "op": "set", "path": "professions[baker].business.wealth", "value": "medium" } ]""");
@@ -94,16 +94,6 @@ public sealed class ModLoadingTests
 
 		Assert.That(professions.Select(x => x.Id), Is.EqualTo(new[] { "smith", "baker" }));
 		Assert.That(professions[1].Wealth!.Value.Level, Is.EqualTo(WealthLevel.Medium));
-	}
-
-	[Test]
-	public void ModDataIsMergedIn()
-	{
-		var mod = WriteMod("Mod", "Baker.json", """{ "professions": [ { "id": "baker", "title": "Baker" } ] }""");
-
-		var professions = ReadProfessions(DataDocument.Read(m_dataDirectory, [mod]));
-
-		Assert.That(professions.Select(x => x.Id), Is.EqualTo(new[] { "smith", "baker" }));
 	}
 
 	[Test]
@@ -176,7 +166,7 @@ public sealed class ModLoadingTests
 		File.WriteAllText(Path.Combine(m_dataDirectory, "Baker.json"), """
 			{
 				"professions": [
-					{ "id": "baker", "Comments": "Bread.", "title": "Baker", "business": { "comments": "Small.", "wealth": "low", "worksFromHome": true } }
+					{ "id": "baker", "Comments": "Bread.", "title": "Baker", "business": { "comments": "Small.", "wealth": "low" } }
 				],
 				"game": { "comments": "The game." }
 			}

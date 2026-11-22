@@ -37,6 +37,7 @@ public sealed class CharacterProperty : IIdentified
 	/// <summary>
 	/// For value list properties, the values the property can have.
 	/// </summary>
+	[AllowedFor(nameof(Type), CharacterPropertyType.ValueList)]
 	public IReadOnlyList<CharacterPropertyOption>? Values { get; init; }
 
 	/// <summary>
@@ -47,27 +48,32 @@ public sealed class CharacterProperty : IIdentified
 	/// <summary>
 	/// For value list properties, weights the values by their order instead of by their frequencies.
 	/// </summary>
+	[AllowedFor(nameof(Type), CharacterPropertyType.ValueList)]
 	public WeightShape? Shape { get; init; }
 
 	/// <summary>
 	/// For value list properties, whether the values are listed in alphabetical order of their titles when choosing
 	/// one, instead of the order they're defined in. It doesn't change how values are chosen at random.
 	/// </summary>
+	[AllowedFor(nameof(Type), CharacterPropertyType.ValueList)]
 	public bool SortByTitle { get; init; }
 
 	/// <summary>
 	/// For integer properties, the range used unless a role replaces it.
 	/// </summary>
+	[AllowedFor(nameof(Type), CharacterPropertyType.Integer)]
 	public IntegerRange? Range { get; init; }
 
 	/// <summary>
 	/// For integer properties, named parts of the numbers that conditions can use like values.
 	/// </summary>
+	[AllowedFor(nameof(Type), CharacterPropertyType.Integer)]
 	public IReadOnlyList<IntegerGroup>? Groups { get; init; }
 
 	/// <summary>
 	/// For string properties, the default values used unless a role replaces them.
 	/// </summary>
+	[AllowedFor(nameof(Type), CharacterPropertyType.String)]
 	public StringDefaults? Defaults { get; init; }
 
 	/// <summary>

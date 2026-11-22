@@ -17,12 +17,25 @@ public sealed class QuarterKind : IIdentified
 	public required MapArea Area { get; init; }
 
 	/// <summary>
-	/// Whether every town has exactly one quarter of this kind, such as the village square, so events can refer to it.
+	/// How many quarters of this kind a town has, such as exactly one village square, or at least one field, or null for
+	/// no limits.
 	/// </summary>
-	public bool Unique { get; init; }
+	public QuarterCount? Count { get; init; }
 
 	/// <summary>
-	/// For a unique kind, what makes the quarter optional, such as a well in a town with a river.
+	/// The fewest quarters of this kind every town has (unless they're optional).
+	/// </summary>
+	[JsonIgnore]
+	public int MinCount => Count?.Min ?? 0;
+
+	/// <summary>
+	/// The most quarters of this kind a town has, or null for no limit.
+	/// </summary>
+	[JsonIgnore]
+	public int? MaxCount => Count?.Max;
+
+	/// <summary>
+	/// For a kind with a minimum count, what makes its quarters optional, such as a well in a town with a river.
 	/// </summary>
 	public QuarterKindOptional? Optional { get; init; }
 
@@ -78,7 +91,8 @@ public sealed class TownLayoutChoice : IIdentified, IHasFrequency
 	public required LayoutShape Shape { get; init; }
 
 	/// <summary>
-	/// The id of the unique village quarter kind the shape is built around, such as the village square.
+	/// The id of the village quarter kind every town has exactly one of, which the shape is built around, such as the
+	/// village square.
 	/// </summary>
 	public required string Center { get; init; }
 
@@ -122,7 +136,24 @@ public sealed class QuarterSize
 }
 
 /// <summary>
-/// What makes a unique kind of quarter optional: a town with the feature only has a quarter of the kind some of the time.
+/// How many quarters of a kind a town has: at least the minimum, and at most the maximum.
+/// </summary>
+public sealed class QuarterCount
+{
+	/// <summary>
+	/// The fewest quarters of the kind every town has, or null for none.
+	/// </summary>
+	public int? Min { get; init; }
+
+	/// <summary>
+	/// The most quarters of the kind a town has, or null for no limit.
+	/// </summary>
+	public int? Max { get; init; }
+}
+
+/// <summary>
+/// What makes the quarters a kind must have optional: a town with the feature only has the kind's minimum number of
+/// quarters some of the time.
 /// </summary>
 public sealed class QuarterKindOptional
 {

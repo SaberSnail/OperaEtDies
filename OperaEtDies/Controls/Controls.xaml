@@ -9,6 +9,7 @@
 		<ResourceDictionary Source="Locations/LocationView.xaml" />
 		<ResourceDictionary Source="ManageMods/ManageModsView.xaml" />
 		<ResourceDictionary Source="Map/TownMapView.xaml" />
+		<ResourceDictionary Source="Start/StartScreenView.xaml" />
 		<ResourceDictionary Source="NewGame/NewGameView.xaml" />
 		<ResourceDictionary Source="Status/StatusView.xaml" />
 		<ResourceDictionary Source="Villagers/VillagersView.xaml" />

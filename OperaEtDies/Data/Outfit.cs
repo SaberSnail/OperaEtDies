@@ -30,6 +30,7 @@ public sealed class Outfit : IIdentified, IHasFrequency
 	/// For work clothes, whether they're a complete set of clothes worn on their own, such as a uniform, rather than going
 	/// over what someone is already wearing.
 	/// </summary>
+	[AllowedFor(nameof(Kind), OutfitKind.Work)]
 	public bool Complete { get; init; }
 }
 
@@ -52,4 +53,10 @@ public enum OutfitKind
 	/// Worn while sleeping at home.
 	/// </summary>
 	Night,
+
+	/// <summary>
+	/// What someone has on when they'd otherwise wear nothing, such as for swimming or bathing: nothing at all, or only
+	/// a little, such as a loincloth. It's always complete, and everyone has one.
+	/// </summary>
+	Nothing,
 }

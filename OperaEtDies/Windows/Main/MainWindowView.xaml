@@ -43,7 +43,7 @@
 					TextTrimming="CharacterEllipsis"
 					ToolTip="{Binding Player.Name}" />
 
-				<!--  The date, any festival or other special day, and the time of day.  -->
+				<!--  The date, any festival or other special day, the time of day, and the next appointment.  -->
 				<TextBlock
 					Width="204"
 					Margin="0,16,0,0"
@@ -64,6 +64,14 @@
 					Foreground="{DynamicResource FontLightBrush}"
 					Text="{Binding TimeOfDay}"
 					TextAlignment="Center" />
+				<!--  The player's next appointment. The line is kept when there's none, so nothing below it moves.  -->
+				<TextBlock
+					Width="204"
+					Margin="0,2,0,0"
+					Text="{Binding NextAppointment}"
+					TextAlignment="Center"
+					TextTrimming="CharacterEllipsis"
+					ToolTip="{Binding NextAppointment}" />
 
 				<!--  How the player is doing with the needs shown to them, such as fatigue.  -->
 				<ItemsControl
@@ -77,6 +85,14 @@
 					</ItemsControl.ItemTemplate>
 				</ItemsControl>
 
+				<!--  Starting something, as anyone else choosing a goal would.  -->
+				<Button
+					Width="120"
+					Height="32"
+					Margin="0,0,0,8"
+					HorizontalAlignment="Left"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleStart}"
+					Content="{x:Static operaEtDies:OurResources.ViewStart}" />
 				<Button
 					Width="120"
 					Height="32"

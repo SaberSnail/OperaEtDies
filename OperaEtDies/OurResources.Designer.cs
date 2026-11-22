@@ -1312,15 +1312,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The location &quot;{0}&quot; is for the profession &quot;{1}&quot;, which works from home, so it can't have business locations..
-        /// </summary>
-        public static string BusinessProfessionWorksFromHome {
-            get {
-                return ResourceManager.GetString("BusinessProfessionWorksFromHome", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to &quot;{0}&quot; is &quot;{1}&quot;, but there is no {2} character property with that id..
         /// </summary>
         public static string FamilyPropertyInvalid {
@@ -1438,7 +1429,7 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The profession &quot;{0}&quot; is for household elders, so it must work from home..
+        ///   Looks up a localized string similar to The profession &quot;{0}&quot; is for household elders, who work from home, so it can&apos;t have locations in &quot;businesses&quot;..
         /// </summary>
         public static string ProfessionElderTradeNotFromHome {
             get {
@@ -1618,7 +1609,7 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The &quot;{0}&quot; layout is built around &quot;{1}&quot;, but that isn't a unique quarter kind in the village that every town has..
+        ///   Looks up a localized string similar to The "{0}" layout is built around "{1}", but that isn't a village quarter kind that every town has exactly one of..
         /// </summary>
         public static string LayoutCenterInvalid {
             get {
@@ -1627,11 +1618,11 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The quarter kind &quot;{0}&quot; is unique, so at least one quarter must be of that kind..
+        ///   Looks up a localized string similar to The quarter kind "{0}" has a minimum count, so at least one quarter that doesn't border a map feature must be of that kind..
         /// </summary>
-        public static string QuarterKindUniqueMissing {
+        public static string QuarterKindMinimumMissing {
             get {
-                return ResourceManager.GetString("QuarterKindUniqueMissing", resourceCulture);
+                return ResourceManager.GetString("QuarterKindMinimumMissing", resourceCulture);
             }
         }
         
@@ -1798,11 +1789,11 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The quarter kind &quot;{0}&quot; is unique, so its quarters can't border a map feature..
+        ///   Looks up a localized string similar to The quarter kind "{0}" has a minimum count, so it can't border a map feature..
         /// </summary>
-        public static string QuarterKindUniqueBorders {
+        public static string QuarterKindMinimumBorders {
             get {
-                return ResourceManager.GetString("QuarterKindUniqueBorders", resourceCulture);
+                return ResourceManager.GetString("QuarterKindMinimumBorders", resourceCulture);
             }
         }
         
@@ -2527,15 +2518,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The need "{0}" can't have "{1}", since it's a {2} need..
-        /// </summary>
-        public static string NeedSettingNotAllowed {
-            get {
-                return ResourceManager.GetString("NeedSettingNotAllowed", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to "{0}" has "{1}", but it isn't in the "{2}" list..
         /// </summary>
         public static string DataIdUnknown {
@@ -2671,11 +2653,11 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The quarter kind "{0}" has "optionalWith", but only unique kinds can be optional..
+        ///   Looks up a localized string similar to The quarter kind "{0}" has "optional", but only kinds with a minimum count can be optional..
         /// </summary>
-        public static string QuarterKindOptionalNotUnique {
+        public static string QuarterKindOptionalNoMinimum {
             get {
-                return ResourceManager.GetString("QuarterKindOptionalNotUnique", resourceCulture);
+                return ResourceManager.GetString("QuarterKindOptionalNoMinimum", resourceCulture);
             }
         }
         
@@ -2685,15 +2667,6 @@ namespace OperaEtDies {
         public static string NeedPerMemberNotShared {
             get {
                 return ResourceManager.GetString("NeedPerMemberNotShared", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The need "{0}" is measured in trips, so each trip must take at least a minute at the place for one person..
-        /// </summary>
-        public static string NeedVisitMinutesNotPositive {
-            get {
-                return ResourceManager.GetString("NeedVisitMinutesNotPositive", resourceCulture);
             }
         }
         
@@ -2734,15 +2707,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to "{0}" must have exactly one of "untilMet", "untilHour", and "minutes"..
-        /// </summary>
-        public static string PlayerActionOptionInvalid {
-            get {
-                return ResourceManager.GetString("PlayerActionOptionInvalid", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to {0} ({1}).
         /// </summary>
         public static string PlayerActionOptionText {
@@ -2757,15 +2721,6 @@ namespace OperaEtDies {
         public static string PlayerActionResult {
             get {
                 return ResourceManager.GetString("PlayerActionResult", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Things to do here.
-        /// </summary>
-        public static string ActionsHeader {
-            get {
-                return ResourceManager.GetString("ActionsHeader", resourceCulture);
             }
         }
         
@@ -2869,7 +2824,7 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to "{0}" is only allowed for a need it fits: "options" for a need whose quota isn't measured in trips, "return" and "home" for a trip that returns home, and "onlyInHours" for a quota need..
+        ///   Looks up a localized string similar to "{0}" is only allowed for a step it fits: "title" and "result" for any step but "goTo", and "text" for a "goTo" or "ask" step..
         /// </summary>
         public static string PlayerActionSettingNotAllowed {
             get {
@@ -2883,15 +2838,6 @@ namespace OperaEtDies {
         public static string DeveloperGoal {
             get {
                 return ResourceManager.GetString("DeveloperGoal", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to {0} at {1}, then home.
-        /// </summary>
-        public static string DeveloperGoalThenHome {
-            get {
-                return ResourceManager.GetString("DeveloperGoalThenHome", resourceCulture);
             }
         }
         
@@ -3054,15 +3000,6 @@ namespace OperaEtDies {
         public static string OpeningHoursDaySeparator {
             get {
                 return ResourceManager.GetString("OpeningHoursDaySeparator", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Finish.
-        /// </summary>
-        public static string PlayerActionFinish {
-            get {
-                return ResourceManager.GetString("PlayerActionFinish", resourceCulture);
             }
         }
         
@@ -3814,7 +3751,7 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Expected "home", "workplace", or an object with "quarterKinds"..
+        ///   Looks up a localized string similar to Expected "home", "workplace", "otherHome", "partnerHome", or an object with either "quarterKinds" or "remembered"..
         /// </summary>
         public static string SchedulePlaceInvalid {
             get {
@@ -3859,7 +3796,7 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The quota of the need "{0}" must have exactly one of "time" and "trips"..
+        ///   Looks up a localized string similar to The quota of the need "{0}" must have exactly one of "time" and "runs"..
         /// </summary>
         public static string NeedQuotaMeasureInvalid {
             get {
@@ -3913,15 +3850,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The need "{0}" has time at home after each trip, but it doesn't return home..
-        /// </summary>
-        public static string NeedHomeMinutesWithoutReturn {
-            get {
-                return ResourceManager.GetString("NeedHomeMinutesWithoutReturn", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to The profession "{0}" has the "{1}" role, so it can't have "business"..
         /// </summary>
         public static string ProfessionNotBusiness {
@@ -3945,15 +3873,6 @@ namespace OperaEtDies {
         public static string BusinessProfessionUnknown {
             get {
                 return ResourceManager.GetString("BusinessProfessionUnknown", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The profession "{0}" must have at least one location in "businesses", unless it works from home..
-        /// </summary>
-        public static string ProfessionLocationsMissing {
-            get {
-                return ResourceManager.GetString("ProfessionLocationsMissing", resourceCulture);
             }
         }
         
@@ -4126,24 +4045,7 @@ namespace OperaEtDies {
                 return ResourceManager.GetString("ClothingChanged", resourceCulture);
             }
         }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to In the wash.
-        /// </summary>
-        public static string ClothingInWash {
-            get {
-                return ResourceManager.GetString("ClothingInWash", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Drying until {0}.
-        /// </summary>
-        public static string ClothingDrying {
-            get {
-                return ResourceManager.GetString("ClothingDrying", resourceCulture);
-            }
-        }
+
         
         /// <summary>
         ///   Looks up a localized string similar to Everyday clothes.
@@ -4171,24 +4073,7 @@ namespace OperaEtDies {
                 return ResourceManager.GetString("OutfitNight", resourceCulture);
             }
         }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Some of it is in the wash.
-        /// </summary>
-        public static string OutfitInWash {
-            get {
-                return ResourceManager.GetString("OutfitInWash", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Some of it is still drying.
-        /// </summary>
-        public static string OutfitDrying {
-            get {
-                return ResourceManager.GetString("OutfitDrying", resourceCulture);
-            }
-        }
+
         
         /// <summary>
         ///   Looks up a localized string similar to Wearing.
@@ -4406,5 +4291,1480 @@ namespace OperaEtDies {
             }
         }
 
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" isn't allowed for a "{1}" step..
+        /// </summary>
+        public static string StepSettingNotAllowed {
+            get {
+                return ResourceManager.GetString("StepSettingNotAllowed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is needed for a "{1}" step..
+        /// </summary>
+        public static string StepSettingMissing {
+            get {
+                return ResourceManager.GetString("StepSettingMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is only allowed in a need whose quota is measured in time..
+        /// </summary>
+        public static string StepMeetsQuotaNotAllowed {
+            get {
+                return ResourceManager.GetString("StepMeetsQuotaNotAllowed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is "{1}", but no step before it takes anything into that bundle..
+        /// </summary>
+        public static string StepBundleUnknown {
+            get {
+                return ResourceManager.GetString("StepBundleUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" must have exactly one of "place" and "steps"..
+        /// </summary>
+        public static string NeedPlaceOrSteps {
+            get {
+                return ResourceManager.GetString("NeedPlaceOrSteps", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The steps of the need "{0}" must have at least one "do", "wander", or "seek" step..
+        /// </summary>
+        public static string NeedStepsWithoutDo {
+            get {
+                return ResourceManager.GetString("NeedStepsWithoutDo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The need "{0}" has a "countRun" step, but its quota isn't measured in runs..
+        /// </summary>
+        public static string NeedCountRunNotRuns {
+            get {
+                return ResourceManager.GetString("NeedCountRunNotRuns", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The quota of the need "{0}" is measured in runs, so its steps must have a "countRun" step..
+        /// </summary>
+        public static string NeedRunsWithoutCountRun {
+            get {
+                return ResourceManager.GetString("NeedRunsWithoutCountRun", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The quota of the need "{0}" is measured in time, so at least one of its "do" steps must have "meetsQuota"..
+        /// </summary>
+        public static string NeedTimeWithoutMeetsQuota {
+            get {
+                return ResourceManager.GetString("NeedTimeWithoutMeetsQuota", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The quota of the need "{0}" is measured in runs, so the "do" steps of each run must take at least a minute for one person..
+        /// </summary>
+        public static string NeedRunMinutesNotPositive {
+            get {
+                return ResourceManager.GetString("NeedRunMinutesNotPositive", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} at {1} (step {2} of {3}).
+        /// </summary>
+        public static string DeveloperGoalStep {
+            get {
+                return ResourceManager.GetString("DeveloperGoalStep", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Carried by {0}.
+        /// </summary>
+        public static string ClothingCarriedBy {
+            get {
+                return ResourceManager.GetString("ClothingCarriedBy", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Some of it is carried by someone else.
+        /// </summary>
+        public static string OutfitCarriedByOthers {
+            get {
+                return ResourceManager.GetString("OutfitCarriedByOthers", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The person {0} is partway through the steps of the need "{1}", at a step it doesn't have..
+        /// </summary>
+        public static string SaveStepsInvalid {
+            get {
+                return ResourceManager.GetString("SaveStepsInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is a "repeat" step, which is only allowed in a need whose quota is measured in time..
+        /// </summary>
+        public static string StepRepeatNotAllowed {
+            get {
+                return ResourceManager.GetString("StepRepeatNotAllowed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is a "repeat" step, so the steps it repeats must include a "do" step with "meetsQuota"..
+        /// </summary>
+        public static string StepRepeatWithoutMeetsQuota {
+            get {
+                return ResourceManager.GetString("StepRepeatWithoutMeetsQuota", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} is getting pressing. Keep {1}?.
+        /// </summary>
+        public static string RepeatPromptText {
+            get {
+                return ResourceManager.GetString("RepeatPromptText", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Keep {0}?.
+        /// </summary>
+        public static string RepeatPromptQuestion {
+            get {
+                return ResourceManager.GetString("RepeatPromptQuestion", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Keep going ({0} left).
+        /// </summary>
+        public static string RepeatPromptContinue {
+            get {
+                return ResourceManager.GetString("RepeatPromptContinue", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Stop.
+        /// </summary>
+        public static string RepeatPromptStop {
+            get {
+                return ResourceManager.GetString("RepeatPromptStop", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to You stopped {0}..
+        /// </summary>
+        public static string RepeatPromptStopped {
+            get {
+                return ResourceManager.GetString("RepeatPromptStopped", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is a "wait" step, so it must have exactly one of "minutes" and "untilHour"..
+        /// </summary>
+        public static string StepWaitInvalid {
+            get {
+                return ResourceManager.GetString("StepWaitInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is only allowed in a need with a quota..
+        /// </summary>
+        public static string StepConditionQuotaOnly {
+            get {
+                return ResourceManager.GetString("StepConditionQuotaOnly", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is "{1}", but no step before it remembers a place by that name..
+        /// </summary>
+        public static string StepPlaceUnknown {
+            get {
+                return ResourceManager.GetString("StepPlaceUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" calls the step list "{1}" from within itself..
+        /// </summary>
+        public static string StepListCalledInItself {
+            get {
+                return ResourceManager.GetString("StepListCalledInItself", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is a remembered place or the partner's home, which are only allowed in steps..
+        /// </summary>
+        public static string SchedulePlaceRememberedNotAllowed {
+            get {
+                return ResourceManager.GetString("SchedulePlaceRememberedNotAllowed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The steps of the profession "{0}" must have at least one "do" step..
+        /// </summary>
+        public static string ProfessionStepsWithoutDo {
+            get {
+                return ResourceManager.GetString("ProfessionStepsWithoutDo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The steps of the profession "{0}" replace those of the need "{1}", whose quota is measured in time, so at least one of its "do" or "wander" steps must have "meetsQuota"..
+        /// </summary>
+        public static string ProfessionStepsWithoutMeetsQuota {
+            get {
+                return ResourceManager.GetString("ProfessionStepsWithoutMeetsQuota", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The profession "{0}" has steps, but no need is work (with a step going to "workplace") for them to replace..
+        /// </summary>
+        public static string ProfessionStepsWithoutWork {
+            get {
+                return ResourceManager.GetString("ProfessionStepsWithoutWork", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is where a "wander" step wanders, so it must be a quarter, with "quarterKinds"..
+        /// </summary>
+        public static string StepWanderPlaceInvalid {
+            get {
+                return ResourceManager.GetString("StepWanderPlaceInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" must be from 0 to 100..
+        /// </summary>
+        public static string StepChanceOutOfRange {
+            get {
+                return ResourceManager.GetString("StepChanceOutOfRange", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is "{1}", but no step before it asks a question it remembers by that name..
+        /// </summary>
+        public static string StepAnswerUnknown {
+            get {
+                return ResourceManager.GetString("StepAnswerUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" isn't allowed for a "seek" step looking for friends, which looks wherever its clues say a friend might be..
+        /// </summary>
+        public static string StepSeekFriendsWithPlace {
+            get {
+                return ResourceManager.GetString("StepSeekFriendsWithPlace", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to someone.
+        /// </summary>
+        public static string DeveloperSeekSomeone {
+            get {
+                return ResourceManager.GetString("DeveloperSeekSomeone", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to where such people were seen.
+        /// </summary>
+        public static string DeveloperSeekPeople {
+            get {
+                return ResourceManager.GetString("DeveloperSeekPeople", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to With {0}.
+        /// </summary>
+        public static string PersonFollowing {
+            get {
+                return ResourceManager.GetString("PersonFollowing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to In progress: {0}.
+        /// </summary>
+        public static string PlayerStepsHeader {
+            get {
+                return ResourceManager.GetString("PlayerStepsHeader", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show all steps.
+        /// </summary>
+        public static string PlayerStepsShow {
+            get {
+                return ResourceManager.GetString("PlayerStepsShow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Hide steps.
+        /// </summary>
+        public static string PlayerStepsHide {
+            get {
+                return ResourceManager.GetString("PlayerStepsHide", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Do it for me.
+        /// </summary>
+        public static string PlayerStepsAutomatic {
+            get {
+                return ResourceManager.GetString("PlayerStepsAutomatic", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Have the step you're on done for you, as anyone else would do it..
+        /// </summary>
+        public static string PlayerStepsAutomaticToolTip {
+            get {
+                return ResourceManager.GetString("PlayerStepsAutomaticToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Next: {0}.
+        /// </summary>
+        public static string PlayerStepsNext {
+            get {
+                return ResourceManager.GetString("PlayerStepsNext", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Go home.
+        /// </summary>
+        public static string PlayerStepGoHome {
+            get {
+                return ResourceManager.GetString("PlayerStepGoHome", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Go to {0}.
+        /// </summary>
+        public static string PlayerStepGoTo {
+            get {
+                return ResourceManager.GetString("PlayerStepGoTo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Go somewhere else.
+        /// </summary>
+        public static string PlayerStepGoElsewhere {
+            get {
+                return ResourceManager.GetString("PlayerStepGoElsewhere", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to You finished {0}, which took {1}..
+        /// </summary>
+        public static string PlayerStepsDone {
+            get {
+                return ResourceManager.GetString("PlayerStepsDone", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to You stopped {0} partway, after {1}..
+        /// </summary>
+        public static string PlayerStepsStopped {
+            get {
+                return ResourceManager.GetString("PlayerStepsStopped", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" has no "do" step..
+        /// </summary>
+        public static string StepAppointmentWithoutDo {
+            get {
+                return ResourceManager.GetString("StepAppointmentWithoutDo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" makes another appointment, which an appointment's steps can't..
+        /// </summary>
+        public static string StepAppointmentNested {
+            get {
+                return ResourceManager.GetString("StepAppointmentNested", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The appointment {0} isn't valid: its need has no "ask" step making appointments at {1}, or its people are the same..
+        /// </summary>
+        public static string SaveAppointmentInvalid {
+            get {
+                return ResourceManager.GetString("SaveAppointmentInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Waiting to meet {0}.
+        /// </summary>
+        public static string PersonMeeting {
+            get {
+                return ResourceManager.GetString("PersonMeeting", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Stop.
+        /// </summary>
+        public static string PlayerStepsStop {
+            get {
+                return ResourceManager.GetString("PlayerStepsStop", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Give up what you've started. Anything you're carrying for it stays with you until you get home..
+        /// </summary>
+        public static string PlayerStepsStopToolTip {
+            get {
+                return ResourceManager.GetString("PlayerStepsStopToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to You stopped {0}..
+        /// </summary>
+        public static string PlayerStepsGaveUp {
+            get {
+                return ResourceManager.GetString("PlayerStepsGaveUp", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start.
+        /// </summary>
+        public static string ViewStart {
+            get {
+                return ResourceManager.GetString("ViewStart", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start something.
+        /// </summary>
+        public static string StartTitle {
+            get {
+                return ResourceManager.GetString("StartTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Do it for me.
+        /// </summary>
+        public static string StartAutomatic {
+            get {
+                return ResourceManager.GetString("StartAutomatic", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Have every step carried out for you, walking included, as anyone else would..
+        /// </summary>
+        public static string StartAutomaticToolTip {
+            get {
+                return ResourceManager.GetString("StartAutomaticToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to In progress: {0}. Starting something else puts it on hold..
+        /// </summary>
+        public static string StartInProgress {
+            get {
+                return ResourceManager.GetString("StartInProgress", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start.
+        /// </summary>
+        public static string StartButton {
+            get {
+                return ResourceManager.GetString("StartButton", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Done for today.
+        /// </summary>
+        public static string StartDoneDay {
+            get {
+                return ResourceManager.GetString("StartDoneDay", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Done for this week.
+        /// </summary>
+        public static string StartDoneWeek {
+            get {
+                return ResourceManager.GetString("StartDoneWeek", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Nowhere to go for it.
+        /// </summary>
+        public static string StartNoPlace {
+            get {
+                return ResourceManager.GetString("StartNoPlace", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Take your {0} along.
+        /// </summary>
+        public static string PlayerStepTake {
+            get {
+                return ResourceManager.GetString("PlayerStepTake", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Take the clothes along.
+        /// </summary>
+        public static string PlayerStepTakeClothes {
+            get {
+                return ResourceManager.GetString("PlayerStepTakeClothes", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Change into your {0}.
+        /// </summary>
+        public static string PlayerStepDress {
+            get {
+                return ResourceManager.GetString("PlayerStepDress", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Change out of your {0}.
+        /// </summary>
+        public static string PlayerStepUndress {
+            get {
+                return ResourceManager.GetString("PlayerStepUndress", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Take off everything.
+        /// </summary>
+        public static string PlayerStepTakeOffEverything {
+            get {
+                return ResourceManager.GetString("PlayerStepTakeOffEverything", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Get dressed again.
+        /// </summary>
+        public static string PlayerStepDressAgain {
+            get {
+                return ResourceManager.GetString("PlayerStepDressAgain", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Done, which took {0}..
+        /// </summary>
+        public static string PlayerStepDone {
+            get {
+                return ResourceManager.GetString("PlayerStepDone", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Wait until {0}.
+        /// </summary>
+        public static string PlayerStepWaitUntil {
+            get {
+                return ResourceManager.GetString("PlayerStepWaitUntil", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Wait.
+        /// </summary>
+        public static string PlayerStepWait {
+            get {
+                return ResourceManager.GetString("PlayerStepWait", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Walk around.
+        /// </summary>
+        public static string PlayerStepWander {
+            get {
+                return ResourceManager.GetString("PlayerStepWander", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Look for a friend.
+        /// </summary>
+        public static string PlayerStepSeekFriend {
+            get {
+                return ResourceManager.GetString("PlayerStepSeekFriend", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Look for someone.
+        /// </summary>
+        public static string PlayerStepSeek {
+            get {
+                return ResourceManager.GetString("PlayerStepSeek", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Talk with someone.
+        /// </summary>
+        public static string PlayerStepTalkAnyone {
+            get {
+                return ResourceManager.GetString("PlayerStepTalkAnyone", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Talk with them.
+        /// </summary>
+        public static string PlayerStepTalk {
+            get {
+                return ResourceManager.GetString("PlayerStepTalk", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Ask them to set a time.
+        /// </summary>
+        public static string PlayerStepAskAppointment {
+            get {
+                return ResourceManager.GetString("PlayerStepAskAppointment", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Ask someone.
+        /// </summary>
+        public static string PlayerStepAskAnyone {
+            get {
+                return ResourceManager.GetString("PlayerStepAskAnyone", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Ask them.
+        /// </summary>
+        public static string PlayerStepAsk {
+            get {
+                return ResourceManager.GetString("PlayerStepAsk", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Take them along.
+        /// </summary>
+        public static string PlayerStepLead {
+            get {
+                return ResourceManager.GetString("PlayerStepLead", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} has "{1}", but family can only be "member" or "other"..
+        /// </summary>
+        public static string StepWhoFamilyInvalid {
+            get {
+                return ResourceManager.GetString("StepWhoFamilyInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} ({1}).
+        /// </summary>
+        public static string ConversationAskStep {
+            get {
+                return ResourceManager.GetString("ConversationAskStep", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} agreed..
+        /// </summary>
+        public static string ConversationAgreed {
+            get {
+                return ResourceManager.GetString("ConversationAgreed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} said no..
+        /// </summary>
+        public static string ConversationSaidNo {
+            get {
+                return ResourceManager.GetString("ConversationSaidNo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} agreed to meet at {1} at {2}..
+        /// </summary>
+        public static string ConversationAgreedToMeet {
+            get {
+                return ResourceManager.GetString("ConversationAgreedToMeet", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} today.
+        /// </summary>
+        public static string AppointmentToday {
+            get {
+                return ResourceManager.GetString("AppointmentToday", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} tomorrow.
+        /// </summary>
+        public static string AppointmentTomorrow {
+            get {
+                return ResourceManager.GetString("AppointmentTomorrow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} on {1}.
+        /// </summary>
+        public static string AppointmentOnDay {
+            get {
+                return ResourceManager.GetString("AppointmentOnDay", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} home.
+        /// </summary>
+        public static string AppointmentPlaceHome {
+            get {
+                return ResourceManager.GetString("AppointmentPlaceHome", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0}&apos;s home.
+        /// </summary>
+        public static string AppointmentPlaceNamedHome {
+            get {
+                return ResourceManager.GetString("AppointmentPlaceNamedHome", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to your home.
+        /// </summary>
+        public static string AppointmentPlacePlayerHome {
+            get {
+                return ResourceManager.GetString("AppointmentPlacePlayerHome", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Next: {0}, {1}, at {2}.
+        /// </summary>
+        public static string AppointmentNext {
+            get {
+                return ResourceManager.GetString("AppointmentNext", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to It&apos;s time to set off for your appointment with {0} at {1} ({2})..
+        /// </summary>
+        public static string AppointmentReminder {
+            get {
+                return ResourceManager.GetString("AppointmentReminder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Set off.
+        /// </summary>
+        public static string AppointmentSetOff {
+            get {
+                return ResourceManager.GetString("AppointmentSetOff", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Call it off.
+        /// </summary>
+        public static string AppointmentCallOff {
+            get {
+                return ResourceManager.GetString("AppointmentCallOff", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} gave up waiting for you..
+        /// </summary>
+        public static string AppointmentGaveUp {
+            get {
+                return ResourceManager.GetString("AppointmentGaveUp", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} never came to meet you..
+        /// </summary>
+        public static string AppointmentNeverCame {
+            get {
+                return ResourceManager.GetString("AppointmentNeverCame", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Go to {0}.
+        /// </summary>
+        public static string PlayerStepGoToAppointment {
+            get {
+                return ResourceManager.GetString("PlayerStepGoToAppointment", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Meet {0}.
+        /// </summary>
+        public static string PlayerStepMeet {
+            get {
+                return ResourceManager.GetString("PlayerStepMeet", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Appointments.
+        /// </summary>
+        public static string StatusAppointmentsHeader {
+            get {
+                return ResourceManager.GetString("StatusAppointmentsHeader", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to None.
+        /// </summary>
+        public static string StatusAppointmentsNone {
+            get {
+                return ResourceManager.GetString("StatusAppointmentsNone", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0}: {1} with {2}, at {3}.
+        /// </summary>
+        public static string StatusAppointment {
+            get {
+                return ResourceManager.GetString("StatusAppointment", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Jobs.
+        /// </summary>
+        public static string StatusJobsHeader {
+            get {
+                return ResourceManager.GetString("StatusJobsHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} for {1}, at {2}: {3} left of {4}.
+        /// </summary>
+        public static string StatusJob {
+            get {
+                return ResourceManager.GetString("StatusJob", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to OK.
+        /// </summary>
+        public static string NoticeDismiss {
+            get {
+                return ResourceManager.GetString("NoticeDismiss", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "onFail" must be "next", "stop", an object with "skipTo" and a step's id, or an object with one of those for each cause of failure..
+        /// </summary>
+        public static string StepFailureInvalid {
+            get {
+                return ResourceManager.GetString("StepFailureInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to A length of time must be a whole number of minutes, or text with hours and minutes ("1:30") or days, hours, and minutes ("2:15:35")..
+        /// </summary>
+        public static string DurationInvalid {
+            get {
+                return ResourceManager.GetString("DurationInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to A bundle must be its id, or an object with its "id" and "title"..
+        /// </summary>
+        public static string StepBundleInvalid {
+            get {
+                return ResourceManager.GetString("StepBundleInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is "{1}", but no step of the same need, step list, or appointment has that id..
+        /// </summary>
+        public static string StepSkipToUnknown {
+            get {
+                return ResourceManager.GetString("StepSkipToUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is "{1}", but another step of the same need, step list, or appointment has that id..
+        /// </summary>
+        public static string StepIdDuplicate {
+            get {
+                return ResourceManager.GetString("StepIdDuplicate", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" must match the kind of things the step that took bundle "{1}" took, and be left out for a bundle a "make" step made..
+        /// </summary>
+        public static string StepPutKindMismatch {
+            get {
+                return ResourceManager.GetString("StepPutKindMismatch", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Do it all for me.
+        /// </summary>
+        public static string PlayerStepsDoAll {
+            get {
+                return ResourceManager.GetString("PlayerStepsDoAll", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Have all of it done for you, as anyone else would do it. You're still asked whether to keep going..
+        /// </summary>
+        public static string PlayerStepsDoAllToolTip {
+            get {
+                return ResourceManager.GetString("PlayerStepsDoAllToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Also in progress.
+        /// </summary>
+        public static string PlayerStepsOthersHeader {
+            get {
+                return ResourceManager.GetString("PlayerStepsOthersHeader", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Switch to this, putting what you're doing now on hold..
+        /// </summary>
+        public static string PlayerStepsSwitchToolTip {
+            get {
+                return ResourceManager.GetString("PlayerStepsSwitchToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Choose what to do.
+        /// </summary>
+        public static string PlayerStepChoose {
+            get {
+                return ResourceManager.GetString("PlayerStepChoose", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Or: {0}.
+        /// </summary>
+        public static string PlayerStepOption {
+            get {
+                return ResourceManager.GetString("PlayerStepOption", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to ….
+        /// </summary>
+        public static string PlayerStepOptionSteps {
+            get {
+                return ResourceManager.GetString("PlayerStepOptionSteps", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Put down the {0}.
+        /// </summary>
+        public static string PlayerStepPut {
+            get {
+                return ResourceManager.GetString("PlayerStepPut", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Only from {0} to {1}.
+        /// </summary>
+        public static string PlayerStepOpenHours {
+            get {
+                return ResourceManager.GetString("PlayerStepOpenHours", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Couldn't finish "{0}": {1}..
+        /// </summary>
+        public static string PlayerStepFailed {
+            get {
+                return ResourceManager.GetString("PlayerStepFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to they said no.
+        /// </summary>
+        public static string FailCauseNo {
+            get {
+                return ResourceManager.GetString("FailCauseNo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to there was no one.
+        /// </summary>
+        public static string FailCauseNobody {
+            get {
+                return ResourceManager.GetString("FailCauseNobody", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to there was no way to get there.
+        /// </summary>
+        public static string FailCauseUnreachable {
+            get {
+                return ResourceManager.GetString("FailCauseUnreachable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to what it needed wasn't at hand.
+        /// </summary>
+        public static string FailCauseMissing {
+            get {
+                return ResourceManager.GetString("FailCauseMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to you left before it was done.
+        /// </summary>
+        public static string FailCauseLeft {
+            get {
+                return ResourceManager.GetString("FailCauseLeft", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to something else came up.
+        /// </summary>
+        public static string FailCauseInterrupted {
+            get {
+                return ResourceManager.GetString("FailCauseInterrupted", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to it's outside its hours.
+        /// </summary>
+        public static string FailCauseHours {
+            get {
+                return ResourceManager.GetString("FailCauseHours", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to no one came.
+        /// </summary>
+        public static string FailCauseNoShow {
+            get {
+                return ResourceManager.GetString("FailCauseNoShow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to there was nothing to choose.
+        /// </summary>
+        public static string FailCauseNoOption {
+            get {
+                return ResourceManager.GetString("FailCauseNoOption", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} ({1} things).
+        /// </summary>
+        public static string BundleDescription {
+            get {
+                return ResourceManager.GetString("BundleDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The saved game has step {0} of need "{1}", which has no such step..
+        /// </summary>
+        public static string SaveStepInvalid {
+            get {
+                return ResourceManager.GetString("SaveStepInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Carry on.
+        /// </summary>
+        public static string StartCarryOn {
+            get {
+                return ResourceManager.GetString("StartCarryOn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Stay with {0}.
+        /// </summary>
+        public static string PlayerStepFollow {
+            get {
+                return ResourceManager.GetString("PlayerStepFollow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to In progress: with {0}.
+        /// </summary>
+        public static string PlayerStepsHeaderWith {
+            get {
+                return ResourceManager.GetString("PlayerStepsHeaderWith", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Meeting {0}.
+        /// </summary>
+        public static string AppointmentActivityClient {
+            get {
+                return ResourceManager.GetString("AppointmentActivityClient", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} asks: "{1}".
+        /// </summary>
+        public static string AskRequestText {
+            get {
+                return ResourceManager.GetString("AskRequestText", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} asks you something: {1}.
+        /// </summary>
+        public static string AskRequestTextGeneric {
+            get {
+                return ResourceManager.GetString("AskRequestTextGeneric", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Yes.
+        /// </summary>
+        public static string AskRequestYes {
+            get {
+                return ResourceManager.GetString("AskRequestYes", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No.
+        /// </summary>
+        public static string AskRequestNo {
+            get {
+                return ResourceManager.GetString("AskRequestNo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Call it off.
+        /// </summary>
+        public static string ConversationCallOff {
+            get {
+                return ResourceManager.GetString("ConversationCallOff", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Tell them you're calling off what you're doing together. They carry on without you..
+        /// </summary>
+        public static string ConversationCallOffToolTip {
+            get {
+                return ResourceManager.GetString("ConversationCallOffToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to You told {0} you're calling it off..
+        /// </summary>
+        public static string ConversationCalledOff {
+            get {
+                return ResourceManager.GetString("ConversationCalledOff", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Expected a number of minutes or a duration ("1:30"), or an object with "base", "perMember", or both..
+        /// </summary>
+        public static string FamilyDurationInvalid {
+            get {
+                return ResourceManager.GetString("FamilyDurationInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to For {0}, until your steps put it down.
+        /// </summary>
+        public static string BundleFor {
+            get {
+                return ResourceManager.GetString("BundleFor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Part of {0}.
+        /// </summary>
+        public static string ClothingInBundle {
+            get {
+                return ResourceManager.GetString("ClothingInBundle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to If you say yes, you won't have seen to {0} by then..
+        /// </summary>
+        public static string AskRequestWarning {
+            get {
+                return ResourceManager.GetString("AskRequestWarning", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} would like to talk with you..
+        /// </summary>
+        public static string TalkPromptTextStep {
+            get {
+                return ResourceManager.GetString("TalkPromptTextStep", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Talk ({0}).
+        /// </summary>
+        public static string TalkPromptAcceptStep {
+            get {
+                return ResourceManager.GetString("TalkPromptAcceptStep", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" must have exactly one "meet" step, directly among its steps..
+        /// </summary>
+        public static string StepAppointmentMeetCount {
+            get {
+                return ResourceManager.GetString("StepAppointmentMeetCount", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" has a step before its "meet" step that isn't a "goTo", "take", "put", "make", "dress", "undress", "remember", "choose", or "stop" step..
+        /// </summary>
+        public static string StepAppointmentBeforeMeet {
+            get {
+                return ResourceManager.GetString("StepAppointmentBeforeMeet", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is a "meet" step, which is only allowed directly among an appointment's steps..
+        /// </summary>
+        public static string StepMeetNotAllowed {
+            get {
+                return ResourceManager.GetString("StepMeetNotAllowed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to A sequence of the steps of "{0}" is waiting to set off, but isn't for an appointment..
+        /// </summary>
+        public static string SaveSetOffWithoutAppointment {
+            get {
+                return ResourceManager.GetString("SaveSetOffWithoutAppointment", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Later: with {0}, {1}.
+        /// </summary>
+        public static string PlayerStepsLater {
+            get {
+                return ResourceManager.GetString("PlayerStepsLater", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" can't be set along with "appointment"..
+        /// </summary>
+        public static string StepJobWithAppointment {
+            get {
+                return ResourceManager.GetString("StepJobWithAppointment", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" can't be the job site itself..
+        /// </summary>
+        public static string StepJobPlaceInvalid {
+            get {
+                return ResourceManager.GetString("StepJobPlaceInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The step list "{0}" isn't called by any need or profession, so it's never carried out..
+        /// </summary>
+        public static string StepListNotCalled {
+            get {
+                return ResourceManager.GetString("StepListNotCalled", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The job {0} isn't valid: its people are the same, or its minutes aren't positive..
+        /// </summary>
+        public static string SaveJobInvalid {
+            get {
+                return ResourceManager.GetString("SaveJobInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} until {1}.
+        /// </summary>
+        public static string ClothingNotReady {
+            get {
+                return ResourceManager.GetString("ClothingNotReady", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Not ready.
+        /// </summary>
+        public static string ClothingNotReadyActivity {
+            get {
+                return ResourceManager.GetString("ClothingNotReadyActivity", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Some of it is still {0}.
+        /// </summary>
+        public static string OutfitNotReady {
+            get {
+                return ResourceManager.GetString("OutfitNotReady", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Meet.
+        /// </summary>
+        public static string MapAppointmentMarker {
+            get {
+                return ResourceManager.GetString("MapAppointmentMarker", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}, off {1}.
+        /// </summary>
+        public static string AppointmentPlaceOffQuarter {
+            get {
+                return ResourceManager.GetString("AppointmentPlaceOffQuarter", resourceCulture);
+            }
+        }
     }
 }

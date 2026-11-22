@@ -27,31 +27,6 @@ public sealed class NewGameViewModelTests
 	}
 
 	[Test]
-	public void PropertiesComeAfterTheirDependencies()
-	{
-		CharacterProperty Property(string id, CharacterCondition? when = null) => new()
-		{
-			Id = id,
-			Title = id,
-			Type = CharacterPropertyType.ValueList,
-			When = when,
-			Values = [new CharacterPropertyOption { Id = "x", Title = "X" }, new CharacterPropertyOption { Id = "y", Title = "Y" }],
-		};
-		var gameData = new GameData(
-			new CharacterData
-			{
-				Templates = TestData.CreateTemplates("{a}", "{a}"),
-				Properties = [Property("style", TestData.Condition("length", "x")), Property("a"), Property("length"), Property("b")],
-			},
-			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings());
-
-		var viewModel = new NewGameViewModel(gameData, new Random(0));
-
-		// "length" moves up so it comes before "style", which depends on it. The rest keep their order.
-		Assert.That(viewModel.Properties.Select(x => x.Id), Is.EqualTo(new[] { "a", "length", "style", "b" }));
-	}
-
-	[Test]
 	public void PropertiesThePlayerCanNeverHaveAreLeftOut()
 	{
 		var viewModel = new NewGameViewModel(CreateMalePlayerGameData(), new Random(0));

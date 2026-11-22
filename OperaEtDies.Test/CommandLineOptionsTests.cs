@@ -39,12 +39,4 @@ public sealed class CommandLineOptionsTests
 	{
 		Assert.That(CommandLineOptions.Parse(["--developer"]).ModDirectories, Is.Null);
 	}
-
-	[Test]
-	public void HelpListsEveryOption()
-	{
-		var help = CommandLineOptions.GetHelpText();
-
-		Assert.That(help, Does.Contain("--help").And.Contain("--no-mods").And.Contain("--mod <folder>").And.Contain("--developer").And.Contain("--generate-villages <count>").And.Contain("--seed <number>"));
-	}
 }

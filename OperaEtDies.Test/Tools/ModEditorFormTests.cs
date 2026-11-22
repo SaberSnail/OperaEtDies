@@ -13,7 +13,27 @@ public sealed class ModEditorFormTests
 	public void EveryReferenceIsAFieldTheGameReads()
 	{
 		foreach (var (type, property) in DataReferences.Fields.Keys)
-			Assert.That(DataSchema.GetFields(type).Any(x => x.PropertyName == property && x.DeclaringType == type), Is.True, $"{type.Name}.{property}");
+			Assert.That(DataSchema.GetFields(type).Any(x => x.PropertyName == property), Is.True, $"{type.Name}.{property}");
+	}
+
+	[Test]
+	public void WhoSuggestsFamilyAlongWithTheProperties()
+	{
+		var gameData = (JsonObject) JsonNode.Parse("""{ "properties": [ { "id": "gender", "values": [ { "id": "female" } ] } ] }""")!;
+		var catalog = new IdCatalog(gameData, []);
+
+		// A step's who can also say whether someone is family.
+		foreach (var name in new[] { "values", "notValues" })
+		{
+			var who = DataReferences.Find(DataSchema.GetFields(typeof(StepWho)).Single(x => x.Name == name))!;
+			Assert.That(catalog.GetIds(who.Key!, null), Is.EqualTo(new[] { "gender", StepWho.FamilyKey }), name);
+			Assert.That(catalog.GetIds(who.Value!, StepWho.FamilyKey), Is.EqualTo(new[] { StepWho.FamilyMember, StepWho.FamilyOther }), name);
+			Assert.That(catalog.GetIds(who.Value!, "gender"), Is.EqualTo(new[] { "female" }), name);
+		}
+
+		// Other conditions only suggest the properties.
+		var condition = DataReferences.Find(DataSchema.GetFields(typeof(CharacterCondition)).Single(x => x.Name == "values"))!;
+		Assert.That(catalog.GetIds(condition.Key!, null), Is.EqualTo(new[] { "gender" }));
 	}
 
 	[Test]
@@ -58,6 +78,158 @@ public sealed class ModEditorFormTests
 	public void OperationsNameTheItemsTheyWorkOn(string operation, string ids)
 	{
 		Assert.That(string.Join(",", ModOperations.GetItemIds((JsonObject) JsonNode.Parse(operation)!)), Is.EqualTo(ids));
+	}
+
+	[Test]
+	public void PlacesAreChosenByNameOrAsAQuarter()
+	{
+		var gameData = (JsonObject) JsonNode.Parse("""{ "quarterKinds": [ { "id": "square" }, { "id": "lane" } ] }""")!;
+		var piece = ModPiece.Item("needs", JsonNode.Parse("""{ "id": "n", "steps": [ { "step": "goTo", "place": "home" } ] }"""));
+		JsonNode? changed = null;
+
+		var form = FormViewModel.Create(piece, new IdCatalog(gameData, []), isReadOnly: false, x => changed = x.Value)!;
+		var steps = (ListFieldViewModel) ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "steps");
+		var place = (PlaceFieldViewModel) ((ObjectFieldViewModel) steps.Items[0].Field).Fields.Single(x => x.Label == "place");
+
+		// The named places are offered, along with a quarter and a remembered place.
+		Assert.That(place.Choices, Is.SupersetOf(new[] { "home", "workplace", "otherHome", "partnerHome", PlaceFieldViewModel.QuarterChoice, PlaceFieldViewModel.RememberedChoice }));
+		Assert.That((place.Selected, place.Details), Is.EqualTo(("home", (ObjectFieldViewModel?) null)));
+
+		place.Selected = "workplace";
+		Assert.That(changed?["steps"]?[0]?["place"]?.GetValue<string>(), Is.EqualTo("workplace"));
+
+		// A quarter is an object, whose kinds suggest the quarter kinds.
+		place.Selected = PlaceFieldViewModel.QuarterChoice;
+		Assert.That(changed?["steps"]?[0]?["place"], Is.InstanceOf<JsonObject>());
+		var kinds = (ListFieldViewModel) place.Details!.Fields.Single(x => x.Label == "quarterKinds");
+		kinds.Add();
+		var kind = (TextFieldViewModel) ((ObjectFieldViewModel) kinds.Items[0].Field).Fields.Single(x => x.Label == "quarterKind");
+		Assert.That(kind.Suggestions, Is.EqualTo(new[] { "square", "lane" }));
+	}
+
+	[Test]
+	public void ListItemsCanHaveAnItemAddedAfterThem()
+	{
+		var piece = ModPiece.Item("needs", JsonNode.Parse("""{ "id": "n", "steps": [ { "step": "goTo", "place": "home" }, { "step": "do", "minutes": 5 } ] }"""));
+		JsonNode? changed = null;
+
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: false, x => changed = x.Value)!;
+		var steps = (ListFieldViewModel) ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "steps");
+		steps.Items[0].AddAfter();
+
+		// The new item goes between the two, and starts empty.
+		var list = (JsonArray) changed!["steps"]!;
+		Assert.That(list.Select(x => x?["step"]?.GetValue<string>()), Is.EqualTo(new[] { "goTo", null, "do" }));
+		Assert.That(steps.Items.Select(x => x.Index), Is.EqualTo(new[] { 0, 1, 2 }));
+	}
+
+	[Test]
+	public void IndentLinesSayWhoseFieldsTheyAre()
+	{
+		var piece = ModPiece.Item("needs", JsonNode.Parse("""{ "id": "n", "steps": [ { "step": "repeat", "steps": [ { "step": "do", "minutes": 5 } ] } ] }"""));
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: false, _ => { })!;
+		var steps = (ListFieldViewModel) ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "steps");
+		var repeat = (ObjectFieldViewModel) steps.Items[0].Field;
+		var repeated = (ListFieldViewModel) repeat.Fields.Single(x => x.Label == "steps");
+
+		Assert.That((steps.IndentToolTip, repeat.IndentToolTip, repeated.IndentToolTip), Is.EqualTo(("needs[n].steps", "needs[n].steps[0]", "needs[n].steps[0].steps")));
+	}
+
+	[Test]
+	public void OptionalPropertiesAreHiddenUntilAdded()
+	{
+		var piece = ModPiece.Item("needs", JsonNode.Parse("""{ "id": "n", "steps": [ { "step": "goTo", "place": "home" } ] }"""));
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: false, _ => { })!;
+		ObjectFieldViewModel GetStep() => (ObjectFieldViewModel) ((ListFieldViewModel) ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "steps")).Items[0].Field;
+		var step = GetStep();
+
+		// Only what's set or required shows, and only what a "goTo" step allows can be added.
+		Assert.That(step.VisibleFields.Select(x => x.Label), Is.EqualTo(new[] { "step", "place" }));
+		Assert.That(step.AddableProperties.Select(x => x.Name), Does.Contain("when").And.Contain("player").And.Not.Contain("minutes").And.Not.Contain("withPartner"));
+
+		// An added property shows at the end while it's unset, until the form is built again. That leaves just one that could be added,
+		// which is shown instead of the list.
+		foreach (var name in new[] { "id", "when", "hours", "onFail" })
+			step.AddProperty(name);
+		Assert.That(step.VisibleFields.Select(x => x.Label), Is.EqualTo(new[] { "step", "place", "id", "when", "hours", "onFail", "player" }));
+		Assert.That(step.AddableProperties, Is.Empty);
+		form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: false, _ => { })!;
+		Assert.That(GetStep().VisibleFields.Select(x => x.Label), Is.EqualTo(new[] { "step", "place" }));
+	}
+
+	[Test]
+	public void AddedPropertiesGoLastInTheOrderTheyreAdded()
+	{
+		var piece = ModPiece.Item("needs", JsonNode.Parse("""{ "id": "n", "steps": [ { "step": "do", "minutes": 5 } ] }"""));
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: false, _ => { })!;
+		var step = (ObjectFieldViewModel) ((ListFieldViewModel) ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "steps")).Items[0].Field;
+
+		// Added after the fields already shown, where the list of properties to add is, even once they're set.
+		step.AddProperty("atWork");
+		step.AddProperty("activity");
+		((TextFieldViewModel) step.Fields.Single(x => x.Label == "activity")).Text = "Resting";
+		Assert.That(step.VisibleFields.Select(x => x.Label), Is.EqualTo(new[] { "step", "minutes", "atWork", "activity" }));
+	}
+
+	[Test]
+	public void ChangingAStepsKindChangesWhatItShowsAndOffers()
+	{
+		var piece = ModPiece.Item("needs", JsonNode.Parse("""{ "id": "n", "steps": [ { "step": "goTo", "place": "home" } ] }"""));
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: false, _ => { })!;
+		var step = (ObjectFieldViewModel) ((ListFieldViewModel) ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "steps")).Items[0].Field;
+
+		// A "dress" step requires its outfit, and can change the partner too. The place it has, which it doesn't allow,
+		// still shows so it can be removed.
+		((ChoiceFieldViewModel) step.Fields.Single(x => x.Label == "step")).Selected = "dress";
+		Assert.That(step.VisibleFields.Select(x => x.Label), Is.EqualTo(new[] { "step", "place", "outfit" }));
+		Assert.That(step.AddableProperties.Select(x => x.Name), Does.Contain("withPartner").And.Not.Contain("place").And.Not.Contain("minutes"));
+	}
+
+	[Test]
+	public void WhatANeedOffersDependsOnWhichSettingsItHas()
+	{
+		var piece = ModPiece.Item("needs", JsonNode.Parse("""{ "id": "n", "steps": [ { "step": "do" } ], "quota": { "lead": 30, "time": { "minutes": 60, "shift": 60 } } }"""));
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: false, _ => { })!;
+		var need = (ObjectFieldViewModel) form.Root;
+		var quota = (ObjectFieldViewModel) need.Fields.Single(x => x.Label == "quota");
+
+		// A quota need with steps requires hours, and can't have a level or a place. A quota in time can't be in runs too,
+		// and a daily one can't be overdue.
+		Assert.That(need.VisibleFields.Select(x => x.Label), Does.Contain("hours"));
+		Assert.That(need.AddableProperties.Select(x => x.Name), Does.Not.Contain("level").And.Not.Contain("place").And.Not.Contain("hours"));
+		Assert.That(quota.AddableProperties.Select(x => x.Name), Does.Contain("period").And.Not.Contain("runs").And.Not.Contain("overdueUrgency"));
+		((ChoiceFieldViewModel) quota.Fields.Single(x => x.Label == "period")).Selected = "week";
+		quota.Refresh();
+		Assert.That(quota.AddableProperties.Select(x => x.Name), Does.Contain("overdueUrgency"));
+
+		// The hours of a quota need can have days.
+		var hours = (ObjectFieldViewModel) need.Fields.Single(x => x.Label == "hours");
+		hours.Add();
+		Assert.That(hours.AddableProperties.Select(x => x.Name), Does.Contain("days").And.Contain("onSpecialDays"));
+	}
+
+	[Test]
+	public void ACharacterPropertysRoleSettingsDependOnItsType()
+	{
+		var piece = ModPiece.Item("properties", JsonNode.Parse("""{ "id": "age", "title": "Age", "type": "integer", "player": {} }"""));
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: false, _ => { })!;
+		var player = (ObjectFieldViewModel) ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "player");
+
+		Assert.That(player.AddableProperties, Is.Empty);
+		Assert.That(player.VisibleFields.Select(x => x.Label), Is.EqualTo(new[] { "range" }));
+	}
+
+	[Test]
+	public void ShowingAllPropertiesShowsWhatsAllowed()
+	{
+		var piece = ModPiece.Item("needs", JsonNode.Parse("""{ "id": "n", "steps": [ { "step": "do", "minutes": 5 } ] }"""));
+		var form = FormViewModel.Create(piece, new IdCatalog(null, []), isReadOnly: true, _ => { })!;
+		var step = (ObjectFieldViewModel) ((ListFieldViewModel) ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "steps")).Items[0].Field;
+
+		// Looking at data that can't be changed offers nothing to add.
+		Assert.That(step.AddableProperties, Is.Empty);
+		form.ShowAllProperties = true;
+		Assert.That(step.VisibleFields.Select(x => x.Label), Does.Contain("activity").And.Contain("meetsQuota").And.Not.Contain("place").And.Not.Contain("outfit"));
 	}
 
 	[Test]

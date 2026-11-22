@@ -22,7 +22,8 @@ internal static class TestData
 	/// Creates schedules for the test data: fatigue met at home at night, hunger met at home, restlessness met in the
 	/// square or a landmark, and eight hours of work on the first six days of the week, and shared chores: upkeep at home,
 	/// a trip to the square or a landmark for water for each family member each day, weekly mending, a weekly laundry trip on the first
-	/// day with time at home afterward (overdue if it's missed), and a trip to the square on the sixth day. Everyone wakes within a few minutes of six, the infirm walk at half speed, and
+	/// day with the household's washing and time at home afterward (overdue if it's missed), and a trip to the square on the sixth day.
+	/// Sleep is in night clothes, and work in work clothes fetched from home, an hour at a time. Everyone wakes within a few minutes of six, the infirm walk at half speed, and
 	/// homemakers find chores three times as urgent. Water comes from the nearest square or landmark.
 	/// </summary>
 	public static ScheduleSettings CreateScheduleSettings(double napBelow = 0)
@@ -32,9 +33,9 @@ internal static class TestData
 			MinimumUrgency = 40,
 			SightingHours = 24,
 			Sleep = new SleepSettings { NapBelow = napBelow, NapMinutes = Range(30, 30), BedtimeLead = 60, DayClothesFactor = 1 },
-			Clothing = new ClothingSchedule { ChangeMinutes = 5, DryingMinutes = 60 },
-			Talking = new TalkingSettings { RefuseUrgency = 95, WakeLevel = 6, AskAboutMinutes = 1, AskDoingMinutes = 5 },
-			Socializing = new SocializingSettings { ChatMinutes = 30, ChatUrgency = 25, ChatGoalWeight = 0.5, WakeUrgency = 90, NearMinutes = 15, SeekFactor = 0.6, SeekMinutes = 15, RecentHours = 12, AskPlayerAgainHours = 4, Clues = new SeekClues { Workplace = 3, Home = 2, Sighting = 4, Gathering = 2 } },
+			Clothing = new ClothingSchedule { ChangeMinutes = 5 },
+			Talking = new TalkingSettings { RefuseUrgency = 95, AgreeUrgency = 60, WakeLevel = 6, AskAboutMinutes = 1, AskDoingMinutes = 5 },
+			Socializing = new SocializingSettings { ChatMinutes = 30, ChatUrgency = 25, ChatGoalWeight = 0.5, WakeUrgency = 90, NearMinutes = 15, SeekFactor = 0.6, RecentHours = 12, AskPlayerAgainHours = 4, Clues = new SeekClues { Workplace = 3, Home = 2, Sighting = 4, Gathering = 2 } },
 			UrgencyPower = 2,
 			Idle = new IdleSettings { Place = Home, Minutes = Range(10, 30), Activity = "Resting" },
 			Start = new ScheduleStart { WakeHour = 6, WakeMinutes = Range(-10, 10) },
@@ -42,36 +43,47 @@ internal static class TestData
 
 		settings.Needs =
 		[
-			new Need { Id = "fatigue", Title = "Fatigue", Role = ScheduleSettings.SleepRole, Activity = "Sleeping", PlaceSetting = Home, Hours = Hours(21, 4),
-				Level = new LevelNeedSettings { PerHour = 6, SatisfyPerHour = 12, UrgentFrom = 85, Levels = [new NeedLevel { Minimum = 0, Title = "Rested" }, new NeedLevel { Minimum = 50, Title = "Tired" }] },
-				PlayerAction = new PlayerAction { Title = "Sleep", Result = "You slept", Options = [new PlayerActionOption { Title = "Until rested", UntilMet = true }, new PlayerActionOption { Title = "Until dawn", UntilHour = 6 }, new PlayerActionOption { Minutes = 60 }] } },
+			new Need { Id = "fatigue", Title = "Fatigue", Role = ScheduleSettings.SleepRole, Activity = "Sleeping", Hours = Hours(21, 4),
+				StepSettings = [GoTo(Home), new Step { Kind = StepKind.Dress, Outfit = OutfitKind.Night, OnFail = new StepFailure { Any = new StepFailureResult(StepFailureKind.Next) } }, new Step { Kind = StepKind.Do, Player = new StepPlayer { Title = "Sleep", Result = "You slept" } }, Undress(OutfitKind.Night)],
+				Level = new LevelNeedSettings { PerHour = 6, SatisfyPerHour = 12, UrgentFrom = 85, Levels = [new NeedLevel { Minimum = 0, Title = "Rested" }, new NeedLevel { Minimum = 50, Title = "Tired" }] } },
 			new Need { Id = "hunger", Title = "Hunger", PlaceSetting = Home, Hours = Hours(5, 22),
 				Level = new LevelNeedSettings { PerHour = 10, SatisfyPerHour = 200, WakeUrgency = 90, StartLevel = Range(10, 40) } },
 			new Need { Id = "restlessness", Title = "Restlessness", PlaceSetting = Quarters(false, "square", "landmark"), Hours = Hours(9, 22),
 				Level = new LevelNeedSettings { PerHour = 5, SatisfyPerHour = 60, PausedBy = ["fatigue"], StartLevel = Range(0, 50) } },
-			new Need { Id = "socializing", Title = "Socializing", Role = ScheduleSettings.SocializingRole, Activity = "Chatting", PlaceSetting = Quarters(false, "square"), Hours = Hours(7, 21),
+			new Need { Id = "socializing", Title = "Socializing", Role = ScheduleSettings.SocializingRole, Activity = "Chatting", StepSettings = [new Step { Kind = StepKind.Seek, Who = new StepWho { Friends = true }, Minutes = Amount(15) }], Hours = Hours(7, 21),
 				Level = new LevelNeedSettings { PerHour = 2, SatisfyPerHour = 60, PausedBy = ["fatigue"] } },
-			new Need { Id = "work", Title = "Work", PlaceSetting = new SchedulePlace { Kind = NeedPlace.Workplace }, AtWork = true,
+			new Need { Id = "work", Title = "Work",
+				StepSettings = [GoTo(Home, new StepCondition { OutfitAtHome = OutfitKind.Work }), new Step { Kind = StepKind.Take, ItemKind = StepItemKind.Clothing, From = StepItemPlace.Wardrobe, Outfit = OutfitKind.Work, Bundle = Bundle("workClothes", "Work clothes"), When = new StepCondition { OutfitAtHome = OutfitKind.Work } },
+					GoTo(new SchedulePlace { Kind = NeedPlace.Workplace }), new Step { Kind = StepKind.Dress, Outfit = OutfitKind.Work, OnFail = new StepFailure { Any = new StepFailureResult(StepFailureKind.Next) } },
+					new Step { Kind = StepKind.Repeat, Reconsider = true, Steps = [new Step { Kind = StepKind.Do, Minutes = Amount(60), MeetsQuota = true, AtWork = true, Player = new StepPlayer { Title = "Work", Result = "You worked" } }] },
+					Undress(OutfitKind.Work, new StepCondition { DoneForToday = true })],
 				Hours = new Hours { Start = 6, End = 19, Days = ["day1", "day2", "day3", "day4", "day5", "day6"], OnSpecialDays = false },
-				Quota = new QuotaNeedSettings { Lead = 300, Time = new QuotaTime { Minutes = Amount(480), Shift = 120 } },
-				PlayerAction = new PlayerAction { Title = "Work", Result = "You worked", Options = [new PlayerActionOption { Title = "Until done", UntilMet = true }, new PlayerActionOption { Minutes = 120 }] } },
-			new Need { Id = "upkeep", Title = "Upkeep", PlaceSetting = Home, Hours = Hours(6, 21),
-				Quota = new QuotaNeedSettings { Lead = 480, SharedByFamily = true, Time = new QuotaTime { Minutes = Amount(30, 15), Shift = 30 } },
-				PlayerAction = new PlayerAction { Title = "Tidy up", Result = "You tidied up", Options = [new PlayerActionOption { Title = "Until done", UntilMet = true }, new PlayerActionOption { Minutes = 15 }] } },
-			new Need { Id = "water", Title = "Water", PlaceSetting = Quarters(true, "square", "landmark"), Hours = Hours(5, 20), ReturnHome = true,
-				Quota = new QuotaNeedSettings { Lead = 600, SharedByFamily = true, Trips = new QuotaTrips { Visits = Amount(0, 1), Minutes = Amount(5) } },
-				PlayerAction = new PlayerAction { Title = "Fetch water", Result = "You fetched water", Return = Text("Take it home to finish."), Home = new PlayerActionHome { Title = "Put away the water", Result = "You put away the water" } } },
+				Quota = new QuotaNeedSettings { Lead = 300, Time = new QuotaTime { Minutes = Amount(480), Shift = 480 } } },
+			new Need { Id = "upkeep", Title = "Upkeep", Hours = Hours(6, 21),
+				StepSettings = [GoTo(Home), new Step { Kind = StepKind.Do, MeetsQuota = true, Player = new StepPlayer { Title = "Tidy up", Result = "You tidied up" } }],
+				Quota = new QuotaNeedSettings { Lead = 480, SharedByFamily = true, Time = new QuotaTime { Minutes = Amount(30, 15), Shift = 30 } } },
+			new Need { Id = "water", Title = "Water", Hours = Hours(5, 20),
+				StepSettings = [GoTo(Quarters(true, "square", "landmark")), Do(Amount(5), new StepPlayer { Title = "Fetch water", Result = "You fetched water" }),
+					new Step { Kind = StepKind.Make, Bundle = Bundle("water", "Bucket of water") },
+					GoTo(Home, player: new StepPlayer { Text = Text("Take it home to finish.") }),
+					new Step { Kind = StepKind.Put, Bundle = Bundle("water"), Player = new StepPlayer { Title = "Put away the water", Result = "You put away the water" } }, new Step { Kind = StepKind.CountRun }],
+				Quota = new QuotaNeedSettings { Lead = 600, SharedByFamily = true, Runs = Amount(0, 1) } },
 			new Need { Id = "mending", Title = "Mending", PlaceSetting = Home, Hours = Hours(6, 21),
 				Quota = new QuotaNeedSettings { Period = NeedPeriod.Week, Lead = 3000, SharedByFamily = true, Time = new QuotaTime { Minutes = Amount(60, 30), Shift = 60 } } },
-			new Need { Id = "laundry", Title = "Laundry", Activity = "Washing", PlaceSetting = Quarters(false, "square", "landmark"), ReturnHome = true,
+			new Need { Id = "laundry", Title = "Laundry", Activity = "Washing",
 				Hours = new Hours { Start = 7, End = 17, Days = ["day1"] },
-				Quota = new QuotaNeedSettings { Period = NeedPeriod.Week, OverdueUrgency = 80, Lead = 300, SharedByFamily = true,
-					Trips = new QuotaTrips { Visits = Amount(1), Minutes = Amount(0, 20), Home = new QuotaTripHome { Minutes = Amount(0, 10), Activity = "Hanging out the washing" } } },
-				PlayerAction = new PlayerAction { Title = "Wash the clothes", Result = "You washed the clothes", Return = Text("Take the washing home to hang it out."), Home = new PlayerActionHome { Title = "Hang out the washing", Result = "You hung out the washing" } } },
-			new Need { Id = "market", Title = "Market", PlaceSetting = Quarters(false, "square"), ReturnHome = true,
+				StepSettings = [GoTo(Home), new Step { Kind = StepKind.Take, ItemKind = StepItemKind.Clothing, From = StepItemPlace.Wardrobe, Owner = StepOwner.Household, Accessories = false, Bundle = Bundle("washing", "Washing"), Player = new StepPlayer { Title = "Gather the washing", Result = "You gathered the washing" } },
+					GoTo(Quarters(false, "square", "landmark")), Do(Amount(0, 20), new StepPlayer { Title = "Wash the clothes", Result = "You washed the clothes" }),
+					GoTo(Home, player: new StepPlayer { Text = Text("Take the washing home to hang it out.") }),
+					new Step { Kind = StepKind.Do, Minutes = Amount(0, 10), Activity = "Hanging out the washing", Player = new StepPlayer { Title = "Hang out the washing", Result = "You hung out the washing" } },
+					new Step { Kind = StepKind.Put, ItemKind = StepItemKind.Clothing, To = StepItemPlace.Wardrobe, Bundle = Bundle("washing"), AfterDelay = new Duration(60), DelayActivity = "Drying" }, new Step { Kind = StepKind.CountRun }],
+				Quota = new QuotaNeedSettings { Period = NeedPeriod.Week, OverdueUrgency = 80, Lead = 300, SharedByFamily = true, Runs = Amount(1) } },
+			new Need { Id = "market", Title = "Market",
 				Hours = new Hours { Start = 7, End = 14, Days = ["day6"] },
-				Quota = new QuotaNeedSettings { Lead = 300, SharedByFamily = true, Trips = new QuotaTrips { Visits = Amount(1), Minutes = Amount(30) } },
-				PlayerAction = new PlayerAction { Title = "Shop", Result = "You shopped", Return = Text("Go home."), Home = new PlayerActionHome { Title = "Put it away", Result = "You put it away" }, OnlyInHours = true } },
+				StepSettings = [GoTo(Quarters(false, "square")), new Step { Kind = StepKind.Do, Minutes = Amount(30), Hours = new Hours { Start = 7, End = 14 }, Player = new StepPlayer { Title = "Shop", Result = "You shopped" } },
+					new Step { Kind = StepKind.Make, Bundle = Bundle("shopping", "Shopping") },
+					GoTo(Home, player: new StepPlayer { Text = Text("Go home.") }), new Step { Kind = StepKind.Put, Bundle = Bundle("shopping"), Player = new StepPlayer { Title = "Put it away", Result = "You put it away" } }, new Step { Kind = StepKind.CountRun }],
+				Quota = new QuotaNeedSettings { Lead = 300, SharedByFamily = true, Runs = Amount(1) } },
 		];
 		settings.TravelTimeFactors = [new TravelTimeFactor { Id = "infirm", When = Condition("profession", "infirm"), Factor = 2 }];
 		settings.UrgencyFactors = [new UrgencyFactor { Id = "homemaker", When = Condition("profession", "homemaker"), Needs = ["upkeep", "water", "mending", "laundry", "market"], Factor = 3 }];
@@ -95,9 +107,46 @@ internal static class TestData
 	public static Hours Hours(int start, int end) => new() { Start = start, End = end };
 
 	/// <summary>
+	/// Creates a step going to a place.
+	/// </summary>
+	public static Step GoTo(SchedulePlace place, StepCondition? when = null, StepPlayer? player = null) => new() { Kind = StepKind.GoTo, Place = place, When = when, Player = player };
+
+	/// <summary>
+	/// Creates a step spending a set time.
+	/// </summary>
+	public static Step Do(FamilyDuration minutes, StepPlayer? player = null) => new() { Kind = StepKind.Do, Minutes = minutes, Player = player };
+
+	/// <summary>
+	/// Creates an appointment's "meet" step, arriving 5 minutes early and waiting up to 30 minutes past its time.
+	/// </summary>
+	public static Step Meet() => new() { Kind = StepKind.Meet, Early = 5, Minutes = Amount(30) };
+
+	/// <summary>
+	/// Creates an appointment at the home of the one asked, with two hours between appointments, meeting there and then
+	/// carrying out the given steps, after any given steps to do first.
+	/// </summary>
+	public static StepAppointment AtPartnerHome(IReadOnlyList<Step> steps, IReadOnlyList<Step>? before = null) =>
+		new() { Place = new SchedulePlace { Kind = NeedPlace.PartnerHome }, Gap = 120, Patience = 60, Steps = [.. before ?? [], Meet(), .. steps] };
+
+	/// <summary>
+	/// Creates a step changing into an outfit of a kind.
+	/// </summary>
+	public static Step Dress(OutfitKind outfit) => new() { Kind = StepKind.Dress, Outfit = outfit };
+
+	/// <summary>
+	/// Creates a bundle for a step: with a title, for a step that takes or makes it, or just its id, for a step that puts it down.
+	/// </summary>
+	public static StepBundle Bundle(string id, string? title = null) => new() { Id = id, Title = title };
+
+	/// <summary>
+	/// Creates a step changing out of an outfit of a kind.
+	/// </summary>
+	public static Step Undress(OutfitKind outfit, StepCondition? when = null) => new() { Kind = StepKind.Undress, Outfit = outfit, When = when };
+
+	/// <summary>
 	/// Creates an amount, with an amount for each family member if given.
 	/// </summary>
-	public static FamilyAmount Amount(double baseAmount, double? perMember = null) => new() { Base = baseAmount, PerMember = perMember };
+	public static FamilyDuration Amount(double baseAmount, double? perMember = null) => new() { Base = baseAmount, PerMember = perMember };
 
 	private static IntegerRange Range(int minimum, int maximum) =>
 		new() { Minimum = minimum, Maximum = maximum, Shape = new WeightShape { Peak = ShapePeak.Middle, MostWithin = Math.Max((maximum - minimum) / 4.0, 1) } };
@@ -372,6 +421,12 @@ internal static class TestData
 	public static CharacterCondition Condition(string propertyId, params string[] valueIds) =>
 		new() { Values = new Dictionary<string, IReadOnlyList<string>> { [propertyId] = valueIds } };
 
+	/// <summary>
+	/// Creates who a step talks with or looks for: people with one of the given values of one property.
+	/// </summary>
+	public static StepWho Who(string propertyId, params string[] valueIds) =>
+		new() { Values = new Dictionary<string, IReadOnlyList<string>> { [propertyId] = valueIds } };
+
 	private static CharacterCondition Both(string propertyId, string[] valueIds, string otherPropertyId, string otherValueId) =>
 		new() { Values = new Dictionary<string, IReadOnlyList<string>> { [propertyId] = valueIds, [otherPropertyId] = [otherValueId] } };
 
@@ -393,7 +448,7 @@ internal static class TestData
 			: [],
 		QuarterKinds =
 		[
-			new QuarterKind { Id = "square", Area = MapArea.Village, Unique = true, Path = "street", TravelTime = 2 },
+			new QuarterKind { Id = "square", Area = MapArea.Village, Count = new QuarterCount { Min = 1, Max = 1 }, Path = "street", TravelTime = 2 },
 			new QuarterKind { Id = "lane", Area = MapArea.Village, Path = "lane", TravelTime = 2 },
 			new QuarterKind { Id = "landmark", Area = MapArea.Village, Path = "alley", TravelTime = 2 },
 			new QuarterKind { Id = "fields", Area = MapArea.Outskirts, Path = "track", TravelTime = 5 },
@@ -453,7 +508,7 @@ internal static class TestData
 				Title = "Miller",
 				Frequency = new FrequencyLevel(Frequency.Uncommon),
 				Text = new Dictionary<string, string> { ["description"] = "a miller" },
-				Business = new ProfessionBusiness { Wealth = WealthLevel.Low, Helpers = 2, WorksFromHome = true, ForHouseholdElders = true },
+				Business = new ProfessionBusiness { Wealth = WealthLevel.Low, Helpers = 2, ForHouseholdElders = true },
 			},
 			new Profession
 			{

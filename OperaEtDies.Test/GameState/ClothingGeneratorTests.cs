@@ -17,6 +17,7 @@ public sealed class ClothingGeneratorTests
 			{
 				Assert.That(person.GetOutfits(OutfitKind.Everyday).Count(), Is.EqualTo(2), $"Seed {seed}, {person.FullName}");
 				Assert.That(person.GetOutfits(OutfitKind.Night).Count(), Is.EqualTo(1), $"Seed {seed}, {person.FullName}");
+				Assert.That(person.GetOutfits(OutfitKind.Nothing).Count(), Is.EqualTo(1), $"Seed {seed}, {person.FullName}");
 
 				var canWork = world.GameData.Outfits.Any(x => x.Kind == OutfitKind.Work && CharacterCondition.IsMet(x.When, person.Traits.GetValueId));
 				Assert.That(person.GetOutfits(OutfitKind.Work).Count(), Is.EqualTo(canWork ? 1 : 0), $"Seed {seed}, {person.FullName}");
@@ -54,6 +55,11 @@ public sealed class ClothingGeneratorTests
 		var world = CreateWorld(0);
 		var person = world.People.First(x => x.GetOutfits(OutfitKind.Work).Any() && x.GetOutfits(OutfitKind.Night).Any());
 		person.Clothing.TakeOffAll(person.Home.Items);
+		foreach (var item in person.Inventory.Items.ToList())
+		{
+			person.Inventory.Remove(item);
+			person.Home.Items.Add(item);
+		}
 
 		ClothingGenerator.DressAtStart(person, isAtWork: true);
 

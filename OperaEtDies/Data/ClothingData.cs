@@ -148,10 +148,10 @@ public sealed class ClothingData
 	private static IEnumerable<string> ValidateOutfit(Outfit outfit, IReadOnlyDictionary<string, ClothingItem> items)
 	{
 		var path = $"outfits[{outfit.Id}]";
-		if (outfit.Complete && outfit.Kind != OutfitKind.Work)
+		if (outfit.Complete && !DataRules.IsAllowed(outfit, nameof(Outfit.Complete)))
 			yield return OurResources.OutfitCompleteNotWork.FormatCurrentCulture($"{path}.complete");
-		// A complete outfit can be nothing at all, such as for work done unclothed.
-		if (!outfit.Complete || outfit.Clothing is { Count: > 0 })
+		// A complete work outfit, or one for wearing nothing, can be nothing at all.
+		if (!(outfit.Complete || outfit.Kind == OutfitKind.Nothing) || outfit.Clothing is { Count: > 0 })
 		{
 			foreach (var error in DataValidation.ValidateStrings($"{path}.clothing", outfit.Clothing ?? []))
 				yield return error;

@@ -595,10 +595,6 @@
 		<value>The location &quot;{0}&quot; can&apos;t be placed, because no quarter of its kinds has room for businesses.</value>
 		<comment>{0} is the location&apos;s id.</comment>
 	</data>
-	<data name="BusinessProfessionWorksFromHome" xml:space="preserve">
-		<value>The location &quot;{0}&quot; is for the profession &quot;{1}&quot;, which works from home, so it can&apos;t have business locations.</value>
-		<comment>{0} is the location&apos;s id. {1} is the profession&apos;s id.</comment>
-	</data>
 	<data name="FamilyPropertyInvalid" xml:space="preserve">
 		<value>&quot;{0}&quot; is &quot;{1}&quot;, but there is no {2} character property with that id.</value>
 		<comment>{0} is the location of the setting in the data file. {1} is the property id found. {2} is the type the property must have, as written in the data file.</comment>
@@ -652,7 +648,7 @@
 		<comment>{0} is the youngest age at which the player can have an adult child.</comment>
 	</data>
 	<data name="ProfessionElderTradeNotFromHome" xml:space="preserve">
-		<value>The profession &quot;{0}&quot; is for household elders, so it must work from home.</value>
+		<value>The profession &quot;{0}&quot; is for household elders, who work from home, so it can&apos;t have locations in &quot;businesses&quot;.</value>
 		<comment>{0} is the profession&apos;s id.</comment>
 	</data>
 	<data name="ProfessionWealthInvalid" xml:space="preserve">
@@ -732,11 +728,11 @@
 		<comment>{0} is the profession id, {1} is the property id, {2} is the profession property id.</comment>
 	</data>
 	<data name="LayoutCenterInvalid" xml:space="preserve">
-		<value>The &quot;{0}&quot; layout is built around &quot;{1}&quot;, but that isn&apos;t a unique quarter kind in the village that every town has.</value>
+		<value>The &quot;{0}&quot; layout is built around &quot;{1}&quot;, but that isn&apos;t a village quarter kind that every town has exactly one of.</value>
 		<comment>{0} is the layout shape, {1} is the center kind id.</comment>
 	</data>
-	<data name="QuarterKindUniqueMissing" xml:space="preserve">
-		<value>The quarter kind &quot;{0}&quot; is unique, so at least one quarter must be of that kind.</value>
+	<data name="QuarterKindMinimumMissing" xml:space="preserve">
+		<value>The quarter kind &quot;{0}&quot; has a minimum count, so at least one quarter that doesn&apos;t border a map feature must be of that kind.</value>
 		<comment>{0} is the quarter kind id.</comment>
 	</data>
 	<data name="LandmarkQuartersMissing" xml:space="preserve">
@@ -802,8 +798,8 @@
 		<value>&quot;{0}&quot; is &quot;{1}&quot;, but there is no map feature with that id.</value>
 		<comment>{0} is the path, {1} is the feature id.</comment>
 	</data>
-	<data name="QuarterKindUniqueBorders" xml:space="preserve">
-		<value>The quarter kind &quot;{0}&quot; is unique, so its quarters can&apos;t border a map feature.</value>
+	<data name="QuarterKindMinimumBorders" xml:space="preserve">
+		<value>The quarter kind &quot;{0}&quot; has a minimum count, so it can&apos;t border a map feature.</value>
 		<comment>{0} is the quarter kind id.</comment>
 	</data>
 	<data name="ExitCrossingRoute" xml:space="preserve">
@@ -1115,10 +1111,6 @@
 		<value>The need &quot;{0}&quot; needs &quot;{1}&quot;, since it&apos;s a {2} need.</value>
 		<comment>{0} is the need id. {1} is the setting name. {2} is the kind of need (level or daily).</comment>
 	</data>
-	<data name="NeedSettingNotAllowed" xml:space="preserve">
-		<value>The need &quot;{0}&quot; can&apos;t have &quot;{1}&quot;, since it&apos;s a {2} need.</value>
-		<comment>{0} is the need id. {1} is the setting name. {2} is the kind of need (level or daily).</comment>
-	</data>
 	<data name="DataIdUnknown" xml:space="preserve">
 		<value>&quot;{0}&quot; has &quot;{1}&quot;, but it isn&apos;t in the &quot;{2}&quot; list.</value>
 		<comment>{0} is the location of the setting in the data file. {1} is the id found. {2} is the list it should be in.</comment>
@@ -1179,16 +1171,12 @@
 		<value>Go There</value>
 		<comment>For developers, the button in the list of villagers that goes straight to where someone is.</comment>
 	</data>
-	<data name="QuarterKindOptionalNotUnique" xml:space="preserve">
-		<value>The quarter kind &quot;{0}&quot; has &quot;optionalWith&quot;, but only unique kinds can be optional.</value>
+	<data name="QuarterKindOptionalNoMinimum" xml:space="preserve">
+		<value>The quarter kind &quot;{0}&quot; has &quot;optional&quot;, but only kinds with a minimum count can be optional.</value>
 		<comment>{0} is the quarter kind id.</comment>
 	</data>
 	<data name="NeedPerMemberNotShared" xml:space="preserve">
 		<value>The need &quot;{0}&quot; has an amount for each family member, but it isn&apos;t shared by the family.</value>
-		<comment>{0} is the need id.</comment>
-	</data>
-	<data name="NeedVisitMinutesNotPositive" xml:space="preserve">
-		<value>The need &quot;{0}&quot; is measured in trips, so each trip must take at least a minute at the place for one person.</value>
 		<comment>{0} is the need id.</comment>
 	</data>
 	<data name="PersonTraveling" xml:space="preserve">
@@ -1207,10 +1195,6 @@
 		<value>You followed {0} to {1}.</value>
 		<comment>Shown after waiting until the person the player was following left, and following them. {0} is the person&apos;s name. {1} is the title of where they went.</comment>
 	</data>
-	<data name="PlayerActionOptionInvalid" xml:space="preserve">
-		<value>&quot;{0}&quot; must have exactly one of &quot;untilMet&quot;, &quot;untilHour&quot;, and &quot;minutes&quot;.</value>
-		<comment>{0} is the path to the option in the data file.</comment>
-	</data>
 	<data name="PlayerActionOptionText" xml:space="preserve">
 		<value>{0} ({1})</value>
 		<comment>{0} is the option title, such as Until rested, and {1} how long it takes.</comment>
@@ -1218,10 +1202,6 @@
 	<data name="PlayerActionResult" xml:space="preserve">
 		<value>{0} for {1}.</value>
 		<comment>{0} is the start of the sentence from the data, such as You slept, and {1} how long it took.</comment>
-	</data>
-	<data name="ActionsHeader" xml:space="preserve">
-		<value>Things to do here</value>
-		<comment>Heading for the actions the player can spend time on at their location.</comment>
 	</data>
 	<data name="ViewStatus" xml:space="preserve">
 		<value>Status</value>
@@ -1268,7 +1248,7 @@
 		<comment>Marker on the map for the quarter of the place the player works.</comment>
 	</data>
 	<data name="PlayerActionSettingNotAllowed" xml:space="preserve">
-		<value>&quot;{0}&quot; is only allowed for a need it fits: &quot;options&quot; for a need whose quota isn&apos;t measured in trips, &quot;return&quot; and &quot;home&quot; for a trip that returns home, and &quot;onlyInHours&quot; for a quota need.</value>
+		<value>&quot;{0}&quot; is only allowed for a step it fits: &quot;title&quot; and &quot;result&quot; for any step but &quot;goTo&quot;, and &quot;text&quot; for a &quot;goTo&quot; or &quot;ask&quot; step.</value>
 		<comment>{0} is the path to the setting in the data file.</comment>
 	</data>
 	<data name="OpeningHours" xml:space="preserve">
@@ -1298,10 +1278,6 @@
 	<data name="DeveloperGoal" xml:space="preserve">
 		<value>{0} at {1}</value>
 		<comment>For developers, someone's goal. {0} is the need's title and {1} the place it's met.</comment>
-	</data>
-	<data name="DeveloperGoalThenHome" xml:space="preserve">
-		<value>{0} at {1}, then home</value>
-		<comment>For developers, someone's goal that they go home afterward to finish. {0} is the need's title and {1} the place it's met.</comment>
 	</data>
 	<data name="DeveloperIdle" xml:space="preserve">
 		<value>Idle at {0}</value>
@@ -1350,10 +1326,6 @@
 	<data name="DeveloperNoUrgencies" xml:space="preserve">
 		<value>none</value>
 		<comment>For developers, when no need was at all urgent when a goal was chosen.</comment>
-	</data>
-	<data name="PlayerActionFinish" xml:space="preserve">
-		<value>Finish</value>
-		<comment>Button that finishes a trip at home when it takes no time.</comment>
 	</data>
 	<data name="PlayerActionResultInstant" xml:space="preserve">
 		<value>{0}.</value>
@@ -1678,7 +1650,7 @@
 		<value>Expected a number, or an object with "base", "perMember", or both.</value>
 	</data>
 	<data name="SchedulePlaceInvalid" xml:space="preserve">
-		<value>Expected "home", "workplace", or an object with "quarterKinds".</value>
+		<value>Expected "home", "workplace", "otherHome", "partnerHome", or an object with either "quarterKinds" or "remembered".</value>
 	</data>
 	<data name="DataNumberNotWhole" xml:space="preserve">
 		<value>"{0}" is {1}, but it must be a whole number.</value>
@@ -1693,7 +1665,7 @@
 		<value>The need "{0}" must have exactly one of "level" and "quota".</value>
 	</data>
 	<data name="NeedQuotaMeasureInvalid" xml:space="preserve">
-		<value>The quota of the need "{0}" must have exactly one of "time" and "trips".</value>
+		<value>The quota of the need "{0}" must have exactly one of "time" and "runs".</value>
 	</data>
 	<data name="RoleUnknown" xml:space="preserve">
 		<value>"{0}" has the role "{1}", but the only roles allowed there are {2}.</value>
@@ -1710,9 +1682,6 @@
 	<data name="NeedOverdueNotAllowed" xml:space="preserve">
 		<value>The need "{0}" has "quota.overdueUrgency", but only quota needs with a "period" of "week" and "hours.days" can have it.</value>
 	</data>
-	<data name="NeedHomeMinutesWithoutReturn" xml:space="preserve">
-		<value>The need "{0}" has time at home after each trip, but it doesn't return home.</value>
-	</data>
 	<data name="ProfessionNotBusiness" xml:space="preserve">
 		<value>The profession "{0}" has the "{1}" role, so it can't have "business".</value>
 	</data>
@@ -1721,9 +1690,6 @@
 	</data>
 	<data name="BusinessProfessionUnknown" xml:space="preserve">
 		<value>The location "{0}" is for the profession "{1}", which isn't a business in "professions".</value>
-	</data>
-	<data name="ProfessionLocationsMissing" xml:space="preserve">
-		<value>The profession "{0}" must have at least one location in "businesses", unless it works from home.</value>
 	</data>
 	<data name="RoleNotAllowed" xml:space="preserve">
 		<value>"{0}" has the role "{1}", but it can't have a role.</value>
@@ -1798,14 +1764,6 @@
 		<value>You changed your clothes, which took {0}.</value>
 		<comment>{0} is how long it took, such as &quot;5 minutes&quot;.</comment>
 	</data>
-	<data name="ClothingInWash" xml:space="preserve">
-		<value>In the wash</value>
-		<comment>Why a piece of clothing can&apos;t be worn.</comment>
-	</data>
-	<data name="ClothingDrying" xml:space="preserve">
-		<value>Drying until {0}</value>
-		<comment>Why a piece of clothing can&apos;t be worn. {0} is the time on the clock it&apos;s dry.</comment>
-	</data>
 	<data name="OutfitEveryday" xml:space="preserve">
 		<value>Everyday clothes</value>
 		<comment>The title of an everyday outfit.</comment>
@@ -1817,14 +1775,6 @@
 	<data name="OutfitNight" xml:space="preserve">
 		<value>Night clothes</value>
 		<comment>The title of a night outfit.</comment>
-	</data>
-	<data name="OutfitInWash" xml:space="preserve">
-		<value>Some of it is in the wash</value>
-		<comment>Why an outfit can&apos;t be changed into.</comment>
-	</data>
-	<data name="OutfitDrying" xml:space="preserve">
-		<value>Some of it is still drying</value>
-		<comment>Why an outfit can&apos;t be changed into.</comment>
 	</data>
 	<data name="OutfitWearing" xml:space="preserve">
 		<value>Wearing</value>
@@ -1885,5 +1835,528 @@
 	<data name="ModOperationCommentsInvalid" xml:space="preserve">
 		<value>Operation {0}: &quot;{1}&quot; must be text.</value>
 		<comment>{0} is the operation&apos;s number in the file. {1} is the property&apos;s name as written.</comment>
+	</data>
+	<data name="StepSettingNotAllowed" xml:space="preserve">
+		<value>"{0}" isn't allowed for a "{1}" step.</value>
+	</data>
+	<data name="StepSettingMissing" xml:space="preserve">
+		<value>"{0}" is needed for a "{1}" step.</value>
+	</data>
+	<data name="StepMeetsQuotaNotAllowed" xml:space="preserve">
+		<value>"{0}" is only allowed in a need whose quota is measured in time.</value>
+	</data>
+	<data name="StepBundleUnknown" xml:space="preserve">
+		<value>"{0}" is "{1}", but no step before it takes anything into that bundle.</value>
+	</data>
+	<data name="NeedPlaceOrSteps" xml:space="preserve">
+		<value>The need "{0}" must have exactly one of "place" and "steps".</value>
+	</data>
+	<data name="NeedStepsWithoutDo" xml:space="preserve">
+		<value>The steps of the need "{0}" must have at least one "do", "wander", or "seek" step.</value>
+	</data>
+	<data name="NeedCountRunNotRuns" xml:space="preserve">
+		<value>The need "{0}" has a "countRun" step, but its quota isn't measured in runs.</value>
+	</data>
+	<data name="NeedRunsWithoutCountRun" xml:space="preserve">
+		<value>The quota of the need "{0}" is measured in runs, so its steps must have a "countRun" step.</value>
+	</data>
+	<data name="NeedTimeWithoutMeetsQuota" xml:space="preserve">
+		<value>The quota of the need "{0}" is measured in time, so at least one of its "do" steps must have "meetsQuota".</value>
+	</data>
+	<data name="NeedRunMinutesNotPositive" xml:space="preserve">
+		<value>The quota of the need "{0}" is measured in runs, so the "do" steps of each run must take at least a minute for one person.</value>
+	</data>
+	<data name="DeveloperGoalStep" xml:space="preserve">
+		<value>{0} at {1} (step {2} of {3})</value>
+	</data>
+	<data name="ClothingCarriedBy" xml:space="preserve">
+		<value>Carried by {0}</value>
+	</data>
+	<data name="OutfitCarriedByOthers" xml:space="preserve">
+		<value>Some of it is carried by someone else</value>
+	</data>
+	<data name="SaveStepsInvalid" xml:space="preserve">
+		<value>The person {0} is partway through the steps of the need "{1}", at a step it doesn't have.</value>
+	</data>
+	<data name="StepRepeatNotAllowed" xml:space="preserve">
+		<value>"{0}" is a "repeat" step, which is only allowed in a need whose quota is measured in time.</value>
+	</data>
+	<data name="StepRepeatWithoutMeetsQuota" xml:space="preserve">
+		<value>"{0}" is a "repeat" step, so the steps it repeats must include a "do" step with "meetsQuota".</value>
+	</data>
+	<data name="RepeatPromptText" xml:space="preserve">
+		<value>{0} is getting pressing. Keep {1}?</value>
+	</data>
+	<data name="RepeatPromptQuestion" xml:space="preserve">
+		<value>Keep {0}?</value>
+	</data>
+	<data name="RepeatPromptContinue" xml:space="preserve">
+		<value>Keep going ({0} left)</value>
+	</data>
+	<data name="RepeatPromptStop" xml:space="preserve">
+		<value>Stop</value>
+	</data>
+	<data name="RepeatPromptStopped" xml:space="preserve">
+		<value>You stopped {0}.</value>
+	</data>
+	<data name="StepWaitInvalid" xml:space="preserve">
+		<value>"{0}" is a "wait" step, so it must have exactly one of "minutes" and "untilHour".</value>
+	</data>
+	<data name="StepConditionQuotaOnly" xml:space="preserve">
+		<value>"{0}" is only allowed in a need with a quota.</value>
+	</data>
+	<data name="StepPlaceUnknown" xml:space="preserve">
+		<value>"{0}" is "{1}", but no step before it remembers a place by that name.</value>
+	</data>
+	<data name="StepListCalledInItself" xml:space="preserve">
+		<value>"{0}" calls the step list "{1}" from within itself.</value>
+	</data>
+	<data name="SchedulePlaceRememberedNotAllowed" xml:space="preserve">
+		<value>"{0}" is a remembered place or the partner's home, which are only allowed in steps.</value>
+	</data>
+	<data name="ProfessionStepsWithoutDo" xml:space="preserve">
+		<value>The steps of the profession "{0}" must have at least one "do" step.</value>
+	</data>
+	<data name="ProfessionStepsWithoutMeetsQuota" xml:space="preserve">
+		<value>The steps of the profession "{0}" replace those of the need "{1}", whose quota is measured in time, so at least one of its "do" or "wander" steps must have "meetsQuota".</value>
+	</data>
+	<data name="ProfessionStepsWithoutWork" xml:space="preserve">
+		<value>The profession "{0}" has steps, but no need is work (with a step going to "workplace") for them to replace.</value>
+	</data>
+	<data name="StepWanderPlaceInvalid" xml:space="preserve">
+		<value>"{0}" is where a "wander" step wanders, so it must be a quarter, with "quarterKinds".</value>
+	</data>
+	<data name="StepChanceOutOfRange" xml:space="preserve">
+		<value>"{0}" must be from 0 to 100.</value>
+	</data>
+	<data name="StepAnswerUnknown" xml:space="preserve">
+		<value>"{0}" is "{1}", but no step before it asks a question it remembers by that name.</value>
+	</data>
+	<data name="StepSeekFriendsWithPlace" xml:space="preserve">
+		<value>"{0}" isn't allowed for a "seek" step looking for friends, which looks wherever its clues say a friend might be.</value>
+	</data>
+	<data name="DeveloperSeekSomeone" xml:space="preserve">
+		<value>someone</value>
+	</data>
+	<data name="DeveloperSeekPeople" xml:space="preserve">
+		<value>where such people were seen</value>
+	</data>
+	<data name="PersonFollowing" xml:space="preserve">
+		<value>With {0}</value>
+	</data>
+	<data name="PlayerStepsHeader" xml:space="preserve">
+		<value>In progress: {0}</value>
+	</data>
+	<data name="PlayerStepsShow" xml:space="preserve">
+		<value>Show all steps</value>
+	</data>
+	<data name="PlayerStepsHide" xml:space="preserve">
+		<value>Hide steps</value>
+	</data>
+	<data name="PlayerStepsAutomatic" xml:space="preserve">
+		<value>Do it for me</value>
+	</data>
+	<data name="PlayerStepsAutomaticToolTip" xml:space="preserve">
+		<value>Have the step you're on done for you, as anyone else would do it.</value>
+	</data>
+	<data name="PlayerStepsNext" xml:space="preserve">
+		<value>Next: {0}</value>
+	</data>
+	<data name="PlayerStepGoHome" xml:space="preserve">
+		<value>Go home</value>
+	</data>
+	<data name="PlayerStepGoTo" xml:space="preserve">
+		<value>Go to {0}</value>
+	</data>
+	<data name="PlayerStepGoElsewhere" xml:space="preserve">
+		<value>Go somewhere else</value>
+	</data>
+	<data name="PlayerStepsDone" xml:space="preserve">
+		<value>You finished {0}, which took {1}.</value>
+	</data>
+	<data name="PlayerStepsStopped" xml:space="preserve">
+		<value>You stopped {0} partway, after {1}.</value>
+	</data>
+	<data name="StepAppointmentWithoutDo" xml:space="preserve">
+		<value>"{0}" has no "do" step.</value>
+	</data>
+	<data name="StepAppointmentNested" xml:space="preserve">
+		<value>"{0}" makes another appointment, which an appointment's steps can't.</value>
+	</data>
+	<data name="SaveAppointmentInvalid" xml:space="preserve">
+		<value>The appointment {0} isn't valid: its need has no "ask" step making appointments at {1}, or its people are the same.</value>
+	</data>
+	<data name="PersonMeeting" xml:space="preserve">
+		<value>Waiting to meet {0}</value>
+	</data>
+	<data name="PlayerStepsStop" xml:space="preserve">
+		<value>Stop</value>
+	</data>
+	<data name="PlayerStepsStopToolTip" xml:space="preserve">
+		<value>Give up what you've started. Anything you're carrying for it stays with you until you get home.</value>
+	</data>
+	<data name="PlayerStepsGaveUp" xml:space="preserve">
+		<value>You stopped {0}.</value>
+	</data>
+	<data name="ViewStart" xml:space="preserve">
+		<value>Start</value>
+	</data>
+	<data name="StartTitle" xml:space="preserve">
+		<value>Start something</value>
+	</data>
+	<data name="StartAutomatic" xml:space="preserve">
+		<value>Do it for me</value>
+	</data>
+	<data name="StartAutomaticToolTip" xml:space="preserve">
+		<value>Have every step carried out for you, walking included, as anyone else would.</value>
+	</data>
+	<data name="StartInProgress" xml:space="preserve">
+		<value>In progress: {0}. Starting something else puts it on hold.</value>
+	</data>
+	<data name="StartButton" xml:space="preserve">
+		<value>Start</value>
+	</data>
+	<data name="StartDoneDay" xml:space="preserve">
+		<value>Done for today</value>
+	</data>
+	<data name="StartDoneWeek" xml:space="preserve">
+		<value>Done for this week</value>
+	</data>
+	<data name="StartNoPlace" xml:space="preserve">
+		<value>Nowhere to go for it</value>
+	</data>
+	<data name="PlayerStepTake" xml:space="preserve">
+		<value>Take your {0} along</value>
+	</data>
+	<data name="PlayerStepTakeClothes" xml:space="preserve">
+		<value>Take the clothes along</value>
+	</data>
+	<data name="PlayerStepDress" xml:space="preserve">
+		<value>Change into your {0}</value>
+	</data>
+	<data name="PlayerStepUndress" xml:space="preserve">
+		<value>Change out of your {0}</value>
+	</data>
+	<data name="PlayerStepTakeOffEverything" xml:space="preserve">
+		<value>Take off everything</value>
+	</data>
+	<data name="PlayerStepDressAgain" xml:space="preserve">
+		<value>Get dressed again</value>
+	</data>
+	<data name="PlayerStepDone" xml:space="preserve">
+		<value>Done, which took {0}.</value>
+	</data>
+	<data name="PlayerStepWaitUntil" xml:space="preserve">
+		<value>Wait until {0}</value>
+	</data>
+	<data name="PlayerStepWait" xml:space="preserve">
+		<value>Wait</value>
+	</data>
+	<data name="PlayerStepWander" xml:space="preserve">
+		<value>Walk around</value>
+	</data>
+	<data name="PlayerStepSeekFriend" xml:space="preserve">
+		<value>Look for a friend</value>
+	</data>
+	<data name="PlayerStepSeek" xml:space="preserve">
+		<value>Look for someone</value>
+	</data>
+	<data name="PlayerStepTalkAnyone" xml:space="preserve">
+		<value>Talk with someone</value>
+	</data>
+	<data name="PlayerStepTalk" xml:space="preserve">
+		<value>Talk with them</value>
+	</data>
+	<data name="PlayerStepAskAppointment" xml:space="preserve">
+		<value>Ask them to set a time</value>
+	</data>
+	<data name="PlayerStepAskAnyone" xml:space="preserve">
+		<value>Ask someone</value>
+	</data>
+	<data name="PlayerStepAsk" xml:space="preserve">
+		<value>Ask them</value>
+	</data>
+	<data name="PlayerStepLead" xml:space="preserve">
+		<value>Take them along</value>
+	</data>
+	<data name="StepWhoFamilyInvalid" xml:space="preserve">
+		<value>{0} has "{1}", but family can only be "member" or "other".</value>
+	</data>
+	<data name="ConversationAskStep" xml:space="preserve">
+		<value>{0} ({1})</value>
+		<comment>Button in the conversation view that asks the person the question of the &quot;ask&quot; step the player has next. {0} is its title, such as &quot;Offer to help with a birth&quot;, and {1} how long it takes, such as &quot;5 minutes&quot;.</comment>
+	</data>
+	<data name="ConversationAgreed" xml:space="preserve">
+		<value>{0} agreed.</value>
+		<comment>{0} is the name of the person the player asked.</comment>
+	</data>
+	<data name="ConversationSaidNo" xml:space="preserve">
+		<value>{0} said no.</value>
+		<comment>{0} is the name of the person the player asked.</comment>
+	</data>
+	<data name="ConversationAgreedToMeet" xml:space="preserve">
+		<value>{0} agreed to meet at {1} at {2}.</value>
+		<comment>{0} is the name of the person the player asked, {1} where they will meet, such as &quot;her home&quot;, and {2} when, such as &quot;14:30 today&quot;.</comment>
+	</data>
+	<data name="AppointmentToday" xml:space="preserve">
+		<value>{0} today</value>
+		<comment>{0} is a time of day, such as &quot;14:30&quot;.</comment>
+	</data>
+	<data name="AppointmentTomorrow" xml:space="preserve">
+		<value>{0} tomorrow</value>
+		<comment>{0} is a time of day, such as &quot;14:30&quot;.</comment>
+	</data>
+	<data name="AppointmentOnDay" xml:space="preserve">
+		<value>{0} on {1}</value>
+		<comment>{0} is a time of day, such as &quot;14:30&quot;, and {1} the day of the week.</comment>
+	</data>
+	<data name="AppointmentPlaceHome" xml:space="preserve">
+		<value>{0} home</value>
+		<comment>Where an appointment is, when it is at the home of the person it is with. {0} is their possessive, such as &quot;her&quot;.</comment>
+	</data>
+	<data name="AppointmentPlaceNamedHome" xml:space="preserve">
+		<value>{0}&apos;s home</value>
+		<comment>Where an appointment is, when it is at the home of the person it is with. {0} is their name.</comment>
+	</data>
+	<data name="AppointmentPlacePlayerHome" xml:space="preserve">
+		<value>your home</value>
+		<comment>Where an appointment is, when it is at the player&apos;s home.</comment>
+	</data>
+	<data name="AppointmentNext" xml:space="preserve">
+		<value>Next: {0}, {1}, at {2}</value>
+		<comment>The player&apos;s next appointment, in the sidebar. {0} is who it is with, {1} when, such as &quot;14:30 today&quot;, and {2} where, such as &quot;her home&quot;.</comment>
+	</data>
+	<data name="AppointmentReminder" xml:space="preserve">
+		<value>It&apos;s time to set off for your appointment with {0} at {1} ({2}).</value>
+		<comment>{0} is who it is with, {1} where, such as &quot;her home&quot;, and {2} the time of day, such as &quot;14:30&quot;.</comment>
+	</data>
+	<data name="AppointmentSetOff" xml:space="preserve">
+		<value>Set off</value>
+		<comment>Button that has the player set off for an appointment.</comment>
+	</data>
+	<data name="AppointmentCallOff" xml:space="preserve">
+		<value>Call it off</value>
+		<comment>Button that calls off an appointment.</comment>
+	</data>
+	<data name="AppointmentGaveUp" xml:space="preserve">
+		<value>{0} gave up waiting for you.</value>
+		<comment>{0} is the name of the person the player missed an appointment with.</comment>
+	</data>
+	<data name="AppointmentNeverCame" xml:space="preserve">
+		<value>{0} never came to meet you.</value>
+		<comment>{0} is the name of the person the player missed an appointment with.</comment>
+	</data>
+	<data name="PlayerStepGoToAppointment" xml:space="preserve">
+		<value>Go to {0}</value>
+		<comment>A step to an appointment the player set off for. {0} is where it is, such as &quot;Mary Smith&apos;s home&quot;.</comment>
+	</data>
+	<data name="PlayerStepMeet" xml:space="preserve">
+		<value>Meet {0}</value>
+		<comment>A step to an appointment the player set off for. {0} is the name of the person they are meeting.</comment>
+	</data>
+	<data name="StatusAppointmentsHeader" xml:space="preserve">
+		<value>Appointments</value>
+	</data>
+	<data name="StatusAppointmentsNone" xml:space="preserve">
+		<value>None</value>
+		<comment>Shown when the player has no appointments.</comment>
+	</data>
+	<data name="StatusAppointment" xml:space="preserve">
+		<value>{0}: {1} with {2}, at {3}</value>
+		<comment>One of the player&apos;s appointments. {0} is when, such as &quot;14:30 today&quot;, {1} what they do there, such as &quot;Attending an expectant mother&quot;, {2} who it is with, and {3} where, such as &quot;her home&quot;.</comment>
+	</data>
+	<data name="StatusJobsHeader" xml:space="preserve">
+		<value>Jobs</value>
+		<comment>The heading of the jobs the player has taken on and not yet finished, on the status page.</comment>
+	</data>
+	<data name="StatusJob" xml:space="preserve">
+		<value>{0} for {1}, at {2}: {3} left of {4}</value>
+		<comment>One of the player&apos;s jobs. {0} is the need it&apos;s for, such as &quot;Work&quot;, {1} who it&apos;s for, {2} where, such as &quot;her home, off Mill Lane&quot;, {3} how much work is left, and {4} how much it takes in all.</comment>
+	</data>
+	<data name="NoticeDismiss" xml:space="preserve">
+		<value>OK</value>
+		<comment>Button that closes a notice, such as that the player missed an appointment.</comment>
+	</data>
+	<data name="StepFailureInvalid" xml:space="preserve">
+		<value>"onFail" must be "next", "stop", an object with "skipTo" and a step's id, or an object with one of those for each cause of failure.</value>
+	</data>
+	<data name="DurationInvalid" xml:space="preserve">
+		<value>A length of time must be a whole number of minutes, or text with hours and minutes ("1:30") or days, hours, and minutes ("2:15:35").</value>
+	</data>
+	<data name="StepBundleInvalid" xml:space="preserve">
+		<value>A bundle must be its id, or an object with its "id" and "title".</value>
+	</data>
+	<data name="StepSkipToUnknown" xml:space="preserve">
+		<value>"{0}" is "{1}", but no step of the same need, step list, or appointment has that id.</value>
+	</data>
+	<data name="StepIdDuplicate" xml:space="preserve">
+		<value>"{0}" is "{1}", but another step of the same need, step list, or appointment has that id.</value>
+	</data>
+	<data name="StepPutKindMismatch" xml:space="preserve">
+		<value>"{0}" must match the kind of things the step that took bundle "{1}" took, and be left out for a bundle a "make" step made.</value>
+	</data>
+	<data name="PlayerStepsDoAll" xml:space="preserve">
+		<value>Do it all for me</value>
+	</data>
+	<data name="PlayerStepsDoAllToolTip" xml:space="preserve">
+		<value>Have all of it done for you, as anyone else would do it. You're still asked whether to keep going.</value>
+	</data>
+	<data name="PlayerStepsOthersHeader" xml:space="preserve">
+		<value>Also in progress</value>
+	</data>
+	<data name="PlayerStepsSwitchToolTip" xml:space="preserve">
+		<value>Switch to this, putting what you're doing now on hold.</value>
+	</data>
+	<data name="PlayerStepChoose" xml:space="preserve">
+		<value>Choose what to do</value>
+	</data>
+	<data name="PlayerStepOption" xml:space="preserve">
+		<value>Or: {0}</value>
+	</data>
+	<data name="PlayerStepOptionSteps" xml:space="preserve">
+		<value>…</value>
+	</data>
+	<data name="PlayerStepPut" xml:space="preserve">
+		<value>Put down the {0}</value>
+	</data>
+	<data name="PlayerStepOpenHours" xml:space="preserve">
+		<value>Only from {0} to {1}</value>
+	</data>
+	<data name="PlayerStepFailed" xml:space="preserve">
+		<value>Couldn't finish "{0}": {1}.</value>
+	</data>
+	<data name="FailCauseNo" xml:space="preserve">
+		<value>they said no</value>
+	</data>
+	<data name="FailCauseNobody" xml:space="preserve">
+		<value>there was no one</value>
+	</data>
+	<data name="FailCauseUnreachable" xml:space="preserve">
+		<value>there was no way to get there</value>
+	</data>
+	<data name="FailCauseMissing" xml:space="preserve">
+		<value>what it needed wasn't at hand</value>
+	</data>
+	<data name="FailCauseLeft" xml:space="preserve">
+		<value>you left before it was done</value>
+	</data>
+	<data name="FailCauseInterrupted" xml:space="preserve">
+		<value>something else came up</value>
+	</data>
+	<data name="FailCauseHours" xml:space="preserve">
+		<value>it's outside its hours</value>
+	</data>
+	<data name="FailCauseNoShow" xml:space="preserve">
+		<value>no one came</value>
+	</data>
+	<data name="FailCauseNoOption" xml:space="preserve">
+		<value>there was nothing to choose</value>
+	</data>
+	<data name="BundleDescription" xml:space="preserve">
+		<value>{0} ({1} things)</value>
+	</data>
+	<data name="SaveStepInvalid" xml:space="preserve">
+		<value>The saved game has step {0} of need "{1}", which has no such step.</value>
+	</data>
+	<data name="StartCarryOn" xml:space="preserve">
+		<value>Carry on</value>
+	</data>
+	<data name="PlayerStepFollow" xml:space="preserve">
+		<value>Stay with {0}</value>
+	</data>
+	<data name="PlayerStepsHeaderWith" xml:space="preserve">
+		<value>In progress: with {0}</value>
+	</data>
+	<data name="AppointmentActivityClient" xml:space="preserve">
+		<value>Meeting {0}</value>
+	</data>
+	<data name="AskRequestText" xml:space="preserve">
+		<value>{0} asks: "{1}"</value>
+	</data>
+	<data name="AskRequestTextGeneric" xml:space="preserve">
+		<value>{0} asks you something: {1}</value>
+	</data>
+	<data name="AskRequestYes" xml:space="preserve">
+		<value>Yes</value>
+	</data>
+	<data name="AskRequestNo" xml:space="preserve">
+		<value>No</value>
+	</data>
+	<data name="ConversationCallOff" xml:space="preserve">
+		<value>Call it off</value>
+	</data>
+	<data name="ConversationCallOffToolTip" xml:space="preserve">
+		<value>Tell them you're calling off what you're doing together. They carry on without you.</value>
+	</data>
+	<data name="ConversationCalledOff" xml:space="preserve">
+		<value>You told {0} you're calling it off.</value>
+	</data>
+	<data name="FamilyDurationInvalid" xml:space="preserve">
+		<value>Expected a number of minutes or a duration ("1:30"), or an object with "base", "perMember", or both.</value>
+	</data>
+	<data name="BundleFor" xml:space="preserve">
+		<value>For {0}, until your steps put it down</value>
+	</data>
+	<data name="ClothingInBundle" xml:space="preserve">
+		<value>Part of {0}</value>
+	</data>
+	<data name="AskRequestWarning" xml:space="preserve">
+		<value>If you say yes, you won't have seen to {0} by then.</value>
+	</data>
+	<data name="TalkPromptTextStep" xml:space="preserve">
+		<value>{0} would like to talk with you.</value>
+	</data>
+	<data name="TalkPromptAcceptStep" xml:space="preserve">
+		<value>Talk ({0})</value>
+	</data>
+	<data name="StepAppointmentMeetCount" xml:space="preserve">
+		<value>"{0}" must have exactly one "meet" step, directly among its steps.</value>
+	</data>
+	<data name="StepAppointmentBeforeMeet" xml:space="preserve">
+		<value>"{0}" has a step before its "meet" step that isn't a "goTo", "take", "put", "make", "dress", "undress", "remember", "choose", or "stop" step.</value>
+	</data>
+	<data name="StepMeetNotAllowed" xml:space="preserve">
+		<value>"{0}" is a "meet" step, which is only allowed directly among an appointment's steps.</value>
+	</data>
+	<data name="SaveSetOffWithoutAppointment" xml:space="preserve">
+		<value>A sequence of the steps of "{0}" is waiting to set off, but isn't for an appointment.</value>
+	</data>
+	<data name="PlayerStepsLater" xml:space="preserve">
+		<value>Later: with {0}, {1}</value>
+	</data>
+	<data name="StepJobWithAppointment" xml:space="preserve">
+		<value>"{0}" can't be set along with "appointment".</value>
+		<comment>{0} is the path of the job setting.</comment>
+	</data>
+	<data name="StepJobPlaceInvalid" xml:space="preserve">
+		<value>"{0}" can't be the job site itself.</value>
+		<comment>{0} is the path of the job's place.</comment>
+	</data>
+	<data name="StepListNotCalled" xml:space="preserve">
+		<value>The step list "{0}" isn't called by any need or profession, so it's never carried out.</value>
+		<comment>A warning. {0} is the id of the step list.</comment>
+	</data>
+	<data name="SaveJobInvalid" xml:space="preserve">
+		<value>The job {0} isn't valid: its people are the same, or its minutes aren't positive.</value>
+	</data>
+	<data name="ClothingNotReady" xml:space="preserve">
+		<value>{0} until {1}</value>
+		<comment>Why a piece of clothing can't be worn. {0} is what it's shown to be doing until it's ready, such as "Drying", from the data, and {1} is the time on the clock it's ready.</comment>
+	</data>
+	<data name="ClothingNotReadyActivity" xml:space="preserve">
+		<value>Not ready</value>
+		<comment>What a piece of clothing is shown to be doing until it's ready, when the data didn't say, as in a game saved before it did.</comment>
+	</data>
+	<data name="OutfitNotReady" xml:space="preserve">
+		<value>Some of it is still {0}</value>
+		<comment>Why an outfit can't be changed into. {0} is what the pieces that aren't ready are shown to be doing, such as "drying".</comment>
+	</data>
+	<data name="MapAppointmentMarker" xml:space="preserve">
+		<value>Meet</value>
+		<comment>Marker on the map for the quarter of the player's next appointment, and on the way to its place.</comment>
+	</data>
+	<data name="AppointmentPlaceOffQuarter" xml:space="preserve">
+		<value>{0}, off {1}</value>
+		<comment>Where an appointment is, when it's a house or business. {0} is the place, such as "her home", and {1} is the quarter it's off.</comment>
 	</data>
 </root>

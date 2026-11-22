@@ -212,14 +212,23 @@ public sealed class VillageReport : ILogDestination
 		void OnTaskStarted(object? sender, PersonTaskEventArgs e)
 		{
 			var (person, household, member) = members[e.Person];
-			WriteRecord("activity", village, calendar.FormatTime(e.Time, TimeFormat.Long), calendar.GetDayOfWeek(e.Time).Id, household, member, person.Goal?.Id, GetTaskName(e.Task),
+			WriteRecord("activity", village, calendar.FormatTime(e.Time, TimeFormat.Long), calendar.GetDayOfWeek(e.Time).Id, household, member, person.Goal?.Id, person.Current?.Step, GetTaskName(e.Task),
 				person.TaskEnd is { } end ? calendar.GetTotalMinutes(end - e.Time) : null,
 				names[person.Location], e.Task is TravelTask travel ? names[travel.Destination] : null);
 		}
 
+		void OnStepFailed(object? sender, StepFailedEventArgs e)
+		{
+			var (person, household, member) = members[e.Person];
+			WriteRecord("failure", village, calendar.FormatTime(world.Time, TimeFormat.Long), household, member, e.Sequence.Need.Id, e.Step, JsonNamingPolicy.CamelCase.ConvertName(e.Sequence.Need.Steps[e.Step].Kind.ToString()),
+				JsonNamingPolicy.CamelCase.ConvertName(e.Cause.ToString()), names[person.Location]);
+		}
+
 		world.TaskStarted += OnTaskStarted;
+		world.StepFailed += OnStepFailed;
 		world.AdvanceTime(calendar.CreateTimeOffset(m_simulateDays, 0, 0));
 		world.TaskStarted -= OnTaskStarted;
+		world.StepFailed -= OnStepFailed;
 	}
 
 	/// <summary>
@@ -238,13 +247,16 @@ public sealed class VillageReport : ILogDestination
 	{
 		WriteRecord("#village", "village", "seed", "households", "people", "businesses", "quarters", "houses", "businessLocations", "reusedTemplates", "shape", "landmarks", "paths", "deadEnds", "landmarkDeadEnds", "maxExits", "features", "crossings", "time", "season");
 		WriteRecord("#household", "village", "household", "lastName", "members", "wealth", "fortune", "wealthLevel", "house", "quarter", "quarterKind");
-		WriteRecord(["#person", "village", "household", "member", "role", "isPlayer", "work", "businessProfession", "fullName", "description", "location", "place", "portraitLayers", "goal", "task", "taskEnd", "pendingTrip", "friends",
+		WriteRecord(["#person", "village", "household", "member", "role", "isPlayer", "work", "businessProfession", "fullName", "description", "location", "place", "portraitLayers", "goal", "task", "taskEnd", "step", "onHold", "bundles", "remembered", "replacedClothes", "friends",
 			.. gameData.Schedules.Needs.Select(x => x.Id), .. gameData.CharacterProperties.Select(x => x.Id)]);
-		WriteRecord("#activity", "village", "time", "day", "household", "member", "goal", "task", "minutes", "location", "destination");
+		WriteRecord("#activity", "village", "time", "day", "household", "member", "goal", "step", "task", "minutes", "location", "destination");
+		WriteRecord("#failure", "village", "time", "household", "member", "need", "step", "kind", "cause", "location");
 		WriteRecord("#relationship", "village", "household", "member", "otherHousehold", "otherMember", "score", "isFriend", "familyTie", "isNeighbor", "lastTalked");
-		WriteRecord("#sighting", "village", "household", "member", "otherHousehold", "otherMember", "location", "time", "activity", "need", "destination", "source", "toldGoal", "toldDestination");
+		WriteRecord("#appointment", "village", "household", "member", "clientHousehold", "clientMember", "need", "step", "place", "time", "workerOnTheWay", "clientOnTheWay", "started");
+		WriteRecord("#job", "village", "household", "member", "clientHousehold", "clientMember", "need", "place", "minutes", "minutesDone");
+		WriteRecord("#sighting", "village", "household", "member", "otherHousehold", "otherMember", "location", "time", "activity", "need", "doing", "destination", "source", "toldGoal", "toldDestination", "toldDoing");
 		WriteRecord("#business", "village", "household", "profession", "ownerRole", "helpers", "location", "quarter", "quarterKind");
-		WriteRecord("#clothing", "village", "household", "member", "clothing", "colors", "outfit", "kind", "place", "description", "laundry");
+		WriteRecord("#clothing", "village", "household", "member", "clothing", "colors", "outfit", "kind", "place", "description", "readyAt", "delayActivity");
 		WriteRecord("#location", "village", "id", "template", "type", "quarterKind", "wealth", "connections", "landmark", "x", "y", "width", "height", "borders");
 		WriteRecord("#exit", "village", "from", "to", "direction", "path", "crossing");
 		WriteRecord("#feature", "village", "id", "type", "x", "y", "width", "height", "bordering");
@@ -306,7 +318,8 @@ public sealed class VillageReport : ILogDestination
 
 				var portraitLayers = gameData.PortraitRenderer?.GetLayerIds(person.Traits, person.PortraitPlace, person.Clothing.GetPortraitClothing()) ?? [];
 				WriteRecord(["person", village, index, member, person.Role, person.IsPlayer, work, person.Business?.Profession.Id,
-					startTraits.GetFullName(gameData.CharacterTemplates), description, names[startLocation], startPlace, string.Join(" ", portraitLayers), goal, task, taskEnd, person.PendingTrip?.Id, person.Relationships.Values.Count(x => relationships.IsFriend(x.Score)), .. needs,
+					startTraits.GetFullName(gameData.CharacterTemplates), description, names[startLocation], startPlace, string.Join(" ", portraitLayers), goal, task, taskEnd, person.Current?.Step, person.Sequences.Count < 2 ? null : string.Join(" ", person.Sequences.Where(x => x != person.Current).Select(x => $"{x.Need.Id}@{x.Step}{(x.HasSetOff ? null : $"~{x.SetOff}")}")),
+					person.Sequences.SelectMany(x => x.Bundles).ToList() is { Count: > 0 } bundles ? string.Join(" ", bundles.Select(x => $"{x.Key}={x.Value.Items.Count}")) : null, person.Sequences.SelectMany(x => x.RememberedPlaces).ToList() is { Count: > 0 } remembered ? string.Join(" ", remembered.Select(x => $"{x.Key}={names[x.Value]}")) : null, person.ReplacedClothes.Count == 0 ? null : string.Join(" ", person.ReplacedClothes.Select(x => $"{JsonNamingPolicy.CamelCase.ConvertName(x.Key.Kind.ToString())}={x.Value.Count}")), person.Relationships.Values.Count(x => relationships.IsFriend(x.Score)), .. needs,
 					.. gameData.CharacterProperties.Select(x => FormatValue(startTraits.Values.GetValueOrDefault(x.Id)))]);
 
 				if (m_portraitFolder is not null && gameData.PortraitRenderer is { } portraitRenderer)
@@ -323,6 +336,21 @@ public sealed class VillageReport : ILogDestination
 				relationship.LastTalked is { } lastTalked ? gameData.Calendar.FormatTime(lastTalked, TimeFormat.Long) : null);
 		}
 
+		// The appointments still to keep, with the worker first.
+		foreach (var appointment in world.Appointments)
+		{
+			var (worker, client) = (appointment.Worker, appointment.Client);
+			WriteRecord("appointment", village, families[worker.Family], worker.Family.Members.ToList().IndexOf(worker), families[client.Family], client.Family.Members.ToList().IndexOf(client),
+				appointment.Need.Id, appointment.Step, names[appointment.Place], gameData.Calendar.FormatTime(appointment.Time, TimeFormat.Long), appointment.IsOnTheWay(worker), appointment.IsOnTheWay(client), appointment.IsStarted);
+		}
+
+		foreach (var job in world.Jobs)
+		{
+			var (worker, client) = (job.Worker, job.Client);
+			WriteRecord("job", village, families[worker.Family], worker.Family.Members.ToList().IndexOf(worker), families[client.Family], client.Family.Members.ToList().IndexOf(client),
+				job.Need.Id, names[job.Place], job.Minutes, job.MinutesDone);
+		}
+
 		// What each person last saw of everyone else, with whoever told them, if anyone, as "household-member".
 		var members = world.Families.SelectMany((family, index) => family.Members.Select((person, member) => (person, index, member))).ToDictionary(x => x.person, x => (x.index, x.member));
 		foreach (var person in world.People)
@@ -330,10 +358,10 @@ public sealed class VillageReport : ILogDestination
 			foreach (var (other, sighting) in person.Sightings.OrderBy(x => members[x.Key]))
 			{
 				WriteRecord("sighting", village, members[person].index, members[person].member, members[other].index, members[other].member, names[sighting.Location],
-					gameData.Calendar.FormatTime(sighting.Time, TimeFormat.Long), JsonNamingPolicy.CamelCase.ConvertName(sighting.Activity.ToString()), sighting.Need?.Id,
+					gameData.Calendar.FormatTime(sighting.Time, TimeFormat.Long), JsonNamingPolicy.CamelCase.ConvertName(sighting.Activity.ToString()), sighting.Need?.Id, sighting.Doing,
 					sighting.Destination is { } destination ? names[destination] : null,
 					sighting.Source is { } source ? FormattableString.Invariant($"{members[source].index}-{members[source].member}") : null,
-					sighting.Plan is null ? null : sighting.Plan.Goal?.Id ?? "idle", sighting.Plan?.Destination is { } told ? names[told] : null);
+					sighting.Plan is null ? null : sighting.Plan.Goal?.Id ?? "idle", sighting.Plan?.Destination is { } told ? names[told] : null, sighting.Plan?.Doing);
 			}
 		}
 
@@ -346,7 +374,7 @@ public sealed class VillageReport : ILogDestination
 				world.Locations.FirstOrDefault(x => x.Items == piece.Container) is { } location ? names[location] : null;
 			WriteRecord("clothing", village, piece.Owner is { } owner ? members[owner].index : null, piece.Owner is { } member ? members[member].member : null, piece.Clothing.Id,
 				string.Join(" ", piece.Colors.Select(x => $"{x.Key}={x.Value.Id}")), outfit?.Template?.Id, outfit is null ? null : JsonNamingPolicy.CamelCase.ConvertName(outfit.Kind.ToString()),
-				place, piece.Description, piece.IsInWash ? "inWash" : piece.DryAt is { } dryAt ? $"dryAt {gameData.Calendar.FormatTime(dryAt, TimeFormat.Long)}" : null);
+				place, piece.Description, piece.ReadyAt is { } readyAt ? gameData.Calendar.FormatTime(readyAt, TimeFormat.Long) : null, piece.DelayActivity);
 		}
 
 		foreach (var business in world.Businesses)
@@ -414,8 +442,9 @@ public sealed class VillageReport : ILogDestination
 		BusyTask => "busy",
 		TalkTask => "talk",
 		WaitTask => "wait",
+		FollowTask => "follow",
+		MeetTask => "meet",
 		AtWorkTask { IsAtWork: true } => "startWork",
-		FetchClothesTask => "fetchClothes",
 		ChangeClothesTask { IsTakingOff: false } => "changeClothes",
 		ChangeClothesTask => "changeBack",
 		_ => "stopWork",

@@ -91,12 +91,6 @@ public sealed class ModPatcherTests
 	}
 
 	[Test]
-	public void ReplaceNeedsExistingTarget()
-	{
-		Assert.That(GetErrors("""[ { "op": "replace", "path": "items[a].missing", "value": 1 } ]"""), Has.Count.EqualTo(1));
-	}
-
-	[Test]
 	public void OperationsCanHaveComments()
 	{
 		var result = Apply("""[ { "comments": "Not needed.", "op": "remove", "path": "items[a]" } ]""");
@@ -117,12 +111,6 @@ public sealed class ModPatcherTests
 
 		Assert.That((bool) result["items"]![1]!["when"]!["y"]!, Is.True);
 		Assert.That((string) result["map"]!["key"]!, Is.EqualTo("other"));
-	}
-
-	[Test]
-	public void SetOnlyChangesObjectProperties()
-	{
-		Assert.That(GetErrors("""[ { "op": "set", "path": "items[0]", "value": {} } ]"""), Has.Count.EqualTo(1));
 	}
 
 	[Test]
@@ -238,6 +226,8 @@ public sealed class ModPatcherTests
 	[TestCase("""[ { "op": "insert", "path": "items", "values": null } ]""")]
 	[TestCase("""[ { "op": "replace", "path": "items[a]", "values": [ 1 ] } ]""")]
 	[TestCase("""[ { "op": "set", "path": "map.key", "value": 1, "values": [ 1 ] } ]""")]
+	[TestCase("""[ { "op": "replace", "path": "items[a].missing", "value": 1 } ]""")]
+	[TestCase("""[ { "op": "set", "path": "items[0]", "value": {} } ]""")]
 	[TestCase("""[ { "op": "remove", "path": "items[z]" } ]""")]
 	[TestCase("""[ { "op": "remove", "path": "items.a" } ]""")]
 	[TestCase("""[ { "op": "remove", "path": "title.a" } ]""")]

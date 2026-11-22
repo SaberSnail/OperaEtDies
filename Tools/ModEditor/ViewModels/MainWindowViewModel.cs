@@ -235,6 +235,25 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		}
 	}
 
+	/// <summary>
+	/// Whether the form shows every property an object can have, rather than hiding the optional ones that aren't set. It's
+	/// kept between sessions.
+	/// </summary>
+	public bool ShowAllProperties
+	{
+		get => VerifyAccess(m_settings.ShowAllProperties);
+		set
+		{
+			if (value != m_settings.ShowAllProperties)
+			{
+				UpdateSettings(m_settings with { ShowAllProperties = value });
+				if (Form is { } form)
+					form.ShowAllProperties = value;
+				RaisePropertyChanged(nameof(ShowAllProperties));
+			}
+		}
+	}
+
 	public bool IsEditorReadOnly
 	{
 		get => VerifyAccess(m_isEditorReadOnly);
@@ -1752,6 +1771,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		var piece = m_selectedNode?.GetPiece();
 		var form = piece is null ? null : FormViewModel.Create(piece, new IdCatalog(m_gameData, m_project?.Files ?? []), m_selectedNode is GameDataNodeViewModel, OnFormChanged, RequestHelp,
 			m_selectedNode is GameDataNodeViewModel ? new FormChanges(this) : null);
+		if (form is not null)
+			form.ShowAllProperties = m_settings.ShowAllProperties;
 		Form = form;
 		FormMessage = form is not null ? null : m_selectedNode switch
 		{

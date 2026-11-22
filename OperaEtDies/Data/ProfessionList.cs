@@ -62,11 +62,11 @@ public sealed class ProfessionList
 				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.business.maxBusinesses", business.MaxBusinesses, 1);
 			if (business.Helpers is < 0)
 				yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.business.helpers", business.Helpers, 0);
-			if (business.ForHouseholdElders && !business.WorksFromHome)
-				yield return OurResources.ProfessionElderTradeNotFromHome.FormatCurrentCulture(profession.Id);
+			if (business.Activity is not null && string.IsNullOrWhiteSpace(business.Activity))
+				yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.business.activity");
 			if (business.Hours is { } hours)
 			{
-				foreach (var error in hours.Validate($"{path}.business.hours", allowDays: false))
+				foreach (var error in hours.Validate($"{path}.business.hours", business))
 					yield return error;
 			}
 		}

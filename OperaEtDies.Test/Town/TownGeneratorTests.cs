@@ -110,6 +110,7 @@ public sealed class TownGeneratorTests
 
 				Assert.That(household.Fortune, Is.InRange(settings.Wealth.Fortune.Minimum, settings.Wealth.Fortune.Maximum));
 				Assert.That(household.Wealth, Is.EqualTo(GetExpectedWealth(household, settings)).Within(0.0001));
+				Assert.That(household.WealthLevel, Is.EqualTo(settings.GetHouseholdWealthLevel(household.Wealth)));
 
 				// Children are listed from oldest to youngest, and are young enough to be children of both parents.
 				Assert.That(children.Select(GetAge), Is.Ordered.Descending);
@@ -216,20 +217,6 @@ public sealed class TownGeneratorTests
 	}
 
 	[Test]
-	public void WealthComesFromWork()
-	{
-		var gameData = TestData.CreateGameData();
-		var town = TownGenerator.Generate(gameData, TestData.CreatePlayerTraits(gameData), new Random(0));
-
-		foreach (var household in town.Households)
-		{
-			var expected = GetExpectedWealth(household, gameData.Families);
-			Assert.That(household.Wealth, Is.EqualTo(expected).Within(0.0001));
-			Assert.That(household.WealthLevel, Is.EqualTo(gameData.Families.GetHouseholdWealthLevel(expected)));
-		}
-	}
-
-	[Test]
 	public void LastNamesAreNotRepeated()
 	{
 		var gameData = TestData.CreateGameData();
@@ -261,13 +248,15 @@ public sealed class TownGeneratorTests
 			if (shape is not null)
 				Assert.That(town.Shape, Is.EqualTo(shape));
 
-			// Every unique kind has exactly one quarter, unless the town has the feature that makes it optional, when it has at
-			// most one. It can only go without one if a quarter borders the feature. There are as many landmarks as allowed.
-			foreach (var kind in gameData.QuarterKinds.Where(x => x.Unique))
+			// Every kind has as many quarters as its count allows, but an optional kind (in a town with the feature that makes
+			// it optional) can have none. It can only go without them if a quarter borders the feature. There are as many
+			// landmarks as allowed.
+			foreach (var kind in gameData.QuarterKinds.Where(x => x.Count is not null))
 			{
 				var isOptional = kind.OptionalWith is { } feature && town.Features.Any(x => x.Feature.Id == feature);
 				var count = quarters.Count(x => ((QuarterTemplate) x.Template).Kind == kind.Id);
-				Assert.That(count, isOptional ? Is.InRange(0, 1) : Is.EqualTo(1), kind.Id);
+				Assert.That(count == 0 && isOptional || count >= kind.MinCount, Is.True, $"{kind.Id} has {count} quarters");
+				Assert.That(count, Is.LessThanOrEqualTo(kind.MaxCount ?? int.MaxValue), kind.Id);
 				if (isOptional && count == 0)
 					Assert.That(quarters.Any(x => gameData.GetBorderedFeatures((QuarterTemplate) x.Template).Contains(kind.OptionalWith!)), Is.True, $"{kind.Id} is missing, but no quarter borders {kind.OptionalWith}");
 				if (isOptional)

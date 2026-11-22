@@ -1,0 +1,105 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:local="clr-namespace:OperaEtDies.Controls.Start"
+	xmlns:operaEtDies="clr-namespace:OperaEtDies"
+	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
+
+	<!--  What the player can start: whether it's done for them, what they're in the middle of, and each need, with how it's
+		going and its buttons (one for each choice of how long), or why it can't be started now. The note sits after the
+		buttons, so it doesn't move them.  -->
+	<DataTemplate DataType="{x:Type local:StartScreenViewModel}">
+		<Grid Margin="24">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="*" />
+			</Grid.RowDefinitions>
+
+			<DockPanel Grid.Row="0" LastChildFill="True">
+				<Button
+					Width="120"
+					Height="32"
+					VerticalAlignment="Center"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Close}"
+					Content="{x:Static operaEtDies:OurResources.CloseView}"
+					DockPanel.Dock="Right" />
+				<TextBlock
+					FontSize="{DynamicResource TitleFontSize}"
+					Text="{Binding Title}"
+					TextWrapping="Wrap" />
+			</DockPanel>
+
+			<StackPanel Grid.Row="1" Margin="0,12,0,0">
+				<CheckBox
+					Content="{x:Static operaEtDies:OurResources.StartAutomatic}"
+					IsChecked="{Binding IsAutomatic}"
+					ToolTip="{x:Static operaEtDies:OurResources.StartAutomaticToolTip}" />
+				<TextBlock
+					Margin="0,8,0,0"
+					Foreground="{DynamicResource FontLightBrush}"
+					Text="{Binding InProgress}"
+					TextWrapping="Wrap"
+					Visibility="{Binding InProgress, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+			</StackPanel>
+
+			<ScrollViewer
+				Grid.Row="2"
+				Margin="0,12,0,0"
+				HorizontalScrollBarVisibility="Disabled"
+				VerticalScrollBarVisibility="Auto">
+				<ItemsControl ItemsSource="{Binding Choices}">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate DataType="{x:Type local:StartChoiceViewModel}">
+							<Grid Margin="0,0,0,8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="200" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<TextBlock
+									Grid.Column="0"
+									Margin="0,8,0,0"
+									VerticalAlignment="Top"
+									Text="{Binding Title}"
+									TextTrimming="CharacterEllipsis" />
+								<TextBlock
+									Grid.Column="1"
+									Margin="12,8,0,0"
+									VerticalAlignment="Top"
+									Foreground="{DynamicResource FontLightBrush}"
+									Text="{Binding Status}"
+									TextTrimming="CharacterEllipsis" />
+								<WrapPanel Grid.Column="2" Margin="12,0,0,0">
+									<ItemsControl ItemsSource="{Binding Options}">
+										<ItemsControl.ItemsPanel>
+											<ItemsPanelTemplate>
+												<WrapPanel />
+											</ItemsPanelTemplate>
+										</ItemsControl.ItemsPanel>
+										<ItemsControl.ItemTemplate>
+											<DataTemplate DataType="{x:Type local:StartOptionViewModel}">
+												<Button
+													MinWidth="120"
+													Height="32"
+													Margin="0,0,8,8"
+													Padding="8,0"
+													Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Start}"
+													Content="{Binding Text}" />
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
+									<TextBlock
+										Margin="0,8,0,0"
+										Foreground="{DynamicResource FontLightBrush}"
+										Text="{Binding Note}"
+										TextWrapping="Wrap" />
+								</WrapPanel>
+							</Grid>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+			</ScrollViewer>
+		</Grid>
+	</DataTemplate>
+</ResourceDictionary>

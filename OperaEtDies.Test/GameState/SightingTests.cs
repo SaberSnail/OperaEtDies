@@ -28,13 +28,13 @@ public sealed class SightingTests
 		// Falling asleep, the sleeper sees everyone there.
 		Start(world, sleeper, sleep, new BusyTask(600));
 		Assert.That(sleeper.Sightings[watcher], Is.EqualTo(new Sighting(quarter, world.Time, SightingActivity.None)));
-		Assert.That(watcher.Sightings[sleeper], Is.EqualTo(new Sighting(quarter, world.Time, SightingActivity.Busy, sleep)));
+		Assert.That(watcher.Sightings[sleeper], Is.EqualTo(new Sighting(quarter, world.Time, SightingActivity.Busy, sleep, Doing: sleep.GetActivity(null))));
 
 		// Once asleep, they see no one new.
 		var later = world.GameData.Calendar.AddMinutes(world.Time, 5);
 		Start(world, worker, laundry, new BusyTask(30), later);
-		Assert.That(watcher.Sightings[worker], Is.EqualTo(new Sighting(quarter, later, SightingActivity.Busy, laundry)));
-		Assert.That(worker.Sightings[sleeper], Is.EqualTo(new Sighting(quarter, later, SightingActivity.Busy, sleep)));
+		Assert.That(watcher.Sightings[worker], Is.EqualTo(new Sighting(quarter, later, SightingActivity.Busy, laundry, Doing: laundry.GetActivity(null))));
+		Assert.That(worker.Sightings[sleeper], Is.EqualTo(new Sighting(quarter, later, SightingActivity.Busy, sleep, Doing: sleep.GetActivity(null))));
 		Assert.That(sleeper.Sightings[worker], Is.EqualTo(new Sighting(quarter, world.Time, SightingActivity.None)));
 
 		// Setting off along a path shows only the next place, and idling has no need.

@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Globalization;
 using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Calendar;
 using OperaEtDies.Characters;
@@ -25,14 +26,13 @@ public sealed class LocationScreenViewModel : ViewModelBase
 		m_following = following is not null && location.People.Contains(following) ? following : null;
 		var calendar = world.GameData.Calendar;
 		var connections = location.Exits
-			.Select(x => new LocationConnectionViewModel(x, calendar.FormatOffsetFrom(world.Time, world.GetTravelTime(location, x.Location), TimeFormat.Long), OnTravelRequested, GetMarker(world.Player, x.Location)))
+			.Select(x => new LocationConnectionViewModel(x, calendar.FormatOffsetFrom(world.Time, world.GetTravelTime(location, x.Location), TimeFormat.Long), OnTravelRequested, GetMarker(world, x.Location)))
 			.ToList();
 		Paths = connections.Where(x => x.Direction is not null).OrderBy(x => x.Direction).ToList();
 		Places = connections.Where(x => x.Direction is null).ToList();
 		Connections = [.. Paths, .. Places];
 		m_people = CreatePeople([]);
-		m_actionChoices = world.GetPlayerActions();
-		m_actions = CreateActions();
+		m_steps = CreateSteps();
 
 		// The location and world outlive the view model, so they're listened to weakly.
 		CollectionChangedEventManager.AddHandler(location.People, OnPeopleChanged);
@@ -57,9 +57,15 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	public event EventHandler<GenericEventArgs<Person>>? TalkRequested;
 
 	/// <summary>
-	/// The person the player is following, or null if they aren't following anyone.
+	/// Raised when the player's steps were carried out for them, with how it went, since it can take them somewhere else.
 	/// </summary>
-	public Person? Following => VerifyAccess(m_following);
+	public event EventHandler<GenericEventArgs<string>>? StepsCarriedOut;
+
+	/// <summary>
+	/// The person the player is following: someone they chose to follow, or someone whose steps they're taking part in,
+	/// or null if they aren't following anyone.
+	/// </summary>
+	public Person? Following => VerifyAccess(m_following ?? m_world.GetPlayerLeader());
 
 	/// <summary>
 	/// The location being shown.
@@ -118,15 +124,13 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	public bool HasPeople => People.Count != 0;
 
 	/// <summary>
-	/// What the player can spend time on here, such as sleeping at home or working at their workplace.
+	/// The steps the player has left for what they're in the middle of, or null if they aren't in the middle of anything.
 	/// </summary>
-	public IReadOnlyList<PlayerActionViewModel> Actions
+	public PlayerStepsViewModel? Steps
 	{
-		get => VerifyAccess(m_actions);
-		private set => SetPropertyField([nameof(Actions), nameof(HasActions)], value, ref m_actions);
+		get => VerifyAccess(m_steps);
+		private set => SetPropertyField(value, ref m_steps);
 	}
-
-	public bool HasActions => Actions.Count != 0;
 
 	/// <summary>
 	/// How the last wait or action here went, or null if the player hasn't waited or done anything here.
@@ -153,7 +157,7 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	{
 		VerifyAccess();
 		var start = m_world.Time;
-		var following = m_following;
+		var following = Following;
 		var isChanged = m_world.WaitForPeople(Location, following);
 		var calendar = m_world.GameData.Calendar;
 		var waited = calendar.FormatOffsetFrom(start, m_world.Time - start, TimeFormat.Long);
@@ -179,13 +183,18 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	internal void ShowWaitResult(string result) => WaitResult = result;
 
 	/// <summary>
+	/// Brings what the player can do here up to date, such as after they answer whether to keep going.
+	/// </summary>
+	internal void Refresh() => Steps = CreateSteps();
+
+	/// <summary>
 	/// Starts following someone here, or stops following them.
 	/// </summary>
 	private void ToggleFollow(Person person)
 	{
 		m_following = m_following == person ? null : person;
 		foreach (var viewModel in m_people)
-			viewModel.IsFollowed = viewModel.Person == m_following;
+			viewModel.IsFollowed = viewModel.Person == Following;
 		RaisePropertyChanged(nameof(Following));
 	}
 
@@ -201,57 +210,141 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	private LocationPersonViewModel CreatePerson(Person person) =>
 		new(person, m_world.GameData.PortraitRenderer, m_world.GameData.Schedules, m_world.GameData.Relationships, toggleFollow: ToggleFollow,
 			developerCalendar: m_isDeveloper ? m_world.GameData.Calendar : null, examine: x => ExamineRequested.Raise(this, new GenericEventArgs<Person>(x)),
-			talk: x => TalkRequested.Raise(this, new GenericEventArgs<Person>(x))) { IsFollowed = person == m_following };
+			talk: x => TalkRequested.Raise(this, new GenericEventArgs<Person>(x))) { IsFollowed = person == (m_following ?? m_world.GetPlayerLeader()) };
 
 	/// <summary>
-	/// Spends time on a need here, through its player action, and shows how long it took. After the part of a trip at
-	/// its place, the player is told to finish it at home.
+	/// Has the player press the button of the step they're on, which carries it out, and shows how long it took. When the
+	/// player has more steps to do somewhere else, they're told what to do next.
 	/// </summary>
-	private void DoAction(PlayerActionChoice choice, int minutes)
+	private void DoAction(StepSequence sequence)
 	{
-		var need = choice.Need;
-		var action = need.PlayerAction!;
+		var step = sequence.CurrentStep!;
 		var start = m_world.Time;
 
-		// Changing clothes for it, such as into work clothes, mustn't leave the player too uncovered.
-		var warning = ModestyWarning.Format(m_world.GetPlayerActionUncoveredSlots(need));
+		// The player changes clothes themselves, so doing something, such as working, mustn't leave them too uncovered.
+		var warning = ModestyWarning.Format(m_world.GetPlayerStepUncoveredSlots(step));
 		if (warning is not null)
 		{
 			WaitResult = warning;
 		}
 		else
 		{
-			if (need.IsTrips)
-				m_world.DoPlayerTrip(need, choice.IsHome);
-			else
-				m_world.DoPlayerAction(need, minutes);
-
+			m_world.DoPlayerStep(sequence);
 			var spent = m_world.GameData.Calendar.FormatOffsetFrom(start, m_world.Time - start, TimeFormat.Long);
-			var result = choice.IsHome ? action.Home!.Result : action.Result;
-			var text = minutes == 0 ? OurResources.PlayerActionResultInstant.FormatCurrentCulture(result) : OurResources.PlayerActionResult.FormatCurrentCulture(result, spent);
-			WaitResult = !choice.IsHome && action.Return is { } returnText ? OurResources.PlayerActionResultReturn.FormatCurrentCulture(text, returnText) : text;
+			var result = step.Player!.Result!;
+			var text = m_world.Time == start ? OurResources.PlayerActionResultInstant.FormatCurrentCulture(result) : OurResources.PlayerActionResult.FormatCurrentCulture(result, spent);
+			WaitResult = m_world.Player.Sequences.Contains(sequence) && sequence.NextText is { } next ? OurResources.PlayerActionResultReturn.FormatCurrentCulture(text, next) : text;
 		}
 
-		// Finishing a trip at home can take no time, so the actions are brought up to date here too.
-		Actions = CreateActions();
+		Steps = CreateSteps();
 	}
 
 	/// <summary>
-	/// Creates the actions the player could do here when they arrived, other than chores that are done: a quota need with
-	/// no time left to spend on it, or a trip that's been finished at home. The rest stay listed (though they may not be
-	/// available right now).
+	/// Gives up the steps the player is in the middle of, and says so.
 	/// </summary>
-	private IReadOnlyList<PlayerActionViewModel> CreateActions() => m_actionChoices
-		.Where(x => x.IsHome ? m_world.Player.PendingTrip == x.Need : x.Need.Kind != NeedKind.Quota || m_world.GetPlayerRemainingMinutes(x.Need) > 0).Select(x => new PlayerActionViewModel(x, m_world, DoAction)).ToList();
-
-	private void OnWorldTimeChanged(object? sender, PropertyChangedEventArgs e) => Actions = CreateActions();
+	private void StopSteps(StepSequence sequence)
+	{
+		var activity = sequence.Need.GetActivity(sequence.IsDone ? null : sequence.Step, m_world.Player.Business?.Profession.Id);
+		m_world.StopPlayerSteps(sequence);
+		WaitResult = OurResources.PlayerStepsGaveUp.FormatCurrentCulture(PlayerStepsViewModel.LowerFirst(activity));
+		Steps = CreateSteps();
+	}
 
 	/// <summary>
-	/// Gets the word marking a place as the player's home or the place they work (if it isn't their home), or null.
+	/// Has the step the player is on carried out for them, or all of the steps, and tells them how long it took, or once
+	/// that finishes what they started, that they finished it.
 	/// </summary>
-	private static string? GetMarker(Person player, Location location) =>
-		location == player.Home ? OurResources.MapHomeMarker :
-		player.Business is not null && location == player.Workplace ? OurResources.MapWorkMarker : null;
+	private void DoSteps(StepSequence sequence, bool isAll)
+	{
+		var activity = PlayerStepsViewModel.LowerFirst(sequence.Need.GetActivity(sequence.IsDone ? null : sequence.Step, m_world.Player.Business?.Profession.Id));
+		var start = m_world.Time;
+		if (isAll)
+			m_world.DoPlayerStepsAutomatically(sequence);
+		else
+			m_world.DoPlayerStep(sequence);
+		var spent = m_world.GameData.Calendar.FormatOffsetFrom(start, m_world.Time - start, TimeFormat.Long);
+		var result = m_world.Player.Sequences.Contains(sequence) ? OurResources.PlayerStepDone.FormatCurrentCulture(spent) : OurResources.PlayerStepsDone.FormatCurrentCulture(activity, spent);
+		Steps = CreateSteps();
+		StepsCarriedOut.Raise(this, new GenericEventArgs<string>(result));
+	}
+
+	/// <summary>
+	/// Has the player choose an option of the step they're on.
+	/// </summary>
+	private void Choose(StepSequence sequence, StepOption option)
+	{
+		var start = m_world.Time;
+		m_world.ChoosePlayerOption(sequence, option);
+		Steps = CreateSteps();
+		if (m_world.Time != start)
+			StepsCarriedOut.Raise(this, new GenericEventArgs<string>(OurResources.PlayerStepDone.FormatCurrentCulture(m_world.GameData.Calendar.FormatOffsetFrom(start, m_world.Time - start, TimeFormat.Long))));
+	}
+
+	/// <summary>
+	/// Switches the player to something else they're in the middle of.
+	/// </summary>
+	private void Switch(StepSequence sequence)
+	{
+		m_world.FocusPlayerSteps(sequence);
+		m_world.UpdatePlayerSteps();
+		Steps = CreateSteps();
+	}
+
+	/// <summary>
+	/// Creates the steps of what the player is in the middle of, keeping whether they're expanded, or null if they aren't
+	/// in the middle of anything, or are being asked whether to keep going.
+	/// </summary>
+	private PlayerStepsViewModel? CreateSteps()
+	{
+		var player = m_world.Player;
+		if (player.Current is not { } sequence || m_world.IsAskingPlayerToKeepGoing(sequence))
+			return null;
+
+		var steps = m_world.GetPlayerSteps(sequence);
+		var choices = m_world.GetPlayerOptions(sequence).Select(option => new PlayerStepActionViewModel(option.Player?.Title ?? "", isEnabled: true, note: null, () => Choose(sequence, option))).ToList();
+		// Appointments they haven't set off for yet are shown, but can't be switched to until it's time.
+		var others = player.Sequences.Where(x => x != sequence).Reverse()
+			.Select(other => other is { HasSetOff: false, Appointment: { } later }
+				? new PlayerStepActionViewModel(OurResources.PlayerStepsLater.FormatCurrentCulture(later.GetOther(player).FullName, AppointmentText.FormatWhen(m_world, later.Time)), isEnabled: false, note: null, () => { })
+				: new PlayerStepActionViewModel(other.Need.Title, isEnabled: true, note: null, () => Switch(other))).ToList();
+		var viewModel = new PlayerStepsViewModel(sequence, steps, player, m_isStepsExpanded, CreateStepAction(sequence), choices, others,
+			() => DoSteps(sequence, isAll: false), () => DoSteps(sequence, isAll: true), () => StopSteps(sequence), m_world.CanDoPlayerStep(sequence));
+		viewModel.ExpandedChanged += (_, _) => m_isStepsExpanded = viewModel.IsExpanded;
+		return viewModel;
+	}
+
+	/// <summary>
+	/// Creates the button of the step the player is on, if it has one: with how long it takes, for a step that takes time,
+	/// or else, if it's outside its hours, when they are.
+	/// </summary>
+	private PlayerStepActionViewModel? CreateStepAction(StepSequence sequence)
+	{
+		if (sequence is not { CurrentStep: { IsPlayerAction: true } step })
+			return null;
+
+		var title = step.Player!.Title!;
+		if (step.Hours is { } hours && !hours.Contains(m_world.GameData.Calendar.GetParts(m_world.Time).Hour))
+		{
+			var open = OurResources.PlayerStepOpenHours.FormatCurrentCulture(OurResources.GameClock.FormatCurrentCulture(hours.Start, 0), OurResources.GameClock.FormatCurrentCulture(hours.End % 24, 0));
+			return new PlayerStepActionViewModel(title, isEnabled: false, open, () => { });
+		}
+
+		var minutes = step.Kind == StepKind.Do ? step.Minutes is { } amount ? (int) amount.GetAmount(sequence.Need.SharedByFamily ? m_world.Player.Family.Members.Count : 0) : sequence.MinutesLeft : null;
+		return new PlayerStepActionViewModel(minutes is > 0 ? OurResources.PlayerActionOptionText.FormatCurrentCulture(title, PlayerActionText.FormatMinutes(m_world, minutes.Value)) : title,
+			isEnabled: true, note: null, () => DoAction(sequence));
+	}
+
+	private void OnWorldTimeChanged(object? sender, PropertyChangedEventArgs e) => Steps = CreateSteps();
+
+	/// <summary>
+	/// Gets the word marking a place as the player's home, the place they work (if it isn't their home), or the place of
+	/// their next appointment, or null.
+	/// </summary>
+	private static string? GetMarker(GameWorld world, Location location) =>
+		location == world.Player.Home ? OurResources.MapHomeMarker :
+		world.Player.Business is not null && location == world.Player.Workplace ? OurResources.MapWorkMarker :
+		world.GetPlayerAppointments() is [var next, ..] && next.Place == location ? OurResources.MapAppointmentMarker :
+		null;
 
 	private void OnPeopleChanged(object? sender, NotifyCollectionChangedEventArgs e) => People = CreatePeople(m_people);
 
@@ -261,8 +354,8 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	private readonly bool m_isDeveloper;
 	private Person? m_following;
 	private IReadOnlyList<LocationPersonViewModel> m_people;
-	private readonly IReadOnlyList<PlayerActionChoice> m_actionChoices;
-	private IReadOnlyList<PlayerActionViewModel> m_actions;
+	private PlayerStepsViewModel? m_steps;
+	private bool m_isStepsExpanded;
 	private string? m_waitResult;
 	private bool m_isExamined;
 }

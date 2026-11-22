@@ -140,13 +140,49 @@
 		<Setter Property="MinHeight" Value="24" />
 	</Style>
 
-	<!--  The fields of an object, list, or map, indented by FieldViewModel.IndentWidth (margin, line, and padding).  -->
-	<Style x:Key="IndentStyle" TargetType="Border">
-		<Setter Property="Margin" Value="4,0,0,2" />
-		<Setter Property="Padding" Value="8,0,0,0" />
-		<Setter Property="BorderThickness" Value="2,0,0,0" />
-		<Setter Property="BorderBrush" Value="#D8D0C0" />
+	<!--
+		The fields of an object, list, or map, indented by FieldViewModel.IndentWidth, with a line down their left side.
+		Hovering over the line (or the space beside it) shows the path of the property they belong to, since the line can be
+		taller than the window.
+	-->
+	<Style x:Key="IndentStyle" TargetType="ContentControl">
+		<Setter Property="Margin" Value="0,0,0,2" />
+		<Setter Property="Focusable" Value="False" />
+		<Setter Property="IsTabStop" Value="False" />
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="ContentControl">
+					<DockPanel>
+						<Border
+							x:Name="LineArea"
+							Width="14"
+							Background="Transparent"
+							DockPanel.Dock="Left"
+							ToolTip="{Binding IndentToolTip}">
+							<Rectangle
+								x:Name="Line"
+								Width="2"
+								Margin="4,0,0,0"
+								HorizontalAlignment="Left"
+								Fill="#D8D0C0" />
+						</Border>
+						<ContentPresenter />
+					</DockPanel>
+					<!--  The line darkens while it's hovered over, so it's clear which one the path is for.  -->
+					<ControlTemplate.Triggers>
+						<Trigger SourceName="LineArea" Property="IsMouseOver" Value="True">
+							<Setter TargetName="Line" Property="Fill" Value="#8A6A30" />
+						</Trigger>
+					</ControlTemplate.Triggers>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
 	</Style>
+
+	<!--  The fields of the object a form is for, which aren't indented.  -->
+	<ControlTemplate x:Key="UnindentedTemplate" TargetType="ContentControl">
+		<ContentPresenter />
+	</ControlTemplate>
 
 	<Style x:Key="TinyButtonStyle" BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
 		<Setter Property="Margin" Value="4,0,0,0" />
@@ -296,6 +332,25 @@
 		</DockPanel>
 	</DataTemplate>
 
+	<!--  A place: its name, or for a quarter or remembered place, its settings below the choice, indented like an object's.  -->
+	<DataTemplate DataType="{x:Type form:PlaceFieldViewModel}">
+		<StackPanel>
+			<DockPanel Style="{StaticResource FieldRowStyle}">
+				<ContentControl Style="{StaticResource FieldLabelStyle}" />
+				<ComboBox
+					MinWidth="160"
+					HorizontalAlignment="Left"
+					VerticalAlignment="Top"
+					IsEnabled="{Binding IsEditable}"
+					ItemsSource="{Binding Choices}"
+					SelectedItem="{Binding Selected}" />
+			</DockPanel>
+			<ContentControl Style="{StaticResource IndentStyle}" Visibility="{Binding Details, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
+				<ItemsControl Focusable="False" ItemsSource="{Binding Details.Fields}" />
+			</ContentControl>
+		</StackPanel>
+	</DataTemplate>
+
 	<DataTemplate DataType="{x:Type form:JsonFieldViewModel}">
 		<DockPanel Style="{StaticResource FieldRowStyle}">
 			<ContentControl Style="{StaticResource FieldLabelStyle}" />
@@ -351,18 +406,17 @@
 					</Button>
 				</StackPanel>
 			</DockPanel>
-			<Border>
-				<Border.Style>
-					<Style BasedOn="{StaticResource IndentStyle}" TargetType="Border">
+			<ContentControl>
+				<ContentControl.Style>
+					<Style BasedOn="{StaticResource IndentStyle}" TargetType="ContentControl">
 						<Style.Triggers>
 							<DataTrigger Binding="{Binding IsRoot}" Value="True">
 								<Setter Property="Margin" Value="0" />
-								<Setter Property="Padding" Value="0" />
-								<Setter Property="BorderThickness" Value="0" />
+								<Setter Property="Template" Value="{StaticResource UnindentedTemplate}" />
 							</DataTrigger>
 						</Style.Triggers>
 					</Style>
-				</Border.Style>
+				</ContentControl.Style>
 				<StackPanel>
 					<!--
 						The object's comments, for the people editing the data, before its fields. The main object always shows
@@ -395,9 +449,41 @@
 							TextWrapping="Wrap"
 							VerticalScrollBarVisibility="Auto" />
 					</DockPanel>
-					<ItemsControl Focusable="False" ItemsSource="{Binding Fields}" />
+					<ItemsControl Focusable="False" ItemsSource="{Binding VisibleFields}" />
+					<!--
+						Optional properties that aren't set are hidden, and added from this list, which offers only those the
+						object's other settings (such as a step's kind) allow. Each one's tooltip is what the help says about it.
+					-->
+					<Grid
+						Margin="0,2,0,6"
+						HorizontalAlignment="Left"
+						Visibility="{Binding HasAddableProperties, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+						<ComboBox
+							MinWidth="140"
+							IsEnabled="{Binding IsEditable}"
+							ItemsSource="{Binding AddableProperties}"
+							SelectedItem="{Binding ChosenProperty}"
+							ToolTip="Add a property">
+							<ComboBox.ItemContainerStyle>
+								<Style TargetType="ComboBoxItem">
+									<Setter Property="ToolTip" Value="{Binding ToolTip}" />
+								</Style>
+							</ComboBox.ItemContainerStyle>
+							<ComboBox.ItemTemplate>
+								<DataTemplate>
+									<TextBlock Text="{Binding Name}" />
+								</DataTemplate>
+							</ComboBox.ItemTemplate>
+						</ComboBox>
+						<TextBlock
+							Margin="6,0,24,0"
+							VerticalAlignment="Center"
+							Foreground="{DynamicResource FontLightBrush}"
+							IsHitTestVisible="False"
+							Text="+ Property" />
+					</Grid>
 				</StackPanel>
-			</Border>
+			</ContentControl>
 		</StackPanel>
 	</DataTemplate>
 
@@ -417,8 +503,8 @@
 						ToolTip="Add an item at the end" />
 				</StackPanel>
 			</DockPanel>
-			<!--  Each item is labeled with its number, and moved or removed with the buttons at the end of its row.  -->
-			<Border Style="{StaticResource IndentStyle}" Visibility="{Binding IsPresent, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+			<!--  Each item is labeled with its number, and has buttons at the end of its row to add an item after it, move it, or remove it.  -->
+			<ContentControl Style="{StaticResource IndentStyle}" Visibility="{Binding IsPresent, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 				<ItemsControl Focusable="False" ItemsSource="{Binding Items}">
 					<ItemsControl.ItemTemplate>
 						<DataTemplate>
@@ -443,12 +529,19 @@
 									DockPanel.Dock="Right"
 									Style="{StaticResource TinyButtonStyle}"
 									ToolTip="Move this item up" />
+								<Button
+									Margin="0,0,2,0"
+									Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AddAfter}"
+									Content="+"
+									DockPanel.Dock="Right"
+									Style="{StaticResource TinyButtonStyle}"
+									ToolTip="Add an item after this one" />
 								<ContentPresenter Content="{Binding Field}" />
 							</DockPanel>
 						</DataTemplate>
 					</ItemsControl.ItemTemplate>
 				</ItemsControl>
-			</Border>
+			</ContentControl>
 		</StackPanel>
 	</DataTemplate>
 
@@ -464,7 +557,7 @@
 					ToolTip="Add an entry" />
 			</DockPanel>
 			<!--  Each entry's key is in its value's name area, so the values line up with the other editors.  -->
-			<Border Style="{StaticResource IndentStyle}">
+			<ContentControl Style="{StaticResource IndentStyle}">
 				<ItemsControl Focusable="False" ItemsSource="{Binding Entries}">
 					<ItemsControl.ItemTemplate>
 						<DataTemplate>
@@ -524,7 +617,7 @@
 						</DataTemplate>
 					</ItemsControl.ItemTemplate>
 				</ItemsControl>
-			</Border>
+			</ContentControl>
 		</StackPanel>
 	</DataTemplate>
 

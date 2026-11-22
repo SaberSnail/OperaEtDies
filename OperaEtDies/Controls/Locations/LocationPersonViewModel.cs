@@ -37,7 +37,7 @@ public sealed class LocationPersonViewModel : ViewModelBase
 		m_talk = person.IsPlayer ? null : talk;
 		IsYou = labelRelations is not null && person.IsPlayer;
 		PlayerLabel = labelRelations is null ? null : IsYou ? OurResources.ThisIsYou :
-			person.Family.Members.Any(x => x.IsPlayer) && labelRelations.GetPlayerRelation(person.Traits.GetValueId) is { } relation ? OurResources.ThisIsYourRelation.FormatCurrentCulture(relation) : null;
+			person.Family.Members.Any(x => x.IsPlayer) && labelRelations.GetPlayerRelation(person.GetConditionValueId) is { } relation ? OurResources.ThisIsYourRelation.FormatCurrentCulture(relation) : null;
 
 		// The person outlives the view model, so it's listened to weakly.
 		PropertyChangedEventManager.AddHandler(person, OnPersonPropertyChanged, "");
@@ -172,24 +172,29 @@ public sealed class LocationPersonViewModel : ViewModelBase
 		{
 			activity = OurResources.PersonWaitingFor.FormatCurrentCulture(wait.For.FullName);
 		}
+		else if (Person.CurrentTask is MeetTask meet)
+		{
+			activity = OurResources.PersonMeeting.FormatCurrentCulture(meet.Appointment.GetOther(Person).FullName);
+		}
+		else if (Person.CurrentTask is FollowTask follow)
+		{
+			activity = OurResources.PersonFollowing.FormatCurrentCulture(follow.Leader.FullName);
+		}
 		else if (Person.CurrentTask is ChangeClothesTask)
 		{
 			activity = OurResources.PersonChangingClothes;
 		}
-		else if (Person.CurrentTask is BusyTask)
+		else if (Person.CurrentTask is BusyTask busy)
 		{
-			var goal = Person.Goal;
-			activity = goal is null ? m_schedules?.Idle.Activity :
-				goal.HomeActivity is { } homeActivity && goal.ReturnHome && Person.Location == Person.Home ? homeActivity :
-				goal.Activity ?? goal.Title;
+			activity = Person.Goal is { } goal ? goal.GetActivity(busy.Step, Person.Business?.Profession.Id) : m_schedules?.Idle.Activity;
 		}
 
 		return activity;
 	}
 
 	/// <summary>
-	/// Describes the person's plan: their goal (or being idle) and where it's met, whether they go home afterward, and
-	/// the end of the walk they're on, if they're walking.
+	/// Describes the person's plan: their goal (or being idle) and where their current step of it is done, which of the
+	/// goal's steps they're on, and the end of the walk they're on, if they're walking.
 	/// </summary>
 	private string? GetDeveloperGoal()
 	{
@@ -197,7 +202,7 @@ public sealed class LocationPersonViewModel : ViewModelBase
 		var text = (string?) null;
 		if (tasks.Count != 0)
 		{
-			// The goal is met where the first busy task is, after walking there.
+			// The current step is done where the first busy task is, after walking there.
 			var place = Person.Location;
 			foreach (var task in tasks.TakeWhile(x => x is not BusyTask))
 			{
@@ -207,7 +212,8 @@ public sealed class LocationPersonViewModel : ViewModelBase
 
 			var goal = Person.Goal;
 			text = goal is null ? OurResources.DeveloperIdle.FormatCurrentCulture(place.Title) :
-				(goal.ReturnHome && place != Person.Home ? OurResources.DeveloperGoalThenHome : OurResources.DeveloperGoal).FormatCurrentCulture(goal.Title, place.Title);
+				Person.Current?.Step is { } next ? OurResources.DeveloperGoalStep.FormatCurrentCulture(goal.Title, place.Title, Math.Max(next, 1), goal.Steps.Count) :
+				OurResources.DeveloperGoal.FormatCurrentCulture(goal.Title, place.Title);
 			if (Person.CurrentTask is TravelTask)
 			{
 				var destination = tasks.TakeWhile(x => x is TravelTask).OfType<TravelTask>().Last().Destination;
@@ -237,16 +243,17 @@ public sealed class LocationPersonViewModel : ViewModelBase
 		};
 
 		// Someone seeking a friend chose who and where from a clue.
-		if (choice.Seeking is { } seeking)
+		if (Person.Seeking is { } seeking)
 		{
 			var clue = seeking.Clue switch
 			{
 				SeekClue.Workplace => OurResources.DeveloperSeekWorkplace,
 				SeekClue.Home => OurResources.DeveloperSeekHome,
 				SeekClue.Sighting => OurResources.DeveloperSeekSighting,
+				SeekClue.People => OurResources.DeveloperSeekPeople,
 				_ => OurResources.DeveloperSeekGathering,
 			};
-			result = OurResources.DeveloperGoalSeeking.FormatCurrentCulture(result, seeking.Friend.FullName, seeking.Place.Title, clue);
+			result = OurResources.DeveloperGoalSeeking.FormatCurrentCulture(result, seeking.Friend?.FullName ?? OurResources.DeveloperSeekSomeone, seeking.Place.Title, clue);
 		}
 
 		var urgencies = choice.Urgencies.Count == 0 ? OurResources.DeveloperNoUrgencies :

@@ -41,6 +41,7 @@ Problems are reported against the file holding the item or setting they're about
 | `specialDays` | list | [Special Day](#special-day). Optional. |
 | `schedules` | settings | [Schedules](#schedules-settings). Optional; without it, people stay at home. |
 | `needs` | list | [Need](#need). Optional. |
+| `stepLists` | list | [Step List](#step-list). Optional. |
 | `urgencyFactors` | list | [Urgency Factor](#urgency-factor). Optional. |
 | `travelTimeFactors` | list | [Travel Time Factor](#travel-time-factor). Optional. |
 | `portraits` | settings | [Portraits](#portraits-settings). Optional; without it, characters have no portraits. |
@@ -85,6 +86,16 @@ Text of a sentence or more.
 | `minimum` | integer | The lowest number. |
 | `maximum` | integer | At least `minimum`. |
 | `shape` | [Shape](#shape) | Optional. Weights the numbers by their order. Without it, every number is equally likely. |
+
+#### Duration Range
+
+A range of lengths of time, chosen as a whole number of minutes.
+
+| Property | Type | Notes |
+|---|---|---|
+| `minimum` | [Duration](#duration) | The shortest. |
+| `maximum` | [Duration](#duration) | At least `minimum`. |
+| `shape` | [Shape](#shape) | Optional. Weights the numbers of minutes by their order. Without it, every number is equally likely. |
 
 #### Shape
 
@@ -199,7 +210,7 @@ A value list property picks a value, by frequency or shape, from those whose con
 | `groups` | list of string | Optional. Groups the value is in. A condition listing a group id means every value in the group. A group can't be the id of one of the property's values. |
 | `frequency` | [Frequency](#frequency) | Optional (`common`). How often it's chosen. |
 | `frequencyWhen` | list of [Frequency Override](#frequency-override) | Optional. Frequencies that replace `frequency` when their conditions are met. |
-| `text` | map of string to string | Optional. Named text for templates. |
+| `text` | map of string to string | Optional. Named text for templates. For a value with the `male` or `female` role, the game also uses its `possessive`, if it has one, such as "her", to describe things that are theirs, such as "her home". |
 | `when` | [Condition](#condition) | Optional. A character can only have the value when it's met. |
 | `prominence` | integer | Optional (10). From 1 to 10: how much clothing must cover the property's `regions` to hide the value. Only allowed when the property has `regions`. |
 
@@ -289,7 +300,7 @@ A value of the `profession` property, and how its businesses work. The roles `ho
 | `when` | [Condition](#condition) | Optional. A character can only have the profession when it's met. |
 | `defaults` | map of string to list of [Weighted Value](#weighted-value) | Optional. Each key is a string property whose defaults are keyed by the `profession` property without their own `valuesByKey`. The profession's usual values, such as its last names. |
 | `business` | [Business](#business) | Optional. Without it, the profession isn't a business. |
-| `modesty` | map of string to map of string to integer | Optional (none). Can be empty. Each key is a modesty rule id, and each value a map whose keys are clothing slot ids and whose values are from -10 to 10: how much more (or less, when negative) that [Modesty Rule](#modesty-rule)'s minimums are for that slot while working, for people following it. |
+| `modesty` | map of string to map of string to integer | Optional (none). Can be empty. Each key is a modesty rule id, and each value a map whose keys are clothing slot ids and whose values are from -10 to 10: how much more (or less, when negative) that [Modesty Rule](#modesty-rule)'s minimums are for that slot while working, for people following it. The player counts as working from when they start work's steps until they're done with them, so they can change for work and go out in their work clothes. |
 
 #### Business
 
@@ -299,9 +310,12 @@ A value of the `profession` property, and how its businesses work. The roles `ho
 | `maxBusinesses` | integer | Optional (no limit). At least 1. The most businesses in the village. |
 | `helpers` | integer | Optional (no limit). At least 0. The most members of the owner's household who can help. |
 | `helperWhen` | [Condition](#condition) | Optional. Can't use `hidden`. Who can help. Without it, anyone can. |
-| `worksFromHome` | boolean | Optional (false). The business has no place of its own. Otherwise it needs at least one [Business Place](#business-place); if so, it can have none. |
-| `forHouseholdElders` | boolean | Optional (false). Only with `worksFromHome`. A household elder can take it up. |
+| `forHouseholdElders` | boolean | Optional (false). Only for a business that works from home (see below). A household elder can take it up. |
+| `activity` | string | Optional. What the people in a business in this profession are shown doing while they work (on a step of a [need](#need) that's work without an `activity` of its own), instead of the need's `activity`. |
+| `steps` | list of [Step](#step) | Optional. At least one item, with at least one `do` step, and for a need measured in time, a `do` or `wander` step with `meetsQuota`. What the people in a business in this profession do to work, replacing the steps of each [need](#need) that's work. Checked as the steps of each need that's work, which there must be. |
 | `hours` | [Hours](#hours) | Optional. Without `days` or `onSpecialDays`. Used in place of the hours of the needs met at the workplace. |
+
+A business works from home, with no place of its own, when no [Business Place](#business-place) is for its profession. Its work is done at home or wherever its steps take its people.
 
 ## Clothing
 
@@ -378,10 +392,10 @@ Clothing worn together, given to people when they're created.
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | |
-| `kind` | string | `everyday`, `work`, or `night`. |
+| `kind` | string | `everyday`, `work`, `night`, or `nothing` (what people have on when they'd otherwise wear nothing, such as for swimming, which is always complete). |
 | `when` | [Condition](#condition) | Optional. Can't use `hidden`. Who can be given it. |
 | `frequency` | [Frequency](#frequency) | Optional (`common`). How often it's given. |
-| `clothing` | list of string | Unique clothing item ids, no two of which take the same slot in the same layer. Can be empty when `complete`. The clothing in the outfit. |
+| `clothing` | list of string | Unique clothing item ids, no two of which take the same slot in the same layer. Can be empty when `complete`, or for a `nothing` outfit. The clothing in the outfit. |
 | `complete` | boolean | Optional (false). Work outfits only. Whether it's a complete set of clothes worn on its own, such as a uniform: everything else is taken off when it's put on. Otherwise work clothes go over what's being worn. |
 
 #### Modesty Rule
@@ -398,7 +412,7 @@ How well covered people must be. Each person follows the first rule whose `when`
 
 ### How Clothing Is Given
 
-Everyone in a new game gets two `everyday` outfits, one `work` outfit, and one `night` outfit, each chosen by frequency from the outfits of that kind whose `when` they meet, with the shares worked out among those outfits alone. A kind with no outfit they can have is skipped. Each piece's colors are chosen by frequency from all the clothing colors. Everyone starts in their night outfit (or, without one, their first everyday outfit), and everything else is kept at home. Someone who starts at work wears their first everyday outfit with their work outfit over it, carrying the everyday pieces it replaces (those in the same slot and layer), or for a `complete` work outfit, wears just that, carrying their first everyday outfit.
+Everyone in a new game gets two `everyday` outfits, one `work` outfit, one `night` outfit, and one `nothing` outfit, each chosen by frequency from the outfits of that kind whose `when` they meet, with the shares worked out among those outfits alone. A kind with no outfit they can have is skipped, except `nothing`: someone with no `nothing` outfit they can have gets one that's nothing at all (as does everyone in a game saved before there were any). Each piece's colors are chosen by frequency from all the clothing colors. Everyone starts in their night outfit (or, without one, their first everyday outfit), and everything else is kept at home. Someone who starts at work wears their first everyday outfit with their work outfit over it, carrying the everyday pieces it replaces (those in the same slot and layer), or for a `complete` work outfit, wears just that, carrying their first everyday outfit.
 
 ## Families and Relationships
 
@@ -552,7 +566,7 @@ The `village` settings section.
 | Property | Type | Notes |
 |---|---|---|
 | `familyCount` | [Integer Range](#integer-range) | Minimum at least 0. Households besides the player's. |
-| `landmarkCount` | [Integer Range](#integer-range) | Minimum at least 0. Landmark quarters, counting landmarks of unique kinds. |
+| `landmarkCount` | [Integer Range](#integer-range) | Minimum at least 0. Landmark quarters, counting landmarks the village must have for their kinds' `count`. |
 | `featureCount` | [Integer Range](#integer-range) | Required if there are `features`. Minimum at least 0. |
 | `buildingTravelTime` | integer | At least 0. Minutes to go into or out of a house or business. |
 | `houseTitle` | string | [Template](#template) filled in with the properties (not templates) of the household's head. Every house's title. |
@@ -563,15 +577,22 @@ The `village` settings section.
 |---|---|---|
 | `id` | string | |
 | `area` | string | `village` or `outskirts`. |
-| `unique` | boolean | Optional (false). Every village has exactly one quarter of this kind. |
-| `optional` | [Quarter Kind Optional](#quarter-kind-optional) | Optional. Unique kinds only. Can't be a layout's center. |
+| `count` | [Quarter Count](#quarter-count) | Optional (no limits). How many quarters of the kind a village has. |
+| `optional` | [Quarter Kind Optional](#quarter-kind-optional) | Optional. Only for kinds with a `count` `min`. Can't be a layout's center. |
 | `path` | string | What a path to or from the kind is called. |
-| `borders` | string | Optional. Not for unique kinds. A feature id. Quarters of the kind border it, and are only used in villages that have it. |
+| `borders` | string | Optional. Not for kinds with a `count` `min`. A feature id. Quarters of the kind border it, and are only used in villages that have it. |
 | `travelTime` | integer | At least 0. Minutes to walk a path to or from the kind. A path takes the longer of its ends' times. |
+
+#### Quarter Count
+
+| Property | Type | Notes |
+|---|---|---|
+| `min` | integer | Optional (0). At least 0. Every village has at least this many quarters of the kind. The kind needs a quarter that doesn't have `borders`. |
+| `max` | integer | Optional (no limit). At least 1 and at least `min`. No village has more quarters of the kind. |
 
 #### Quarter Kind Optional
 
-A village with the feature only has a quarter of the kind `chance` percent of the time, unless none of its houses' and businesses' quarters border the feature.
+A village with the feature only has the kind's `count` `min` quarters `chance` percent of the time, unless none of its houses' and businesses' quarters border the feature.
 
 | Property | Type | Notes |
 |---|---|---|
@@ -584,7 +605,7 @@ A village with the feature only has a quarter of the kind `chance` percent of th
 |---|---|---|
 | `id` | string | |
 | `shape` | string | `radial`, `linear`, `crossroads`, or `warren`. |
-| `center` | string | A unique village kind without `optional`, the shape is built around. |
+| `center` | string | A village kind with a `count` `min` and `max` of 1 and without `optional`, the shape is built around. |
 | `frequency` | [Frequency](#frequency) | Optional (`common`). How often it's chosen. |
 
 #### Map Feature
@@ -621,7 +642,7 @@ A group of houses and businesses, or a landmark if it has neither. Quarter, hous
 | `houses` | [Quarter Houses](#quarter-houses) | Optional (no houses). How many houses it has, and their wealth. |
 | `businesses` | integer | Optional (0). At least 0. The most businesses. |
 | `size` | [Quarter Size](#quarter-size) | Optional (1 by 1). Can be turned either way. |
-| `borders` | string | Optional. Not for unique kinds. A feature it borders beyond its kind's. Only used in villages with it. |
+| `borders` | string | Optional. A feature it borders beyond its kind's. Only used in villages with it. |
 | `featureText` | map of string to [Long Text](#long-text) | Optional. Each key is a feature id, and each value a sentence like a feature's `text`, used instead of it. |
 
 #### Quarter Houses
@@ -662,14 +683,14 @@ A house has no `title`; it's titled by the village's `houseTitle`.
 | `profession` | string | A business profession that doesn't work from home. |
 | `quarterKinds` | list of string | Each unique and a quarter kind. At least one must have a quarter with room for businesses. |
 
-There must be a house, and a quarter with houses, for each of `low`, `medium`, and `high`. Every unique kind needs a quarter, and there must be a landmark quarter if `landmarkCount` can be more than 0.
+There must be a house, and a quarter with houses, for each of `low`, `medium`, and `high`. Every kind with a `count` `min` needs a quarter without `borders`, and there must be a landmark quarter if `landmarkCount` can be more than 0.
 
 ### How the Village Is Laid Out
 
 * **Features.** First the village chooses `featureCount` features by frequency, with at most one river, adding any the player's profession needs for a place. A profession has a place if it works from home, or one of its places can go in a kind whose `borders` feature (if any) the village has. Quarters and places needing a missing feature are never used.
-* **Quarters.** The village gets one quarter of each unique kind (an optional kind is decided once houses and businesses are placed). Each household gets a house of its wealth in a quarter of that wealth, adding quarters until there's room: each plans a number of houses within its range, gets one, then its minimum, and the rest are spread. Each business that doesn't work from home gets a place of its profession in a quarter of one of its kinds with room, adding a non-unique quarter (preferring one with a minimum of 0 houses) if needed, or using a full one with a warning. Landmarks are added up to `landmarkCount`, alternating between the village and the outskirts. Unused templates are chosen first, by frequency; reusing one logs a warning.
+* **Quarters.** The village gets each kind's `count` `min` quarters (an optional kind's are decided once houses and businesses are placed), and never more than its `max`; quarters of an optional kind are only added that way. Each household gets a house of its wealth in a quarter of that wealth, adding quarters until there's room: each plans a number of houses within its range, gets one, then its minimum, and the rest are spread. Each business that doesn't work from home gets a place of its profession in a quarter of one of its kinds with room, adding a quarter (preferring one with a minimum of 0 houses) if needed and its kind allows, or using a full one with a warning. Landmarks are added up to `landmarkCount`, alternating between the village and the outskirts. Unused templates are chosen first, by frequency; reusing one logs a warning.
 * **Shape.** A layout is chosen by frequency and arranges quarters as non-overlapping rectangles on a grid from its `center`. `radial` rings the center with four to six quarters; `linear` runs a main street of four to six through it, half the time with a second street alongside; `crossroads` sends arms of one or two quarters out in four directions; `warren` crowds quarters together with many small loops. The core is taken roughly richest first, the rest of the village branches off it near quarters of the same wealth, and landmarks come first. The outskirts leave in two or three groups (from the ends of the street or arms, or different sides) as chains, loops of three, hubs, or ladders.
-* **Connections.** Quarters only connect where their edges meet, at most two per side. Each connection gets a direction (its side, or one step toward the nearer end), with no quarter having two exits in one direction, dropping connections that can't unless needed. A connection is named by the outskirts kind's `path` if one end is in the outskirts, or else either kind's (preferring non-unique), or a river's `crossings` across a river.
+* **Connections.** Quarters only connect where their edges meet, at most two per side. Each connection gets a direction (its side, or one step toward the nearer end), with no quarter having two exits in one direction, dropping connections that can't unless needed. A connection is named by the outskirts kind's `path` if one end is in the outskirts, or else either kind's (preferring one without a `count` `max` of 1), or a river's `crossings` across a river.
 * **River.** The river runs along one side of the village, touching the outermost quarters or one cell beyond. A quarter growing into it goes on the far bank, an outskirts quarter can connect across it, and quarters that border it are placed last, as close as there's room.
 * **Areas.** Each area feature is placed touching a quarter that borders it, or else an outskirts quarter far from the center. A quarter that should border a feature but doesn't logs a warning.
 * **Descriptions.** For each feature a quarter borders (touching a river, or sharing an edge with an area), its `featureText` or a random feature `text` is added to its medium description, with the direction.
@@ -721,7 +742,7 @@ A day of the year with its own title, the same day every year.
 
 ## Schedules
 
-Everyone works through tasks toward a goal: walking to a place, starting work if needed, spending time there, and stopping work. Someone other than the player who runs out of tasks chooses one of their needs with an urgency of at least `minimumUrgency`, with chances in proportion to urgency raised to `urgencyPower`. A need that can't be met leaves them idle. Urgency runs from 0 to 100, then is multiplied by every urgency factor that applies.
+Everyone works through their goal's [steps](#step) in order, each worked out into tasks when it's reached. Someone other than the player who has no tasks or steps left chooses one of their needs with an urgency of at least `minimumUrgency`, with chances in proportion to urgency raised to `urgencyPower`, among those whose steps can be started from where they are: every `goTo` step that isn't in a `choose` option, other than one going to a remembered place or the partner's home, can reach a place like its own, and for a need that looks for friends, there's somewhere to look. If none can be, or the need chosen has no time left to spend on it, they're idle. Reconsidering a `repeat` loop only gives way to a need whose steps can be started the same way. Urgency runs from 0 to 100, then is multiplied by every urgency factor that applies. Someone at home puts away the household's clothes they're carrying (as on getting home) before choosing.
 
 #### Schedules Settings
 
@@ -733,7 +754,7 @@ The `schedules` settings section.
 | `urgencyPower` | number | More than 0. Urgency is raised to this power to weigh the choice of goal. |
 | `sightingHours` | integer | At least 1. How long people remember the last time they saw someone. |
 | `sleep` | [Sleep](#sleep) | How sleep works. |
-| `clothing` | [Clothing Schedule](#clothing-schedule) | How people change and wash their clothes. |
+| `clothing` | [Clothing Schedule](#clothing-schedule) | How people change their clothes. |
 | `talking` | [Talking](#talking) | How talking works. |
 | `socializing` | [Socializing](#socializing) | How people chat with and seek out friends. |
 | `idle` | [Idle](#idle) | What people do without a goal. |
@@ -741,57 +762,52 @@ The `schedules` settings section.
 
 #### Sleep
 
-About the need with the `sleep` role. Choosing it below `napBelow` is a nap of `napMinutes` (once between full sleeps), unless it's bedtime. For someone with a quota need met at their workplace whose sleep level is above its `urgentFrom`, sleep is also as urgent as a quota need with `bedtimeLead` would be, counting the minutes until work next starts less the sleep they need.
+About the need with the `sleep` role. Choosing it below `napBelow` is a nap of `napMinutes` (once between full sleeps), unless it's bedtime. For someone with a work need whose sleep level is above its `urgentFrom`, sleep is also as urgent as a quota need with `bedtimeLead` would be, counting the minutes until work next starts less the sleep they need.
 
 | Property | Type | Notes |
 |---|---|---|
 | `napBelow` | number | From 0 to 100. Sleep chosen while the sleep need is below this is a nap. |
-| `napMinutes` | [Integer Range](#integer-range) | Minimum at least 1. How long a nap lasts. |
+| `napMinutes` | [Duration Range](#duration-range) | Minimum at least 1. How long a nap lasts. |
 | `bedtimeLead` | integer | At least 1. Bedtime becomes urgent once there are fewer spare minutes than this before work. |
 | `dayClothesFactor` | number | More than 0, and at most 1. How fast sleep meets the need, as a share of its `satisfyPerHour`, while wearing any of the sleeper's everyday or work clothes. |
 
 #### Clothing Schedule
 
-How people handle their [clothing](#clothing-item). A piece is at hand when it's worn or carried, or kept at home while its wearer is there, and it isn't in the wash or drying.
+How people handle their [clothing](#clothing-item). A piece is at hand when it's worn or carried, or kept at home while its wearer is there, and it isn't still drying. Needs change clothes and handle them through their [steps](#step). Night clothes put on at other times stay on.
 
-Someone whose goal is the need with the `sleep` role puts on their first `night` outfit with every piece at hand once they're home, and when they stop sleeping, if they're at home, they change back into their first such `everyday` outfit. Night clothes put on at other times stay on. Neither takes time, and what's taken off is kept at home.
-
-Someone going to work for a need with `atWork` changes into their `work` outfit there as they start work (taking off everything else first, for a `complete` one), which takes no time, if every piece is carried, or kept at home and not in the wash or drying. Pieces kept at home are fetched from home on the way, unless they work at home. Otherwise they work in what they're wearing. They change back as they stop work after the stretch that takes all that's left to do that day, or all the time left in its hours, which also takes no time. Otherwise they change back before their next goal once they're outside its hours or have no work left that day, taking `changeMinutes`. Changing back puts on the rest of the `everyday` outfit they're partly wearing, or after a `complete` outfit, the `everyday` outfit with the most pieces at hand, from the pieces at hand. What's taken off is carried, or kept at home if they're there, and the clothes they carry are put away on getting home, except the pieces of outfits they're partly wearing. The player follows the same rules, taking their work clothes along when they leave home on a day they have work left to do.
-
-When someone on the trip of the need with the `laundry` role starts their time at the place, the household's clothes kept at home, other than accessories, are taken to be washed. When the trip ends at home, they're hung out, and are dry `dryingMinutes` later.
+Someone choosing a goal (or being idle) first changes out of their `nothing` outfit if they changed into it and not back out, then out of their `work` outfit if they're wearing any of it once they're outside its hours or have no work left that day, unless the goal is work or sleep, and out of their `night` outfit if they're wearing any of it, unless the goal is sleep, each taking `changeMinutes`. Changing out of an outfit puts back on the pieces it replaced, if they're at hand, then the rest of the other day clothes they're partly wearing (the outfit with the most pieces on), or failing that, the `everyday` outfit with the most pieces at hand, from the pieces at hand. Changing into an outfit takes off everything else first, for a `complete` one, or otherwise what's in the same slots in the same layers. What's taken off is carried, even at home, and the household's clothes they carry are put away on getting home, except the pieces of outfits they're partly wearing (other than through accessories), the pieces a later `undress` step of one of their sequences will put back on, and the clothes in their bundles. Someone whose sleep stops without its steps (such as the player woken to talk) keeps their night clothes on until they choose something other than sleep (or, for the player, change out of them). The player brings their own work clothes.
 
 | Property | Type | Notes |
 |---|---|---|
-| `changeMinutes` | integer | At least 1. Also how long the player takes to change clothes in the inventory or wardrobe, taken once as they close it, if they're wearing something different from when they opened it. How long changing out of work clothes takes when it isn't done as work stops. |
-| `dryingMinutes` | integer | At least 0. How long the washing takes to dry once it's hung out. |
+| `changeMinutes` | [Duration](#duration) | At least 1. How long changing clothes takes. Also how long the player takes to change clothes in the inventory or wardrobe, taken once as they close it, if they're wearing something different from when they opened it. |
 
 #### Talking
 
-Talking pauses what someone was doing until it's over. If their goal is a quota need that's then closed or done, they choose again.
+Talking pauses what someone was doing until it's over. If their goal is a quota need that's then closed or done, they give up on it and choose again.
 
 | Property | Type | Notes |
 |---|---|---|
 | `refuseUrgency` | number | At least 0. Someone whose goal is at least this urgent refuses to talk. |
+| `agreeUrgency` | number | At least 0. Someone asked by an `ask` step with `forMinutes` or an `appointment` only says yes if none of their needs would be at least this urgent by the end of that time. |
 | `wakeLevel` | number | From 0 to 100. How much the sleep need rises for someone woken to talk. |
-| `askAboutMinutes` | integer | At least 1. Asking whether someone has seen a person. |
-| `askDoingMinutes` | integer | At least 1. Asking what someone is doing. |
+| `askAboutMinutes` | [Duration](#duration) | At least 1. Asking whether someone has seen a person. |
+| `askDoingMinutes` | [Duration](#duration) | At least 1. Asking what someone is doing. |
 
 #### Socializing
 
-About the need with the `socializing` role, met (at its `satisfyPerHour`) only while chatting with a friend (a [Relationships](#relationships) score of at least `friendScore`). It's only chosen by someone with a friend, with its urgency times `seekFactor`.
+About the need with the `socializing` role, met (at its `satisfyPerHour`) only while chatting with a friend (a [Relationships](#relationships) score of at least `friendScore`). It's chosen with its urgency times `seekFactor`. A need with a `seek` step looking for friends is only chosen by someone with a friend, when there's somewhere to look for one.
 
-When someone starts a task, they and each friend there may chat: each is willing by their socializing urgency times their score out of 100, less their goal's urgency times `chatGoalWeight` (unless their goal is socializing), and the more willing starts if at least `chatUrgency`. Neither can be talking, the starter can't be asleep, and the other can't be too busy or asleep (unless the starter's socializing urgency is at least `wakeUrgency`). Unless told what the friend is doing since their goal was chosen, they ask first. Someone asking the player stops time until the player answers, and waits `askPlayerAgainHours` after being turned down.
+When someone starts a task, they and each friend there may chat: each is willing by their socializing urgency times their score out of 100, less their goal's urgency times `chatGoalWeight` (unless their goal is socializing), and the more willing starts if at least `chatUrgency`. Neither can be talking, the starter can't be asleep, and the other can't be asleep (unless the starter's socializing urgency is at least `wakeUrgency`). The other agrees unless their goal is at least `refuseUrgency`, and if they don't, the next most willing pair is tried. The player decides for themselves: someone asking the player stops time until the player answers, and waits `askPlayerAgainHours` after being turned down. Unless told what the friend is doing since their goal was chosen, they ask what it is first.
 
-Seeking out a friend, the person picks a friend and place from clues, each weighing its weight in `clues`: the friend's workplace during their work hours, or home otherwise; their last sighting (or where they said they were going), fading to nothing after `sightingHours`; and places for needs met in a quarter on some days, within hours and not done. Each weight is divided by 1 plus the walk in minutes over `nearMinutes`, and multiplied by the hours since they last talked over that plus `recentHours`. The current place is never chosen. They look around for `seekMinutes`, calling out to a friend leaving the place they're heading to, and otherwise ask someone there what they've seen of their friends.
+Seeking out a friend with a `seek` step, the person picks a friend and place from clues, each weighing its weight in `clues`: the friend's workplace during their work hours, or home otherwise; their last sighting (or where they said they were going), fading to nothing after `sightingHours`; and places for needs met in a quarter on some days, within hours and not done. Each weight is divided by 1 plus the walk in minutes over `nearMinutes`, and multiplied by the hours since they last talked over that plus `recentHours`. The current place is never chosen. They look around for the step's `minutes`, calling out to a friend leaving the place they're heading to, and otherwise ask someone there what they've seen of their friends.
 
 | Property | Type | Notes |
 |---|---|---|
-| `chatMinutes` | integer | At least 1. How long a chat takes. |
+| `chatMinutes` | [Duration](#duration) | At least 1. How long a chat takes. |
 | `chatUrgency` | number | At least 0. How willing someone must be to start a chat. |
 | `chatGoalWeight` | number | At least 0. How much a goal's urgency counts against stopping to chat. |
 | `wakeUrgency` | number | At least 0. How urgent socializing must be to wake a sleeping friend. |
 | `seekFactor` | number | More than 0. Multiplies socializing's urgency when choosing a goal. |
-| `seekMinutes` | integer | At least 1. How long someone looks around for a friend. |
 | `recentHours` | number | More than 0. How quickly a friend not talked with lately becomes the likelier one to seek. |
 | `nearMinutes` | number | More than 0. How quickly places farther away become less likely to be searched. |
 | `askPlayerAgainHours` | number | More than 0. How long someone the player turned down waits before asking again. |
@@ -813,12 +829,12 @@ Someone who doesn't choose a need waits at a place, then decides again.
 | Property | Type | Notes |
 |---|---|---|
 | `place` | [Place](#place) | Where they wait. |
-| `minutes` | [Integer Range](#integer-range) | Minimum at least 1. How long they wait. |
+| `minutes` | [Duration Range](#duration-range) | Minimum at least 1. How long they wait. |
 | `activity` | string | Optional. What they're shown to be doing. |
 
 #### Start
 
-A new game starts at midnight on the first day of a random week of the calendar's `startYear`. Everyone is at home asleep, with each level need at its `startLevel`, except anyone other than the player whose work hours include midnight on a working day, who starts awake at work. Each sleeper wakes `wakeMinutes` from `wakeHour` (at least a minute after midnight), and time runs until the player wakes.
+A new game starts at midnight on the first day of a random week of the calendar's `startYear`. Everyone is at home asleep, with each level need at its `startLevel`, except anyone other than the player whose work hours include midnight on a working day, who starts awake at work. Each sleeper wakes `wakeMinutes` from `wakeHour` (at least a minute after midnight), and time runs until the player has woken and finished their sleep's steps.
 
 | Property | Type | Notes |
 |---|---|---|
@@ -827,12 +843,13 @@ A new game starts at midnight on the first day of a random week of the calendar'
 
 #### Place
 
-`"home"`, `"workplace"` (the business's place, or home if it's run from home; only people with a business have such needs), or a quarter, written as an object:
+`"home"`, `"workplace"` (the business's place, or home if it's run from home), `"otherHome"` (the home of another household, weighted by 1 over 1 plus the walk in minutes, or the nearest for an estimate; any house but their own counts as one for the player and for `at`), in steps only `"partnerHome"` (the home of the person's partner, the one these steps last talked with or asked) and `"jobSite"` (the place of the person's job for the need, taken on by an `ask` step with a `job`, while it isn't done; nowhere without one), or an object: a quarter, with `quarterKinds`, or in steps only, a place a `remember` step before it remembered, with `remembered`.
 
 | Property | Type | Notes |
 |---|---|---|
-| `quarterKinds` | list of [Quarter Choice](#quarter-choice) | The kind is chosen by frequency among the village's kinds, then a quarter of it, weighted by 1 over 1 plus the walk in minutes. |
-| `nearest` | boolean | Optional (false). The nearest quarter of any of the kinds instead. |
+| `quarterKinds` | list of [Quarter Choice](#quarter-choice) | Optional. Not with `remembered`. The kind is chosen by frequency among the village's kinds, then a quarter of it, weighted by 1 over 1 plus the walk in minutes. |
+| `nearest` | boolean | Optional (false). Not with `remembered`. The nearest quarter of any of the kinds instead. |
+| `remembered` | string | Optional. Not with `quarterKinds`. The name of a place a `remember` step remembered. |
 
 #### Quarter Choice
 
@@ -843,26 +860,236 @@ A new game starts at midnight on the first day of a random week of the calendar'
 
 #### Need
 
-Has exactly one of `level` and `quota`.
+Has exactly one of `level` and `quota`, and exactly one of `place` and `steps`. A need with a `place` has two steps: going there, then a `do` step without minutes of its own (which meets the quota, for a quota measured in time). A need is work if any of its own steps goes to `"workplace"`. Only people with a business have it, and their profession's business `hours`, if it has them, replace its own. For people in a business whose profession has `steps`, those replace the need's own steps. The need's main place is where the first `do` step of its own steps is done (the place of the last `goTo` step before it).
 
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | |
 | `title` | string | Shown to the player with its level's title, for a need with `levels`. |
-| `role` | string | Optional. `sleep` (required on one need when there are needs) or `socializing`, each on at most one level need, or `laundry`, on at most one trip need with `returnHome`. |
-| `activity` | string | Optional (the title). What someone meeting it is shown doing. |
+| `role` | string | Optional. `sleep` (required on one need when there are needs) or `socializing`, each on at most one level need. |
+| `activity` | string | Optional (the title). What someone meeting it is shown doing, unless their step has its own. For a need that's work, the activity of the profession of the person's business comes before it. Someone seen meeting it is described with the activity of the step they were on, and someone asked what they're doing for it tells the activity of the step they're on, or else of their next `do` step. |
 | `when` | [Condition](#condition) | Optional. Can't use `hidden`. Who has the need. Without it, everyone does. |
-| `place` | [Place](#place) | Where it's met. |
-| `atWork` | boolean | Optional (false). People are at work while meeting it. |
-| `returnHome` | boolean | Optional (false). Not for `home`. People walk home afterward. |
+| `place` | [Place](#place) | Optional. Where it's met, for a need without `steps`. |
+| `steps` | list of [Step](#step) | Optional. At least one item, with at least one `do`, `wander`, or `seek` step. What people do to meet it, in order, for a need without a `place`. |
+| `onFail` | [Step Failure](#step-failure) | Optional (`stop`). What happens when one of its steps fails, for causes nothing closer to the step gives a result for. |
 | `hours` | [Hours](#hours) | Required for quota needs, with `days` and `onSpecialDays` allowed. Optional for level needs, without them. |
 | `level` | [Level Need](#level-need) | Optional. Makes it a level need. |
 | `quota` | [Quota Need](#quota-need) | Optional. Makes it a quota need. |
-| `playerAction` | [Player Action](#player-action) | Optional. Lets the player meet it themselves. |
+
+#### Step
+
+One step of what someone does to meet a need. Each kind of step allows only some of the settings. The steps are carried out in order, each checked when it's reached: a step whose `when` isn't met is passed, a step that's already done (such as being where a `goTo` step goes) is passed, and otherwise it's carried out. Steps that take time can be interrupted by talking, after which they carry on.
+
+A step fails when it can't be done, and then what happens is its `onFail` for the cause, or that of the `repeat` or `choose` step, option, step list, or need it's in, the closest first (see [Step Failure](#step-failure)). The causes are `no` (an `ask` step answered no), `nobody` (no one to talk with, ask, lead, or find), `unreachable` (nowhere to go, or no way there), `missing` (what the step needs isn't at hand), `left` (the person left where the steps after the last step that goes somewhere were being done, other than through a step that goes somewhere), `interrupted` (an appointment for another need took over), `hours` (it was reached outside its `hours`, or they ended while it was being carried out, or the need's hours ended while time spent on it was interrupted), `noShow` (no one came to an appointment), and `noOption` (none of a `choose` step's options can be chosen).
+
+* `goTo`: done once the person is at a place like `place` (required). Otherwise they walk there the quickest way, and it fails as `unreachable` if there's nowhere to go or they don't get there. For the need with the `socializing` role, it goes where the person chose to look for a friend instead.
+* `do`: spends time where the person is, meeting a level need, or for a quota need with `meetsQuota`, counting toward it. Without `minutes`, it takes the rest of the time chosen for the goal: for a level need, until it's met (or for a nap, the nap's length), and for a quota need, what's left of the shift chosen when the goal was chosen. With `minutes` and `meetsQuota`, in a need measured in time, it takes at most what's left of the shift. Either way, it uses up that much of the shift, and is passed once none is left. With `atWork`, they're at work while doing it. With `hours`, it stops at their end, and fails as `hours`. With `partnerMeets`, the person's partner has that need met while they follow the person through it (such as an appointment's client), if they have it.
+* `take`: done once the person carries its `bundle`. Otherwise they pick up things of `kind` (required) from `from` (required), if they're at home (or it fails as `missing`), and carry them in the bundle: for `clothing` from the `wardrobe`, the clothes kept at home that can be worn now, their own, or their household's with `owner` `household`; only the pieces of their own outfits of the kind `outfit`, if given; and only those that aren't accessories, unless `accessories`.
+* `put`: done once the person no longer carries its `bundle` (or never took it). Otherwise they put it down: with `kind`, its things go to `to` (required with `kind`), if they're at home (or it fails as `missing`), where with `afterDelay` they can't be used until that long after, and are shown doing `delayActivity` until then; without `kind` (for a bundle a `make` step made), it's done with. Only a `bundle` taken or made by a step before it can be put down, with the same `kind` it was taken with, or without one, for one that was made.
+* `make`: makes `bundle` for the person to carry, in place of the bundle `replaces`, if given, which must be one taken or made before it.
+* `dress`: done once the person has on all of one of their outfits of the kind `outfit` (required) (for one that's nothing at all, once they're wearing nothing). Otherwise they change into their first outfit of the kind with every piece at hand, taking `changeMinutes`, or it fails as `missing`. The person remembers the pieces it replaced (everything else they had on, for a complete outfit, or what its pieces overlap), however long they wear it.
+* `undress`: done once the person has none of their outfits of the kind `outfit` (required) changed into (for one that's nothing at all, that they changed into from other clothes). Otherwise they change out of it, taking `changeMinutes`, putting back on the pieces it replaced that are at hand, and then filling any gaps from the rest of the day clothes they're partly wearing, or after a complete outfit, from the everyday outfit with the most pieces at hand. Changing out of night or work clothes when choosing a goal works the same way.
+* `countRun`: counts a run of a quota measured in runs.
+* `choose`: carries on with the steps of one of its `options` (required, with at least one item), or past the `choose` step for one without steps. With `first`, it's the first whose `when` is met, or if none is, the step is passed. Otherwise, it's one chosen by frequency among those whose `when` is met and whose places (other than remembered ones) can be reached, with each frequency's chance shared as it would be among all the options, and it fails as `noOption` if there's none. For a quota need, someone the game carries the steps out for leaves out options whose steps from there to the end could take longer, with the most minutes of their `do` steps and the walking, than is left of the need's hours today, unless none would fit.
+* `call`: carries out the steps of the step list whose id is `list` (required), as though they were in its place. A step list can't call itself, directly or through other step lists.
+* `stop`: skips the rest of the steps.
+* `remember`: remembers where the person is by `name` (required), for a later step to go to (or check they're at) with a remembered place.
+* `wait`: done once `minutes` have passed since it was reached, or the next time it's `untilHour` (at once, if it's that hour exactly), meanwhile without meeting the need. It has exactly one of them.
+* `wander`: done once `minutes` (required) have passed since it was reached. Until then, they walk to another quarter of one of `place`'s kinds (required, and a quarter), with the kind chosen by frequency and nearer quarters more likely, and stay `stopMinutes` (required, minimum at least 1) there, again and again, staying less to finish on time. The time staying meets the need, and counts toward its quota with `meetsQuota`, which also takes the minutes from the shift. With `atWork`, they're at work while staying.
+* `seek`: looks for someone for `minutes` (required), walks there, and looks around, which doesn't meet the need. With `who`'s `friends`, it looks for a friend who meets `who`: it picks a friend and a place they might be from clues (see [Socializing](#socializing)). Otherwise it looks for anyone (other than the person's household, unless `who` says whether they're family) who meets `who` (anyone at all, without it), at a place like `place`, or without one, in any quarter: for a quarter, a kind chosen by frequency, then a quarter of it weighted by 1 plus how many such people the person has seen there within `sightingHours`, over 1 plus the walk in minutes over `nearMinutes` (see [Socializing](#socializing)), and for `"otherHome"`, another household's home weighted by 0.25 plus how many such people live there and work from home, plus how many the person has seen there, over the same. Without a place, or for `"otherHome"`, the place they're in isn't chosen. With `meetsQuota`, looking around takes from the time chosen for the goal and counts toward the quota, as with `do`, so looking for clients can be work. It fails as `nobody` if there's nowhere to look.
+* `talk`: talks for `minutes` (required) with someone where the person is, as a chat, which meets the socializing need of each of them who counts the other as a friend. With `meetsQuota`, the time talking counts toward the quota and takes from the shift instead, as with `do`, and doesn't meet the person's socializing need. With `partnerMeets`, the one talked with has that need met while they talk, if they have it, instead of socializing. It's someone who isn't asleep, talking, or too busy to talk, meets `who`, isn't in the person's household (unless `who` says whether they're family, or it's the partner or the friend looked for), and is the one `with` names, or the player (unless the world is headless) if they aren't doing anything or being asked something else, and haven't turned the one asking down within `askPlayerAgainHours`, see [Socializing](#socializing). They become the person's partner. It fails as `nobody` if there's no one. The player is asked whether they'll talk, and stops time until they answer. If they say no, it fails as `no`.
+* `ask`: asks such a person (or the player, if they aren't doing anything or being asked something else, and haven't turned the one asking down within `askPlayerAgainHours`, see [Socializing](#socializing)) a question, which takes `minutes` (required), and remembers the answer by `name` (required) for the `answeredYes` and `answeredNo` conditions of later steps. The answer is yes by `chance` (required). With `forMinutes`, it's also no unless the one asked can spare that many minutes: none of their needs would be at least `agreeUrgency` (see [Talking](#talking)) by the end of them, with their level needs rising meanwhile and that much less time left for their quotas. The one asked becomes the person's partner. With `appointment`, a yes also makes an appointment (see [Step Appointment](#step-appointment)), and the answer is no if there's no time for one. With `job`, a yes also takes on a job (see [Step Job](#step-job)), and the answer is no if there's no place for it. Asking meets the goal's quota and the partner's need with `meetsQuota` and `partnerMeets`, as for `talk`. The player answers yes or no themselves, with time stopped until they do (no `forMinutes` check applies to them), and saying no counts as turning the one asking down. A no fails it as `no`, and having no one to ask, as `nobody`. It requires a `player`, with which the player asks it in conversation (see [Step Player](#step-player)).
+* `lead`: has the person's partner, if they're there, awake, and not talking or already following someone, follow the person for at most `minutes` (required), going wherever they go, or else it fails as `nobody`. The player follows them as part of their steps instead (putting their own on hold), until they're let go, `minutes` are up, they stop, or they call it off in conversation. It interrupts whatever the partner was doing, and someone following is too busy to talk.
+* `release`: lets go of anyone following the person, who then choose what to do next. Anyone still following is also let go when the person is done with the steps (or gives up on them).
+* `meet`: only directly among an appointment's `steps` (see [Step Appointment](#step-appointment)). Done once the appointment starts. Otherwise the person walks to the appointment's place, and waits there until its time, and then for up to `minutes` (required) past it for the other. It fails as `noShow` once that's over, or as `unreachable` if there's no way there. With `meetsQuota`, the time the worker spends waiting there counts toward the quota. It can't have an `onFail`: failing for any cause gives up the steps, which calls off the appointment.
+* `repeat`: carries out its `steps` (required, with at least one item, and including a `do` step with `meetsQuota`), then carries them out again for as long as some of the shift is left and the need is open and not done. With `reconsider`, after a pass, if another of their needs would be considered as a goal and weighs more than the goal does, someone other than the player stops. The player is asked whether to keep going after every pass of one that reconsiders, with time stopped until they answer. The steps after it are carried out once it stops. Only for needs measured in time.
+
+Steps other than `goTo`, `do`, `dress`, `undress`, `wait`, `wander`, `seek`, `talk`, `ask`, `meet`, and `repeat` take no time.
+
+| Property | Type | Notes |
+|---|---|---|
+| `step` | string | `goTo`, `do`, `take`, `put`, `make`, `dress`, `undress`, `countRun`, `repeat`, `choose`, `call`, `stop`, `remember`, `wait`, `wander`, `seek`, `talk`, `ask`, `lead`, `release`, or `meet`. |
+| `id` | string | Optional. Unique among the steps of its need, step list, appointment, or profession (including those of its `repeat` steps and options). Names it for an `onFail` to skip to. |
+| `when` | [Step Condition](#step-condition) | Optional. When it's carried out. |
+| `hours` | [Hours](#hours) | Optional (any hour). Without `days` or `onSpecialDays`. The hours it can be carried out in. |
+| `onFail` | [Step Failure](#step-failure) | Optional. What happens when it fails, and for a `repeat` or `choose` step, when any step in it fails, for causes nothing closer gives a result for. |
+| `place` | [Place](#place) | `goTo`, `wander`, and `seek` only. Required for `goTo` and `wander`. Not allowed for `seek` looking for friends. Where to go, or for `seek`, where to look (anywhere, without it). |
+| `minutes` | [Family Duration](#family-duration) | `do`, `wait`, `wander`, `seek`, `talk`, `ask`, `lead`, and `meet` only. Optional, but required for a `do` step of a need measured in runs, for a `wait` step without `untilHour`, and for `wander`, `seek`, `talk`, `ask`, `lead`, and `meet` steps. Whole numbers. How long it takes, for `lead`, the longest the partner follows, or for `meet`, how long past the appointment's time to wait for the other. |
+| `early` | [Duration](#duration) | `meet` only. Optional (0). How long before the appointment's time to arrive. |
+| `untilHour` | integer | `wait` only. Optional. From 0 to 23. The hour it waits until. |
+| `stopMinutes` | [Duration Range](#duration-range) | `wander` only. How long they stay at each quarter. |
+| `activity` | string | `do`, `wait`, and `wander` only. Optional (the need's activity). What someone doing it is shown doing. |
+| `meetsQuota` | boolean | `do`, `wander`, `seek`, `talk`, `ask`, and `meet` only. Optional (false). Only for a quota measured in time. The time spent on it counts toward the quota (for `meet`, the worker's time waiting). |
+| `partnerMeets` | string | `do`, `talk`, and `ask` only. Optional. A need id. The need the step meets for the partner while it lasts, if they have it. |
+| `atWork` | boolean | `do`, `wander`, and `seek` only. Optional (false). The person is at work while doing it. |
+| `kind` | string | `take` and `put` only. Required for `take`. `clothing`. The kind of things it takes or puts down. |
+| `from` | string | `take` only. `wardrobe` (where the household keeps its clothes at home). Where it takes things from. |
+| `to` | string | `put` only. Required with `kind`, and not allowed without it. `wardrobe`. Where it puts things. |
+| `owner` | string | `take` only. Optional (`self`). `self` or `household`. Whose clothes it takes. |
+| `outfit` | string | `take`, `dress`, and `undress` only. Optional for `take`. `everyday`, `work`, `night`, or `nothing`. |
+| `withPartner` | boolean | `dress` and `undress` only. Optional (false). The partner (the one these steps last talked with or asked) changes the same way at the same time, if they're there, awake, and not talking, such as a friend going swimming with them. It interrupts what they were doing, such as following. The player's clothes are changed at once. |
+| `accessories` | boolean | `take` only. Optional (true). Whether it takes accessories too. |
+| `bundle` | [Step Bundle](#step-bundle) | `take`, `put`, and `make` only. The bundle it takes things into or makes (with its `title`), or for `put`, the id of the bundle it puts down (without one). |
+| `replaces` | string | `make` only. Optional. The id of a bundle the one it makes replaces. |
+| `afterDelay` | [Duration](#duration) | `put` only, with `kind`. Optional. How long until its things can be used. |
+| `delayActivity` | string | `put` only. Required with `afterDelay`, and not allowed without it. Not blank. What its things are shown doing until they can be used, such as "Drying". |
+| `steps` | list of [Step](#step) | `repeat` only. The steps it repeats. |
+| `reconsider` | boolean | `repeat` only. Optional (false). Whether someone stops repeating (or the player is asked) when something else is more urgent. |
+| `options` | list of [Step Option](#step-option) | `choose` only. The options it chooses from. |
+| `first` | boolean | `choose` only. Optional (false). Whether it takes the first option whose `when` is met. |
+| `list` | string | `call` only. A step list id. |
+| `name` | string | `remember` and `ask` only. The name it remembers the place or the answer by. |
+| `with` | string | `talk` and `ask` only. `sought` (the friend a `seek` step chose to look for, or after a `seek` step with `who`, anyone there), `partner` (the one these steps last talked with or asked), or `anyone`. Who to talk with. |
+| `who` | [Step Who](#step-who) | `talk`, `ask`, and `seek` only. Optional. Without it, anyone can. Only people who meet it can be talked with or are looked for. |
+| `chance` | [Step Chance](#step-chance) | `ask` only. The chance the answer is yes. |
+| `forMinutes` | [Family Duration](#family-duration) | `ask` only. Optional. Whole numbers. How long saying yes takes the one asked, such as going with the person to their home, which they must be able to spare. |
+| `appointment` | [Step Appointment](#step-appointment) | `ask` only. Optional. An appointment a yes makes, to meet later at a time that suits the one asked. |
+| `job` | [Step Job](#step-job) | `ask` only. Optional. Not with `appointment`. A job a yes takes on. |
+| `player` | [Step Player](#step-player) | `goTo`, `do`, `take`, `put`, `dress`, `undress`, `wait`, and `ask` only. Required for `ask`. How the player takes the step. |
+
+A person can be in the middle of several needs' steps: their current ones, others on hold, and steps for appointments waiting for them to set off. Each keeps its own bundles, remembered places, partner, and answers, and forgets them once it's done or given up. A bundle is carried in the person's inventory, standing for the things taken into it, which are carried with it, and only its step can put it down. When steps are given up, the things in their bundles stay carried, and the bundles are done with. Someone other than the player only has others on hold while an appointment for the same need is under way (see [Step Appointment](#step-appointment)). When the current ones end, the last ones put on hold carry on.
+
+Estimates of walking follow every way the person could go from where they are, with conditions as they are now: every option of a `choose` step they could choose (with `first`, only the first whose `when` is met), up to 64 ways, past which only the first option is followed, and the steps a `repeat` step repeats count once. Each estimate is the fewest and most minutes of the ways. How urgent a quota is counts the most walking, so people set out in time whichever way they go, while whether there's time today for a shift or run counts the least, so people don't turn down what they could do. Setting off for an appointment allows for the most. A `wander` step counts the walk to the nearest quarter of its kinds. Choosing a need as a goal only needs the places of steps outside `choose` options and appointments to be reachable (other than remembered places, partners' homes, and job sites). A run counts toward its quota as the most minutes of `do` steps any way through the need's steps could take: every option of a `choose` step (and none, for one with `first` whose options all have a `when`), and steps with a `when` both carried out and passed by. Whether a run fits in today's hours counts the fewest.
+
+#### Step Failure
+
+What happens when a step fails: `"next"` (carry on with the step after it), `"stop"` (give up the steps), an object with `skipTo` (carry on from the step with that `id`, among the steps of the same need, step list, appointment, or profession as where the `onFail` is), or an object with a result for each cause, whose property names are causes (see [Step](#step)) and whose values are one of the others. A cause it has no result for is left to what the step is in. Skipping to a step that isn't found gives up the steps.
+
+| Property | Type | Notes |
+|---|---|---|
+| `skipTo` | string | Optional. The `id` of the step to carry on from. Not with causes. |
+
+#### Step Bundle
+
+The id of a bundle, or an object:
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | Not blank. |
+| `title` | string | Required for `take` and `make`, and not allowed for `put`. What the bundle is called, such as "Washing". |
+
+#### Duration
+
+A whole number of minutes, at least 0, or text with hours and minutes (`"1:30"`), or days, hours (up to 23), and minutes (`"2:15:35"`), with two digits of minutes up to 59.
+
+#### Step Who
+
+Who a `talk`, `ask`, or `seek` step talks with, asks, or looks for: a [Condition](#condition) on their character (which can't use `hidden`), and optionally only the person's friends. Its `values` and `notValues` can also list `family`, which isn't a character property, with `member` for those in the household of the person taking the step, or `other` for those who aren't, such as `"notValues": { "family": [ "member" ] }` to leave out the person's own household. A `who` with `friends`, or only `family`, needs no other property.
+
+| Property | Type | Notes |
+|---|---|---|
+| `values` | map of string to list of string | Optional. As for a [Condition](#condition), and `family`, with `member`, `other`, or both. |
+| `notValues` | map of string to list of string | Optional. As for a [Condition](#condition), and `family`, with `member`, `other`, or both. |
+| `hidden` | list of string | Not allowed. |
+| `friends` | boolean | Optional (false). Only the person's friends (a [Relationships](#relationships) score of at least `friendScore`), among those who meet the rest. A `seek` step looking for friends picks a friend and where they might be from clues (see [Socializing](#socializing)), so it can't have a `place`. |
+
+
+#### Step Appointment
+
+An appointment an `ask` step makes when the answer is yes, for the one asking (the worker) and the one asked (the client), either of whom can be the player. In the same conversation, the worker first asks to meet right away: as soon as they're done talking and both could set off and get to `place` (see below). If that doesn't fit, they ask for the earliest later time on the hour or half hour. Either way, it must be up to `withinHours` ahead, all within `hours`, that's at least `gap` (beyond how long it takes) from either one's other appointments, and when the client could spare the time it takes them: the walk to it and the minutes of the `do` and `wait` steps after its `meet` step (or the `ask` step's `forMinutes`, if it has them). Like `forMinutes`, they can spare it if none of their needs would be at least `agreeUrgency` (see [Talking](#talking)) by the end of it: level needs rise for that long, from where they are now if it's within the hour, or else from nothing (they'd see to them in the meantime), and quota needs have that much less of their hours left from then, with as much still to do as now, or all of it in a later day or week. If there's no such time, the answer is no.
+
+Its `steps` have exactly one `meet` step, directly among them. When it's made, each of them has steps for it, waiting until it's time to set off: the worker its `steps`, and the client their part in them, from its `meet` step. Waiting steps don't change what they're doing. Each sets off when there's just time to change out of night or work clothes they won't need, then, for the worker, carry out the steps before its `meet` step, and walk there to arrive its `meet` step's `early` before its time, as estimated from where they are (following the steps before it as other estimates of walking do, and counting `changeMinutes` for each change of clothes they'd make). Those steps can only be `goTo`, `take`, `put`, `make`, `dress`, `undress`, `remember`, `choose`, and `stop` steps, such as putting on work clothes. Setting off, the worker puts the steps they were in the middle of on hold if they're for the same need, or otherwise fails their current step as `interrupted`. The client's current step fails as `interrupted`, they let go of anyone following them, and they take part in the worker's steps instead: going there, meeting the worker, and following them. Both go there and wait with its `meet` step. Once both are there at its time, the worker carries out the steps after it, with the client as their partner, while the client follows them (staying with them, or going wherever the steps go) until they're done, or for at most as long as those steps take and `patience` more. Calling it off, or a `meet` step that fails (such as when the other hasn't come by the end of its wait), gives up the worker's steps for it and the client's part in them, and anyone who had set off chooses what to do next. Either of them giving up their steps for it calls it off.
+
+The player's appointments are shown in the sidebar (the next one) and on their status page, with the quarter a house or business is off, and the quarter of the next one is marked on the maps, as is the way to its place. When it's time for them to set off, time stops, and they're asked whether to set off or call it off, rather than changing clothes for them. Calling it off lets the other go on with their day. Setting off starts their part, as for anyone else: as the worker, the steps before its `meet` step first, then going there, and meeting the other once both are there, which they can each have done for them (meeting waits there for the other). As the worker, they then take its `steps`, while the client follows them, and is let go once they're done or give them up. As the client, they stay with the worker, going where they go, until they're let go. The other waits for the player as for anyone else, and the player is told if the other gave up waiting, or never came.
+
+| Property | Type | Notes |
+|---|---|---|
+| `place` | [Place](#place) | Where they meet, worked out for the worker when it's made, with the client as their partner (so `partnerHome` is the client's home). |
+| `withinHours` | integer | Optional (24). At least 1. How many hours ahead to look for a time. |
+| `hours` | [Hours](#hours) | Optional (any hour). Without `days` or `onSpecialDays`. The hours the whole appointment must be within. |
+| `gap` | [Duration](#duration) | How far apart, beyond how long it takes, someone's appointments must be. |
+| `patience` | [Duration](#duration) | How much longer than its steps take the client stays with the worker once it starts. |
+| `steps` | list of [Step](#step) | At least one item, with exactly one `meet` step directly among them (and none in their `repeat` steps, options, or called step lists), only the kinds of steps above before it, at least one `do` step, each `do` step with `minutes`, and no step making another appointment. What the worker does once they set off (before the `meet` step), going there and meeting (the `meet` step), and once both are there (after it). They start with nothing taken, remembered, or asked, and the steps are done once they are. Only the need's `onFail` applies to them, beyond their own. |
+
+#### Step Job
+
+A job an `ask` step takes on when the answer is yes: work for the one asked, for the need whose steps it's in. Someone has at most one job for each need, and taking on another replaces it. Until it's done, a `"jobSite"` place is where the job is, and the `hasJob` condition is met. The time they spend there meeting the need's quota (on steps with `meetsQuota`, or talking for one) counts toward the job, and once it reaches `minutes`, the job is done.
+
+| Property | Type | Notes |
+|---|---|---|
+| `place` | [Place](#place) | Not `"jobSite"`. Where the work is done, worked out for the one asking when it's taken on, with the one asked as their partner (so `partnerHome` is their home). |
+| `minutes` | [Duration](#duration) | At least 1. How long the work takes in all, over as many days as it takes. |
+
+#### Step Chance
+
+The chance, from 0 to 100, that someone asked by an `ask` step says yes: `base`, plus `perScore` times their relationship score with the one asking over 100, multiplied by the `factor` of each of `factors` whose condition they meet, less `busy` times the urgency of the goal they're busy with, if any.
+
+| Property | Type | Notes |
+|---|---|---|
+| `base` | number | From 0 to 100. |
+| `perScore` | number | Optional (0). Added for the highest relationship score, in proportion for less. |
+| `factors` | list of [Chance Factor](#chance-factor) | Optional (none). |
+| `busy` | number | Optional (0). At least 0. Taken off for each point of the urgency of the goal they're busy with. |
+
+#### Chance Factor
+
+| Property | Type | Notes |
+|---|---|---|
+| `when` | [Condition](#condition) | Can't use `hidden`. Who it applies to. |
+| `factor` | number | At least 0. Multiplies the chance. |
+
+#### Step Option
+
+| Property | Type | Notes |
+|---|---|---|
+| `frequency` | [Frequency](#frequency) | Optional (`common`). How often it's chosen. |
+| `when` | [Step Condition](#step-condition) | Optional. When it can be chosen. |
+| `player` | [Step Option Player](#step-option-player) | Required for the options of a `choose` step without `first`. How the player sees it. |
+| `onFail` | [Step Failure](#step-failure) | Optional. What happens when one of its steps fails, for causes nothing closer gives a result for. |
+| `steps` | list of [Step](#step) | Optional (none). The steps carried out when it's chosen. |
+
+#### Step Option Player
+
+| Property | Type | Notes |
+|---|---|---|
+| `title` | string | Not blank. What the option is called, such as "Gather herbs". |
+
+#### Step List
+
+Steps that `call` steps can carry out, so needs can share them. Its steps are checked as part of each need that calls it. A step list that no need or profession calls, directly or through other step lists, is checked on its own, leaving out what depends on the need calling it or on the bundles, places, and answers of the steps before it, and a warning is logged, since it's never carried out.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | |
+| `onFail` | [Step Failure](#step-failure) | Optional. What happens when one of its steps fails, for causes nothing closer gives a result for (and then what the `call` step is in). |
+| `steps` | list of [Step](#step) | Optional (none). |
+
+#### Step Condition
+
+Has at least one of its settings, and every setting it has must be met.
+
+| Property | Type | Notes |
+|---|---|---|
+| `outfitAtHome` | string | Optional. `everyday`, `work`, `night`, or `nothing`. Met when the person's first outfit of the kind isn't one they're dressed in, every piece of it is worn, carried, or kept at home ready to wear, and some of it is at home. |
+| `doneForToday` | boolean | Optional. Quota needs only. Met when this is whether the quota for the day or week is done (counting time others in the family plan to spend on a shared one), or the need's hours are over for now. For the player, it's always done, since what they started ends when they say so. |
+| `at` | [Place](#place) | Optional. Met when the person is at a place like it: their home or workplace, a quarter of one of its kinds, or the remembered place. |
+| `hours` | [Hours](#hours) | Optional. Only a start and an end. Met within those hours. |
+| `shiftLeft` | integer | Optional. More than 0. Met when at least this many minutes are left of the time chosen for the goal. |
+| `businessProfession` | string | Optional. A profession id, of a profession with a business. Met when the person owns or helps in a business in that profession. |
+| `answeredYes` | string | Optional. The `name` of an `ask` step before it. Met when the answer was yes. |
+| `answeredNo` | string | Optional. The `name` of an `ask` step before it. Met when the answer was no, or nobody was asked. |
+| `hasJob` | boolean | Optional. Met when this is whether the person has a job for the need (see [Step Job](#step-job)) that isn't done. |
+| `not` | [Step Condition](#step-condition) | Optional. Met when this condition isn't. |
+| `any` | list of [Step Condition](#step-condition) | Optional. At least one item. Met when at least one of these conditions is. |
+
+#### Step Player
+
+How the player takes a step. The player starts a need's steps, as anyone else choosing it as a goal would, with the time anyone else would choose for it, when it's one they have, except a quota need once its quota is met or on a day it can't be met (unless overdue), and a need with somewhere its steps go that can't be reached, or with a `seek` step looking for friends when they have none. Starting a need they're in the middle of carries on with it. Starting one puts any others they're in the middle of on hold, and they can switch between them. Each step is checked as for anyone else, and the player's steps are checked again after anything they do, all of them, so a step done for one counts, such as putting down a bundle at home.
+
+The player takes `goTo`, `take` (gathering all of its `outfit`, or with a `title`), `dress`, `undress`, and `seek` steps themselves: walking where it goes, taking along, putting on, or taking off clothes in their inventory or wardrobe, or being where someone it looks for is. They talk with or ask someone for `talk` and `ask` steps in conversation. A `wait` or `wander` step is done once its time is up, whatever they do meanwhile. A step with a `title` (other than `ask`) has a button with that title that carries it out, as anyone else would, and they're told its `result` and how long it took, and the `text` of the next `goTo` step with one. They choose the option of a `choose` step without `first` themselves, from those that can be chosen, and are asked whether to keep going after each pass of a `repeat` step with `reconsider`. Every other step is carried out as they go. The step they're on, or all of their steps, can instead be done for them, as anyone else would carry them out, other than asking whether to keep going. Anything that stops time for them, such as someone asking to chat, stops what's being done for them.
+
+| Property | Type | Notes |
+|---|---|---|
+| `title` | string | Required for any step but `goTo`, and not allowed for `goTo`. What its button is called, or for an `ask` step, the button in conversation that asks it, such as "Offer to help with a birth". |
+| `result` | string | Required for any step but `goTo` and `ask`, and not allowed for them. What the player is told after doing it. |
+| `text` | [Long Text](#long-text) | Required for a `goTo` step, optional for an `ask` step, and not allowed otherwise. For `goTo`, what to tell the player to do while it's next. For `ask`, what the player says when they ask (the `title`, without it). |
+| `asked` | [Long Text](#long-text) | Optional. Only for an `ask` step. What the player is told when someone else asks them its question (without it, the `title`). |
+
+In conversation with someone, the player can ask the question of an `ask` step one of their sequences is on (once they've met anyone they set off to meet), if the one they're talking with is someone it asks: they meet its `who` (and aren't in the player's household, unless it says whether they're family), and with `with` `partner`, they're the player's partner, or with `sought`, they're the friend the player looked for, if any. It takes the step's `minutes`, and is answered as for anyone else, appointments included. The player is told the answer, and with an appointment, where and when they'll meet. Talking with someone in conversation in any way does a `talk` step one of their sequences is on, if it talks with them. The player can also tell someone they're calling off what they're doing together: an appointment between them that hasn't started (or as its worker, letting the client go), or following them as part of their steps. The other carries on without them.
 
 #### Level Need
 
-A level from 0 to 100 that grows by `perHour` each hour, except while it's met (dropping by `satisfyPerHour`) or a `pausedBy` need is met. Meeting it lasts until it's 0. Its urgency rises from 0 at `urgentFrom` to 100 at 100, and is 0 outside its hours.
+A level from 0 to 100 that grows by `perHour` each hour, except while it's met (dropping by `satisfyPerHour`) or a `pausedBy` need is met. It's met while someone does a `do` step of it, and a `do` step without `minutes` lasts until it's 0. Its urgency rises from 0 at `urgentFrom` to 100 at 100, and is 0 outside its hours.
 
 | Property | Type | Notes |
 |---|---|---|
@@ -885,7 +1112,7 @@ The title of the last level at or below the need's level is shown.
 
 #### Quota Need
 
-A quota for each day or week, measured in time or trips, met within its hours. Only time at the place (and at home after a trip) counts, and it starts again each day or week. For a need shared by the family, everyone's time counts, including time others plan to spend. Its urgency is 0 outside its hours, on other days, or once met; otherwise it's 0 while the spare time left (minutes left in its hours this period, less the quota left) is at least `lead`, rising to 100 as it runs out. Each stretch or trip is shortened if less of the quota or the day's hours are left. Has exactly one of `time` and `trips`, and the quota for one person must fit in its hours for the period.
+A quota for each day or week, measured in time or runs, met within its hours, which starts again each day or week. Measured in time, only time spent on `do` steps with `meetsQuota` counts, and steps must include at least one. Measured in runs, a run counts when its `countRun` step is carried out, steps must include one (so the need can't have a `place`), and each run counts as the minutes its `do` steps take, which must be at least 1 for one person. For a need shared by the family, everyone's progress counts, including what others plan to do: the time left in their `do` steps that meet it, or a whole run while they're partway through one (before its `countRun` step, or with it pending, for the player). Its urgency is 0 outside its hours, on other days, or once met; otherwise it's 0 while the spare time left (minutes left in its hours this period, less the quota left, and less the walking estimated for each shift or run left: every `goTo` step whose condition is met now, from where the person is, counting the steps a `repeat` step repeats once) is at least `lead`, rising to 100 as it runs out. Choosing it chooses a shift: `shift` minutes, shortened if less of the quota is left, or less of the day's hours once the person has walked to its first `do` step. A run is only started if its `do` steps fit in the day's hours with the walking up to the last of them. With no time left, they're idle instead. Talking can interrupt it, after which someone whose need is then closed or done gives up on it. Has exactly one of `time` and `runs`, and the quota for one person must fit in its hours for the period.
 
 | Property | Type | Notes |
 |---|---|---|
@@ -894,31 +1121,14 @@ A quota for each day or week, measured in time or trips, met within its hours. O
 | `overdueUrgency` | number | Optional. From 0 to 100. Weekly needs with `hours.days` only. Once its days have passed this week with the quota unmet, it can be met on any day of the week (other than special days it skips) with this urgency. |
 | `sharedByFamily` | boolean | Optional (false). Met for the whole family by anyone in it. |
 | `time` | [Quota Time](#quota-time) | Optional. Measures the quota in time. |
-| `trips` | [Quota Trips](#quota-trips) | Optional. Measures the quota in trips. |
+| `runs` | [Family Amount](#family-amount) | Optional. Measures the quota in runs: how many each period, rounded up. |
 
 #### Quota Time
 
 | Property | Type | Notes |
 |---|---|---|
-| `minutes` | [Family Amount](#family-amount) | Whole numbers. The minutes it takes each period. |
+| `minutes` | [Family Duration](#family-duration) | Whole numbers. The minutes it takes each period. |
 | `shift` | integer | More than 0. The most minutes spent at once. |
-
-#### Quota Trips
-
-| Property | Type | Notes |
-|---|---|---|
-| `visits` | [Family Amount](#family-amount) | Trips each period, rounded up. |
-| `minutes` | [Family Amount](#family-amount) | Whole numbers. Minutes at the place each trip; at least 1 for one person. |
-| `home` | [Quota Trip Home](#quota-trip-home) | Optional. Only for needs that return home. |
-
-#### Quota Trip Home
-
-The time each trip takes at home afterward.
-
-| Property | Type | Notes |
-|---|---|---|
-| `minutes` | [Family Amount](#family-amount) | Whole numbers. |
-| `activity` | string | Optional (the need's activity). What someone is shown doing during that time. |
 
 #### Family Amount
 
@@ -927,42 +1137,18 @@ A number, or an object:
 | Property | Type | Notes |
 |---|---|---|
 | `base` | number | Optional (0). At least 0. The amount for the whole family. |
-| `perMember` | number | Optional. At least 0. Added for each family member. Only for needs shared by the family. |
+| `perMember` | number | Optional. At least 0. Added for each family member. Only for needs shared by the family, in a quota or a step's `minutes`. |
 
 The object needs at least one of them.
 
-#### Player Action
+#### Family Duration
 
-Lets the player meet the need where it's met (their home or workplace, or a quarter of one of its kinds), unless it's met at a workplace and they have no business, or they don't meet its `when`. For a need not measured in trips, they choose an option and spend that long. For a trip, they spend a trip's time at the place, are told `return`, and finish at home with `home`. Quota actions can't be taken on a day the need can't be met (unless overdue), or with `onlyInHours`, outside its hours, when the player is told when it's open instead. After each action the player is told `result` (or the home `result`) and how long it took.
-
-| Property | Type | Notes |
-|---|---|---|
-| `title` | string | What the action is called. |
-| `result` | string | What the player is told after doing it. |
-| `options` | list of [Player Action Option](#player-action-option) | Required unless measured in trips, and not allowed then. |
-| `return` | [Long Text](#long-text) | Required for a trip that returns home, and not allowed otherwise. |
-| `home` | [Player Action Home](#player-action-home) | Required for a trip that returns home, and not allowed otherwise. |
-| `onlyInHours` | boolean | Optional (false). Quota needs only. |
-
-#### Player Action Home
-
-The action at home that finishes a trip.
+A length of time, in minutes, that can grow with the size of the family: as a [Family Amount](#family-amount), except that the number, `base`, and `perMember` can each also be text with hours and minutes, or days, hours, and minutes, as for a [Duration](#duration).
 
 | Property | Type | Notes |
 |---|---|---|
-| `title` | string | What the action is called. |
-| `result` | string | What the player is told after doing it. |
-
-#### Player Action Option
-
-Exactly one of `untilMet`, `untilHour`, and `minutes`. An option that takes no time can't be chosen.
-
-| Property | Type | Notes |
-|---|---|---|
-| `title` | string | Optional with `minutes`, which is otherwise called by its length. |
-| `untilMet` | boolean | Optional (false). Until a level need is 0, or the quota is met. |
-| `untilHour` | integer | Optional. From 0 to 23. Until the next time it's this hour. |
-| `minutes` | integer | Optional. More than 0. How long it takes. |
+| `base` | number or text | Optional (0). As for a [Family Amount](#family-amount). |
+| `perMember` | number or text | Optional. As for a [Family Amount](#family-amount). |
 
 #### Urgency Factor
 
@@ -1126,7 +1312,7 @@ Portraits.json is generated, so portrait art is added to SubCorona's `Art/Portra
 
 Saved games refer to properties, values, location and map feature templates, and needs by id, so renaming or removing one stops older saves from loading.
 
-* **Profession:** give it the `text` entries the templates use, and `player: false` if the player shouldn't have it. Make sure there are enough business places for `maxBusinesses`, or businesses end up in full quarters with a warning. Add it to the value groups that fit, and to the conditions that list professions it should be in, such as those of the outfits it should be given. Give it a `work` outfit if it has work clothes, and `modesty` if it calls for more or less covering while working. Add portrait art: a workplace background, and anything that depends on the work as well as the clothes (drawn with `wears` and a profession condition).
+* **Profession:** give it the `text` entries the templates use, and `player: false` if the player shouldn't have it. Make sure there are enough business places for `maxBusinesses`, or businesses end up in full quarters with a warning, or give it none if it works from home. Add it to the value groups that fit, and to the conditions that list professions it should be in, such as those of the outfits it should be given. Give it a `work` outfit if it has work clothes, and `modesty` if it calls for more or less covering while working. Add portrait art: a workplace background, and anything that depends on the work as well as the clothes (drawn with `wears` and a profession condition).
 * **Character property:** use it in a template `description` uses, with the `text` entries those templates need. Give it the `regions` it shows on (and `form` if it's about the body's form) if clothing should hide it, and add it to `families.inheritedProperties` if family members share it. Add portrait art if it changes how a character looks, with `hiddenBy` if clothing should cover it.
 * **Character value:** add it to any `player` or `npc` `values` lists and value groups it belongs in, and check the conditions that list other values of the property: a `notValues` list lets it through, and a `values` list leaves it out. Outfits and modesty rules need checking too, so a character with the value is still given every kind of outfit and follows the right rule. Give it a `prominence` if its property has `regions` and it should be easier to hide. Add portrait art if the property shows in portraits. Its place in the list matters for a property with a `shape`, and for an inherited property with a `blend`.
 * **Template:** use it from `description` or a template it uses, or it's never shown.

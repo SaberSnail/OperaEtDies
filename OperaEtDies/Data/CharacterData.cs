@@ -304,6 +304,18 @@ public sealed class CharacterData : IValidatedData
 		if (property.Role == ProfessionRole && property.Values is not null && !property.HasSourceValues)
 			yield return OurResources.ProfessionPropertyValuesNotAllowed.FormatCurrentCulture(id);
 
+		// Which types allow each setting is marked on the setting.
+		var typedSettings = new[]
+		{
+			(nameof(CharacterProperty.Shape), property.Shape is not null), (nameof(CharacterProperty.Values), property.Values is not null), (nameof(CharacterProperty.SortByTitle), property.SortByTitle),
+			(nameof(CharacterProperty.Range), property.Range is not null), (nameof(CharacterProperty.Groups), property.Groups is not null), (nameof(CharacterProperty.Defaults), property.Defaults is not null),
+		};
+		foreach (var (setting, isSet) in typedSettings)
+		{
+			if (isSet && !DataRules.IsAllowed(property, setting))
+				yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, DataRules.GetDataName(typeof(CharacterProperty), setting));
+		}
+
 		if (type == CharacterPropertyType.ValueList)
 		{
 			if (property.Values is null)
@@ -325,20 +337,6 @@ public sealed class CharacterData : IValidatedData
 					yield return OurResources.ShapeFrequencyNotAllowed.FormatCurrentCulture(option.Id, id);
 			}
 		}
-		else if (property.Shape is not null)
-		{
-			yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, "shape");
-		}
-
-		if (type != CharacterPropertyType.ValueList && property.Values is not null)
-		{
-			yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, "values");
-		}
-
-		if (type != CharacterPropertyType.ValueList && property.SortByTitle)
-		{
-			yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, "sortByTitle");
-		}
 
 		if (type == CharacterPropertyType.Integer)
 		{
@@ -356,13 +354,6 @@ public sealed class CharacterData : IValidatedData
 					yield return error;
 			}
 		}
-		else
-		{
-			if (property.Range is not null)
-				yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, "range");
-			if (property.Groups is not null)
-				yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, "groups");
-		}
 
 		if (type == CharacterPropertyType.String)
 		{
@@ -371,10 +362,6 @@ public sealed class CharacterData : IValidatedData
 				foreach (var error in ValidateDefaults($"{id}.defaults", property.Defaults, allProperties))
 					yield return error;
 			}
-		}
-		else if (property.Defaults is not null)
-		{
-			yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, "defaults");
 		}
 
 		foreach (var role in s_roles)
@@ -611,7 +598,7 @@ public sealed class CharacterData : IValidatedData
 
 		if (settings.Values is not null)
 		{
-			if (property.Type != CharacterPropertyType.ValueList)
+			if (!DataRules.IsAllowed(settings, nameof(CharacterRoleSettings.Values), property))
 			{
 				yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, $"{GetRoleName(role)}.values");
 			}
@@ -626,7 +613,7 @@ public sealed class CharacterData : IValidatedData
 
 		if (settings.Range is not null)
 		{
-			if (property.Type != CharacterPropertyType.Integer)
+			if (!DataRules.IsAllowed(settings, nameof(CharacterRoleSettings.Range), property))
 			{
 				yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, $"{GetRoleName(role)}.range");
 			}
@@ -639,7 +626,7 @@ public sealed class CharacterData : IValidatedData
 
 		if (settings.Defaults is not null)
 		{
-			if (property.Type != CharacterPropertyType.String)
+			if (!DataRules.IsAllowed(settings, nameof(CharacterRoleSettings.Defaults), property))
 			{
 				yield return OurResources.CharacterSettingNotAllowed.FormatCurrentCulture(id, $"{GetRoleName(role)}.defaults");
 			}

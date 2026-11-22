@@ -53,6 +53,14 @@ public sealed class LocationList : IValidatedData
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("village.buildingTravelTime", Village.BuildingTravelTime, 0));
 		foreach (var kind in quarterKinds.Where(x => x.TravelTime < 0))
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"quarterKinds[{kind.Id}].travelTime", kind.TravelTime, 0));
+		foreach (var kind in quarterKinds.Where(x => x.Count is not null))
+		{
+			var path = $"quarterKinds[{kind.Id}].count";
+			if (kind.Count!.Min is < 0)
+				errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.min", kind.Count.Min, 0));
+			if (kind.Count.Max is { } max && max < Math.Max(kind.MinCount, 1))
+				errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.max", max, Math.Max(kind.MinCount, 1)));
+		}
 
 		errors.AddRange(CharacterData.ValidateRange("village.familyCount", Village.FamilyCount));
 		if (Village.FamilyCount.Minimum < 0)
@@ -62,7 +70,7 @@ public sealed class LocationList : IValidatedData
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("village.landmarkCount.minimum", Village.LandmarkCount.Minimum, 0));
 
 		errors.AddRange(DataValidation.ValidateIdentifiedItems("layouts", Layouts, x => x.Id, null));
-		foreach (var layout in Layouts.Where(x => x is not null && !quarterKinds.Any(kind => kind.Id == x.Center && kind.Unique && kind.OptionalWith is null && kind.Area == MapArea.Village)))
+		foreach (var layout in Layouts.Where(x => x is not null && !quarterKinds.Any(kind => kind.Id == x.Center && kind is { MinCount: 1, MaxCount: 1, OptionalWith: null, Area: MapArea.Village })))
 			errors.Add(OurResources.LayoutCenterInvalid.FormatCurrentCulture(JsonNamingPolicy.CamelCase.ConvertName(layout.Shape.ToString()), layout.Center));
 
 		errors.AddRange(DataValidation.ValidateIdentifiedItems("quarters", Quarters, x => x.Id, x => x.Title));
@@ -83,9 +91,10 @@ public sealed class LocationList : IValidatedData
 
 		errors.AddRange(ValidateFeatures(quarterKinds, quarters));
 
-		// Every town has a quarter of each unique kind, and landmarks if it needs them.
-		foreach (var kind in quarterKinds.Where(x => x.Unique && !quarters.Any(quarter => quarter.Kind == x.Id)))
-			errors.Add(OurResources.QuarterKindUniqueMissing.FormatCurrentCulture(kind.Id));
+		// Every town has the fewest quarters of each kind it must have, which can't depend on map features, and landmarks if
+		// it needs them.
+		foreach (var kind in quarterKinds.Where(x => x.MinCount > 0 && !quarters.Any(quarter => quarter.Kind == x.Id && quarter.Borders is null)))
+			errors.Add(OurResources.QuarterKindMinimumMissing.FormatCurrentCulture(kind.Id));
 		if (Village.LandmarkCount.Maximum > 0 && !quarters.Any(x => x.IsLandmark))
 			errors.Add(OurResources.LandmarkQuartersMissing);
 
@@ -163,24 +172,22 @@ public sealed class LocationList : IValidatedData
 		{
 			var path = $"features[{feature.Id}]";
 			var typeName = JsonNamingPolicy.CamelCase.ConvertName(feature.Type.ToString());
-			if (feature.Type == MapFeatureType.Area)
+
+			// Which types of feature allow or require each setting is marked on the setting.
+			foreach (var (property, isSet) in new[] { (nameof(MapFeature.Size), feature.Size is not null), (nameof(MapFeature.Crossings), feature.Crossings is not null) })
 			{
-				if (feature.Size is not { } size)
-					errors.Add(OurResources.FeatureSettingMissing.FormatCurrentCulture(feature.Id, "size", typeName));
-				else if (size.Length < 1 || size.Width < 1)
-					errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.size", Math.Min(size.Length, size.Width), 1));
-				if (feature.Crossings is not null)
-					errors.Add(OurResources.FeatureSettingNotAllowed.FormatCurrentCulture(feature.Id, "crossings", typeName));
+				var name = DataRules.GetDataName(typeof(MapFeature), property);
+				var violation = DataRules.Check(feature, property, isSet);
+				if (violation == DataRuleViolation.NotAllowed)
+					errors.Add(OurResources.FeatureSettingNotAllowed.FormatCurrentCulture(feature.Id, name, typeName));
+				else if (violation == DataRuleViolation.Missing)
+					errors.Add(OurResources.FeatureSettingMissing.FormatCurrentCulture(feature.Id, name, typeName));
 			}
-			else
-			{
-				if (feature.Crossings is null)
-					errors.Add(OurResources.FeatureSettingMissing.FormatCurrentCulture(feature.Id, "crossings", typeName));
-				else
-					errors.AddRange(DataValidation.ValidateStrings($"{path}.crossings", feature.Crossings));
-				if (feature.Size is not null)
-					errors.Add(OurResources.FeatureSettingNotAllowed.FormatCurrentCulture(feature.Id, "size", typeName));
-			}
+
+			if (feature.Size is { } size && (size.Length < 1 || size.Width < 1))
+				errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.size", Math.Min(size.Length, size.Width), 1));
+			if (feature.Crossings is { } crossings)
+				errors.AddRange(DataValidation.ValidateStrings($"{path}.crossings", crossings));
 
 			if (feature.Text.Count == 0)
 				errors.Add(OurResources.DataListEmpty.FormatCurrentCulture($"{path}.text"));
@@ -193,16 +200,16 @@ public sealed class LocationList : IValidatedData
 		{
 			if (!featureIds.Contains(kind.Borders!))
 				errors.Add(OurResources.FeatureUnknown.FormatCurrentCulture($"quarterKinds[{kind.Id}].borders", kind.Borders));
-			if (kind.Unique)
-				errors.Add(OurResources.QuarterKindUniqueBorders.FormatCurrentCulture(kind.Id));
+			if (kind.MinCount > 0)
+				errors.Add(OurResources.QuarterKindMinimumBorders.FormatCurrentCulture(kind.Id));
 		}
 
 		foreach (var kind in quarterKinds.Where(x => x.OptionalWith is not null))
 		{
 			if (!featureIds.Contains(kind.OptionalWith!))
 				errors.Add(OurResources.FeatureUnknown.FormatCurrentCulture($"quarterKinds[{kind.Id}].optional.with", kind.OptionalWith));
-			if (!kind.Unique)
-				errors.Add(OurResources.QuarterKindOptionalNotUnique.FormatCurrentCulture(kind.Id));
+			if (kind.MinCount == 0)
+				errors.Add(OurResources.QuarterKindOptionalNoMinimum.FormatCurrentCulture(kind.Id));
 			errors.AddRange(DataValidation.ValidateChance($"quarterKinds[{kind.Id}].optional.chance", kind.OptionalChance));
 		}
 
@@ -211,8 +218,6 @@ public sealed class LocationList : IValidatedData
 			var path = $"quarters[{quarter.Id}]";
 			if (quarter.Borders is { } borders && !featureIds.Contains(borders))
 				errors.Add(OurResources.FeatureUnknown.FormatCurrentCulture($"{path}.borders", borders));
-			if (quarter.Borders is not null && quarterKinds.Any(x => x.Id == quarter.Kind && x.Unique))
-				errors.Add(OurResources.QuarterKindUniqueBorders.FormatCurrentCulture(quarter.Kind));
 			foreach (var (featureId, text) in quarter.FeatureText ?? new Dictionary<string, LongText>())
 			{
 				if (!featureIds.Contains(featureId))

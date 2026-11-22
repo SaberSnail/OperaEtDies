@@ -49,45 +49,46 @@ public sealed class ClothingPiece : Item
 	}
 
 	/// <summary>
-	/// Whether the piece has been taken to be washed and hasn't been hung out to dry yet.
+	/// When the piece can be worn again, such as once washing hung out to dry is dry, or null if it was never put away to be
+	/// ready later.
 	/// </summary>
-	public bool IsInWash
+	public TimePoint? ReadyAt
 	{
-		get => m_isInWash;
-		internal set => SetPropertyField(value, ref m_isInWash);
+		get => m_readyAt;
+		internal set => SetPropertyField(value, ref m_readyAt);
 	}
 
 	/// <summary>
-	/// When the piece, hung out to dry after it was washed, is dry, or null if it hasn't been washed since it was last
-	/// taken to be.
+	/// What the piece is shown to be doing until it's ready, such as "Drying", from the step that put it away, or null if
+	/// it was never put away to be ready later.
 	/// </summary>
-	public TimePoint? DryAt
+	public string? DelayActivity
 	{
-		get => m_dryAt;
-		internal set => SetPropertyField(value, ref m_dryAt);
+		get => m_delayActivity;
+		internal set => SetPropertyField(value, ref m_delayActivity);
 	}
 
 	/// <summary>
-	/// Whether the piece can be put on or carried at the given time: it isn't in the wash or still drying.
+	/// Whether the piece can be put on or carried at the given time: it isn't still being made ready, such as drying.
 	/// </summary>
-	public bool IsReady(TimePoint time) => !m_isInWash && (m_dryAt is not { } dry || dry <= time);
+	public bool IsReady(TimePoint time) => m_readyAt is not { } ready || ready <= time;
 
 	internal override bool IsPlaced => base.IsPlaced || m_wearer is not null;
 
 	public override WorldObjectRecord CreateRecord() =>
-		new ClothingPieceRecord(Id, Clothing.Id, Colors.ToDictionary(x => x.Key, x => x.Value.Id, StringComparer.Ordinal), Owner?.Id, m_isInWash, m_dryAt?.SaveToString());
+		new ClothingPieceRecord(Id, Clothing.Id, Colors.ToDictionary(x => x.Key, x => x.Value.Id, StringComparer.Ordinal), Owner?.Id, m_readyAt?.SaveToString(), m_delayActivity);
 
 	private readonly string m_description;
 	private Person? m_wearer;
-	private bool m_isInWash;
-	private TimePoint? m_dryAt;
+	private TimePoint? m_readyAt;
+	private string? m_delayActivity;
 }
 
 /// <summary>
 /// The saved form of a piece of clothing: the id of its article of clothing in the data, the id of the clothing color of
-/// each of its colors (by color name), its owner, and whether it's in the wash or when it's dry, if it was washed. Where it is comes from the container or person holding it.
+/// each of its colors (by color name), its owner, and when it can be worn again, if it was put away to be ready later. Where it is comes from the container or person holding it.
 /// </summary>
-public sealed record ClothingPieceRecord(WorldId Id, string Clothing, IReadOnlyDictionary<string, string> Colors, WorldId? Owner, bool InWash = false, string? DryAt = null) : WorldObjectRecord(Id)
+public sealed record ClothingPieceRecord(WorldId Id, string Clothing, IReadOnlyDictionary<string, string> Colors, WorldId? Owner, string? ReadyAt = null, string? DelayActivity = null) : WorldObjectRecord(Id)
 {
 	internal override IWorldObject Create(WorldLoader loader)
 	{
@@ -99,8 +100,8 @@ public sealed record ClothingPieceRecord(WorldId Id, string Clothing, IReadOnlyD
 
 		return new ClothingPiece(Id, clothing, colors, Owner is { } owner ? loader.Get<Person>(owner) : null)
 		{
-			IsInWash = InWash,
-			DryAt = DryAt is null ? null : loader.LoadTime(DryAt),
+			ReadyAt = ReadyAt is null ? null : loader.LoadTime(ReadyAt),
+			DelayActivity = DelayActivity,
 		};
 	}
 }

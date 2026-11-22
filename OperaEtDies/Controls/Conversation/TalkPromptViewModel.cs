@@ -15,8 +15,9 @@ public sealed class TalkPromptViewModel : ViewModelBase
 		var gameData = world.GameData;
 		var calendar = gameData.Calendar;
 		Asker = new LocationPersonViewModel(asker, gameData.PortraitRenderer, gameData.Schedules, gameData.Relationships);
-		Text = OurResources.TalkPromptText.FormatCurrentCulture(asker.FullName);
-		AcceptText = OurResources.TalkPromptAccept.FormatCurrentCulture(calendar.FormatOffsetFrom(world.Time, calendar.CreateTimeOffset(0, 0, gameData.Schedules.Socializing.ChatMinutes), TimeFormat.Long));
+		var isStep = world.IsTalkStepRequest(asker);
+		Text = (isStep ? OurResources.TalkPromptTextStep : OurResources.TalkPromptText).FormatCurrentCulture(asker.FullName);
+		AcceptText = (isStep ? OurResources.TalkPromptAcceptStep : OurResources.TalkPromptAccept).FormatCurrentCulture(calendar.FormatOffsetFrom(world.Time, calendar.CreateTimeOffset(0, 0, world.GetTalkRequestMinutes(asker)), TimeFormat.Long));
 	}
 
 	/// <summary>

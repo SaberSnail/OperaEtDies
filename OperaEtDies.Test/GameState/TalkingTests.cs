@@ -20,10 +20,11 @@ public sealed class TalkingTests
 		var answer = world.AskWhatDoing(person);
 
 		Assert.That(answer.Time, Is.EqualTo(calendar.CreateTimeOffset(0, 0, world.GameData.Schedules.Talking.AskDoingMinutes)));
-		Assert.That(answer.Sighting, Is.EqualTo(new Sighting(person.Location, start, SightingActivity.Walking, Destination: next, Plan: new SightingPlan(restlessness, end))));
+		var plan = new SightingPlan(restlessness, end, restlessness.GetActivity(null));
+		Assert.That(answer.Sighting, Is.EqualTo(new Sighting(person.Location, start, SightingActivity.Walking, Destination: next, Plan: plan)));
 
 		// The player still remembers what they were told once the talk is over, since the person's goal hasn't changed.
-		Assert.That(world.Player.Sightings[person].Plan, Is.EqualTo(new SightingPlan(restlessness, end)));
+		Assert.That(world.Player.Sightings[person].Plan, Is.EqualTo(plan));
 		Assert.That(world.Player.Sightings[person].Time, Is.EqualTo(world.Time));
 	}
 
@@ -46,7 +47,7 @@ public sealed class TalkingTests
 		var start = world.Time;
 		world.Player.TalkRequest = person;
 
-		var passed = world.DoPlayerAction(fatigue, 120);
+		var passed = world.StartPlayerSteps(fatigue, isAutomatic: true);
 
 		Assert.That(passed, Is.LessThan(world.GameData.Calendar.CreateTimeOffset(0, 2, 0)));
 		Assert.That(world.Player.Tasks, Is.Empty);
@@ -156,11 +157,12 @@ public sealed class TalkingTests
 		world.CancelGoal(person);
 
 		// They look for their only friend somewhere other than where they are, without being satisfied by looking.
-		var seeking = person.GoalChoice!.Seeking!;
+		var seeking = person.Seeking!;
 		Assert.That(person.Goal, Is.SameAs(socializing));
 		Assert.That(seeking.Friend, Is.SameAs(friend));
 		Assert.That(seeking.Place, Is.Not.SameAs(person.Location));
-		Assert.That(person.Tasks[^1], Is.EqualTo(new BusyTask(world.GameData.Schedules.Socializing.SeekMinutes)));
+		Assert.That(person.Tasks.OfType<TravelTask>().Last().Destination, Is.SameAs(seeking.Place));
+		Assert.That(person.Tasks[^1], Is.EqualTo(new BusyTask(15, 0)));
 	}
 
 	[Test]
@@ -177,8 +179,7 @@ public sealed class TalkingTests
 		friend.Location = there;
 		friend.SetPlan(null, [new TravelTask(beyond)]);
 		friend.StartTask(calendar.AddMinutes(world.Time, 3));
-		var choice = new GoalChoice(world.Time, [], socializing, GoalChoiceResult.Chosen, new SeekChoice(friend, there, SeekClue.Sighting));
-		seeker.SetPlan(socializing, [new TravelTask(there), new BusyTask(15)], choice);
+		seeker.SetPlan(socializing, [new TravelTask(there), new BusyTask(15, 0)], new GoalChoice(world.Time, [], socializing, GoalChoiceResult.Chosen), startStep: 1)!.Seeking = new SeekChoice(friend, there, SeekClue.Sighting);
 
 		new Scheduler(world).Continue(seeker, world.Time);
 
@@ -205,7 +206,7 @@ public sealed class TalkingTests
 		world.CancelGoal(person);
 
 		Assert.That(person.Goal, Is.Not.SameAs(socializing));
-		Assert.That(person.GoalChoice!.Seeking, Is.Null);
+		Assert.That(person.Seeking, Is.Null);
 	}
 
 	[Test]

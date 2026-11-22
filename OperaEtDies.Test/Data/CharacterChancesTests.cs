@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.IO;
 using GoldenAnvil.Utility;
 using OperaEtDies.Characters;
 using OperaEtDies.Data;
@@ -10,19 +9,6 @@ namespace OperaEtDies.Test.Data;
 [TestFixture]
 public sealed class CharacterChancesTests
 {
-	[SetUp]
-	public void SetUp()
-	{
-		m_directory = Path.Combine(Path.GetTempPath(), $"OperaEtDiesTest_{Guid.NewGuid():N}");
-		Directory.CreateDirectory(m_directory);
-	}
-
-	[TearDown]
-	public void TearDown()
-	{
-		Directory.Delete(m_directory, recursive: true);
-	}
-
 	[Test]
 	public void ShippedDataHasNoLowChanceValues()
 	{
@@ -238,6 +224,4 @@ public sealed class CharacterChancesTests
 	}
 
 	private static CharacterPropertyOption Option(string id, Frequency frequency = Frequency.Common) => new() { Id = id, Title = id, Frequency = frequency };
-
-	private string m_directory = "";
 }

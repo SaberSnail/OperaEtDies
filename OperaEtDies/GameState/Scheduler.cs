@@ -7,11 +7,13 @@ using OperaEtDies.Utility.Random;
 namespace OperaEtDies.GameState;
 
 /// <summary>
-/// Moves people through their tasks as time passes. Whenever someone other than the player runs out of tasks, they
-/// choose a new goal from how urgent their needs are, and plan the tasks to reach it. It keeps no state of its own: all
-/// of it is in the people.
+/// Moves people through their tasks as time passes, and carries out the steps of their sequences (see Docs/Steps.md).
+/// Whenever someone runs out of tasks, the step they're on is checked, and if it isn't done, the game carries it out,
+/// working out its tasks, for anyone it decides for (and for the player, while a step is done for them). Someone other
+/// than the player who has no steps left chooses a new goal from how urgent their needs are. It keeps no state of its
+/// own: all of it is in the people.
 /// </summary>
-internal sealed class Scheduler
+internal sealed partial class Scheduler
 {
 	public Scheduler(GameWorld world)
 	{
@@ -20,7 +22,6 @@ internal sealed class Scheduler
 		m_settings = world.GameData.Schedules;
 		m_socializeNeed = m_settings.Needs.FirstOrDefault(x => x.Id == m_settings.SocializeNeed);
 		m_sleepNeed = m_settings.Needs.FirstOrDefault(x => x.Id == m_settings.SleepNeed && x.Kind == NeedKind.Level);
-		m_laundryNeed = m_settings.Needs.FirstOrDefault(x => x.Id == m_settings.LaundryNeed);
 	}
 
 	/// <summary>
@@ -34,24 +35,48 @@ internal sealed class Scheduler
 		foreach (var person in m_world.People.Where(x => m_world.IsAutomatic(x) && x.TaskEnd is null))
 			Continue(person, start);
 
-		while (GetNextTaskEnd() is { } next && next.TaskEnd! <= end)
+		while (true)
 		{
+			// Setting off for an appointment comes before any task that ends at the same time.
+			var next = GetNextTaskEnd();
+			if (GetNextSetOff(start) is { } setOff && setOff.Time <= end && (next is null || setOff.Time <= next.TaskEnd!))
+			{
+				var setOffTime = setOff.Time > start ? setOff.Time : start;
+				DecideSetOff(setOff.Sequence, setOff.Person, setOffTime);
+				if (shouldStop?.Invoke() == true)
+					end = setOffTime;
+				continue;
+			}
+
+			if (next is null || next.TaskEnd! > end)
+				break;
+
 			var time = next.TaskEnd! > start ? next.TaskEnd! : start;
 			next.UpdateNeeds(time);
-			var goal = next.Goal;
+
+			// What the people following someone have met depends on what that person was doing, which is about to change.
+			foreach (var follower in GetFollowers(next, time))
+				follower.UpdateNeeds(time);
 			var task = next.FinishTask();
 			if (task is TravelTask travel)
+			{
+				// Anyone following comes along.
+				var followers = GetFollowers(next, time);
 				m_world.MovePerson(next, travel.Destination, time);
+				foreach (var follower in followers)
+					m_world.MovePerson(follower, travel.Destination, time);
+			}
 			else if (task is ChangeClothesTask change)
+			{
 				ClothingRules.Change(next, change.Outfit, change.IsTakingOff, time);
+			}
+			else if (task is FollowTask)
+			{
+				// A client who stayed as long as they would is done with their appointment.
+				foreach (var appointment in m_world.Appointments.Where(x => x.IsStarted && x.Client == next).ToList())
+					m_world.RemoveAppointment(appointment);
+			}
 
-			// Night clothes come off once sleep is over.
-			if (goal is not null && goal == m_sleepNeed && next.Goal != goal)
-				ClothingRules.DressAfterSleep(next, time);
-
-			// The washing is hung out at home at the end of the trip to wash it.
-			if (goal is not null && goal == m_laundryNeed && next.Tasks.Count == 0 && next.Location == next.Home)
-				HangOutWashing(next.Home, time);
 			Continue(next, time);
 
 			// The player has nothing to do until they choose, but still sees who's around, such as when they wake.
@@ -68,64 +93,732 @@ internal sealed class Scheduler
 	}
 
 	/// <summary>
-	/// Starts a person's next task that takes time, doing any that don't along the way. Someone other than the player
-	/// who has no tasks left chooses a new goal first.
+	/// Starts a person's next task that takes time, carrying out their current sequence's steps whenever the tasks run
+	/// out, up to a step that gives them tasks, or for the player, one they take themselves. Someone the game decides for
+	/// who has no tasks or steps left chooses a new goal first, or goes idle if the goal they just chose took no time.
 	/// </summary>
 	public void Continue(Person person, TimePoint time)
 	{
 		person.UpdateNeeds(time);
-		ClothingRules.DressForSleep(person, m_sleepNeed, time);
-		while (person.TaskEnd is null && (person.Tasks.Count != 0 || m_world.IsAutomatic(person)))
-		{
-			if (person.Tasks.Count == 0)
-			{
-				ChooseGoal(person, time);
-				ClothingRules.DressForSleep(person, m_sleepNeed, time);
-			}
 
-			var task = person.Tasks[0];
-			if (task.ResumeMinutes is not null && person.Goal is { Kind: NeedKind.Quota } goal && !CanResume(person, goal, time))
+		// A job that's done is over, so the next "goTo" step to a job site has nowhere to go until another is taken on.
+		foreach (var job in person.Jobs.Where(x => x.IsDone).ToList())
+			m_world.RemoveJob(job);
+		var hasChosen = false;
+		var stepsCarriedOut = 0;
+		while (person.TaskEnd is null)
+		{
+			if (person.Tasks.Count != 0)
 			{
-				// An interruption can leave too little time to finish what the person was doing, so they choose again.
-				person.IsAtWork = false;
-				person.SetPlan(null, []);
+				StartNextTask(person, time);
 			}
-			else if (task is AtWorkTask atWork)
+			else if (person.Current is { } sequence)
 			{
-				person.IsAtWork = atWork.IsAtWork;
-				if (atWork.Clothes is { } clothes)
-					ClothingRules.Change(person, clothes, isTakingOff: !atWork.IsAtWork, time);
-				person.FinishTask();
+				// Steps that go round without taking any time would never end, so the person gives up on them.
+				if (++stepsCarriedOut > MaxStepsWithoutTime)
+					EndSequence(person, sequence, time);
+				else if (!AdvanceStep(person, sequence, time))
+					break;
 			}
-			else if (task is FetchClothesTask fetch)
+			else if (!m_world.IsAutomatic(person))
 			{
-				ClothingRules.Fetch(person, fetch.Outfit, time);
-				person.FinishTask();
+				break;
+			}
+			else if (hasChosen)
+			{
+				GoIdle(person, GetDistances(person.Location), person.GoalChoice, time);
 			}
 			else
 			{
-				var minutes = GetMinutes(person, task);
-
-				// Something can wake someone before they're rested, such as hunger.
-				if (task is BusyTask && person.Goal is { } sleepGoal && sleepGoal == m_sleepNeed && m_world.IsAutomatic(person))
-					minutes = GetMinutesUntilWoken(person, time, minutes);
-				person.StartTask(m_calendar.AddMinutes(time, minutes));
-
-				// The household's washing is taken along to be washed.
-				if (task is BusyTask { ResumeMinutes: null } && person.Goal is { } laundry && laundry == m_laundryNeed && person.Location != person.Home)
-					ClothingRules.TakeWashing(person.Home);
-
-				m_world.OnTaskStarted(person, task, time);
-				if (task is TravelTask travel && person.CurrentTask == task)
-					CallOutToFriend(person, travel.Destination, minutes, time);
+				ChooseGoal(person, time);
+				hasChosen = true;
 			}
 		}
 	}
 
 	/// <summary>
-	/// Hangs out a household's washing at home, to be dry once the drying time has passed.
+	/// Starts the first of a person's tasks, or finishes it straight away if it takes no time.
 	/// </summary>
-	internal void HangOutWashing(Location home, TimePoint time) => ClothingRules.HangOutWashing(home, m_calendar.AddMinutes(time, m_settings.Clothing.DryingMinutes));
+	private void StartNextTask(Person person, TimePoint time)
+	{
+		var task = person.Tasks[0];
+		if (task is BusyTask { ResumeMinutes: not null } && person.Current is { } sequence && sequence.Need.Kind == NeedKind.Quota && !CanResume(person, sequence.Need, time))
+		{
+			// An interruption can leave too little time to finish the time they were spending on it, so its step fails.
+			person.IsAtWork = false;
+			person.SetTasks([]);
+			FailStep(person, sequence, FailCause.Hours, time);
+		}
+		else if (task is AtWorkTask atWork)
+		{
+			person.IsAtWork = atWork.IsAtWork;
+			person.FinishTask();
+		}
+		else
+		{
+			var minutes = GetMinutes(person, task);
+
+			// Something can wake someone before they're rested, such as hunger.
+			if (task is BusyTask && person.Goal is { } sleepGoal && sleepGoal == m_sleepNeed && m_world.IsAutomatic(person))
+				minutes = GetMinutesUntilWoken(person, time, minutes);
+			person.StartTask(m_calendar.AddMinutes(time, minutes));
+
+			m_world.OnTaskStarted(person, task, time);
+			if (task is TravelTask travel && person.CurrentTask == task)
+				CallOutToFriend(person, travel.Destination, minutes, time);
+		}
+	}
+
+	/// <summary>
+	/// Starts a sequence of a need's steps for a person, which becomes their current one, from a step, with the time
+	/// chosen for it, and the tasks to do first, such as changing out of night clothes. Returns the sequence.
+	/// </summary>
+	internal static StepSequence StartSequence(Person person, Need need, int step, int? minutes, IEnumerable<PersonTask> tasks, GoalChoice? choice)
+	{
+		var sequence = new StepSequence(need, step, minutes) { Place = person.Location };
+		person.AddSequence(sequence);
+		person.SetTasks(tasks, choice);
+		return sequence;
+	}
+
+	/// <summary>
+	/// Gets the time to choose for a sequence of a need's steps as it starts: a shift (or a run's worth, for a quota
+	/// measured in runs) for a quota need, or null for a level need, which goes on until it's met.
+	/// </summary>
+	internal int? GetSequenceMinutes(Person person, Need need, TimePoint time) =>
+		need.Kind == NeedKind.Quota && !need.IsRuns ? Math.Max(GetShiftMinutes(person, need, time), 0) : null;
+
+	/// <summary>
+	/// Carries a person's sequence on by a step: passes it if its condition isn't met or it's already done, fails it if it
+	/// can't be done, or carries it out, if the game carries out this step for them (anyone the game decides for, a step
+	/// done for the player, and steps the player doesn't take themselves). Returns false if it's left for the player to
+	/// take, or true if the sequence moved on or the person was given tasks. A sequence carried on passively (one the
+	/// player isn't focused on) is never given tasks.
+	/// </summary>
+	internal bool AdvanceStep(Person person, StepSequence sequence, TimePoint time, bool isPassive = false)
+	{
+		// The steps of an appointment wait until the person sets off for it.
+		if (!sequence.HasSetOff)
+			return false;
+
+		// Someone taking part in someone else's steps follows them until they're let go: the game has them follow, until
+		// they're done following, and the player stays with them. The client of an appointment first meets the worker there,
+		// with its "meet" step.
+		if (sequence.Role != SequenceRole.Steps && sequence.Appointment is not { IsStarted: false })
+		{
+			var isFollowing = sequence.Leader is not null && m_world.Appointments.Any(x => x.IsStarted && x.Client == person && x.Worker == sequence.Leader) ||
+				(sequence.Role == SequenceRole.Follower && !IsFollowingOver(sequence, time));
+			var isOver = m_world.IsAutomatic(person) || !isFollowing;
+			if (isOver)
+				EndSequence(person, sequence, time);
+			return isOver;
+		}
+
+		if (sequence.IsDone)
+		{
+			EndSequence(person, sequence, time);
+			return true;
+		}
+
+		var index = sequence.Step;
+		var step = sequence.CurrentStep!;
+		var handler = GetHandler(step);
+		var context = new StepContext(person, sequence, step, index, time);
+		var isTasksDone = sequence.IsCarriedOut && person.Current == sequence && person.Tasks.Count == 0;
+		var check = isTasksDone && sequence.IsCut ? StepCheck.Fail(FailCause.Hours) :
+			isTasksDone ? handler.AfterTasks(this, context) :
+			!IsConditionMet(person, sequence.Need, sequence, step.When, time) ? StepCheck.Passed :
+			step.Hours is { } hours && !hours.Contains(m_calendar.GetParts(time).Hour) ? StepCheck.Fail(FailCause.Hours) :
+			sequence.Place is { } place && place != person.Location && !handler.IsMoving ? StepCheck.Fail(FailCause.Left) :
+			ClothingRules.IsMissingNeededClothes(person, sequence, time) ? StepCheck.Fail(FailCause.Missing) :
+			handler.Check(this, context);
+
+		var isProgressed = true;
+		if (check.State is StepState.Done or StepState.Passed)
+		{
+			CompleteStep(person, sequence, handler);
+		}
+		else if (check.State == StepState.Failed)
+		{
+			FailStep(person, sequence, check.Cause!.Value, time);
+		}
+		else if (isTasksDone)
+		{
+			// A step that goes on until its time is up, such as wandering, is carried out again.
+			sequence.IsCarriedOut = false;
+		}
+		else if (!IsCarriedOutByGame(person, sequence, handler, context) || (isPassive && !handler.IsForPlayer(this, context)))
+		{
+			isProgressed = false;
+		}
+		else
+		{
+			Apply(person, sequence, handler.CarryOut(this, context), time);
+		}
+
+		return isProgressed;
+	}
+
+	/// <summary>
+	/// Whether the game carries out a step of a person's sequence rather than leaving it to them: always for anyone the
+	/// game decides for, and for the player, a step being done for them, every step while all of them are being done for
+	/// them (other than asking whether to keep going), and steps the player doesn't take themselves.
+	/// </summary>
+	private bool IsCarriedOutByGame(Person person, StepSequence sequence, StepHandler handler, StepContext context) =>
+		m_world.IsAutomatic(person) || sequence.Takeover == StepTakeover.Step || handler.IsForPlayer(this, context) ||
+		(sequence.Takeover == StepTakeover.All && !handler.IsAskingPlayer(this, context));
+
+	/// <summary>
+	/// Applies what carrying out a step did.
+	/// </summary>
+	private void Apply(Person person, StepSequence sequence, StepWork work, TimePoint time)
+	{
+		switch (work)
+		{
+		case StepWork.WithTasks tasks:
+			person.AddTasks(tasks.Tasks);
+			sequence.IsCarriedOut = true;
+			break;
+		case StepWork.Finished:
+			CompleteStep(person, sequence, GetHandler(sequence.CurrentStep!));
+			break;
+		case StepWork.Failed failed:
+			FailStep(person, sequence, failed.Cause, time);
+			break;
+		case StepWork.GoTo goTo:
+			MoveOn(sequence, goTo.Step);
+			break;
+		}
+	}
+
+	/// <summary>
+	/// Goes on from the step a sequence is on to another, ending a step being done for the player.
+	/// </summary>
+	private static void MoveOn(StepSequence sequence, int step)
+	{
+		sequence.GoTo(step);
+		if (sequence.Takeover == StepTakeover.Step)
+			sequence.Takeover = StepTakeover.None;
+	}
+
+	/// <summary>
+	/// Goes on to the next step once one is done. Once a step that goes somewhere is done, the steps after it are done
+	/// where it went.
+	/// </summary>
+	private static void CompleteStep(Person person, StepSequence sequence, StepHandler handler)
+	{
+		if (handler.IsMoving)
+			sequence.Place = person.Location;
+		MoveOn(sequence, sequence.Need.GetNextStep(sequence.Step));
+	}
+
+	/// <summary>
+	/// Fails the step a sequence is on, for a cause: it goes on to the next step, gives up the sequence, or skips to a
+	/// step, as its "onFail" says (see <see cref="Need.GetFailure"/>). A "meet" step that fails always gives it up, which
+	/// calls off the appointment. The player is told.
+	/// </summary>
+	internal void FailStep(Person person, StepSequence sequence, FailCause cause, TimePoint time)
+	{
+		var index = sequence.Step;
+		var (kind, target) = sequence.IsDone || sequence.CurrentStep?.Kind == StepKind.Meet ? (StepFailureKind.Stop, null) : sequence.Need.GetFailure(index, cause);
+		m_world.OnStepFailed(person, sequence, index, cause);
+
+		// The player is told if they missed an appointment: the other gave up waiting for them, or never came.
+		if (cause == FailCause.NoShow && sequence.Appointment is { } missed && missed.GetOther(person) is var other && (!m_world.IsAutomatic(person) || !m_world.IsAutomatic(other)))
+			m_world.OnAppointmentMissed(missed, isOtherWaiting: !m_world.IsAutomatic(other));
+		if (kind == StepFailureKind.Next)
+			MoveOn(sequence, sequence.Need.GetNextStep(index));
+		else if (kind == StepFailureKind.SkipTo && target is { } skipTo)
+			MoveOn(sequence, skipTo);
+		else
+			EndSequence(person, sequence, time);
+	}
+
+	/// <summary>
+	/// Ends a sequence once it's done or given up: bundles it left are unpacked (their items stay carried), anyone
+	/// following the person is let go, and an appointment whose steps it was is over. The one put on hold most recently,
+	/// if any, becomes current.
+	/// </summary>
+	internal void EndSequence(Person person, StepSequence sequence, TimePoint time)
+	{
+		// Before they set off, it's only something they agreed to, so ending it leaves what they're doing alone.
+		var hasSetOff = sequence.HasSetOff;
+		person.RemoveSequence(sequence);
+		foreach (var id in sequence.Bundles.Keys.ToList())
+			m_world.Unpack(sequence.RemoveBundle(id)!);
+		if (sequence.Appointment is { } appointment && m_world.Appointments.Contains(appointment))
+		{
+			if (appointment.IsStarted)
+				Release(person, time);
+			else
+				CallOff(appointment, time);
+		}
+		else if (hasSetOff && !person.Sequences.Any(x => x.Partner is { } partner && GetFollowers(person, time).Contains(partner)))
+		{
+			Release(person, time);
+		}
+
+		if (hasSetOff && m_world.IsAutomatic(person))
+			person.IsAtWork = false;
+	}
+
+	/// <summary>
+	/// Finds where a "goTo" step would take a person from where they are: for quarters, the nearest one of its kinds.
+	/// Returns null if there's no such place.
+	/// </summary>
+	internal Location? FindPlace(Person person, StepSequence? sequence, SchedulePlace place) => ResolvePlace(person, sequence, place, GetDistances(person.Location), isEstimate: true);
+
+	/// <summary>
+	/// Gets the options of a "choose" step a person could choose now: those whose condition is met and whose places they
+	/// can get to, with the index of the first of their steps and the index after the last of them.
+	/// </summary>
+	internal IReadOnlyList<(StepOption Option, int Start, int End)> GetAvailableOptions(Person person, StepSequence? sequence, Need goal, int chooseStep, TimePoint time)
+	{
+		var distances = GetDistances(person.Location);
+		return goal.GetOptions(chooseStep)
+			.Where(x => IsConditionMet(person, goal, sequence, x.Option.When, time) &&
+				(goal.Steps[chooseStep].First || Enumerable.Range(x.Start, x.End - x.Start).Select(index => goal.Steps[index]).Where(step => step is { Kind: StepKind.GoTo, Place.Kind: not (NeedPlace.Remembered or NeedPlace.PartnerHome or NeedPlace.JobSite) })
+					.All(step => ResolvePlace(person, sequence, step.Place!, distances, isEstimate: true) is not null)))
+			.ToList();
+	}
+
+	/// <summary>
+	/// Chooses one of a "choose" step's options: the first whose condition is met, for a step that takes the first, or
+	/// otherwise one chosen by frequency among those that can be chosen (see <see cref="GetAvailableOptions"/>). For a quota
+	/// need, options whose steps could take longer than what's left of its hours are left out, unless none would fit.
+	/// Returns the option, or null if there's none.
+	/// </summary>
+	private (StepOption Option, int Start, int End)? ChooseOption(Person person, StepSequence? sequence, Need goal, int chooseStep, TimePoint time)
+	{
+		var options = goal.GetOptions(chooseStep);
+		var available = GetAvailableOptions(person, sequence, goal, chooseStep, time);
+		if (!goal.Steps[chooseStep].First && goal.Kind == NeedKind.Quota && available.Count > 1)
+		{
+			var fitting = available.Where(x => GetMostMinutesFrom(person, goal, GetOptionStart(goal, chooseStep, x), time) <= GetMinutesUntilEnd(person, goal, time)).ToList();
+			if (fitting.Count != 0)
+				available = fitting;
+		}
+
+		return available.Count == 0 ? null :
+			goal.Steps[chooseStep].First ? available[0] :
+			available[FindChosen(available, m_world.GameData.FrequencyChances.Choose(m_world.Random, available.Select(y => y.Option).ToList(), options.Select(y => y.Option).ToList()))];
+	}
+
+	/// <summary>
+	/// Gets the most minutes a person could take carrying out a need's steps from one of them to the end: the minutes of its
+	/// "do" steps, along with the walking from where they are.
+	/// </summary>
+	private long GetMostMinutesFrom(Person person, Need goal, int start, TimePoint time)
+	{
+		var walking = WalkSteps(person, goal, start, goal.Steps.Count, isCountingChanges: false, time).Select(x => x.Total).DefaultIfEmpty(0).Max();
+		return goal.GetMinuteRangeFrom(person.Family.Members.Count, start).Max + walking;
+	}
+
+	/// <summary>
+	/// Goes on from a "choose" step with one of its options: to the first of its steps, or past the "choose" step if it has
+	/// none.
+	/// </summary>
+	internal static int GetOptionStart(Need goal, int chooseStep, (StepOption Option, int Start, int End) option) =>
+		option.End > option.Start ? option.Start : goal.GetNextStep(chooseStep);
+
+	/// <summary>
+	/// Gets the index of the option chosen among the options available.
+	/// </summary>
+	private static int FindChosen(IReadOnlyList<(StepOption Option, int Start, int End)> available, StepOption chosen) => Enumerable.Range(0, available.Count).First(x => available[x].Option == chosen);
+
+	/// <summary>
+	/// Whether someone fits who a step talks with, asks, or looks for, for the person taking it: they meet its condition on
+	/// their character, and are in the person's household or not, if it says. Anyone fits a step without one.
+	/// </summary>
+	internal static bool IsWho(Person person, Person other, StepWho? who) =>
+		CharacterCondition.IsMet(who, x => x == StepWho.FamilyKey ? (other.Family == person.Family ? StepWho.FamilyMember : StepWho.FamilyOther) : other.GetConditionValueId(x));
+
+	/// <summary>
+	/// Whether someone is someone a "talk", "ask", or "seek" step could talk with or find, for the person taking it: they
+	/// fit its who (and are a friend, if it says), and unless it says whether they're family, aren't in the person's
+	/// household.
+	/// </summary>
+	internal bool IsSought(Person person, Person other, StepWho? who) =>
+		other != person && IsWho(person, other, who) && (who is { HasFamily: true } || other.Family != person.Family) &&
+		(who is not { Friends: true } || GetFriends(person).Contains(other));
+
+	/// <summary>
+	/// Picks who a "talk" or "ask" step talks with: someone there who isn't asleep, talking, or too busy to talk (and for
+	/// the player, unless the world is headless, who can be asked now), who meets the step's condition, who's the one the
+	/// step talks with. Someone picked from anyone there isn't in the person's household, unless the step's condition says
+	/// whether they're family. Returns null if there's no one.
+	/// </summary>
+	private Person? ChooseWhoToTalkWith(Person person, StepSequence sequence, Step step, TimePoint time)
+	{
+		var friends = step.Who is { Friends: true } ? GetFriends(person).ToHashSet() : null;
+		var candidates = person.Location.People.Where(x => x != person && (m_world.IsAutomatic(x) || CanAskPlayer(person, x, time)) && !x.IsAsleep &&
+			x.CurrentTask is not TalkTask && !IsTooBusyToTalk(x, time) && IsWho(person, x, step.Who) && (friends is null || friends.Contains(x))).ToList();
+
+		// Someone chosen from those there isn't in the person's household, unless the step says whether they're family.
+		var others = candidates.Where(x => step.Who is { HasFamily: true } || x.Family != person.Family).ToList();
+		return step.With switch
+		{
+			StepTarget.Sought when sequence.Seeking is { Friend: null } => others.Count == 0 ? null : others[m_world.Random.Next(others.Count)],
+			StepTarget.Sought => candidates.FirstOrDefault(x => x == sequence.Seeking?.Friend),
+			StepTarget.Partner => candidates.FirstOrDefault(x => x == sequence.Partner),
+			_ => others.Count == 0 ? null : others[m_world.Random.Next(others.Count)],
+		};
+	}
+
+	/// <summary>
+	/// Talks with someone, or asks them a question, for a "talk" or "ask" step of a sequence. They become its partner. A
+	/// question is answered yes by chance, and remembered by the step's name. Saying yes to something that takes time is
+	/// only possible if the one asked can spare it, now, or at an appointment, which a yes makes. The player decides
+	/// whether to say yes themselves, which is given. Returns whether they said yes, and the appointment it made, if any.
+	/// </summary>
+	internal (bool IsYes, Appointment? Appointment) TalkOrAskWith(Person person, StepSequence sequence, Step step, int index, Person other, TimePoint time, bool? playerAnswer = null)
+	{
+		var goal = sequence.Need;
+		sequence.Partner = other;
+		var minutes = GetTalkMinutes(person, sequence, step);
+		var isYes = false;
+		Appointment? made = null;
+		if (step.Kind == StepKind.Ask)
+		{
+			var forMinutes = step.ForMinutes is { } amount ? (int) amount.GetAmount(goal.SharedByFamily ? person.Family.Members.Count : 0) : 0;
+			isYes = playerAnswer ?? m_world.Random.NextDouble() * 100 < GetChance(other, person, step.Chance!, time);
+			if (isYes && step.Appointment is { } appointment)
+			{
+				made = MakeAppointment(person, sequence, other, goal, index, appointment, forMinutes, minutes, time);
+				isYes = made is not null;
+			}
+			else if (isYes && forMinutes > 0 && playerAnswer is null)
+			{
+				isYes = CanSpare(other, forMinutes, time);
+			}
+
+			// A yes to a job takes it on, at its place, worked out with the one asked as the partner.
+			if (isYes && step.Job is { } job)
+			{
+				var site = ResolvePlace(person, sequence, job.Place!, GetDistances(person.Location), isEstimate: false);
+				if (site is not null)
+					m_world.AddJob(person, other, goal, site, job.Minutes!.Value.Minutes);
+				isYes = site is not null;
+			}
+
+			sequence.SetAnswer(step.Name!, isYes);
+		}
+
+		// Talking that meets the goal's quota counts toward it rather than socializing, and the one talked with has the need
+		// the step meets for its partner met, if they have it.
+		var partnerNeed = step.PartnerMeets is { } partnerMeets ? m_settings.Needs.FirstOrDefault(x => x.Id == partnerMeets && HasNeed(other, x)) : null;
+		m_world.StartTalking(person, other, minutes, time, isSocializing: step.Kind == StepKind.Talk && !step.MeetsQuota,
+			firstNeed: step.MeetsQuota && goal.Quota?.Time is not null ? goal : null, secondNeed: partnerNeed);
+		if (step.MeetsQuota && goal.TakesChosenTime(step))
+			sequence.UseMinutes(minutes);
+		return (isYes, made);
+	}
+
+	/// <summary>
+	/// Gets how long a "talk" or "ask" step takes.
+	/// </summary>
+	private static int GetTalkMinutes(Person person, StepSequence sequence, Step step) =>
+		Math.Max((int) step.Minutes!.GetAmount(sequence.Need.SharedByFamily ? person.Family.Members.Count : 0), 1);
+
+	/// <summary>
+	/// Has someone ask the player to talk for the "talk" step they're on: the player is asked whether they will, while the
+	/// one asking waits. Time stops until the player answers (see <see cref="AnswerPlayerTalk"/>).
+	/// </summary>
+	private static StepWork AskPlayerToTalk(Person person, StepSequence sequence, Person player)
+	{
+		sequence.Partner = player;
+		player.TalkRequest = person;
+		return StepWork.Give([new WaitTask(player, AskWaitMinutes)]);
+	}
+
+	/// <summary>
+	/// Whether someone asking the player to talk is doing it for a "talk" step of theirs, rather than to chat.
+	/// </summary>
+	internal static bool IsTalkStepRequest(Person asker, Person player) => asker.Current is { CurrentStep.Kind: StepKind.Talk, Partner: { } partner } && partner == player;
+
+	/// <summary>
+	/// Gets how long talking takes for the "talk" step someone is asking the player to talk for, or null if they're asking
+	/// to chat.
+	/// </summary>
+	internal static int? GetTalkStepMinutes(Person asker, Person player) =>
+		IsTalkStepRequest(asker, player) && asker.Current is { CurrentStep: { } step } sequence ? GetTalkMinutes(asker, sequence, step) : null;
+
+	/// <summary>
+	/// Has the player answer someone who asked them to talk for a "talk" step: they talk, as anyone else would, or the step
+	/// fails as "no", and for a no, the one asking doesn't ask again for a while. Returns whether they're talking.
+	/// </summary>
+	internal bool AnswerPlayerTalk(Person asker, Person player, bool isYes, TimePoint time)
+	{
+		var sequence = asker.Current!;
+		asker.UpdateNeeds(time);
+		asker.SetTasks([]);
+		var isTalking = isYes && asker.Location == player.Location && player.CurrentTask is not TalkTask;
+		if (isTalking)
+		{
+			TalkOrAskWith(asker, sequence, sequence.CurrentStep!, sequence.Step, player, time);
+			sequence.IsCarriedOut = true;
+		}
+		else
+		{
+			if (!isYes)
+				asker.GetRelationship(player).LastDeclined = time;
+			FailStep(asker, sequence, FailCause.No, time);
+		}
+
+		return isTalking;
+	}
+
+	/// <summary>
+	/// Has someone ask the player the question of the "ask" step they're on: the player is asked to answer, while they
+	/// wait. Time stops until the player answers (see <see cref="AnswerPlayerAsk"/>).
+	/// </summary>
+	private static StepWork AskPlayer(Person person, StepSequence sequence, Person player)
+	{
+		sequence.Partner = player;
+		player.AskRequest = person;
+		return StepWork.Give([new WaitTask(player, AskWaitMinutes)]);
+	}
+
+	/// <summary>
+	/// Has the player answer the question someone asked them, as anyone else would answer it, except that the player
+	/// decides whether to say yes. They talk for as long as asking takes, and the one asking carries on once it's over.
+	/// Returns the appointment a yes made, if any.
+	/// </summary>
+	internal Appointment? AnswerPlayerAsk(Person player, bool isYes, TimePoint time)
+	{
+		var asker = player.AskRequest ?? throw new InvalidOperationException("No one is asking the player anything.");
+		player.AskRequest = null;
+		Appointment? made = null;
+		if (asker.Current is { CurrentStep.Kind: StepKind.Ask } sequence)
+		{
+			asker.UpdateNeeds(time);
+			asker.SetTasks([]);
+			if (!isYes)
+				asker.GetRelationship(player).LastDeclined = time;
+			made = TalkOrAskWith(asker, sequence, sequence.CurrentStep!, sequence.Step, player, time, isYes).Appointment;
+			sequence.IsCarriedOut = true;
+		}
+
+		return made;
+	}
+
+	/// <summary>
+	/// Gets the chance, from 0 to 100, that someone says yes when asked a question: the base chance, plus some for how well
+	/// they think of the one asking, multiplied by every factor whose condition they meet, less some for how urgent the
+	/// goal they're busy with is.
+	/// </summary>
+	internal double GetChance(Person asked, Person asking, StepChance chance, TimePoint time)
+	{
+		var score = asked.Relationships.TryGetValue(asking, out var relationship) ? relationship.Score : 0;
+		var factor = chance.Factors.Where(x => CharacterCondition.IsMet(x.When, asked.GetConditionValueId)).Aggregate(1.0, (total, x) => total * x.Factor);
+		var busy = asked.Goal is { } goal ? GetUrgency(asked, goal, time) : 0;
+		return Math.Clamp(((chance.Base + (chance.PerScore * score / RelationshipSettings.MaximumScore)) * factor) - (chance.Busy * busy), 0, 100);
+	}
+
+	/// <summary>
+	/// Gets how many minutes it is from a time until the next time it's an hour, or 0 if it's that hour exactly.
+	/// </summary>
+	private int GetMinutesUntilHour(TimePoint time, int hour)
+	{
+		var parts = m_calendar.GetParts(time);
+		return (((hour * 60) - ((parts.Hour * 60) + parts.Minute)) % MinutesPerDay + MinutesPerDay) % MinutesPerDay;
+	}
+
+	/// <summary>
+	/// Gets how many minutes are left of a step's hours from a time, or null if it has none.
+	/// </summary>
+	private int? GetMinutesLeftInHours(Step step, TimePoint time) => step.Hours is { } hours ? GetMinutesUntilHour(time, hours.End % 24) is var left and > 0 ? left : MinutesPerDay : null;
+
+	/// <summary>
+	/// Whether a condition of a person's steps for a need is met now: every setting it has is met (its "not" isn't, and at
+	/// least one of its "any" is), and it's met without one. Without a sequence, such as for an estimate, conditions on what
+	/// its steps kept track of aren't met.
+	/// </summary>
+	internal bool IsConditionMet(Person person, Need goal, StepSequence? sequence, StepCondition? when, TimePoint time) =>
+		when is null ||
+		((when.Not is not { } not || !IsConditionMet(person, goal, sequence, not, time)) &&
+			(when.Any is not { } any || any.Any(x => IsConditionMet(person, goal, sequence, x, time))) &&
+			(when.HasJob is not { } hasJob || (person.GetJob(goal) is { IsDone: false }) == hasJob) &&
+			(when.OutfitAtHome is not { } kind || ClothingRules.IsOutfitAtHome(person, kind, time)) &&
+			(when.DoneForToday is not { } isDone || IsDoneForToday(person, goal, time) == isDone) &&
+			(when.At is not { } at || IsPlaceFor(person, sequence, at, person.Location)) &&
+			(when.Hours is not { } hours || hours.Contains(m_calendar.GetParts(time).Hour)) &&
+			(when.ShiftLeft is not { } shiftLeft || sequence?.MinutesLeft >= shiftLeft) &&
+			(when.BusinessProfession is not { } profession || person.Business?.Profession.Id == profession) &&
+			(when.AnsweredYes is not { } yes || (sequence?.Answers.GetValueOrDefault(yes) ?? false)) &&
+			(when.AnsweredNo is not { } no || !(sequence?.Answers.GetValueOrDefault(no) ?? false)));
+
+	/// <summary>
+	/// Whether a person is done with a quota need for the day: its quota is met, or it's closed. For the player, it always
+	/// is, since what they started ends when they say so, such as by not working any longer.
+	/// </summary>
+	private bool IsDoneForToday(Person person, Need goal, TimePoint time) =>
+		!m_world.IsAutomatic(person) ||
+		goal.Kind == NeedKind.Quota && (GetRemainingMinutes(person, goal, time) <= 0 || !IsQuotaOpen(person, goal, time));
+
+	/// <summary>
+	/// Finds the place a step of a person's goal leads to, from where they are, or for a remembered place, where its
+	/// sequence remembered, or for a job site, where their job for the sequence's need (or the need given, without a
+	/// sequence) is. For an estimate, the nearest quarter of the kinds is used rather than choosing one at random. Returns
+	/// null if there's no such place.
+	/// </summary>
+	private Location? ResolvePlace(Person person, StepSequence? sequence, SchedulePlace place, IReadOnlyDictionary<Location, Route> distances, bool isEstimate, Need? need = null) =>
+		place.Kind == NeedPlace.Remembered ? sequence?.RememberedPlaces.GetValueOrDefault(place.Remembered ?? "") :
+		place.Kind == NeedPlace.PartnerHome ? sequence?.Partner?.Home :
+		place.Kind == NeedPlace.JobSite ? (sequence?.Need ?? need) is { } jobNeed && person.GetJob(jobNeed) is { IsDone: false } job ? job.Place : null :
+		FindPlace(person, place.Kind, place.QuarterKinds, distances, place.Nearest || isEstimate);
+
+	/// <summary>
+	/// Estimates how many minutes of walking a person carrying out a need's steps would do, from where they are, with the
+	/// steps' conditions as they are now: before its first "do" step, before its last, and in all, each as the fewest and
+	/// most it could be. It follows every way they could go: each option of a "choose" step they could choose (only the
+	/// first whose condition is met, for one that takes the first), and counts the steps a "repeat" step repeats once.
+	/// </summary>
+	private TravelEstimate EstimateTravel(Person person, Need goal, TimePoint time)
+	{
+		// The estimate is used many times as needs' urgencies are worked out, so it's kept for as long as the person stays
+		// where they are at the same time. It's only an estimate, so things changing in between doesn't matter.
+		if (m_estimates.TryGetValue((person, goal), out var kept) && kept.Location == person.Location && kept.Time == time)
+			return kept.Estimate;
+
+		var ways = WalkSteps(person, goal, 0, goal.Steps.Count, isCountingChanges: false, time);
+		var estimate = new TravelEstimate(GetRange(ways.Select(x => x.BeforeFirstDo)), GetRange(ways.Select(x => x.BeforeLastDo)), GetRange(ways.Select(x => x.Total)));
+		m_estimates[(person, goal)] = (person.Location, time, estimate);
+		return estimate;
+	}
+
+	private static MinuteRange GetRange(IEnumerable<int> minutes) => minutes.Aggregate((MinuteRange?) null, (range, x) => range?.Or(MinuteRange.Exactly(x)) ?? MinuteRange.Exactly(x)) ?? MinuteRange.Zero;
+
+	/// <summary>
+	/// Follows each way a person could go through some of a need's steps, from one step up to another (or the end), from
+	/// where they are, with the steps' conditions as they are now, and gets the minutes of walking along each way: before
+	/// its first "do" step, before its last, and in all, along with the time changing clothes takes, if it counts it, and
+	/// where it ends. Every
+	/// option of a "choose" step they could choose is followed (only the first whose condition is met, for one that takes
+	/// the first), up to a limit on how many ways there are, past which only the first option is followed.
+	/// </summary>
+	private IReadOnlyList<(int BeforeFirstDo, int BeforeLastDo, int Total, Location End)> WalkSteps(Person person, Need goal, int start, int end, bool isCountingChanges, TimePoint time)
+	{
+		var ways = new List<(int BeforeFirstDo, int BeforeLastDo, int Total, Location End)>();
+		var branches = 1;
+		void Walk(int index, Location location, int minutes, int? beforeFirstDo, int? beforeLastDo, int count)
+		{
+			for (; index < end && count < goal.Steps.Count; count++)
+			{
+				var step = goal.Steps[index];
+				var next = goal.GetNextStep(index);
+				if (step.Kind == StepKind.Choose)
+				{
+					var options = GetAvailableOptions(person, null, goal, index, time);
+					if (step.First)
+						options = options.Take(1).ToList();
+					if (options.Count > 1 && branches + options.Count - 1 <= MaxEstimateWays)
+					{
+						branches += options.Count - 1;
+						foreach (var option in options.Skip(1))
+							Walk(GetOptionStart(goal, index, option), location, minutes, beforeFirstDo, beforeLastDo, count + 1);
+					}
+
+					next = options.Count != 0 ? GetOptionStart(goal, index, options[0]) : next;
+				}
+				else if (IsConditionMet(person, goal, null, step.When, time))
+				{
+					if (step.Kind == StepKind.Stop)
+						break;
+					if (step is { Kind: StepKind.GoTo or StepKind.Wander, Place: { } stepPlace } && ResolvePlace(person, null, stepPlace, GetDistances(location), isEstimate: true, goal) is { } place &&
+						GetDistances(location).TryGetValue(place, out var route))
+					{
+						minutes += route.Minutes;
+						location = place;
+					}
+
+					if (isCountingChanges && step.Kind is StepKind.Dress or StepKind.Undress && GetStepChange(person, step, time) is not null)
+						minutes += m_settings.Clothing.ChangeMinutes;
+					if (step.Kind == StepKind.Do)
+					{
+						beforeFirstDo ??= minutes;
+						beforeLastDo = minutes;
+					}
+				}
+
+				index = next;
+			}
+
+			ways.Add((beforeFirstDo ?? minutes, beforeLastDo ?? minutes, minutes, location));
+		}
+
+		Walk(start, person.Location, 0, null, null, 0);
+		return ways;
+	}
+
+	/// <summary>
+	/// The walking a person carrying out a need's steps would do: before its first "do" step, before its last, and in all,
+	/// each as the fewest and most minutes it could be.
+	/// </summary>
+	private readonly record struct TravelEstimate(MinuteRange BeforeFirstDo, MinuteRange BeforeLastDo, MinuteRange Total);
+
+	/// <summary>
+	/// Whether someone could carry on repeating steps after a pass: some of the time chosen for the sequence is left, and
+	/// the need can still be met (a quota need is open and not done).
+	/// </summary>
+	private bool ShouldRepeat(Person person, StepSequence sequence, TimePoint time) =>
+		sequence.MinutesLeft is > 0 && (sequence.Need.Kind != NeedKind.Quota || (IsQuotaOpen(person, sequence.Need, time) && GetRemainingMinutes(person, sequence.Need, time) > 0));
+
+	/// <summary>
+	/// Gets the one of someone's needs other than their goal that weighs the most of those that would be considered as a
+	/// goal now, weigh more than the goal would, and whose steps can be done, or null if none do.
+	/// </summary>
+	internal Need? GetMoreUrgentNeed(Person person, Need goal, TimePoint time)
+	{
+		var goalWeight = m_settings.GetGoalWeight(goal, GetUrgency(person, goal, time));
+		var hasFriends = GetFriends(person).Any();
+		var distances = GetDistances(person.Location);
+		return m_settings.Needs.Where(x => x != goal && (!x.Seeks || hasFriends))
+			.Select(x => (Need: x, Urgency: GetUrgency(person, x, time)))
+			.Where(x => m_settings.IsGoalCandidate(x.Need, x.Urgency) && m_settings.GetGoalWeight(x.Need, x.Urgency) > goalWeight)
+			.OrderByDescending(x => m_settings.GetGoalWeight(x.Need, x.Urgency))
+			.Select(x => x.Need)
+			.FirstOrDefault(x => CanDoSteps(person, x, distances, time));
+	}
+
+	/// <summary>
+	/// Whether a person could start on a need's steps from where they are: they can get to every place its steps go to,
+	/// and for a need that looks for a friend, there's somewhere to look.
+	/// </summary>
+	private bool CanDoSteps(Person person, Need need, IReadOnlyDictionary<Location, Route> distances, TimePoint time) =>
+		CanReachPlaces(person, need, distances, time) && (!need.Seeks || ChooseWhereToSeek(person, distances, time, isCheck: true) is not null);
+
+	/// <summary>
+	/// Whether a person can get to every place their goal's steps go to on their way through them (see
+	/// <see cref="IsOnTheWay"/>).
+	/// </summary>
+	private bool CanReachPlaces(Person person, Need goal, IReadOnlyDictionary<Location, Route> distances, TimePoint time) =>
+		Enumerable.Range(0, goal.Steps.Count)
+			.Where(index => goal.Steps[index] is { Kind: StepKind.GoTo, Place.Kind: not (NeedPlace.Remembered or NeedPlace.PartnerHome or NeedPlace.JobSite) } && IsOnTheWay(person, goal, index, time))
+			.All(index => ResolvePlace(person, null, goal.Steps[index].Place!, distances, isEstimate: true) is not null);
+
+	/// <summary>
+	/// Whether a person can get to every place their goal's steps go to, from where they are.
+	/// </summary>
+	internal bool CanReachPlaces(Person person, Need goal, TimePoint time) => CanReachPlaces(person, goal, GetDistances(person.Location), time);
+
+	/// <summary>
+	/// Whether a step of a need is one a person would come to on every way through its steps, as things are now: it isn't
+	/// in an option of a "choose" step, or it's in the option a "choose" step with "first" would take for them (such as
+	/// the steps of their profession), in each "choose" step it's in.
+	/// </summary>
+	private bool IsOnTheWay(Person person, Need goal, int step, TimePoint time)
+	{
+		var isOnTheWay = true;
+		while (isOnTheWay && goal.GetOptionOf(step) is { } option)
+		{
+			var taken = goal.Steps[option.Choose].First ? goal.GetOptions(option.Choose).Where(x => IsConditionMet(person, goal, null, x.Option.When, time)).Select(x => (int?) x.Start).FirstOrDefault() : null;
+			isOnTheWay = taken == option.Start;
+			step = option.Choose;
+		}
+
+		return isOnTheWay;
+	}
 
 	/// <summary>
 	/// Whether someone can carry on with a quota need after being interrupted: it's within its hours, and isn't done yet.
@@ -135,15 +828,70 @@ internal sealed class Scheduler
 	/// <summary>
 	/// Whether someone refuses to be interrupted, because their goal is too urgent right now.
 	/// </summary>
-	public bool IsTooBusyToTalk(Person person, TimePoint time) => person.Goal is { } goal && GetUrgency(person, goal, time) >= m_settings.Talking.RefuseUrgency;
+	public bool IsTooBusyToTalk(Person person, TimePoint time) =>
+		person.CurrentTask is FollowTask or MeetTask || (person.Goal is { } goal && GetUrgency(person, goal, time) >= m_settings.Talking.RefuseUrgency);
 
 	/// <summary>
-	/// Gives a person a goal and the tasks to reach it: travel to the place their need is met, then time spent there.
-	/// They choose at random among their needs that are urgent enough, favoring the more urgent ones, or stay idle if
-	/// none are.
+	/// Gets the people following someone: those the game has following them, and the player, while they're taking part in
+	/// their steps and aren't doing anything else.
+	/// </summary>
+	internal IReadOnlyList<Person> GetFollowers(Person leader, TimePoint time) =>
+		m_world.People.Where(x => (x.CurrentTask is FollowTask follow && follow.Leader == leader) || (x.TaskEnd is null && IsLedBy(x, leader, time))).ToList();
+
+	/// <summary>
+	/// Whether someone is taking part in another's steps and following them now.
+	/// </summary>
+	internal static bool IsLedBy(Person person, Person leader, TimePoint time) =>
+		person.Current is { Role: not SequenceRole.Steps, Leader: { } led } current && led == leader && !IsFollowingOver(current, time);
+
+	/// <summary>
+	/// Whether the time someone follows another for, as a "lead" step's minutes, is up.
+	/// </summary>
+	private static bool IsFollowingOver(StepSequence sequence, TimePoint time) => sequence.Role == SequenceRole.Follower && sequence.Until is { } until && time >= until;
+
+	/// <summary>
+	/// Lets go of anyone following someone. They stop following and choose what to do next, or if something interrupted
+	/// their following, such as changing clothes with the one they follow, once they're done with it.
+	/// </summary>
+	internal void Release(Person leader, TimePoint time)
+	{
+		// An appointment is over once the worker is done with its steps.
+		foreach (var appointment in m_world.Appointments.Where(x => x.IsStarted && x.Worker == leader).ToList())
+			m_world.RemoveAppointment(appointment);
+		// Anyone following them as part of their steps is done with that.
+		foreach (var person in m_world.People.Where(x => x != leader))
+		{
+			foreach (var sequence in person.Sequences.Where(x => x.Role != SequenceRole.Steps && x.Leader == leader).ToList())
+				EndSequence(person, sequence, time);
+		}
+
+		bool IsFollowing(PersonTask task) => task is FollowTask follow && follow.Leader == leader;
+		foreach (var follower in m_world.People.Where(x => x.Tasks.Any(IsFollowing)).ToList())
+		{
+			if (follower.CurrentTask is FollowTask)
+			{
+				follower.UpdateNeeds(time);
+				follower.SetTasks([]);
+				Continue(follower, time);
+			}
+			else
+			{
+				follower.DropTasksAfterCurrent();
+			}
+		}
+	}
+
+	/// <summary>
+	/// Gives a person a goal and starts its steps, chosen at random among their needs that are urgent enough, favoring
+	/// the more urgent ones, or has them stay idle if none are. Someone still in work clothes after their work for the day,
+	/// or in night clothes when they aren't going to sleep, changes out of them first. Someone at home first puts away the
+	/// household's clothes they're still carrying, such as washing left over from steps they gave up on.
 	/// </summary>
 	public void ChooseGoal(Person person, TimePoint time)
 	{
+		if (person.Location == person.Home)
+			ClothingRules.PutAway(person);
+
 		// Every need that's at all urgent is kept with how urgent it was, so developers can see why the goal was chosen.
 		var urgencies = m_settings.Needs
 			.Select(need => new NeedUrgency(need, GetUrgency(person, need, time)))
@@ -153,52 +901,64 @@ internal sealed class Scheduler
 		var hasFriends = GetFriends(person).Any();
 		// Someone who has already napped since they last slept until rested doesn't nap again.
 		var isNap = IsNap(person, time);
-		var candidates = urgencies.Where(x => m_settings.IsGoalCandidate(x.Need, x.Urgency) && (x.Need != m_socializeNeed || hasFriends) && (x.Need != m_sleepNeed || !isNap || !person.HasNapped)).ToList();
+		var candidates = urgencies.Where(x => m_settings.IsGoalCandidate(x.Need, x.Urgency) && (!x.Need.Seeks || hasFriends) && (x.Need != m_sleepNeed || !isNap || !person.HasNapped)).ToList();
 
-		// Seeking out a friend means looking for them somewhere, for a while, rather than going to the need's usual place.
+		// Only a need whose steps can get to their places is chosen, such as work in the fields, in a village without any.
+		// If none can, the one that would have been chosen is kept, so developers can see why.
 		var distances = GetDistances(person.Location);
-		var choice = candidates.Count == 0 ? null : m_world.Random.NextWeighted(candidates, x => m_settings.GetGoalWeight(x.Need, x.Urgency)).Need;
-		var seeking = choice is not null && choice == m_socializeNeed ? ChooseWhereToSeek(person, distances, time) : null;
-		var place = choice is null ? null : choice == m_socializeNeed ? seeking?.Place : FindPlace(person, choice.Place, choice.QuarterKinds, distances, choice.Nearest);
+		var doable = candidates.Where(x => CanDoSteps(person, x.Need, distances, time)).ToList();
+		var choices = doable.Count != 0 ? doable : candidates;
+		var choice = choices.Count == 0 ? null : m_world.Random.NextWeighted(choices, x => m_settings.GetGoalWeight(x.Need, x.Urgency)).Need;
+		var hasPlace = doable.Count != 0;
 
-		// Someone going to work changes into their work clothes there, fetching them from home first if they need to.
-		var workChange = choice is { AtWork: true } && place is not null ? ClothingRules.GetWorkChange(person, place, time) : null;
-		var travelMinutes = place is null ? 0 :
-			workChange is { Fetch: true } && person.Location != person.Home ? distances[person.Home].Minutes + GetDistances(person.Home)[place].Minutes : distances[place].Minutes;
-		var isLastShift = false;
-		var minutes = seeking is not null ? m_settings.Socializing.SeekMinutes :
-			choice is not null && choice == m_sleepNeed && isNap ? m_world.Random.NextInRange(m_settings.Sleep.NapMinutes) :
-			choice is { Kind: NeedKind.Quota } && place is not null ? GetShiftMinutes(person, choice, time, travelMinutes, out isLastShift) : (int?) null;
-		var result = choice is null ? GoalChoiceResult.NothingUrgent : place is null ? GoalChoiceResult.NoPlace : minutes is 0 or < 0 ? GoalChoiceResult.NoTime : GoalChoiceResult.Chosen;
-		var goalChoice = new GoalChoice(time, urgencies, choice, result, seeking);
-
-		// Someone still in their work clothes once their work for the day is over changes out of them first. Someone going to
-		// sleep changes into their night clothes instead.
-		var isWorkingOrSleeping = result == GoalChoiceResult.Chosen && (choice!.AtWork || choice == m_sleepNeed);
-		var leftover = isWorkingOrSleeping || (IsInWorkHours(person, time) && HasWorkToday(person, time)) ? null :
-			person.GetOutfits(OutfitKind.Work).FirstOrDefault(x => x.Pieces.Any(y => y.Wearer == person));
-		IReadOnlyList<PersonTask> ChangingOutFirst(IReadOnlyList<PersonTask> tasks) => leftover is null ? tasks : [new ChangeClothesTask(leftover, IsTakingOff: true), .. tasks];
+		var minutes = choice is not null && choice == m_sleepNeed && isNap ? m_world.Random.NextInRange(m_settings.Sleep.NapMinutes) :
+			choice is { Kind: NeedKind.Quota } && hasPlace ? GetShiftMinutes(person, choice, time) : (int?) null;
+		var result = choice is null ? GoalChoiceResult.NothingUrgent : !hasPlace ? GoalChoiceResult.NoPlace : minutes is 0 or < 0 ? GoalChoiceResult.NoTime : GoalChoiceResult.Chosen;
+		var goalChoice = new GoalChoice(time, urgencies, choice, result);
 
 		if (result == GoalChoiceResult.Chosen)
 		{
-			// A trip's time is spent at the place first, and whatever's left at home afterward.
-			var placeMinutes = choice!.IsTrips ? Math.Min(choice.GetVisitMinutes(person.Family.Members.Count), minutes!.Value) : minutes;
-			var homeMinutes = minutes - placeMinutes ?? 0;
 			if (choice == m_sleepNeed)
 				person.HasNapped = isNap;
-
-			// Work clothes are changed out of after the last stretch of work for the day.
-			var workOutfit = workChange?.Outfit ?? (choice.AtWork ? person.GetOutfits(OutfitKind.Work).FirstOrDefault(x => ClothingRules.IsWearing(person, x)) : null);
-			var clothes = workOutfit is null ? null : new WorkClothesPlan(workOutfit, workChange?.Fetch ?? false, workChange is not null, isLastShift);
-			person.SetPlan(choice, ChangingOutFirst(PlanTasks(person, place!, distances, choice.AtWork, placeMinutes, choice.ReturnHome ? person.Home : null, homeMinutes, clothes)), goalChoice);
+			StartSequence(person, choice!, 0, choice!.IsRuns ? null : minutes, GetChangingOut(person, choice, time), goalChoice);
 		}
 		else
 		{
-			// Without an urgent need that can be met now, the person waits a while before deciding again.
-			var idle = m_settings.Idle;
-			var idlePlace = FindPlace(person, idle.Place.Kind, idle.Place.QuarterKinds, distances, isNearest: false) ?? person.Location;
-			person.SetPlan(null, ChangingOutFirst(PlanTasks(person, idlePlace, distances, isAtWork: false, m_world.Random.NextInRange(idle.Minutes), returnTo: null, returnMinutes: 0, clothes: null)), goalChoice);
+			GoIdle(person, distances, goalChoice, time);
 		}
+	}
+
+	/// <summary>
+	/// Has a person wait a while somewhere before deciding again, without a goal, as when none of their needs is urgent
+	/// enough.
+	/// </summary>
+	private void GoIdle(Person person, IReadOnlyDictionary<Location, Route> distances, GoalChoice? goalChoice, TimePoint time)
+	{
+		var idle = m_settings.Idle;
+		var place = FindPlace(person, idle.Place.Kind, idle.Place.QuarterKinds, distances, isNearest: false) ?? person.Location;
+		IReadOnlyList<PersonTask> tasks = [.. GetChangingOut(person, null, time), .. GetPath(person.Location, place, distances).Select(PersonTask (x) => new TravelTask(x)), new BusyTask(m_world.Random.NextInRange(idle.Minutes))];
+		person.SetTasks(tasks, goalChoice);
+	}
+
+	/// <summary>
+	/// Gets the change of clothes someone makes before starting on a goal (or being idle, without one): out of their work
+	/// clothes, if they're still wearing them once their work for the day is over, and out of their night clothes, if they
+	/// aren't going to sleep.
+	/// </summary>
+	private IReadOnlyList<PersonTask> GetChangingOut(Person person, Need? goal, TimePoint time)
+	{
+		var tasks = new List<PersonTask>();
+
+		// Someone left wearing nothing, such as after swimming, gets dressed again first.
+		if (person.GetOutfits(OutfitKind.Nothing).FirstOrDefault(x => ClothingRules.IsChangedInto(person, x)) is { } nothing)
+			tasks.Add(new ChangeClothesTask(nothing, IsTakingOff: true));
+		var isWorking = goal is { IsWork: true } || (IsInWorkHours(person, time) && HasWorkToday(person, time));
+		var isSleeping = goal is not null && goal == m_sleepNeed;
+		if (!isWorking && !isSleeping && person.GetOutfits(OutfitKind.Work).FirstOrDefault(x => x.Pieces.Any(y => y.Wearer == person)) is { } work)
+			tasks.Add(new ChangeClothesTask(work, IsTakingOff: true));
+		if (!isSleeping && person.GetOutfits(OutfitKind.Night).FirstOrDefault(x => x.Pieces.Any(y => y.Wearer == person)) is { } night)
+			tasks.Add(new ChangeClothesTask(night, IsTakingOff: true));
+		return tasks;
 	}
 
 	/// <summary>
@@ -210,7 +970,7 @@ internal sealed class Scheduler
 	internal void OnTaskStarted(Person person, PersonTask task, TimePoint time)
 	{
 		if (m_socializeNeed is not null && task is not (TalkTask or WaitTask) && !TryChatWithWaitingFriend(person, time) && !TryStartChat(person, time) &&
-			person.Goal == m_socializeNeed && task is BusyTask { ResumeMinutes: null })
+			task is BusyTask { Step: { } step, ResumeMinutes: null } && person.Goal is { } goal && step < goal.Steps.Count && goal.Steps[step].Kind == StepKind.Seek && person.Seeking?.Friend is not null)
 		{
 			AskAboutFriends(person, time);
 		}
@@ -222,7 +982,7 @@ internal sealed class Scheduler
 	/// </summary>
 	private void CallOutToFriend(Person person, Location destination, int minutes, TimePoint time)
 	{
-		if (person.Goal == m_socializeNeed && person.GoalChoice?.Seeking?.Friend is { } friend && friend.Location == destination && friend.CurrentTask is TravelTask &&
+		if (person.Seeking?.Friend is { } friend && friend.Location == destination && friend.CurrentTask is TravelTask &&
 			m_world.IsAutomatic(friend))
 		{
 			var wait = new WaitTask(person, minutes + 1);
@@ -257,8 +1017,9 @@ internal sealed class Scheduler
 	}
 
 	/// <summary>
-	/// Starts the chat that someone (or a friend where they are) is most willing to have, if anyone is willing enough.
-	/// Returns whether a chat started.
+	/// Starts the chat that someone (or a friend where they are) is most willing to have, if anyone is willing enough and
+	/// the friend asked agrees. The player is asked, and decides for themselves. Returns whether a chat started, or the
+	/// player was asked.
 	/// </summary>
 	private bool TryStartChat(Person person, TimePoint time)
 	{
@@ -268,24 +1029,30 @@ internal sealed class Scheduler
 			.Select(x => (x.Initiator, x.Other, Willingness: GetChatWillingness(x.Initiator, x.Other, time)))
 			.Where(x => x.Willingness >= m_settings.Socializing.ChatUrgency)
 			.OrderByDescending(x => x.Willingness)
-			.FirstOrDefault();
+			.FirstOrDefault(x => !m_world.IsAutomatic(x.Other) || WillChat(x.Other, time));
 		if (best.Initiator is not null)
 			StartChat(best.Initiator, best.Other, time);
 		return best.Initiator is not null;
 	}
 
 	/// <summary>
+	/// Decides, for someone the game decides for who's asked to chat, whether they agree: they do unless they're too busy
+	/// to talk (see <see cref="IsTooBusyToTalk"/>). The player decides for themselves.
+	/// </summary>
+	private bool WillChat(Person asked, TimePoint time) => !IsTooBusyToTalk(asked, time);
+
+	/// <summary>
 	/// Gets how willing someone is to stop and chat with a friend: how urgent socializing is for them, times how close
 	/// they are, less how urgent whatever else they're doing is. It's negative infinity if they can't: either of them is
-	/// already talking, the one starting it is the player (unless headless) or is asleep, the friend is too busy to talk, the
-	/// friend is asleep and socializing isn't urgent enough to wake them, or the friend is the player (unless headless) and
-	/// can't be asked right now.
+	/// already talking, the one starting it is the player (unless headless) or is asleep, the friend is asleep and
+	/// socializing isn't urgent enough to wake them, or the friend is the player (unless headless) and can't be asked right
+	/// now. Whether the friend agrees is theirs to decide (see <see cref="WillChat"/>).
 	/// </summary>
 	private double GetChatWillingness(Person initiator, Person other, TimePoint time)
 	{
 		var urgency = GetUrgency(initiator, m_socializeNeed!, time);
-		var canChat = m_world.IsAutomatic(initiator) && (m_world.IsAutomatic(other) || CanAskPlayer(initiator, other, time)) && initiator.CurrentTask is not (null or TalkTask) && !initiator.IsAsleep &&
-			other.CurrentTask is not TalkTask && !IsTooBusyToTalk(other, time) && (!other.IsAsleep || urgency >= m_settings.Socializing.WakeUrgency);
+		var canChat = m_world.IsAutomatic(initiator) && (m_world.IsAutomatic(other) || CanAskPlayer(initiator, other, time)) && initiator.CurrentTask is not (null or TalkTask or FollowTask or MeetTask) && !initiator.IsAsleep &&
+			other.CurrentTask is not TalkTask && (!other.IsAsleep || urgency >= m_settings.Socializing.WakeUrgency);
 		var goalUrgency = initiator.Goal is { } goal && goal != m_socializeNeed ? GetUrgency(initiator, goal, time) : 0;
 		return canChat && urgency > 0
 			? (urgency * initiator.GetRelationship(other).Score / RelationshipSettings.MaximumScore) - (goalUrgency * m_settings.Socializing.ChatGoalWeight)
@@ -293,16 +1060,17 @@ internal sealed class Scheduler
 	}
 
 	/// <summary>
-	/// Whether someone can ask the player to chat: no one else is waiting for an answer, and the player hasn't turned them
-	/// down lately.
+	/// Whether someone can ask the player to chat, or ask them something: they're the player, no one else is waiting for an
+	/// answer, they aren't doing anything (other than following), and they haven't turned them down lately.
 	/// </summary>
 	private bool CanAskPlayer(Person initiator, Person player, TimePoint time) =>
-		player.TalkRequest is null && (initiator.GetRelationship(player).LastDeclined is not { } declined ||
-			m_calendar.GetTotalMinutes(time - declined) >= m_settings.Socializing.AskPlayerAgainHours * 60);
+		player.IsPlayer && player.TalkRequest is null && player.AskRequest is null && !player.Sequences.Any(x => x.SetOff == SetOffState.Due) && player.TaskEnd is null &&
+		(initiator.GetRelationship(player).LastDeclined is not { } declined || m_calendar.GetTotalMinutes(time - declined) >= m_settings.Socializing.AskPlayerAgainHours * 60);
 
 	/// <summary>
-	/// Has someone socialize with a friend, first asking what they're doing unless they already know, from having been told
-	/// since the friend chose their goal. The player is asked first (unless headless), and chats once they agree.
+	/// Has someone socialize with a friend who agreed, first asking what they're doing unless they already know, from
+	/// having been told since the friend chose their goal. The player is asked first (unless headless), and chats once they
+	/// agree.
 	/// </summary>
 	private void StartChat(Person initiator, Person other, TimePoint time)
 	{
@@ -345,18 +1113,66 @@ internal sealed class Scheduler
 	}
 
 	/// <summary>
+	/// Chooses where a "seek" step looks for anyone who meets its condition: a place like the step's (for a quarter, one of
+	/// its kinds, chosen by frequency; for another household's home, any of them), or without a place, any quarter. Among
+	/// quarters and homes, those where the person has lately seen people who meet it (other than their own household, unless
+	/// it says whether they're family) and nearer ones are more likely. Without a place, or for a home, the place they're in
+	/// now isn't chosen. Returns null if there's no such place.
+	/// </summary>
+	private SeekChoice? ChooseWhereToSeekPeople(Person person, Step step, IReadOnlyDictionary<Location, Route> distances, TimePoint time)
+	{
+		var seen = person.Sightings.Where(x => (step.Who is { HasFamily: true } || x.Key.Family != person.Family) && IsWho(person, x.Key, step.Who) &&
+				m_calendar.GetTotalMinutes(time - x.Value.Time) < m_settings.SightingHours * 60)
+			.GroupBy(x => x.Value.Location).ToDictionary(x => x.Key, x => x.Count());
+		Location? ChooseQuarter(IReadOnlyList<Location> quarters) => quarters.Count == 0 ? null :
+			m_world.Random.NextWeighted(quarters, x => (1 + seen.GetValueOrDefault(x)) / (1 + (distances[x].Minutes / m_settings.Socializing.NearMinutes)));
+
+		m_quarters ??= m_world.Locations.Where(x => x.Template is QuarterTemplate).ToLookup(x => x.QuarterKind ?? "", StringComparer.Ordinal);
+		Location? chosen;
+		if (step.Place is not { } place)
+		{
+			chosen = ChooseQuarter(m_quarters.SelectMany(x => x).Where(x => x != person.Location && distances.ContainsKey(x)).ToList());
+		}
+		else if (place.Kind == NeedPlace.Quarter)
+		{
+			var choices = (place.QuarterKinds ?? []).Where(x => m_quarters[x.QuarterKind].Any(distances.ContainsKey)).ToList();
+			var kind = choices.Count == 0 ? null : m_world.GameData.FrequencyChances.Choose(m_world.Random, choices, place.QuarterKinds).QuarterKind;
+			chosen = ChooseQuarter(kind is null ? [] : m_quarters[kind].Where(distances.ContainsKey).ToList());
+		}
+		else if (place.Kind == NeedPlace.OtherHome)
+		{
+			// People know where everyone lives and works, so homes where people who meet the condition work at home are more
+			// likely, as someone is more likely to be in.
+			var homes = m_world.Families.Where(x => x.Home != person.Home && x.Home != person.Location && distances.ContainsKey(x.Home))
+				.GroupBy(x => x.Home).ToDictionary(x => x.Key, x => x.SelectMany(family => family.Members).Count(member => member.Workplace == x.Key && IsSought(person, member, step.Who)));
+			chosen = homes.Count == 0 ? null : m_world.Random.NextWeighted(homes.Keys.ToList(),
+				x => (HomeLookWeight + homes[x] + seen.GetValueOrDefault(x)) / (1 + (distances[x].Minutes / m_settings.Socializing.NearMinutes)));
+		}
+		else
+		{
+			chosen = ResolvePlace(person, null, place, distances, isEstimate: false);
+		}
+
+		return chosen is null ? null : new SeekChoice(null, chosen, SeekClue.People);
+	}
+
+	/// <summary>
+	/// Chooses which friend a "seek" step looks for (among those who meet its condition, if it has one) and where, from
+	/// clues. Returns null if there's nowhere to look.
+	/// </summary>
+	/// <summary>
 	/// Chooses a friend to look for and where, from clues to where each friend might be: their workplace during their work
 	/// hours, or their home otherwise; where they were last seen (or said they were going), for a fresh sighting; and where
 	/// they might be gathering with others for a need only met on some days, such as market day. Places close by, and
 	/// friends not talked with lately, are more likely. The place they're in now is never chosen. Returns null if there's
 	/// nowhere to look.
 	/// </summary>
-	private SeekChoice? ChooseWhereToSeek(Person person, IReadOnlyDictionary<Location, Route> distances, TimePoint time)
+	private SeekChoice? ChooseWhereToSeek(Person person, IReadOnlyDictionary<Location, Route> distances, TimePoint time, bool isCheck = false, StepWho? who = null)
 	{
 		var socializing = m_settings.Socializing;
 		var clues = socializing.Clues;
 		var candidates = new List<(SeekChoice Choice, double Weight)>();
-		foreach (var friend in GetFriends(person))
+		foreach (var friend in GetFriends(person).Where(x => IsWho(person, x, who)))
 		{
 			var lastTalked = person.GetRelationship(friend).LastTalked;
 			var hours = lastTalked is { } last ? m_calendar.GetTotalMinutes(time - last) / 60.0 : double.PositiveInfinity;
@@ -368,7 +1184,7 @@ internal sealed class Scheduler
 					candidates.Add((new SeekChoice(friend, place, clue), weight * recency / (1 + (route.Minutes / socializing.NearMinutes))));
 			}
 
-			var isWorking = m_settings.Needs.Any(x => x.Place == NeedPlace.Workplace && HasNeed(friend, x) && IsQuotaOpen(friend, x, time));
+			var isWorking = m_settings.Needs.Any(x => x.IsWork && HasNeed(friend, x) && IsQuotaOpen(friend, x, time));
 			if (isWorking)
 				Add(friend.Workplace, SeekClue.Workplace, clues.Workplace);
 			else
@@ -380,11 +1196,11 @@ internal sealed class Scheduler
 				Add(sighting.Plan?.Destination ?? sighting.Destination ?? sighting.Location, SeekClue.Sighting, clues.Sighting * Math.Max(1 - (age / m_settings.SightingHours), 0));
 			}
 
-			foreach (var need in m_settings.Needs.Where(x => x.Days is not null && x.Place == NeedPlace.Quarter && HasNeed(friend, x) && IsQuotaOpen(friend, x, time) && GetRemainingMinutes(friend, x, time) > 0))
-				Add(FindPlace(friend, need.Place, need.QuarterKinds, distances, need.Nearest), SeekClue.Gathering, clues.Gathering);
+			foreach (var need in m_settings.Needs.Where(x => x.Days is not null && x.MainPlace is { Kind: NeedPlace.Quarter } && HasNeed(friend, x) && IsQuotaOpen(friend, x, time) && GetRemainingMinutes(friend, x, time) > 0))
+				Add(FindPlace(friend, NeedPlace.Quarter, need.QuarterKinds, distances, need.Nearest), SeekClue.Gathering, clues.Gathering);
 		}
 
-		return candidates.Count == 0 ? null : m_world.Random.NextWeighted(candidates, x => x.Weight).Choice;
+		return candidates.Count == 0 ? null : isCheck ? candidates[0].Choice : m_world.Random.NextWeighted(candidates, x => x.Weight).Choice;
 	}
 
 	/// <summary>
@@ -419,7 +1235,7 @@ internal sealed class Scheduler
 	{
 		var day = m_calendar.GetStartOfDay(time);
 		return m_settings.Needs
-			.Where(x => x.Place == NeedPlace.Workplace && x.Kind == NeedKind.Quota && HasNeed(person, x))
+			.Where(x => x.IsWork && x.Kind == NeedKind.Quota && HasNeed(person, x))
 			.SelectMany(need => Enumerable.Range(0, m_calendar.DaysInWeek + 1)
 				.Select(days => m_calendar.AddMinutes(day, days * 24 * 60))
 				.Where(x => IsQuotaDay(need, x))
@@ -464,25 +1280,19 @@ internal sealed class Scheduler
 	/// Whether someone still has work to do today: a need met at their workplace that can be met today and isn't done.
 	/// </summary>
 	internal bool HasWorkToday(Person person, TimePoint time) =>
-		m_settings.Needs.Any(x => x.Place == NeedPlace.Workplace && x.Kind == NeedKind.Quota && HasNeed(person, x) && IsQuotaDayOpen(person, x, time) && GetRemainingMinutes(person, x, time) > 0);
-
-	/// <summary>
-	/// Whether spending the given minutes on a quota need, starting now, is the last of it for the day: it takes all that's
-	/// left to do, or all the time left in its hours.
-	/// </summary>
-	internal bool IsLastShift(Person person, Need need, TimePoint time, int minutes) =>
-		need.Kind == NeedKind.Quota && minutes >= Math.Min(GetRemainingMinutes(person, need, time), GetMinutesUntilEnd(person, need, time));
+		m_settings.Needs.Any(x => x.IsWork && x.Kind == NeedKind.Quota && HasNeed(person, x) && IsQuotaDayOpen(person, x, time) && GetRemainingMinutes(person, x, time) > 0);
 
 	/// <summary>
 	/// Whether someone is within their work hours on a day they work.
 	/// </summary>
 	internal bool IsInWorkHours(Person person, TimePoint time) =>
-		m_settings.Needs.Any(x => x.Place == NeedPlace.Workplace && x.Kind == NeedKind.Quota && HasNeed(person, x) && IsQuotaOpen(person, x, time));
+		m_settings.Needs.Any(x => x.IsWork && x.Kind == NeedKind.Quota && HasNeed(person, x) && IsQuotaOpen(person, x, time));
 
 	/// <summary>
 	/// Gets how urgent a need is for a person right now, from 0 to <see cref="Need.MaximumLevel"/>. A level need grows
 	/// more urgent as its level rises, within its hours. A quota need is urgent once the spare time left to meet it this
-	/// day or week (the time left in its hours, less the time it still needs) drops below its lead, and fully urgent when
+	/// day or week (the time left in its hours, less the time it still needs and the walking each shift or run of it
+	/// takes) drops below its lead, and fully urgent when
 	/// there's no spare time left. A weekly need whose days have passed with its quota unmet is overdue, and has its overdue
 	/// urgency on any day for the rest of the week. A need the person doesn't have, or can't meet now, isn't urgent. The
 	/// urgency is then multiplied by the urgency factors that apply to the person, so it can be more than
@@ -491,76 +1301,352 @@ internal sealed class Scheduler
 	public double GetUrgency(Person person, Need need, TimePoint time) => GetBaseUrgency(person, need, time) * GetUrgencyFactor(person, need);
 
 	/// <summary>
+	/// Whether someone can spare some minutes from now, such as to go with someone who asked them: none of their needs
+	/// would be at least the agree urgency by the end of them.
+	/// </summary>
+	internal bool CanSpare(Person person, int minutes, TimePoint time) => CanSpareAt(person, time, minutes, time);
+
+	/// <summary>
+	/// Whether someone could spare some minutes from a time, now or later: none of their needs would be at least the agree
+	/// urgency by the end of them (see <see cref="GetUrgencyAt"/>).
+	/// </summary>
+	private bool CanSpareAt(Person person, TimePoint at, int minutes, TimePoint now) => GetNeedsTooUrgentAt(person, at, minutes, now).Count == 0;
+
+	/// <summary>
+	/// Gets the needs of someone's that would be at least the agree urgency if they spent some minutes from a time, now or
+	/// later, on something else (see <see cref="GetUrgencyAt"/>).
+	/// </summary>
+	private IReadOnlyList<Need> GetNeedsTooUrgentAt(Person person, TimePoint at, int minutes, TimePoint now)
+	{
+		person.UpdateNeeds(now);
+		return m_settings.Needs.Where(x => GetUrgencyAt(person, x, now, at, minutes) >= m_settings.Talking.AgreeUrgency).ToList();
+	}
+
+	/// <summary>
+	/// Gets the needs of the player's that saying yes to the question someone is asking them would keep them from: those
+	/// that would be at least the agree urgency by the end of the time it takes them, now, or at the appointment it would
+	/// make, as anyone else's yes is checked. The player can still say yes.
+	/// </summary>
+	internal IReadOnlyList<Need> GetPlayerAskConflicts(Person asker, Person player, TimePoint time)
+	{
+		var conflicts = new List<Need>();
+		if (asker.Current is { CurrentStep: { Kind: StepKind.Ask } step } sequence)
+		{
+			var goal = sequence.Need;
+			var forMinutes = step.ForMinutes is { } amount ? (int) amount.GetAmount(goal.SharedByFamily ? asker.Family.Members.Count : 0) : 0;
+			if (step.Appointment is { } settings)
+			{
+				if (FindAppointmentTime(asker, sequence, player, goal, sequence.Step, settings, forMinutes, GetTalkMinutes(asker, sequence, step), time, isEstimate: true) is { } found)
+					conflicts.AddRange(GetNeedsTooUrgentAt(player, found.Time, found.ClientMinutes, time));
+			}
+			else if (forMinutes > 0)
+			{
+				conflicts.AddRange(GetNeedsTooUrgentAt(player, time, forMinutes, time));
+			}
+		}
+
+		return conflicts;
+	}
+
+	/// <summary>
+	/// Gets how urgent a need would be for someone after they spent some minutes from a time (now or later) on something
+	/// else. A level need rises for that long, from where it is now if the time is within the hour, or otherwise from
+	/// nothing, since they'd see to it in the meantime. A quota need has that much less of its hours left from that time,
+	/// with as much still to do as now (as if they did none of it in the meantime), or all of it in a later day or week.
+	/// It's not urgent if it's closed both when they start and when they're done.
+	/// </summary>
+	private double GetUrgencyAt(Person person, Need need, TimePoint now, TimePoint at, int busyMinutes)
+	{
+		if (!HasNeed(person, need))
+			return 0;
+
+		var end = m_calendar.AddMinutes(at, busyMinutes);
+		double urgency;
+		if (need.Kind == NeedKind.Level)
+		{
+			var level = Math.Min((m_calendar.GetTotalMinutes(at - now) < 60 ? person.GetLevel(need) : 0) + (need.PerHour!.Value * busyMinutes / 60.0), Need.MaximumLevel);
+			urgency = Math.Max(need.IsWithinHours(m_calendar.GetParts(end).Hour) ? need.GetLevelUrgency(level) : 0, need == m_sleepNeed ? GetBedtimeUrgency(person, end) : 0);
+		}
+		else
+		{
+			var isSamePeriod = need.Period == NeedPeriod.Day ? m_calendar.GetStartOfDay(at) == m_calendar.GetStartOfDay(now) : m_calendar.GetStartOfWeek(at) == m_calendar.GetStartOfWeek(now);
+			var remaining = isSamePeriod ? GetRemainingMinutes(person, need, now) : need.GetQuotaMinutes(need.SharedByFamily ? person.Family.Members.Count : 1);
+			var available = Math.Max(GetAvailableMinutes(person, need, at) - busyMinutes, 0);
+			urgency = remaining <= 0 || !(IsQuotaOpen(person, need, at) || IsQuotaOpen(person, need, end)) ? 0 : GetQuotaUrgency(person, need, remaining, available, now);
+		}
+
+		return urgency * GetUrgencyFactor(person, need);
+	}
+
+	/// <summary>
+	/// Makes an appointment for a worker and a client who said yes, in the same conversation: first to meet right away,
+	/// as soon as they're done talking and both could set off and get to the place, and failing that, at the earliest
+	/// later time on the hour or half hour. Either way, it must be within the appointment's hours (all of it) and how far
+	/// ahead it looks, neither can have another appointment within its gap, and the client must be able to spare the time
+	/// it takes them (the walk there, and the appointment's steps, or the "ask" step's minutes for, if it has them). The
+	/// worker can be the player. Returns null if there's no such time, or the client isn't someone the game decides for.
+	/// </summary>
+	private Appointment? MakeAppointment(Person worker, StepSequence sequence, Person client, Need goal, int askStep, StepAppointment settings, int forMinutes, int askMinutes, TimePoint time) =>
+		FindAppointmentTime(worker, sequence, client, goal, askStep, settings, forMinutes, askMinutes, time) is { } found ? m_world.AddAppointment(worker, client, goal, askStep, found.Place, found.Time) : null;
+
+	/// <summary>
+	/// Finds where and when the appointment an "ask" step would make would be (see <see cref="MakeAppointment"/>), with how
+	/// long it takes the client, or null if there's no such time. For an estimate, a place among quarters is the nearest
+	/// rather than one chosen at random.
+	/// </summary>
+	private (Location Place, TimePoint Time, int ClientMinutes)? FindAppointmentTime(Person worker, StepSequence sequence, Person client, Need goal, int askStep, StepAppointment settings, int forMinutes,
+		int askMinutes, TimePoint time, bool isEstimate = false)
+	{
+		var place = ResolvePlace(worker, sequence, settings.Place!, GetDistances(worker.Location), isEstimate);
+		var workerTravel = place is null ? int.MaxValue : GetTravelMinutesTo(worker, place);
+		var clientTravel = place is null ? int.MaxValue : GetTravelMinutesTo(client, place);
+		(Location, TimePoint, int)? found = null;
+		if (place is not null && workerTravel != int.MaxValue && clientTravel != int.MaxValue)
+		{
+			var minutes = GetAppointmentMinutes(worker, goal, askStep);
+			var gap = settings.Gap?.Minutes ?? 0;
+			var clientMinutes = (forMinutes > 0 ? forMinutes : minutes) + clientTravel;
+			var setOff = Math.Max(EstimateSetOffMinutes(worker, goal, askStep, isWorker: true, place, time), EstimateSetOffMinutes(client, goal, askStep, isWorker: false, place, time));
+			var soonest = m_calendar.AddMinutes(time, askMinutes + setOff);
+			var latest = m_calendar.AddMinutes(time, settings.WithinHours * 60);
+			IEnumerable<TimePoint> GetTimes()
+			{
+				yield return soonest;
+				var parts = m_calendar.GetParts(soonest);
+				for (var later = m_calendar.AddMinutes(soonest, 30 - (parts.Minute % 30)); later <= latest; later = m_calendar.AddMinutes(later, 30))
+					yield return later;
+			}
+
+			bool IsFit(TimePoint at) =>
+				at <= latest &&
+				(settings.Hours is not { } hours || (hours.Contains(m_calendar.GetParts(at).Hour) && hours.Contains(m_calendar.GetParts(m_calendar.AddMinutes(at, minutes - 1)).Hour))) &&
+				!m_world.Appointments.Any(x => (x.Worker == worker || x.Client == worker || x.Worker == client || x.Client == client) &&
+					Math.Abs(m_calendar.GetTotalMinutes(x.Time - at)) < minutes + gap) &&
+				(!m_world.IsAutomatic(client) || CanSpareAt(client, at, clientMinutes, time));
+
+			if (GetTimes().Cast<TimePoint?>().FirstOrDefault(x => IsFit(x!)) is { } chosen)
+				found = (place, chosen, clientMinutes);
+		}
+
+		return found;
+	}
+
+	/// <summary>
+	/// Gets how long the steps of the appointment an "ask" step makes take, once both are there: the minutes of the "do"
+	/// and "wait" steps after its "meet" step.
+	/// </summary>
+	private static int GetAppointmentMinutes(Person worker, Need goal, int askStep)
+	{
+		var (_, meet, end) = goal.GetAppointmentSteps(askStep)!.Value;
+		var members = goal.SharedByFamily ? worker.Family.Members.Count : 0;
+		return Math.Max(Enumerable.Range(meet + 1, end - meet - 1).Select(x => goal.Steps[x]).Where(x => x.Kind is StepKind.Do or StepKind.Wait && x.Minutes is not null)
+			.Sum(x => (int) x.Minutes!.GetAmount(members)), 1);
+	}
+
+	/// <summary>
+	/// Estimates how many minutes before an appointment someone sets off for it, from where they are, with conditions as
+	/// they are now: changing out of clothes they won't need, for the worker, the steps before its "meet" step (the walking
+	/// they do and changing clothes, the longest of the ways they could go through them), then the walk there, and how early
+	/// its "meet" step arrives.
+	/// </summary>
+	private int EstimateSetOffMinutes(Person person, Need goal, int askStep, bool isWorker, Location place, TimePoint time)
+	{
+		var (start, meet, _) = goal.GetAppointmentSteps(askStep)!.Value;
+		var changeMinutes = m_settings.Clothing.ChangeMinutes;
+		var changing = GetChangingOut(person, isWorker ? goal : null, time).Count * changeMinutes;
+
+		// The worker carries out the steps before its "meet" step first, which could go more than one way, so they set off in
+		// time for the longest.
+		int GetTravel(Location from) => GetDistances(from).TryGetValue(place, out var route) ? Math.Min(route.Minutes, MinutesPerDay) : MinutesPerDay;
+		var longest = isWorker ? WalkSteps(person, goal, start, meet, isCountingChanges: true, time).Max(x => x.Total + GetTravel(x.End)) : GetTravel(person.Location);
+		return changing + longest + (goal.Steps[meet].Early?.Minutes ?? 0);
+	}
+
+	/// <summary>
+	/// Decides whether someone sets off for an appointment when it's time to: someone the game decides for always does,
+	/// since they agreed to it. For the player, their sequence for it is due, and they're asked whether to set off or call
+	/// it off.
+	/// </summary>
+	private void DecideSetOff(StepSequence sequence, Person person, TimePoint time)
+	{
+		if (m_world.IsAutomatic(person))
+			SetOff(sequence, person, time);
+		else
+			person.AskToSetOff(sequence);
+	}
+
+	/// <summary>
+	/// Finds the next time someone should set off for an appointment whose sequence is waiting for them to set off.
+	/// </summary>
+	private (StepSequence Sequence, Person Person, TimePoint Time)? GetNextSetOff(TimePoint time)
+	{
+		(StepSequence Sequence, Person Person, TimePoint Time)? next = null;
+		foreach (var appointment in m_world.Appointments)
+		{
+			foreach (var person in new[] { appointment.Worker, appointment.Client })
+			{
+				if (appointment.GetSequence(person) is { SetOff: SetOffState.Waiting } sequence)
+				{
+					var setOff = GetSetOffTime(person, appointment, time);
+					if (next is null || setOff < next.Value.Time)
+						next = (sequence, person, setOff);
+				}
+			}
+		}
+
+		return next;
+	}
+
+	/// <summary>
+	/// Gets when someone should set off for an appointment: as long before it as they'd take to set off and get there from
+	/// where they are (see <see cref="EstimateSetOffMinutes"/>).
+	/// </summary>
+	internal TimePoint GetSetOffTime(Person person, Appointment appointment, TimePoint time) =>
+		appointment.Time - m_calendar.CreateTimeOffset(0, 0, EstimateSetOffMinutes(person, appointment.Need, appointment.Step, person == appointment.Worker, appointment.Place, time));
+
+	/// <summary>
+	/// Has someone set off for an appointment their sequence is for: what they were doing is put on hold if it's for the
+	/// same need (as for a worker whose appointment is part of their work), or otherwise fails, as interrupted, and the
+	/// client lets go of anyone following them. The sequence becomes their current one, carried on from where they are.
+	/// </summary>
+	internal void TakeUpAppointment(StepSequence sequence, Person person, TimePoint time)
+	{
+		var appointment = sequence.Appointment!;
+		person.UpdateNeeds(time);
+		var isWorker = person == appointment.Worker;
+		person.IsAtWork = false;
+		person.SetTasks([]);
+		// Steps put on hold carry on from the step they were on, which counts as carried out if it was.
+		if (person.Current is { } current && (!isWorker || current.Need != appointment.Need))
+		{
+			current.IsCarriedOut = false;
+			FailStep(person, current, FailCause.Interrupted, time);
+		}
+
+		if (!isWorker)
+			Release(person, time);
+		person.SetOff(sequence);
+		sequence.Place = person.Location;
+	}
+
+	/// <summary>
+	/// Has someone the game decides for set off for an appointment (see <see cref="TakeUpAppointment"/>): they change out of
+	/// clothes they won't need, as for starting on a goal, and carry on with its steps.
+	/// </summary>
+	private void SetOff(StepSequence sequence, Person person, TimePoint time)
+	{
+		var appointment = sequence.Appointment!;
+		TakeUpAppointment(sequence, person, time);
+		person.SetTasks(GetChangingOut(person, person == appointment.Worker ? appointment.Need : null, time));
+		Continue(person, time);
+	}
+
+	/// <summary>
+	/// Gets when someone at an appointment stops waiting for the other: its "meet" step's minutes past its time.
+	/// </summary>
+	private TimePoint GetMeetEnd(Appointment appointment)
+	{
+		var (_, meet, _) = appointment.Need.GetAppointmentSteps(appointment.Step)!.Value;
+		var members = appointment.Need.SharedByFamily ? appointment.Worker.Family.Members.Count : 0;
+		return m_calendar.AddMinutes(appointment.Time, (int) (appointment.Need.Steps[meet].Minutes?.GetAmount(members) ?? 0));
+	}
+
+	/// <summary>
+	/// Starts an appointment once both are there: someone who's just come to it (or carried on its "meet" step there), and
+	/// the other waiting for it there, having set off for it (the player waits by being there). Returns whether it started.
+	/// </summary>
+	internal bool TryStartAppointment(Appointment appointment, TimePoint time, Person arriving)
+	{
+		bool IsWaiting(Person person) => person.Location == appointment.Place && appointment.IsOnTheWay(person) &&
+			(person == arriving || !m_world.IsAutomatic(person) || (person.CurrentTask is MeetTask meet && meet.Appointment == appointment));
+		var isReady = !appointment.IsStarted && IsWaiting(appointment.Worker) && IsWaiting(appointment.Client);
+		if (isReady)
+			StartAppointment(appointment, time, arriving);
+		return isReady;
+	}
+
+	/// <summary>
+	/// Starts an appointment, once both are there: the client follows the worker (staying with them, wherever its steps
+	/// take them) until the worker is done with its steps, and the worker carries them out, with the client as their
+	/// partner. A worker the game decides for who was waiting carries on; the one arriving carries on with their own steps.
+	/// </summary>
+	private void StartAppointment(Appointment appointment, TimePoint time, Person arriving)
+	{
+		var worker = appointment.Worker;
+		var client = appointment.Client;
+		appointment.IsStarted = true;
+		foreach (var person in new[] { worker, client })
+		{
+			person.UpdateNeeds(time);
+			if (person.CurrentTask is MeetTask meet && meet.Appointment == appointment)
+				person.FinishTask();
+		}
+
+		// The client stays with them for at most as long as the steps take, and the appointment's patience more, in case they
+		// never finish, such as a player who goes off to do something else. The player stays with them themselves.
+		if (appointment.GetSequence(client) is { } following)
+			following.Leader = worker;
+		if (m_world.IsAutomatic(client))
+		{
+			var patience = appointment.Need.Steps[appointment.Step].Appointment?.Patience?.Minutes ?? 0;
+			var followMinutes = GetAppointmentMinutes(worker, appointment.Need, appointment.Step) + patience;
+			var follow = new FollowTask(worker, followMinutes);
+			client.SetTasks([follow]);
+			client.StartTask(m_calendar.AddMinutes(time, followMinutes));
+			m_world.OnTaskStarted(client, follow, time);
+		}
+
+		if (appointment.GetSequence(worker) is { } sequence)
+		{
+			sequence.Partner = client;
+			sequence.Place = appointment.Place;
+			if (sequence.Takeover == StepTakeover.Step)
+				sequence.Takeover = StepTakeover.None;
+		}
+
+		if (m_world.IsAutomatic(worker) && worker != arriving)
+			Continue(worker, time);
+	}
+
+	/// <summary>
+	/// Calls off an appointment: each of them gives up their sequence for it, and anyone on the way to it or waiting for it
+	/// stops and chooses what to do next. Someone who hadn't set off yet carries on with what they're doing.
+	/// </summary>
+	internal void CallOff(Appointment appointment, TimePoint time)
+	{
+		m_world.RemoveAppointment(appointment);
+		foreach (var person in new[] { appointment.Worker, appointment.Client })
+		{
+			if (appointment.GetSequence(person) is { } sequence)
+			{
+				var isCurrent = person.Current == sequence;
+				if (isCurrent)
+				{
+					person.UpdateNeeds(time);
+					person.IsAtWork = false;
+					person.SetTasks([]);
+				}
+
+				EndSequence(person, sequence, time);
+				if (isCurrent && m_world.IsAutomatic(person))
+					Continue(person, time);
+			}
+		}
+	}
+
+	/// <summary>
 	/// Gets the product of the urgency factors for a need that apply to a person.
 	/// </summary>
 	private double GetUrgencyFactor(Person person, Need need) =>
 		m_settings.UrgencyFactors
-			.Where(x => x.Needs.Contains(need.Id, StringComparer.Ordinal) && CharacterCondition.IsMet(x.When, person.Traits.GetValueId))
+			.Where(x => x.Needs.Contains(need.Id, StringComparer.Ordinal) && CharacterCondition.IsMet(x.When, person.GetConditionValueId))
 			.Aggregate(1.0, (total, x) => total * x.Factor);
 
 	/// <summary>
 	/// Whether a person has a need: they meet its condition, and for a need met at a workplace, they have a business.
 	/// </summary>
 	public static bool HasNeed(Person person, Need need) =>
-		CharacterCondition.IsMet(need.When, person.Traits.GetValueId) && (need.Place != NeedPlace.Workplace || person.Business is not null);
-
-	/// <summary>
-	/// Whether a person can meet a need in a location: it's their home or workplace, for a need met there, or a quarter of
-	/// one of the need's kinds.
-	/// </summary>
-	public static bool IsPlaceFor(Person person, Need need, Location location) => need.Place switch
-	{
-		NeedPlace.Home => location == person.Home,
-		NeedPlace.Workplace => person.Business is not null && location == person.Workplace,
-		_ => location.Template is QuarterTemplate && (need.QuarterKinds ?? []).Any(x => x.QuarterKind == location.QuarterKind),
-	};
-
-	/// <summary>
-	/// Gets how many minutes a person would spend on a need with a player action option, starting now: until a level need's
-	/// level is 0 or a quota need's quota is met (0 if it already is), until the next time it's the option's hour, or the
-	/// option's minutes. It's 0 for a quota need that can't be met today, or outside its hours if its action is only open then.
-	/// </summary>
-	public int GetActionMinutes(Person person, Need need, PlayerActionOption option, TimePoint time)
-	{
-		person.UpdateNeeds(time);
-		if (option.UntilHour is { } hour)
-		{
-			var parts = m_calendar.GetParts(time);
-			var minutes = (((hour * 60) - ((parts.Hour * 60) + parts.Minute)) % MinutesPerDay + MinutesPerDay) % MinutesPerDay;
-			return minutes == 0 ? MinutesPerDay : minutes;
-		}
-
-		return need.Kind == NeedKind.Quota && !IsPlayerActionOpen(person, need, time) ? 0 :
-			!option.UntilMet ? option.Minutes ?? 0 :
-			need.Kind == NeedKind.Level ? (int) Math.Ceiling(Math.Round(person.GetLevel(need) / GetActionSatisfyPerHour(person, need, time) * 60, 6)) :
-			(int) Math.Clamp(GetRemainingMinutes(person, need, time), 0, int.MaxValue);
-	}
-
-	/// <summary>
-	/// Gets how much a level need would drop each hour once a person starts meeting it: sleeping at home is in night clothes,
-	/// if they have them at hand.
-	/// </summary>
-	private double GetActionSatisfyPerHour(Person person, Need need, TimePoint time) =>
-		need == m_sleepNeed && person.Location == person.Home && person.GetOutfits(OutfitKind.Night).Any(x => ClothingRules.IsAtHand(x, time)) ? need.SatisfyPerHour!.Value : person.GetSatisfyPerHour(need);
-
-	/// <summary>
-	/// Gets how many minutes a person would spend on one part of a trip, starting now, or null if they can't do that part:
-	/// one trip's time at the place, if the quota isn't met and can be met today (and now, if its action is only open within its hours) and they aren't partway through a trip
-	/// for it, or the time at home to finish a trip they've been to the place for (which can be 0).
-	/// </summary>
-	public int? GetTripMinutes(Person person, Need need, bool isHome, TimePoint time)
-	{
-		var members = person.Family.Members.Count;
-		return isHome ? (person.PendingTrip == need ? need.GetHomeMinutes(members) : null) :
-			person.PendingTrip == need || !IsPlayerActionOpen(person, need, time) || GetRemainingMinutes(person, need, time) <= 0 ? null : need.GetVisitMinutes(members);
-	}
-
-	/// <summary>
-	/// Whether a quota need's player action can be done at the time: on a day the need can be met, and within its hours
-	/// too if the action is only open then.
-	/// </summary>
-	public bool IsPlayerActionOpen(Person person, Need need, TimePoint time) =>
-		need.PlayerAction?.OnlyInHours == true ? IsQuotaOpen(person, need, time) : IsQuotaDayOpen(person, need, time);
+		CharacterCondition.IsMet(need.When, person.GetConditionValueId) && (!need.IsWork || person.Business is not null);
 
 	private double GetBaseUrgency(Person person, Need need, TimePoint time)
 	{
@@ -570,17 +1656,25 @@ internal sealed class Scheduler
 			return Math.Max(need.IsWithinHours(m_calendar.GetParts(time).Hour) ? need.GetLevelUrgency(person.GetLevel(need)) : 0, need == m_sleepNeed ? GetBedtimeUrgency(person, time) : 0);
 
 		var remaining = GetRemainingMinutes(person, need, time);
-		var available = GetAvailableMinutes(person, need, time);
-		var spare = available - remaining;
-		return remaining <= 0 || !IsQuotaOpen(person, need, time) ? 0 :
-			need.OverdueUrgency is { } overdue && available == 0 ? overdue :
-			Need.MaximumLevel * Math.Clamp(1 - ((double) spare / need.Lead!.Value), 0, 1);
+		return remaining <= 0 || !IsQuotaOpen(person, need, time) ? 0 : GetQuotaUrgency(person, need, remaining, GetAvailableMinutes(person, need, time), time);
+	}
+
+	/// <summary>
+	/// Gets how urgent a quota need is, with so many minutes of it left to do and so many minutes of its hours left to do
+	/// them in. The walking each shift or run takes counts too, so people set out in time.
+	/// </summary>
+	private double GetQuotaUrgency(Person person, Need need, long remaining, long available, TimePoint time)
+	{
+		var shifts = (remaining + Math.Max(need.GetShiftMinutes(person.Family.Members.Count), 1) - 1) / Math.Max(need.GetShiftMinutes(person.Family.Members.Count), 1);
+		// It counts the most walking the steps could take, so people set out in time whichever way they go.
+		var spare = available - remaining - (shifts * EstimateTravel(person, need, time).Total.Max);
+		return need.OverdueUrgency is { } overdue && available == 0 ? overdue : Need.MaximumLevel * Math.Clamp(1 - ((double) spare / need.Lead!.Value), 0, 1);
 	}
 
 	/// <summary>
 	/// Finds where a need would be met for a person, from where they are.
 	/// </summary>
-	internal Location? FindPlace(Person person, Need need) => FindPlace(person, need.Place, need.QuarterKinds, GetDistances(person.Location), need.Nearest);
+	internal Location? FindPlace(Person person, Need need) => need.MainPlace is { } place ? FindPlace(person, place.Kind, place.QuarterKinds, GetDistances(person.Location), place.Nearest) : null;
 
 	/// <summary>
 	/// Gets how many minutes the quickest way from where a person is to a location takes, at the usual walking speed.
@@ -594,7 +1688,7 @@ internal sealed class Scheduler
 	/// </summary>
 	public int GetTravelMinutes(Person person, Location from, Location to)
 	{
-		var factor = m_settings.TravelTimeFactors.Where(x => CharacterCondition.IsMet(x.When, person.Traits.GetValueId)).Aggregate(1.0, (total, x) => total * x.Factor);
+		var factor = m_settings.TravelTimeFactors.Where(x => CharacterCondition.IsMet(x.When, person.GetConditionValueId)).Aggregate(1.0, (total, x) => total * x.Factor);
 		return (int) Math.Ceiling(m_world.GetTravelMinutes(from, to) * factor);
 	}
 
@@ -613,6 +1707,8 @@ internal sealed class Scheduler
 	private int GetMinutes(Person person, PersonTask task) => task.ResumeMinutes ?? task switch
 	{
 		TalkTask talk => Math.Max(talk.Minutes, 1),
+		FollowTask follow => Math.Max(follow.Minutes, 1),
+		MeetTask meet => Math.Max(meet.Minutes, 1),
 		WaitTask wait => Math.Max(wait.Minutes, 1),
 		TravelTask travel => GetTravelMinutes(person, person.Location, travel.Destination),
 		BusyTask { Minutes: { } minutes } => Math.Max(minutes, 1),
@@ -622,17 +1718,34 @@ internal sealed class Scheduler
 	};
 
 	/// <summary>
-	/// Gets how long to spend on a quota need this time: a shift or a trip, unless less is left to do or less time is left
-	/// in today's hours once the person gets there. It's the last shift for the day when it takes
-	/// all that's left to do or all the time left.
+	/// Gets the change of clothes a "dress" or "undress" step makes for someone, or null if there's none to make: into the
+	/// first of their outfits of its kind with every piece at hand, unless they already have one on, or out of the outfit
+	/// of its kind they changed into.
 	/// </summary>
-	private int GetShiftMinutes(Person person, Need need, TimePoint time, int travelMinutes, out bool isLast)
+	private static ChangeClothesTask? GetStepChange(Person person, Step step, TimePoint time)
 	{
+		var kind = step.Outfit!.Value;
+		return step.Kind == StepKind.Dress
+			? !ClothingRules.IsWearingKind(person, kind) && ClothingRules.FindAtHand(person, kind, time) is { } outfit ? new ChangeClothesTask(outfit, IsTakingOff: false) : null
+			: person.GetOutfits(kind).FirstOrDefault(x => ClothingRules.IsChangedInto(person, x)) is { } worn ? new ChangeClothesTask(worn, IsTakingOff: true) : null;
+	}
+
+	/// <summary>
+	/// Gets how long to spend on a quota need this time: a shift, unless less is left to do or less time is left in today's
+	/// hours once the person has walked to its first "do" step, or a run, if its "do" steps fit in today's hours with the
+	/// walking up to the last of them, or 0 otherwise. Where the steps could go more than one way, it's whether the quickest
+	/// way fits, so people don't turn down what they could do.
+	/// </summary>
+	private int GetShiftMinutes(Person person, Need need, TimePoint time)
+	{
+		var members = person.Family.Members.Count;
+		var untilEnd = GetMinutesUntilEnd(person, need, time);
+		if (need.IsRuns)
+			return untilEnd - EstimateTravel(person, need, time).BeforeLastDo.Min >= need.GetRunMinuteRange(members).Min ? need.GetRunMinutes(members) : 0;
+
 		var remaining = GetRemainingMinutes(person, need, time);
-		var available = GetMinutesUntilEnd(person, need, time) - travelMinutes;
-		var minutes = (int) Math.Min(Math.Min(need.GetShiftMinutes(person.Family.Members.Count), remaining), available);
-		isLast = minutes >= Math.Min(remaining, available);
-		return minutes;
+		var available = untilEnd - EstimateTravel(person, need, time).BeforeFirstDo.Min;
+		return (int) Math.Min(Math.Min(need.GetShiftMinutes(members), remaining), available);
 	}
 
 	/// <summary>
@@ -645,7 +1758,7 @@ internal sealed class Scheduler
 		var people = need.SharedByFamily ? person.Family.Members : [person];
 		foreach (var member in people)
 			member.UpdateNeeds(time);
-		return need.GetQuotaMinutes(people.Count) - people.Sum(x => x.GetProgress(need)) - people.Where(x => x != person).Sum(x => x.GetPlannedMinutes(need, time));
+		return need.GetQuotaMinutes(people.Count) - people.Sum(x => x.GetProgressMinutes(need)) - people.Where(x => x != person).Sum(x => x.GetPlannedMinutes(need, time));
 	}
 
 	private long GetMinutesUntilEnd(Person person, Need need, TimePoint time)
@@ -660,7 +1773,7 @@ internal sealed class Scheduler
 	/// if it has its own, or the need's hours otherwise.
 	/// </summary>
 	private static (int Start, int End) GetHours(Person person, Need need) =>
-		need.Place == NeedPlace.Workplace && person.Business?.Profession.WorkHours is { } hours ? (hours.Start, hours.End) : (need.Start!.Value, need.End!.Value);
+		need.IsWork && person.Business?.Profession.WorkHours is { } hours ? (hours.Start, hours.End) : (need.Start!.Value, need.End!.Value);
 
 	/// <summary>
 	/// Gets the stretches of each day a person can spend on a quota need. Hours that end before they start run past midnight,
@@ -686,7 +1799,7 @@ internal sealed class Scheduler
 	/// Whether a quota need can be met on the time's day, at some time within its hours: it can be met today, or it's
 	/// overdue and today isn't a special day it skips.
 	/// </summary>
-	private bool IsQuotaDayOpen(Person person, Need need, TimePoint time) =>
+	internal bool IsQuotaDayOpen(Person person, Need need, TimePoint time) =>
 		IsQuotaDay(need, time) || (need.OverdueUrgency is not null && (need.OnSpecialDays || m_calendar.GetSpecialDays(time).Count == 0) && GetAvailableMinutes(person, need, time) == 0);
 
 	/// <summary>
@@ -731,8 +1844,14 @@ internal sealed class Scheduler
 			return person.Home;
 		if (place == NeedPlace.Workplace)
 			return person.Business is null ? null : person.Workplace;
+		if (place == NeedPlace.OtherHome)
+		{
+			var homes = m_world.Families.Select(x => x.Home).Where(x => x != person.Home && distances.ContainsKey(x)).Distinct().ToList();
+			return homes.Count == 0 ? null : isNearest ? homes.MinBy(x => distances[x].Minutes) : m_world.Random.NextWeighted(homes, x => 1.0 / (1 + distances[x].Minutes));
+		}
 
-		var quarters = m_world.Locations.Where(x => x.Template is QuarterTemplate && distances.ContainsKey(x)).ToLookup(x => x.QuarterKind ?? "", StringComparer.Ordinal);
+		m_quarters ??= m_world.Locations.Where(x => x.Template is QuarterTemplate).ToLookup(x => x.QuarterKind ?? "", StringComparer.Ordinal);
+		var quarters = m_quarters.SelectMany(x => x.Where(distances.ContainsKey)).ToLookup(x => x.QuarterKind ?? "", StringComparer.Ordinal);
 		var choices = (quarterKinds ?? []).Where(x => quarters[x.QuarterKind].Any()).ToList();
 		if (choices.Count == 0)
 			return null;
@@ -741,41 +1860,6 @@ internal sealed class Scheduler
 		return kind is null
 			? choices.SelectMany(x => quarters[x.QuarterKind]).MinBy(x => distances[x].Minutes)
 			: m_world.Random.NextWeighted(quarters[kind].ToList(), x => 1.0 / (1 + distances[x].Minutes));
-	}
-
-	/// <summary>
-	/// Plans the tasks to reach a place and spend time there: a path to walk (by way of home to fetch work clothes, if
-	/// needed), then starting work (changing into work clothes, if needed), the time spent, stopping work (changing
-	/// out of work clothes, if needed), and the path back to where they return to, if anywhere, with time spent there.
-	/// </summary>
-	private IReadOnlyList<PersonTask> PlanTasks(Person person, Location place, IReadOnlyDictionary<Location, Route> distances, bool isAtWork, int? minutes, Location? returnTo, int returnMinutes, WorkClothesPlan? clothes)
-	{
-		var tasks = new List<PersonTask>();
-		if (clothes is { Fetch: true })
-		{
-			var home = person.Home;
-			tasks.AddRange(GetPath(person.Location, home, distances).Select(PersonTask (x) => new TravelTask(x)));
-			tasks.Add(new FetchClothesTask(clothes.Outfit));
-			tasks.AddRange(GetPath(home, place, GetDistances(home)).Select(PersonTask (x) => new TravelTask(x)));
-		}
-		else
-		{
-			tasks.AddRange(GetPath(person.Location, place, distances).Select(PersonTask (x) => new TravelTask(x)));
-		}
-
-		if (isAtWork)
-			tasks.Add(new AtWorkTask(true, clothes is { IsChangingInto: true } ? clothes.Outfit : null));
-		tasks.Add(new BusyTask(minutes));
-		if (isAtWork)
-			tasks.Add(new AtWorkTask(false, clothes is { IsChangingOutOf: true } ? clothes.Outfit : null));
-		if (returnTo is not null && returnTo != place)
-		{
-			tasks.AddRange(GetPath(place, returnTo, GetDistances(place)).Select(PersonTask (x) => new TravelTask(x)));
-			if (returnMinutes > 0)
-				tasks.Add(new BusyTask(returnMinutes));
-		}
-
-		return tasks;
 	}
 
 	/// <summary>
@@ -791,9 +1875,17 @@ internal sealed class Scheduler
 	}
 
 	/// <summary>
-	/// Finds the quickest way to every location from the given one, using the travel time of each path.
+	/// Finds the quickest way to every location from the given one, using the travel time of each path. The map doesn't
+	/// change, so the ways from each location are only worked out once.
 	/// </summary>
 	private Dictionary<Location, Route> GetDistances(Location start)
+	{
+		if (!m_distances.TryGetValue(start, out var routes))
+			m_distances[start] = routes = FindDistances(start);
+		return routes;
+	}
+
+	private Dictionary<Location, Route> FindDistances(Location start)
 	{
 		var routes = new Dictionary<Location, Route> { [start] = new Route(0, null) };
 		var queue = new PriorityQueue<Location, int>();
@@ -822,13 +1914,30 @@ internal sealed class Scheduler
 	/// </summary>
 	private sealed record Route(int Minutes, Location? Previous);
 
-	/// <summary>
-	/// What someone going to work does with their work clothes: fetches them from home on the way, changes into them, and
-	/// changes out of them afterward.
-	/// </summary>
-	private sealed record WorkClothesPlan(OwnedOutfit Outfit, bool Fetch, bool IsChangingInto, bool IsChangingOutOf);
-
 	private const int MinutesPerDay = 24 * 60;
+
+	/// <summary>
+	/// The most steps someone carries out without any of them taking time, before giving up on them.
+	/// </summary>
+	private const int MaxStepsWithoutTime = 1000;
+
+	/// <summary>
+	/// The most ways through a need's steps an estimate follows, past which it only follows the first option of each
+	/// "choose" step.
+	/// </summary>
+	private const int MaxEstimateWays = 64;
+
+	/// <summary>
+	/// How likely a "seek" step is to look in a home where nobody who meets its condition works or was lately seen, compared
+	/// to each such person.
+	/// </summary>
+	private const double HomeLookWeight = 0.25;
+
+	/// <summary>
+	/// How long, in minutes, someone who asked the player something waits for an answer. Time stops until the player
+	/// answers, so it's only how long they'd wait if it didn't.
+	/// </summary>
+	private const int AskWaitMinutes = 5;
 
 	/// <summary>
 	/// How often, in minutes, waking is checked for while working out how long someone sleeps.
@@ -840,5 +1949,9 @@ internal sealed class Scheduler
 	private readonly ScheduleSettings m_settings;
 	private readonly Need? m_socializeNeed;
 	private readonly Need? m_sleepNeed;
-	private readonly Need? m_laundryNeed;
+	private readonly Dictionary<Location, Dictionary<Location, Route>> m_distances = [];
+
+	// The quarters of each kind, which don't change, and the last estimate of each person's walking for each need.
+	private ILookup<string, Location>? m_quarters;
+	private readonly Dictionary<(Person Person, Need Need), (Location Location, TimePoint Time, TravelEstimate Estimate)> m_estimates = [];
 }

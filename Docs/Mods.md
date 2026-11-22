@@ -73,7 +73,7 @@ Add a property, and a value to another property, as data:
 		}
 	],
 	"professions": [
-		{ "id": "cobbler", "title": "Cobbler", "business": { "wealth": "low", "worksFromHome": true } }
+		{ "id": "cobbler", "title": "Cobbler", "business": { "wealth": "low" } }
 	]
 }
 ```

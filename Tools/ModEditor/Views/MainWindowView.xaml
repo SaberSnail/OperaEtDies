@@ -437,15 +437,22 @@
 											Text="{Binding FormMessage}"
 											TextWrapping="Wrap" />
 									</DockPanel>
-									<ScrollViewer
-										HorizontalScrollBarVisibility="Disabled"
-										VerticalScrollBarVisibility="Auto"
-										Visibility="{Binding Form, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
-										<!--  The game data's pieces can be looked at, but not changed.  -->
-										<ContentPresenter
-											Margin="8"
-											Content="{Binding Form.Root}" />
-									</ScrollViewer>
+									<DockPanel Visibility="{Binding Form, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
+										<!--  Optional properties that aren't set are hidden unless this is checked. It's kept between sessions.  -->
+										<CheckBox
+											Margin="8,6,8,0"
+											HorizontalAlignment="Right"
+											Content="Show all properties"
+											DockPanel.Dock="Top"
+											IsChecked="{Binding ShowAllProperties}"
+											ToolTip="Show every property an object can have, including the optional ones that aren't set" />
+										<ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+											<!--  The game data's pieces can be looked at, but not changed.  -->
+											<ContentPresenter
+												Margin="8"
+												Content="{Binding Form.Root}" />
+										</ScrollViewer>
+									</DockPanel>
 								</Grid>
 							</TabItem>
 							<TabItem Header="JSON">

@@ -49,6 +49,7 @@ public static partial class HelpTopics
 		[typeof(IdleSettings)] = "Idle",
 		[typeof(ScheduleStart)] = "Start",
 		[typeof(SchedulePlace)] = "Place",
+		[typeof(PlaceObject)] = "Place",
 		[typeof(LevelNeedSettings)] = "Level Need",
 		[typeof(NeedLevel)] = "Level",
 		[typeof(QuotaNeedSettings)] = "Quota Need",

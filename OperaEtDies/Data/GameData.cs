@@ -49,8 +49,11 @@ public sealed class GameData
 			.GroupBy(x => x.Profession, StringComparer.Ordinal)
 			.ToDictionary(x => x.Key, x => (IReadOnlyList<BusinessTemplate>) x.ToList(), StringComparer.Ordinal);
 
-		// Professions without business settings, such as keeping house, aren't businesses.
+		// Professions without business settings, such as keeping house, aren't businesses. A business with no places of its
+		// own works from home.
 		Professions = new DataCatalog<Profession>(professions.Professions.Where(x => x.IsBusiness));
+		foreach (var profession in professions.Professions.Where(x => x is not null))
+			profession.WorksFromHome = profession.IsBusiness && !m_businessTemplatesByProfession.ContainsKey(profession.Id);
 		Families = families;
 		Relationships = relationships;
 
@@ -147,6 +150,7 @@ public sealed class GameData
 		var needs = List<Need>("needs");
 		var travelTimeFactors = List<TravelTimeFactor>("travelTimeFactors");
 		var urgencyFactors = List<UrgencyFactor>("urgencyFactors");
+		var stepLists = List<StepList>("stepLists");
 
 		// Without portraits, characters have no portraits.
 		var portraitSection = includePortraits ? Section<PortraitSection>("portraits", isRequired: false) : null;
@@ -169,6 +173,11 @@ public sealed class GameData
 		schedules.Needs = needs;
 		schedules.TravelTimeFactors = travelTimeFactors;
 		schedules.UrgencyFactors = urgencyFactors;
+		schedules.StepLists = stepLists;
+		schedules.ProfessionSteps = professions.Professions.Where(x => x?.Business?.Steps is not null && !string.IsNullOrWhiteSpace(x.Id)).GroupBy(x => x.Id, StringComparer.Ordinal)
+			.ToDictionary(x => x.Key, x => x.First().Business!.Steps!, StringComparer.Ordinal);
+		schedules.ProfessionActivities = professions.Professions.Where(x => x?.Business?.Activity is not null && !string.IsNullOrWhiteSpace(x.Id)).GroupBy(x => x.Id, StringComparer.Ordinal)
+			.ToDictionary(x => x.Key, x => x.First().Business!.Activity!, StringComparer.Ordinal);
 
 		// Conditions can name groups of values, which stand for every value in the group.
 		ResolveGroups(characters, professions, relationships, schedules, portraits, clothing);
@@ -193,7 +202,7 @@ public sealed class GameData
 			return Fail(messages.Distinct(StringComparer.Ordinal).Select(document.CreateError).ToList());
 
 		var gameData = new GameData(characters, locations, professions, families, relationships, calendar, game.FrequencyChances, portraits, schedules, clothing);
-		foreach (var warning in gameData.GetLowChanceWarnings())
+		foreach (var warning in gameData.GetLowChanceWarnings().Concat(schedules.GetWarnings()))
 			Log.Warn(warning);
 
 		return DataLoadResult<GameData>.Success(gameData);

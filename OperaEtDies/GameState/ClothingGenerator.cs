@@ -9,15 +9,16 @@ internal static class ClothingGenerator
 {
 	/// <summary>
 	/// How many outfits of each kind everyone is given, if there are outfits of that kind they can have: two everyday
-	/// outfits, so there's something to wear on wash day, and one each for work and sleeping.
+	/// outfits, so there's something to wear on wash day, and one each for work, sleeping, and wearing nothing.
 	/// </summary>
-	public static IReadOnlyList<(OutfitKind Kind, int Count)> OutfitCounts { get; } = [(OutfitKind.Everyday, 2), (OutfitKind.Work, 1), (OutfitKind.Night, 1)];
+	public static IReadOnlyList<(OutfitKind Kind, int Count)> OutfitCounts { get; } = [(OutfitKind.Everyday, 2), (OutfitKind.Work, 1), (OutfitKind.Night, 1), (OutfitKind.Nothing, 1)];
 
 	/// <summary>
 	/// Gives a person their outfits, chosen by frequency from those of each kind whose conditions they meet (with the
 	/// shares worked out among those outfits alone, since outfits for different people aren't alternatives), with each
 	/// piece's colors chosen by frequency. Every piece belongs to the person and starts in their home. Their outfits
-	/// share any accessory they have in common.
+	/// share any accessory they have in common. Everyone has an outfit for wearing nothing, which is nothing at all if
+	/// there's none they can have.
 	/// </summary>
 	public static void GiveOutfits(GameData gameData, WorldObjects objects, Random random, Person person)
 	{
@@ -51,6 +52,18 @@ internal static class ClothingGenerator
 				}
 			}
 		}
+
+		GiveNothing(objects, person);
+	}
+
+	/// <summary>
+	/// Gives someone with no outfit for wearing nothing one that's nothing at all, such as in a game saved before there
+	/// were any.
+	/// </summary>
+	public static void GiveNothing(WorldObjects objects, Person person)
+	{
+		if (!person.GetOutfits(OutfitKind.Nothing).Any())
+			objects.Create(id => new OwnedOutfit(id, person, OutfitKind.Nothing, null, []));
 	}
 
 	/// <summary>

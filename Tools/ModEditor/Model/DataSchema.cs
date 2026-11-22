@@ -53,9 +53,11 @@ public sealed record DataType(DataKind Kind, Type ClrType, DataType? Element = n
 }
 
 /// <summary>
-/// A property of an object in the data: its name in the JSON, its shape, and whether it must be there.
+/// A property of an object in the data: its name in the JSON, its shape, and whether it must be there, with the class
+/// that declares it, and the class of the object it's a field of, which may inherit it.
 /// </summary>
-public sealed record DataField(string Name, DataType Type, bool IsRequired, Type DeclaringType, string PropertyName);
+public sealed record DataField(string Name, DataType Type, bool IsRequired, Type DeclaringType, string PropertyName, DataRule? AllowedFor = null, DataRule? RequiredFor = null,
+	Type? Owner = null);
 
 /// <summary>
 /// The shapes of the data's sections and of everything in them, read by reflection from the classes the game reads
@@ -92,6 +94,7 @@ public static class DataSchema
 		["needs"] = typeof(Need),
 		["urgencyFactors"] = typeof(UrgencyFactor),
 		["travelTimeFactors"] = typeof(TravelTimeFactor),
+		["stepLists"] = typeof(StepList),
 		["portraitColors"] = typeof(PortraitColor),
 		["portraitScales"] = typeof(PortraitScale),
 		["portraitOffsets"] = typeof(PortraitOffset),
@@ -267,6 +270,10 @@ public static class DataSchema
 		if (type.IsEnum)
 			return new DataType(DataKind.Choice, type, Choices: Enum.GetNames(type).Select(x => JsonNamingPolicy.CamelCase.ConvertName(x)).ToList());
 
+		// Lengths of time are whole numbers of minutes, or text with hours and minutes.
+		if (type == typeof(Duration))
+			return new DataType(DataKind.Integer, type);
+
 		// Values the game reads from text of their own, such as frequencies, are edited as text.
 		if (type == typeof(FrequencyLevel) || type == typeof(PeakLevel) || type == typeof(ProfessionWealth))
 			return new DataType(DataKind.Text, type);
@@ -305,7 +312,10 @@ public static class DataSchema
 				GetType(x.PropertyType),
 				x.GetCustomAttribute<RequiredMemberAttribute>() is not null,
 				x.DeclaringType!,
-				x.Name))
+				x.Name,
+				DataRules.GetAllowedRule(x.DeclaringType!, x.Name),
+				DataRules.GetRequiredRule(x.DeclaringType!, x.Name),
+				type))
 			.ToList();
 	}
 

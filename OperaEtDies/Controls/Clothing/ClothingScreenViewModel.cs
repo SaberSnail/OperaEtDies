@@ -1,6 +1,7 @@
 using System.Globalization;
 using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Calendar;
+using OperaEtDies.Controls.Locations;
 using OperaEtDies.Data;
 using OperaEtDies.GameState;
 
@@ -23,6 +24,7 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 		Title = isWardrobe ? OurResources.WardrobeHeader : OurResources.InventoryHeader;
 		m_wearing = [];
 		m_carrying = [];
+		m_bundles = [];
 		m_keptAtHome = [];
 		m_outfits = [];
 		Refresh();
@@ -61,6 +63,16 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 	}
 
 	/// <summary>
+	/// The bundles the player is carrying for their steps, such as the household's washing, which only their steps can
+	/// put down.
+	/// </summary>
+	public IReadOnlyList<BundleViewModel> Bundles
+	{
+		get => VerifyAccess(m_bundles);
+		private set => SetPropertyField([nameof(Bundles), nameof(IsNothingCarried)], value, ref m_bundles);
+	}
+
+	/// <summary>
 	/// In the wardrobe, the player's own clothes kept at home.
 	/// </summary>
 	public IReadOnlyList<ClothingPieceViewModel> KeptAtHome
@@ -71,7 +83,7 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 
 	public bool IsNothingWorn => Wearing.Count == 0;
 
-	public bool IsNothingCarried => Carrying.Count == 0;
+	public bool IsNothingCarried => Carrying.Count == 0 && Bundles.Count == 0;
 
 	public bool IsNothingKeptAtHome => KeptAtHome.Count == 0;
 
@@ -151,8 +163,9 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 
 		Wearing = List(player.Clothing.Pieces);
 		Carrying = List(player.Inventory.Clothing);
+		Bundles = [.. player.Inventory.Items.OfType<Bundle>().Select(x => new BundleViewModel(x, player))];
 		KeptAtHome = IsWardrobe ? List(player.Home.Items.Clothing.Where(x => x.Owner == player)) : [];
-		Outfits = IsWardrobe ? [.. player.Outfits.Select(x => new OutfitViewModel(x, m_world, this)), new OutfitViewModel(null, m_world, this)] : [];
+		Outfits = IsWardrobe ? [.. player.Outfits.OrderBy(x => x.Kind == OutfitKind.Nothing).Select(x => new OutfitViewModel(x, m_world, this))] : [];
 
 		Warning = ModestyWarning.FormatHere(m_world.GetPlayerUncoveredSlots());
 		DeveloperModesty = IsDeveloper ? ModestyWarning.FormatDeveloper(m_world.GetPlayerModesty()) : null;
@@ -161,6 +174,7 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 	private readonly GameWorld m_world;
 	private IReadOnlyList<ClothingPieceViewModel> m_wearing;
 	private IReadOnlyList<ClothingPieceViewModel> m_carrying;
+	private IReadOnlyList<BundleViewModel> m_bundles;
 	private IReadOnlyList<ClothingPieceViewModel> m_keptAtHome;
 	private IReadOnlyList<OutfitViewModel> m_outfits;
 	private string? m_warning;
@@ -181,10 +195,17 @@ public sealed class ClothingPieceViewModel : ViewModelBase
 		m_screen = screen;
 		Description = FirstUpper(piece.Description);
 		DeveloperCoverage = screen.IsDeveloper ? ModestyWarning.FormatCoverage(piece.Clothing, world.GameData) : null;
-		Note = piece.IsInWash ? OurResources.ClothingInWash :
-			piece.DryAt is { } dryAt && dryAt > world.Time ? OurResources.ClothingDrying.FormatCurrentCulture(world.GameData.Calendar.FormatClock(dryAt)) :
+		Note = GetCarrier(piece, world) is { } carrier ? OurResources.ClothingCarriedBy.FormatCurrentCulture(carrier.FullName) :
+			world.Player.Inventory.Items.OfType<Bundle>().FirstOrDefault(x => x.Items.Contains(piece)) is { } bundle ? OurResources.ClothingInBundle.FormatCurrentCulture(bundle.Title.ToLower(CultureInfo.CurrentCulture)) :
+			piece.ReadyAt is { } readyAt && readyAt > world.Time ? OurResources.ClothingNotReady.FormatCurrentCulture(piece.DelayActivity ?? OurResources.ClothingNotReadyActivity, world.GameData.Calendar.FormatClock(readyAt)) :
 			null;
 	}
+
+	/// <summary>
+	/// Gets who other than the player is carrying a piece of clothing, such as the household's washing, or null if no one
+	/// else is.
+	/// </summary>
+	internal static Person? GetCarrier(ClothingPiece piece, GameWorld world) => world.Player.Family.Members.FirstOrDefault(x => !x.IsPlayer && piece.Container == x.Inventory);
 
 	public ClothingPiece Piece { get; }
 
@@ -231,7 +252,7 @@ public sealed class ClothingPieceViewModel : ViewModelBase
 	public void Wear()
 	{
 		VerifyAccess();
-		m_screen.Change(() => m_world.PlayerWear(Piece));
+		m_screen.Change(() => m_world.PlayerWear(Piece, isCarried: !m_screen.IsWardrobe));
 	}
 
 	public bool CanTakeOff() => Piece.Wearer == m_world.Player;
@@ -239,7 +260,7 @@ public sealed class ClothingPieceViewModel : ViewModelBase
 	public void TakeOff()
 	{
 		VerifyAccess();
-		m_screen.Change(() => m_world.PlayerTakeOff(Piece));
+		m_screen.Change(() => m_world.PlayerTakeOff(Piece, isCarried: !m_screen.IsWardrobe));
 	}
 
 	public bool CanTake() => m_world.CanPlayerTake(Piece);
@@ -268,45 +289,35 @@ public sealed class ClothingPieceViewModel : ViewModelBase
 }
 
 /// <summary>
-/// One of the player's outfits, such as their work clothes, which they can change into in their wardrobe when they have
-/// every piece at hand, or nothing at all, which takes off everything they're wearing.
+/// One of the player's outfits, such as their work clothes or their outfit for wearing nothing (which may be nothing at
+/// all), which they can change into in their wardrobe when they have every piece at hand.
 /// </summary>
 public sealed class OutfitViewModel : ViewModelBase
 {
-	internal OutfitViewModel(OwnedOutfit? outfit, GameWorld world, ClothingScreenViewModel screen)
+	internal OutfitViewModel(OwnedOutfit outfit, GameWorld world, ClothingScreenViewModel screen)
 	{
 		Outfit = outfit;
 		m_world = world;
 		m_screen = screen;
-		if (outfit is null)
+		Title = outfit.Kind switch
 		{
-			Title = OurResources.OutfitNothing;
-			Description = OurResources.OutfitNothingDescription;
-			Note = world.Player.Clothing.Pieces.Count == 0 ? OurResources.OutfitWearing : null;
-		}
-		else
-		{
-			Title = outfit.Kind switch
-			{
-				OutfitKind.Work => OurResources.OutfitWork,
-				OutfitKind.Night => OurResources.OutfitNight,
-				_ => OurResources.OutfitEveryday,
-			};
-			var gameData = world.GameData;
-			var pieces = TextList.Join(WornClothing.Order(outfit.Pieces, gameData.ClothingSlots, gameData.ClothingLayers).Select(x => x.Description).ToList());
-			Description = outfit.Pieces.Count == 0 ? OurResources.OutfitNothingDescription :
-				ClothingPieceViewModel.FirstUpper(!outfit.IsComplete ? OurResources.OutfitOverOtherClothes.FormatCurrentCulture(pieces) : pieces);
-			Note = outfit.Pieces.Any(x => x.IsInWash) ? OurResources.OutfitInWash :
-				outfit.Pieces.Any(x => !x.IsReady(world.Time)) ? OurResources.OutfitDrying :
-				ClothingRules.IsDressedIn(world.Player, outfit) ? OurResources.OutfitWearing :
-				null;
-		}
+			OutfitKind.Work => OurResources.OutfitWork,
+			OutfitKind.Night => OurResources.OutfitNight,
+			OutfitKind.Nothing => OurResources.OutfitNothing,
+			_ => OurResources.OutfitEveryday,
+		};
+		var gameData = world.GameData;
+		var pieces = TextList.Join(WornClothing.Order(outfit.Pieces, gameData.ClothingSlots, gameData.ClothingLayers).Select(x => x.Description).ToList());
+		Description = outfit.Pieces.Count == 0 ? OurResources.OutfitNothingDescription :
+			ClothingPieceViewModel.FirstUpper(!outfit.IsComplete ? OurResources.OutfitOverOtherClothes.FormatCurrentCulture(pieces) : pieces);
+		Note = outfit.Pieces.Any(x => ClothingPieceViewModel.GetCarrier(x, world) is not null) ? OurResources.OutfitCarriedByOthers :
+			outfit.Pieces.Any(x => !x.IsReady(world.Time)) ? OurResources.OutfitNotReady.FormatCurrentCulture(TextList.Join(outfit.Pieces.Where(x => !x.IsReady(world.Time))
+				.Select(x => PlayerStepsViewModel.LowerFirst(x.DelayActivity ?? OurResources.ClothingNotReadyActivity)).Distinct(StringComparer.CurrentCulture).ToList())) :
+			ClothingRules.IsDressedIn(world.Player, outfit) ? OurResources.OutfitWearing :
+			null;
 	}
 
-	/// <summary>
-	/// The outfit, or null for nothing at all.
-	/// </summary>
-	public OwnedOutfit? Outfit { get; }
+	public OwnedOutfit Outfit { get; }
 
 	/// <summary>
 	/// What kind of clothes the outfit is, such as "Work clothes".
@@ -324,15 +335,38 @@ public sealed class OutfitViewModel : ViewModelBase
 	/// </summary>
 	public string? Note { get; }
 
-	public bool CanChangeInto() => Outfit is null ? m_world.Player.Clothing.Pieces.Count != 0 : m_world.CanPlayerChangeInto(Outfit);
+	public bool CanChangeInto() => m_world.CanPlayerChangeInto(Outfit);
 
 	public void ChangeInto()
 	{
 		VerifyAccess();
 		var outfit = Outfit;
-		m_screen.Change(outfit is null ? m_world.PlayerTakeOffAll : () => m_world.PlayerChangeInto(outfit));
+		m_screen.Change(() => m_world.PlayerChangeInto(outfit, isCarried: !m_screen.IsWardrobe));
 	}
 
 	private readonly GameWorld m_world;
 	private readonly ClothingScreenViewModel m_screen;
+}
+
+/// <summary>
+/// A bundle the player carries for their steps, such as the household's washing or a bucket of water, which only the step
+/// that puts it down can.
+/// </summary>
+public sealed class BundleViewModel
+{
+	internal BundleViewModel(Bundle bundle, Person player)
+	{
+		Description = ClothingPieceViewModel.FirstUpper(bundle.Description);
+		Note = player.Sequences.FirstOrDefault(x => x.Bundles.Values.Contains(bundle)) is { } sequence ? OurResources.BundleFor.FormatCurrentCulture(sequence.Need.Title.ToLower(CultureInfo.CurrentCulture)) : null;
+	}
+
+	/// <summary>
+	/// What the bundle is, such as "Washing (6 things)".
+	/// </summary>
+	public string Description { get; }
+
+	/// <summary>
+	/// What it's for, such as "For laundry, until your steps put it down", or null if no steps of the player's have it.
+	/// </summary>
+	public string? Note { get; }
 }

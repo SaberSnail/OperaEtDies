@@ -16,9 +16,15 @@ public sealed record SectionIds(string Section) : IdSource;
 
 /// <summary>
 /// The values (and value groups) of a property. The property is the map key the field is the value of, the property
-/// named by another field of the same object, or the property the field is part of.
+/// named by another field of the same object, or the property the field is part of. Keys that aren't properties, such
+/// as <c>family</c> in a step's <c>who</c>, can have values of their own in <see cref="Others"/>.
 /// </summary>
-public sealed record PropertyValueIds(string? SiblingField = null, bool FromMapKey = false) : IdSource;
+public sealed record PropertyValueIds(string? SiblingField = null, bool FromMapKey = false, IReadOnlyDictionary<string, IReadOnlyList<string>>? Others = null) : IdSource;
+
+/// <summary>
+/// The ids of several sources together, such as the character properties and <c>family</c>.
+/// </summary>
+public sealed record CombinedIds(IReadOnlyList<IdSource> Sources) : IdSource;
 
 /// <summary>
 /// Portrait colors, by id, and in a portrait layer or shape set, the colors of its own and of the clothing it draws. A
@@ -39,7 +45,8 @@ public sealed record FieldReference(IdSource? Value, IdSource? Key = null, Field
 
 /// <summary>
 /// Which fields of the data refer to other things by id (see Docs/DataFiles.md), so the form can offer them. Fields
-/// are named by the class the game reads them into and the C# property.
+/// are named by the class the game reads them into and the C# property. A class can refer to things of its own in a
+/// field it inherits, such as a step's <c>who</c>, whose values can also say whether someone is family.
 /// </summary>
 public static class DataReferences
 {
@@ -48,7 +55,8 @@ public static class DataReferences
 	/// <summary>
 	/// Gets what a field refers to, or null if it doesn't refer to anything.
 	/// </summary>
-	public static FieldReference? Find(DataField field) => Fields.GetValueOrDefault((field.DeclaringType, field.PropertyName));
+	public static FieldReference? Find(DataField field) =>
+		(field.Owner is { } owner ? Fields.GetValueOrDefault((owner, field.PropertyName)) : null) ?? Fields.GetValueOrDefault((field.DeclaringType, field.PropertyName));
 
 	/// <summary>
 	/// Gets the suggestions for a field whose text has no id source of its own, such as a frequency.
@@ -79,6 +87,12 @@ public static class DataReferences
 		var features = new SectionIds("features");
 		var professions = new SectionIds("professions");
 		var needs = new SectionIds("needs");
+		var stepLists = new SectionIds("stepLists");
+		var whoKeys = new CombinedIds([properties, new FixedIds([StepWho.FamilyKey])]);
+		var whoValues = new PropertyValueIds(FromMapKey: true, Others: new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
+		{
+			[StepWho.FamilyKey] = [StepWho.FamilyMember, StepWho.FamilyOther],
+		});
 		var colors = new ColorIds();
 		var fields = new Dictionary<(Type, string), FieldReference>
 		{
@@ -89,6 +103,8 @@ public static class DataReferences
 			[(typeof(CharacterCondition), nameof(CharacterCondition.Values))] = new(new PropertyValueIds(FromMapKey: true), properties),
 			[(typeof(CharacterCondition), nameof(CharacterCondition.NotValues))] = new(new PropertyValueIds(FromMapKey: true), properties),
 			[(typeof(CharacterCondition), nameof(CharacterCondition.Hidden))] = new(properties),
+			[(typeof(StepWho), nameof(StepWho.Values))] = new(whoValues, whoKeys),
+			[(typeof(StepWho), nameof(StepWho.NotValues))] = new(whoValues, whoKeys),
 			[(typeof(ClothingItem), nameof(ClothingItem.Slots))] = new(new SectionIds("clothingSlots")),
 			[(typeof(ClothingItem), nameof(ClothingItem.Layer))] = new(new SectionIds("clothingLayers")),
 			[(typeof(ClothingItem), nameof(ClothingItem.Coverage))] = new(null, new SectionIds("clothingSlots")),
@@ -119,9 +135,10 @@ public static class DataReferences
 			[(typeof(CalendarSpecialDay), nameof(CalendarSpecialDay.Day))] = new(new SectionIds("days")),
 			[(typeof(Hours), nameof(Hours.Days))] = new(new SectionIds("days")),
 			[(typeof(QuarterChoice), nameof(QuarterChoice.QuarterKind))] = new(quarterKinds),
-			[(typeof(Need), nameof(Need.Role))] = new(new FixedIds([ScheduleSettings.SleepRole, ScheduleSettings.SocializingRole, ScheduleSettings.LaundryRole])),
+			[(typeof(Need), nameof(Need.Role))] = new(new FixedIds([ScheduleSettings.SleepRole, ScheduleSettings.SocializingRole])),
 			[(typeof(LevelNeedSettings), nameof(LevelNeedSettings.PausedBy))] = new(needs),
 			[(typeof(UrgencyFactor), nameof(UrgencyFactor.Needs))] = new(needs),
+			[(typeof(Step), nameof(Step.List))] = new(stepLists),
 			[(typeof(PortraitLayer), nameof(PortraitLayer.Scale))] = new(new SectionIds("portraitScales")),
 			[(typeof(PortraitLayer), nameof(PortraitLayer.Offset))] = new(new SectionIds("portraitOffsets")),
 			[(typeof(PortraitLayer), nameof(PortraitLayer.Clothing))] = new(new SectionIds("clothing")),
@@ -238,7 +255,9 @@ public sealed class IdCatalog
 	public IReadOnlyList<string> GetIds(IdSource source, string? propertyId) => source switch
 	{
 		SectionIds x => GetIds(x.Section),
+		PropertyValueIds { Others: { } others } when propertyId is not null && others.TryGetValue(propertyId, out var values) => values,
 		PropertyValueIds => GetPropertyValues(propertyId),
+		CombinedIds x => x.Sources.SelectMany(source => GetIds(source, propertyId)).Distinct(StringComparer.Ordinal).ToList(),
 		ColorIds => GetIds("portraitColors"),
 		FixedIds x => x.Names,
 		_ => [],

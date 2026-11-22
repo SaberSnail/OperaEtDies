@@ -160,6 +160,21 @@
 					<!--  What the player is carrying, which they can put away at home.  -->
 					<TextBlock Style="{StaticResource ClothingHeaderStyle}" Text="{x:Static operaEtDies:OurResources.ClothingCarryingHeader}" />
 					<TextBlock Style="{StaticResource ClothingNoneStyle}" Visibility="{Binding IsNothingCarried, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+					<!--  Bundles the player carries for their steps, which only their steps can put down.  -->
+					<ItemsControl ItemsSource="{Binding Bundles}">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate DataType="{x:Type local:BundleViewModel}">
+								<StackPanel Margin="0,0,0,8">
+									<TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+									<TextBlock
+										Foreground="{DynamicResource FontLightBrush}"
+										Text="{Binding Note}"
+										TextWrapping="Wrap"
+										Visibility="{Binding Note, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+								</StackPanel>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
 					<ItemsControl ItemsSource="{Binding Carrying}">
 						<ItemsControl.ItemTemplate>
 							<DataTemplate DataType="{x:Type local:ClothingPieceViewModel}">

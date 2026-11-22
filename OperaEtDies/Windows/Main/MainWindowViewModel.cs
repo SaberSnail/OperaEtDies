@@ -1,14 +1,17 @@
+using System.Globalization;
 using System.ComponentModel;
 using System.IO;
 using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Calendar;
 using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
+using OperaEtDies.Controls;
 using OperaEtDies.Controls.Characters;
 using OperaEtDies.Controls.Clothing;
 using OperaEtDies.Controls.Conversation;
 using OperaEtDies.Controls.Locations;
 using OperaEtDies.Controls.Map;
+using OperaEtDies.Controls.Start;
 using OperaEtDies.Controls.Status;
 using OperaEtDies.Controls.Villagers;
 using OperaEtDies.GameState;
@@ -29,7 +32,12 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		m_miniMap = CreateMiniMap(world.Player.Location);
 		World.PropertyChanged += OnWorldPropertyChanged;
 		World.Player.PropertyChanged += OnPlayerPropertyChanged;
+		World.AppointmentMissed += OnAppointmentMissed;
+		World.StepFailed += OnStepFailed;
 		UpdateTalkPrompt();
+		UpdateAppointmentPrompt();
+		UpdateRepeatPrompt();
+		UpdateAskPrompt();
 	}
 
 	public string Title { get; }
@@ -64,6 +72,20 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 			VerifyAccess();
 			var calendar = World.GameData.Calendar;
 			return OurResources.TimeOfDay.FormatCurrentCulture(calendar.GetDayPart(World.Time).Title, calendar.FormatClock(World.Time));
+		}
+	}
+
+	/// <summary>
+	/// The player's next appointment, such as "Next: Mary Smith, 14:30 today, at her home", or null if they have none.
+	/// </summary>
+	public string? NextAppointment
+	{
+		get
+		{
+			VerifyAccess();
+			return World.GetPlayerAppointments() is [var next, ..] ?
+				OurResources.AppointmentNext.FormatCurrentCulture(next.GetOther(World.Player).FullName, AppointmentText.FormatWhen(World, next.Time), AppointmentText.FormatPlace(World, next)) :
+				null;
 		}
 	}
 
@@ -114,6 +136,15 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
+	/// What the player can start, while it's open.
+	/// </summary>
+	public StartScreenViewModel? StartScreen
+	{
+		get => VerifyAccess(m_start);
+		private set => SetPropertyField([nameof(StartScreen), nameof(CurrentView)], value, ref m_start);
+	}
+
+	/// <summary>
 	/// The player's status page, while it's open.
 	/// </summary>
 	public StatusViewModel? Status
@@ -153,7 +184,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	/// The view shown in the main part of the window: the list of villagers, the map, the player's status, inventory, or
 	/// wardrobe while one is open, or else the player's location.
 	/// </summary>
-	public ViewModelBase CurrentView => VerifyAccess((ViewModelBase?) m_villagers ?? (ViewModelBase?) m_map ?? (ViewModelBase?) m_status ?? (ViewModelBase?) m_clothing ?? m_currentLocation);
+	public ViewModelBase CurrentView => VerifyAccess((ViewModelBase?) m_villagers ?? (ViewModelBase?) m_map ?? (ViewModelBase?) m_status ?? (ViewModelBase?) m_start ?? (ViewModelBase?) m_clothing ?? m_currentLocation);
 
 	/// <summary>
 	/// The view focused on one person, shown on top of <see cref="CurrentView"/>, or null if it isn't open. Closing it shows
@@ -176,10 +207,39 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// What's shown on top of <see cref="CurrentView"/>: someone asking the player to chat, someone's needs, their character view,
-	/// or a conversation, or null if nothing is.
+	/// What's shown on top of <see cref="CurrentView"/>: someone asking the player to chat, the player being asked whether to
+	/// keep going, someone's needs, their character view, or a conversation, or null if nothing is.
 	/// </summary>
-	public ViewModelBase? Overlay => VerifyAccess((ViewModelBase?) m_talkPrompt ?? (ViewModelBase?) m_characterStatus ?? (ViewModelBase?) m_character ?? m_conversation);
+	public ViewModelBase? Overlay => VerifyAccess((ViewModelBase?) m_talkPrompt ?? (ViewModelBase?) m_askPrompt ?? (ViewModelBase?) m_appointmentPrompt ?? (ViewModelBase?) m_noticePrompt ?? (ViewModelBase?) m_repeatPrompt ??
+		(ViewModelBase?) m_characterStatus ?? (ViewModelBase?) m_character ?? m_conversation);
+
+	/// <summary>
+	/// A question someone asked the player as one of their steps, while the player is answering it, or null.
+	/// </summary>
+	public AskPromptViewModel? AskPrompt
+	{
+		get => VerifyAccess(m_askPrompt);
+		private set => SetPropertyField([nameof(AskPrompt), nameof(Overlay)], value, ref m_askPrompt);
+	}
+
+	/// <summary>
+	/// The reminder that it's time to set off for an appointment, while the player is being reminded, or null.
+	/// </summary>
+	public AppointmentPromptViewModel? AppointmentPrompt
+	{
+		get => VerifyAccess(m_appointmentPrompt);
+		private set => SetPropertyField([nameof(AppointmentPrompt), nameof(Overlay)], value, ref m_appointmentPrompt);
+	}
+
+	/// <summary>
+	/// Something that happened while time passed that the player is being told, such as that they missed an appointment, or
+	/// null.
+	/// </summary>
+	public NoticePromptViewModel? NoticePrompt
+	{
+		get => VerifyAccess(m_noticePrompt);
+		private set => SetPropertyField([nameof(NoticePrompt), nameof(Overlay)], value, ref m_noticePrompt);
+	}
 
 	/// <summary>
 	/// Someone asking the player to chat, shown on top of everything until the player answers, or null if no one is.
@@ -188,6 +248,16 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	{
 		get => VerifyAccess(m_talkPrompt);
 		private set => SetPropertyField([nameof(TalkPrompt), nameof(Overlay)], value, ref m_talkPrompt);
+	}
+
+	/// <summary>
+	/// The player being asked whether to keep going with what they're doing, shown on top of everything until they answer,
+	/// or null if they aren't being asked.
+	/// </summary>
+	public RepeatPromptViewModel? RepeatPrompt
+	{
+		get => VerifyAccess(m_repeatPrompt);
+		private set => SetPropertyField([nameof(RepeatPrompt), nameof(Overlay)], value, ref m_repeatPrompt);
 	}
 
 	/// <summary>
@@ -292,6 +362,51 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
+	/// Opens what the player can start from the sidebar, or closes it if it's already open and nothing is on top of it.
+	/// </summary>
+	public void ToggleStart()
+	{
+		if (m_start is null || Overlay is not null)
+			ShowStart();
+		else
+			CloseStart();
+	}
+
+	/// <summary>
+	/// Opens what the player can start in place of the player's location.
+	/// </summary>
+	public void ShowStart()
+	{
+		VerifyAccess();
+		CloseCharacter();
+		CloseConversation();
+		CloseVillagers();
+		CloseMap();
+		CloseStatus();
+		if (TryCloseClothing() && m_start is null)
+		{
+			var start = new StartScreenViewModel(World);
+			start.CloseRequested += OnStartCloseRequested;
+			start.Started += OnStarted;
+			StartScreen = start;
+		}
+	}
+
+	/// <summary>
+	/// Closes what the player can start, returning to the player's location.
+	/// </summary>
+	public void CloseStart()
+	{
+		VerifyAccess();
+		if (m_start is { } start)
+		{
+			start.CloseRequested -= OnStartCloseRequested;
+			start.Started -= OnStarted;
+			StartScreen = null;
+		}
+	}
+
+	/// <summary>
 	/// Opens the player's status page from the sidebar, or closes it if it's already open and nothing is on top of it.
 	/// </summary>
 	public void ToggleStatus()
@@ -308,6 +423,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	public void ShowStatus()
 	{
 		VerifyAccess();
+		CloseStart();
 		CloseCharacter();
 		CloseConversation();
 		CloseVillagers();
@@ -350,6 +466,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	public void ShowVillagers()
 	{
 		VerifyAccess();
+		CloseStart();
 		CloseCharacter();
 		CloseConversation();
 		CloseMap();
@@ -396,13 +513,15 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	public void ShowMap()
 	{
 		VerifyAccess();
+		CloseStart();
 		CloseCharacter();
 		CloseConversation();
 		if (m_map is null && TryCloseClothing())
 		{
 			CloseVillagers();
 			CloseStatus();
-			var map = new TownMapViewModel(World.Locations, World.Player.Location, World.Features, canTravel: IsDeveloper, World.Player.Home, World.Player.Business is null ? null : World.Player.Workplace);
+			var map = new TownMapViewModel(World.Locations, World.Player.Location, World.Features, canTravel: IsDeveloper, World.Player.Home, World.Player.Business is null ? null : World.Player.Workplace,
+				GetAppointmentPlace());
 			map.CloseRequested += OnMapCloseRequested;
 			map.TravelRequested += OnMapTravelRequested;
 			Map = map;
@@ -444,6 +563,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	public void ShowClothing(bool isWardrobe)
 	{
 		VerifyAccess();
+		CloseStart();
 		CloseCharacter();
 		CloseConversation();
 		CloseVillagers();
@@ -472,6 +592,10 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 			// Changing clothes takes its time once the player is done.
 			if (clothing.Finish() is { } result)
 				m_currentLocation.ShowWaitResult(result);
+
+			// Changing or carrying clothes can do one of the player's steps, such as changing into their work clothes.
+			World.UpdatePlayerSteps();
+			ShowPlayerLocation();
 		}
 	}
 
@@ -550,7 +674,10 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
 			// Someone asking the player to chat on the way stops them where they are.
 			if (player.TalkRequest is null)
+			{
 				MoveTo(location);
+				m_currentLocation.Refresh();
+			}
 		}
 	}
 
@@ -568,6 +695,15 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		Log.Info($"Traveling from {player.Location.Title} ({player.Location.Id}) to {location.Title} ({location.Id})");
 
 		World.MovePlayer(location);
+		ShowLocation(following);
+	}
+
+	/// <summary>
+	/// Shows the location the player is in, still following the given person, if any.
+	/// </summary>
+	private void ShowLocation(Person? following = null)
+	{
+		var location = World.Player.Location;
 		SaveStatus = null;
 		CloseCharacter();
 		CloseConversation();
@@ -575,23 +711,52 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		m_currentLocation.Followed -= OnFollowed;
 		m_currentLocation.ExamineRequested -= OnExamineRequested;
 		m_currentLocation.TalkRequested -= OnTalkRequested;
+		m_currentLocation.StepsCarriedOut -= OnStepsCarriedOut;
 		CurrentLocation = CreateLocationScreen(location, following);
 		MiniMap = CreateMiniMap(location);
+	}
+
+	/// <summary>
+	/// Shows where the player is now, if their steps took them somewhere else, or brings what they can do here up to date.
+	/// </summary>
+	private void ShowPlayerLocation()
+	{
+		if (World.Player.Location != m_currentLocation.Location)
+			ShowLocation();
+		else
+			m_currentLocation.Refresh();
 	}
 
 	public void Dispose()
 	{
 		World.PropertyChanged -= OnWorldPropertyChanged;
 		World.Player.PropertyChanged -= OnPlayerPropertyChanged;
+		World.AppointmentMissed -= OnAppointmentMissed;
+		World.StepFailed -= OnStepFailed;
+		if (m_askPrompt is not null)
+			m_askPrompt.Answered -= OnAskPromptAnswered;
+		if (m_appointmentPrompt is not null)
+		{
+			m_appointmentPrompt.SetOff -= OnAppointmentPromptSetOff;
+			m_appointmentPrompt.CalledOff -= OnAppointmentPromptCalledOff;
+		}
+		if (m_noticePrompt is not null)
+			m_noticePrompt.Dismissed -= OnNoticePromptDismissed;
 		if (m_talkPrompt is not null)
 		{
 			m_talkPrompt.Accepted -= OnTalkPromptAccepted;
 			m_talkPrompt.Declined -= OnTalkPromptDeclined;
 		}
+		if (m_repeatPrompt is not null)
+		{
+			m_repeatPrompt.Continued -= OnRepeatPromptContinued;
+			m_repeatPrompt.Stopped -= OnRepeatPromptStopped;
+		}
 		m_currentLocation.TravelRequested -= OnTravelRequested;
 		m_currentLocation.Followed -= OnFollowed;
 		m_currentLocation.ExamineRequested -= OnExamineRequested;
 		m_currentLocation.TalkRequested -= OnTalkRequested;
+		m_currentLocation.StepsCarriedOut -= OnStepsCarriedOut;
 		if (m_villagers is not null)
 		{
 			m_villagers.CloseRequested -= OnVillagersCloseRequested;
@@ -605,6 +770,11 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		}
 		if (m_status is not null)
 			m_status.CloseRequested -= OnStatusCloseRequested;
+		if (m_start is not null)
+		{
+			m_start.CloseRequested -= OnStartCloseRequested;
+			m_start.Started -= OnStarted;
+		}
 		if (m_clothing is not null)
 			m_clothing.CloseRequested -= OnClothingCloseRequested;
 		if (m_character is not null)
@@ -626,12 +796,41 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		viewModel.Followed += OnFollowed;
 		viewModel.ExamineRequested += OnExamineRequested;
 		viewModel.TalkRequested += OnTalkRequested;
+		viewModel.StepsCarriedOut += OnStepsCarriedOut;
 		return viewModel;
 	}
 
-	private TownMapViewModel CreateMiniMap(Location location) => TownMapViewModel.CreateMiniMap(location, World.Features, MiniMapSize, World.Player.Home, World.Player.Business is null ? null : World.Player.Workplace);
+	private TownMapViewModel CreateMiniMap(Location location)
+	{
+		m_miniMapAppointment = GetAppointmentPlace();
+		return TownMapViewModel.CreateMiniMap(location, World.Features, MiniMapSize, World.Player.Home, World.Player.Business is null ? null : World.Player.Workplace, m_miniMapAppointment);
+	}
+
+	/// <summary>
+	/// Gets the place of the player's next appointment, which the maps mark, or null if they have none.
+	/// </summary>
+	private Location? GetAppointmentPlace() => World.GetPlayerAppointments() is [var next, ..] ? next.Place : null;
+
+	/// <summary>
+	/// Shows the player's next appointment, and marks its place on the mini-map, once their appointments may have changed.
+	/// </summary>
+	private void OnAppointmentsChanged()
+	{
+		RaisePropertyChanged(nameof(NextAppointment));
+		if (GetAppointmentPlace() != m_miniMapAppointment)
+			MiniMap = CreateMiniMap(World.Player.Location);
+	}
 
 	private void OnTravelRequested(object? sender, GenericEventArgs<Location> e) => TravelTo(e.Value);
+
+	/// <summary>
+	/// Shows where the player's steps took them, and how it went.
+	/// </summary>
+	private void OnStepsCarriedOut(object? sender, GenericEventArgs<string> e)
+	{
+		ShowPlayerLocation();
+		m_currentLocation.ShowWaitResult(e.Value);
+	}
 
 	/// <summary>
 	/// Shows where the player followed someone to, still following them.
@@ -647,7 +846,12 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	private void OnWorldPropertyChanged(object? sender, PropertyChangedEventArgs e)
 	{
 		if (e.PropertyName == nameof(GameWorld.Time))
+		{
 			RaisePropertyChanged(nameof(Date), nameof(TimeOfDay), nameof(SpecialDay), nameof(PlayerNeeds));
+			OnAppointmentsChanged();
+			UpdateAppointmentPrompt();
+			UpdateRepeatPrompt();
+		}
 	}
 
 	private void OnVillagersCloseRequested(object? sender, EventArgs e) => CloseVillagers();
@@ -661,6 +865,19 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	private void OnMapCloseRequested(object? sender, EventArgs e) => CloseMap();
 
 	private void OnStatusCloseRequested(object? sender, EventArgs e) => CloseStatus();
+
+	private void OnStartCloseRequested(object? sender, EventArgs e) => CloseStart();
+
+	/// <summary>
+	/// Shows where the player is once they've started something, and how it went if it was done for them.
+	/// </summary>
+	private void OnStarted(object? sender, GenericEventArgs<string?> e)
+	{
+		CloseStart();
+		ShowPlayerLocation();
+		if (e.Value is { } result)
+			m_currentLocation.ShowWaitResult(result);
+	}
 
 	private void OnClothingCloseRequested(object? sender, EventArgs e) => CloseClothing();
 
@@ -678,6 +895,151 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	{
 		if (e.PropertyName is nameof(Person.TalkRequest) or null or "")
 			UpdateTalkPrompt();
+		if (e.PropertyName is nameof(Person.Sequences) or null or "")
+		{
+			UpdateAppointmentPrompt();
+			OnAppointmentsChanged();
+		}
+		if (e.PropertyName is nameof(Person.Current) or null or "")
+			UpdateRepeatPrompt();
+		if (e.PropertyName is nameof(Person.AskRequest) or null or "")
+			UpdateAskPrompt();
+	}
+
+	/// <summary>
+	/// Shows the question while someone is asking the player something, and closes it once they've answered.
+	/// </summary>
+	private void UpdateAskPrompt()
+	{
+		if (m_askPrompt is { } prompt)
+		{
+			prompt.Answered -= OnAskPromptAnswered;
+			AskPrompt = null;
+		}
+
+		if (World.Player.AskRequest is { } asker)
+		{
+			var newPrompt = new AskPromptViewModel(asker, World);
+			newPrompt.Answered += OnAskPromptAnswered;
+			AskPrompt = newPrompt;
+		}
+	}
+
+	/// <summary>
+	/// Answers the question, and tells the player of any appointment it made.
+	/// </summary>
+	private void OnAskPromptAnswered(object? sender, GenericEventArgs<bool> e)
+	{
+		var asker = World.Player.AskRequest;
+		var appointment = World.AnswerAsk(e.Value);
+		ShowPlayerLocation();
+		if (appointment is not null && asker is not null)
+			m_currentLocation.ShowWaitResult(OurResources.ConversationAgreedToMeet.FormatCurrentCulture(asker.FullName, AppointmentText.FormatPlace(World, appointment), AppointmentText.FormatWhen(World, appointment.Time)));
+		OnAppointmentsChanged();
+	}
+
+	/// <summary>
+	/// Shows the reminder while it's time for the player to set off for an appointment, and closes it once they've answered.
+	/// </summary>
+	private void UpdateAppointmentPrompt()
+	{
+		var sequence = World.GetPlayerSetOffSequence();
+		if (m_appointmentPrompt is { } prompt && prompt.Sequence != sequence)
+		{
+			prompt.SetOff -= OnAppointmentPromptSetOff;
+			prompt.CalledOff -= OnAppointmentPromptCalledOff;
+			AppointmentPrompt = null;
+		}
+
+		if (m_appointmentPrompt is null && sequence is not null)
+		{
+			var newPrompt = new AppointmentPromptViewModel(World, sequence);
+			newPrompt.SetOff += OnAppointmentPromptSetOff;
+			newPrompt.CalledOff += OnAppointmentPromptCalledOff;
+			AppointmentPrompt = newPrompt;
+		}
+	}
+
+	/// <summary>
+	/// Sets off for the appointment, showing its steps in place of what the player was doing.
+	/// </summary>
+	private void OnAppointmentPromptSetOff(object? sender, EventArgs e)
+	{
+		World.AnswerSetOff(isSettingOff: true);
+		UpdateAppointmentPrompt();
+		ShowPlayerLocation();
+	}
+
+	private void OnAppointmentPromptCalledOff(object? sender, EventArgs e)
+	{
+		World.AnswerSetOff(isSettingOff: false);
+		UpdateAppointmentPrompt();
+		OnAppointmentsChanged();
+	}
+
+	/// <summary>
+	/// Tells the player they missed an appointment, on top of whatever they were doing.
+	/// </summary>
+	private void OnAppointmentMissed(object? sender, AppointmentMissedEventArgs e)
+	{
+		var name = e.Appointment.GetOther(World.Player).FullName;
+		ShowNotice((e.IsOtherWaiting ? OurResources.AppointmentGaveUp : OurResources.AppointmentNeverCame).FormatCurrentCulture(name));
+		OnAppointmentsChanged();
+	}
+
+	/// <summary>
+	/// Tells the player a step of theirs failed, and why, on top of whatever they were doing.
+	/// </summary>
+	private void OnStepFailed(object? sender, StepFailedEventArgs e)
+	{
+		// Missing an appointment is told as such (see OnAppointmentMissed).
+		var player = World.Player;
+		if (e.Person != player || e.Cause == Data.FailCause.NoShow)
+			return;
+		var step = PlayerStepsViewModel.Describe(e.Sequence.Need, e.Step, place: null, player);
+		ShowNotice(OurResources.PlayerStepFailed.FormatCurrentCulture(step, GetCauseText(e.Cause)));
+	}
+
+	/// <summary>
+	/// Describes why a step failed, to go in a sentence.
+	/// </summary>
+	internal static string GetCauseText(Data.FailCause cause) => cause switch
+	{
+		Data.FailCause.No => OurResources.FailCauseNo,
+		Data.FailCause.Nobody => OurResources.FailCauseNobody,
+		Data.FailCause.Unreachable => OurResources.FailCauseUnreachable,
+		Data.FailCause.Missing => OurResources.FailCauseMissing,
+		Data.FailCause.Left => OurResources.FailCauseLeft,
+		Data.FailCause.Interrupted => OurResources.FailCauseInterrupted,
+		Data.FailCause.Hours => OurResources.FailCauseHours,
+		Data.FailCause.NoShow => OurResources.FailCauseNoShow,
+		_ => OurResources.FailCauseNoOption,
+	};
+
+	/// <summary>
+	/// Shows a notice, along with any the player hasn't closed yet.
+	/// </summary>
+	private void ShowNotice(string text)
+	{
+		if (m_noticePrompt is { } prompt)
+		{
+			prompt.Dismissed -= OnNoticePromptDismissed;
+			text = prompt.Text + " " + text;
+		}
+
+		var newPrompt = new NoticePromptViewModel(text);
+		newPrompt.Dismissed += OnNoticePromptDismissed;
+		NoticePrompt = newPrompt;
+	}
+
+	private void OnNoticePromptDismissed(object? sender, EventArgs e)
+	{
+		if (m_noticePrompt is { } prompt)
+		{
+			prompt.Dismissed -= OnNoticePromptDismissed;
+			NoticePrompt = null;
+		}
+		ShowPlayerLocation();
 	}
 
 	/// <summary>
@@ -715,6 +1077,55 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
 	private void OnTalkPromptDeclined(object? sender, EventArgs e) => World.DeclineTalk();
 
+	/// <summary>
+	/// Shows the prompt while the player is asked whether to keep going with what they're doing, and closes it once they've
+	/// answered.
+	/// </summary>
+	private void UpdateRepeatPrompt()
+	{
+		if (m_repeatPrompt is { } prompt)
+		{
+			prompt.Continued -= OnRepeatPromptContinued;
+			prompt.Stopped -= OnRepeatPromptStopped;
+			RepeatPrompt = null;
+		}
+
+		if (World.Player.Current is { } sequence && World.IsAskingPlayerToKeepGoing(sequence))
+		{
+			var newPrompt = new RepeatPromptViewModel(World, sequence);
+			newPrompt.Continued += OnRepeatPromptContinued;
+			newPrompt.Stopped += OnRepeatPromptStopped;
+			RepeatPrompt = newPrompt;
+		}
+	}
+
+	/// <summary>
+	/// Keeps going, which for steps done for the player carries them on, and goes back to their steps.
+	/// </summary>
+	private void OnRepeatPromptContinued(object? sender, EventArgs e)
+	{
+		if (World.Player.Current is { } sequence && World.IsAskingPlayerToKeepGoing(sequence))
+			World.AnswerKeepGoing(sequence, keepGoing: true);
+		UpdateRepeatPrompt();
+		ShowPlayerLocation();
+	}
+
+	/// <summary>
+	/// Stops, carrying on with the steps after the ones repeated, such as changing out of work clothes.
+	/// </summary>
+	private void OnRepeatPromptStopped(object? sender, EventArgs e)
+	{
+		var player = World.Player;
+		if (player.Current is { } sequence && World.IsAskingPlayerToKeepGoing(sequence))
+		{
+			var activity = sequence.Need.GetActivity(null, player.Business?.Profession.Id);
+			World.AnswerKeepGoing(sequence, keepGoing: false);
+			UpdateRepeatPrompt();
+			ShowPlayerLocation();
+			m_currentLocation.ShowWaitResult(OurResources.RepeatPromptStopped.FormatCurrentCulture(char.ToLower(activity[0], CultureInfo.CurrentCulture) + activity[1..]));
+		}
+	}
+
 	private void OnConversationCloseRequested(object? sender, EventArgs e) => CloseConversation();
 
 	private void OnMapTravelRequested(object? sender, GenericEventArgs<Location> e)
@@ -736,11 +1147,17 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	private VillagersViewModel? m_villagers;
 	private TownMapViewModel? m_map;
 	private StatusViewModel? m_status;
+	private StartScreenViewModel? m_start;
 	private ClothingScreenViewModel? m_clothing;
 	private CharacterViewModel? m_character;
 	private StatusViewModel? m_characterStatus;
 	private ConversationViewModel? m_conversation;
 	private TalkPromptViewModel? m_talkPrompt;
+	private AppointmentPromptViewModel? m_appointmentPrompt;
+	private AskPromptViewModel? m_askPrompt;
+	private NoticePromptViewModel? m_noticePrompt;
+	private RepeatPromptViewModel? m_repeatPrompt;
 	private TownMapViewModel m_miniMap;
+	private Location? m_miniMapAppointment;
 	private string? m_saveStatus;
 }

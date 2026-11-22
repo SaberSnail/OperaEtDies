@@ -30,11 +30,15 @@ public sealed class MapFeature : IIdentified, IHasFrequency
 	/// <summary>
 	/// For an area, its size on the map. It can be turned either way.
 	/// </summary>
+	[AllowedFor(nameof(Type), MapFeatureType.Area)]
+	[RequiredFor(nameof(Type), MapFeatureType.Area)]
 	public QuarterSize? Size { get; init; }
 
 	/// <summary>
 	/// For a river, what a path across it can be called, such as "bridge" or "ford". One is chosen for each crossing.
 	/// </summary>
+	[AllowedFor(nameof(Type), MapFeatureType.River)]
+	[RequiredFor(nameof(Type), MapFeatureType.River)]
 	public IReadOnlyList<string>? Crossings { get; init; }
 
 	/// <summary>

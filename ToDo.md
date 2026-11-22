@@ -12,6 +12,8 @@
 
 ### Village Life
 
+* When the washing is dry, a need for the household to bring it in (with its own time), which goes away once someone has done it, rather than the washing unpacking itself. Needs that are turned on for a group of people would make this possible.
+* Clothing that gets dirty, and is only clean again once laundry has been through drying.
 * Formal occasions, such as church, where the `formal` modesty minimums apply.
 * Character needs: flesh them out beyond the basic needs added with schedules.
 * More needs and things to do, so every hour is accounted for by a goal. Idle time in the report means there isn't enough to do, so resting should be its own goal. Ideally the day isn't long enough to do everything.
@@ -38,6 +40,7 @@
 * Personality traits that change how urgent each need is for a person (such as loving the market), so villagers fall out of step with each other.
 * Personality traits that lower the modesty minimums (see the modesty rules in Clothing.json).
 * Relations to the player only cover their own household. Relatives in other households (such as married children) will need relationships between characters.
+* Steps that meet a need for both people at once, such as socializing, or two people of the same trade working together.
 * Gossip: trust secondhand sightings less than firsthand ones, and let gossip be wrong.
 * Traveling as a group: following someone, being followed, or escorting someone slower.
 * Whether the player is following someone isn't saved, and NPCs can't follow anyone yet. Following will need to move into the world once group travel exists.

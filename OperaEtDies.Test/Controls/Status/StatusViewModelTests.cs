@@ -36,11 +36,10 @@ public sealed class StatusViewModelTests
 		upkeep.Amount = 0;
 		Assert.That(person.GetProgress(upkeepNeed), Is.Zero);
 
-		// Finished trips toward a quota of trips.
-		var tripMinutes = laundryNeed.GetShiftMinutes(members.Count);
-		Assert.That(laundry.Maximum, Is.EqualTo(laundryNeed.GetQuotaMinutes(members.Count) / tripMinutes));
+		// Finished runs toward a quota of runs.
+		Assert.That(laundry.Maximum, Is.EqualTo(laundryNeed.GetQuotaRuns(members.Count)));
 		laundry.Amount = 1;
-		Assert.That(members.Sum(x => x.GetProgress(laundryNeed)), Is.EqualTo(tripMinutes));
+		Assert.That(members.Sum(x => x.GetProgress(laundryNeed)), Is.EqualTo(1));
 		Assert.That(laundry.Amount, Is.EqualTo(1));
 	}
 
@@ -60,22 +59,44 @@ public sealed class StatusViewModelTests
 	}
 
 	[Test]
-	public void CancellingAGoalDropsAnUnfinishedTrip()
+	public void ThePlayersUnfinishedJobsAreShown()
+	{
+		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
+		var work = GetNeed(world, "work");
+		var client = world.Npcs.First(x => x.Family != world.Player.Family);
+		Assert.That(new StatusViewModel(world).HasJobs, Is.False);
+
+		var job = world.AddJob(world.Player, client, work, client.Home, 600);
+		job.MinutesDone = 240;
+		var viewModel = new StatusViewModel(world);
+
+		Assert.That(viewModel.HasJobs, Is.True);
+		Assert.That(viewModel.Jobs, Has.Count.EqualTo(1));
+		Assert.That(viewModel.Jobs[0], Does.StartWith($"{work.Title} for {client.FullName}, at "));
+		Assert.That(viewModel.Jobs[0], Does.Contain("6 hours").And.Contain("10 hours"));
+
+		// Someone else's jobs aren't shown, and neither is a job that's done.
+		Assert.That(new StatusViewModel(world, client, isDeveloper: true).HasJobs, Is.False);
+		job.MinutesDone = 600;
+		Assert.That(new StatusViewModel(world).HasJobs, Is.False);
+	}
+
+	[Test]
+	public void CancellingAGoalDropsAnUnfinishedRun()
 	{
 		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
 		var person = world.Npcs.First(x => x.Family.Members.All(member => !member.IsPlayer));
 		var laundry = GetNeed(world, "laundry");
-		var tripMinutes = laundry.GetShiftMinutes(person.Family.Members.Count);
 		foreach (var member in person.Family.Members)
 			member.SetProgress(laundry, 0);
-		person.SetProgress(laundry, tripMinutes + 7);
-		person.SetPlan(laundry, [new BusyTask(30)]);
+		person.SetPlan(laundry, [new BusyTask(30, 3)], startStep: 4);
 		person.StartTask(world.GameData.Calendar.AddMinutes(world.Time, 30));
 		person.IsAtWork = true;
 
 		world.CancelGoal(person);
 
-		Assert.That(person.GetProgress(laundry), Is.EqualTo(tripMinutes));
+		// A run only counts once it's finished, and time spent on it doesn't count by itself.
+		Assert.That(person.GetProgress(laundry), Is.Zero);
 		Assert.That(person.IsAtWork, Is.False);
 		Assert.That(person.GoalChoice!.Time, Is.EqualTo(world.Time));
 		Assert.That(person.CurrentTask, Is.Not.Null);

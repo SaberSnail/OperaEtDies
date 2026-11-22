@@ -30,6 +30,9 @@ public interface IWorldObject
 [JsonDerivedType(typeof(RelationshipRecord), "relationship")]
 [JsonDerivedType(typeof(ClothingPieceRecord), "clothing")]
 [JsonDerivedType(typeof(OwnedOutfitRecord), "outfit")]
+[JsonDerivedType(typeof(AppointmentRecord), "appointment")]
+[JsonDerivedType(typeof(BundleRecord), "bundle")]
+[JsonDerivedType(typeof(JobRecord), "job")]
 public abstract record WorldObjectRecord(WorldId Id)
 {
 	/// <summary>

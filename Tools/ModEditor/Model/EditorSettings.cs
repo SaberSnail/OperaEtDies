@@ -10,7 +10,8 @@ namespace ModEditor.Model;
 /// whether the game is run in developer mode, whether the selected item is edited in a form or as JSON, and the
 /// window's layout.
 /// </summary>
-public sealed record EditorSettings(IReadOnlyList<string> RecentFolders, bool RunAsDeveloper, Rect? WindowBounds, bool IsMaximized, double TreeWidth, int EditorTab = 0)
+public sealed record EditorSettings(IReadOnlyList<string> RecentFolders, bool RunAsDeveloper, Rect? WindowBounds, bool IsMaximized, double TreeWidth, int EditorTab = 0,
+	bool ShowAllProperties = false)
 {
 	/// <summary>
 	/// The path of the editor's registry key under HKEY_CURRENT_USER.
@@ -32,7 +33,8 @@ public sealed record EditorSettings(IReadOnlyList<string> RecentFolders, bool Ru
 			Rect? bounds = Read(LeftName) is { } left && Read(TopName) is { } top && Read(WidthName) is { } width && Read(HeightName) is { } height
 				? new Rect(left, top, width, height)
 				: null;
-			return new EditorSettings(recent, Read(DeveloperName) == 1, bounds, Read(MaximizedName) == 1, Read(TreeWidthName) ?? 0, Read(EditorTabName) is { } tab and >= 0 and <= 2 ? tab : 0);
+			return new EditorSettings(recent, Read(DeveloperName) == 1, bounds, Read(MaximizedName) == 1, Read(TreeWidthName) ?? 0, Read(EditorTabName) is { } tab and >= 0 and <= 2 ? tab : 0,
+				Read(ShowAllPropertiesName) == 1);
 		}
 		catch (Exception e) when (e is SecurityException or UnauthorizedAccessException or IOException)
 		{
@@ -76,6 +78,7 @@ public sealed record EditorSettings(IReadOnlyList<string> RecentFolders, bool Ru
 			Write(MaximizedName, IsMaximized ? 1 : 0);
 			Write(TreeWidthName, TreeWidth);
 			Write(EditorTabName, EditorTab);
+			Write(ShowAllPropertiesName, ShowAllProperties ? 1 : 0);
 			if (WindowBounds is { } bounds)
 			{
 				Write(LeftName, bounds.Left);
@@ -99,4 +102,5 @@ public sealed record EditorSettings(IReadOnlyList<string> RecentFolders, bool Ru
 	private const string MaximizedName = "Maximized";
 	private const string TreeWidthName = "TreeWidth";
 	private const string EditorTabName = "EditorTab";
+	private const string ShowAllPropertiesName = "ShowAllProperties";
 }

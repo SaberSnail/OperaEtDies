@@ -28,30 +28,21 @@ public sealed record TravelTask(Location Destination) : PersonTask
 }
 
 /// <summary>
-/// Spends time where the person is, meeting their goal's need. Without a number of minutes, it lasts until the goal's
-/// level need is fully met.
+/// Spends time where the person is, for the "do" step of their goal's steps with the given index, if any. Without a
+/// number of minutes, it lasts until the goal's level need is fully met. Time aside, such as the player changing clothes,
+/// meets no need.
 /// </summary>
-public sealed record BusyTask(int? Minutes) : PersonTask
+public sealed record BusyTask(int? Minutes, int? Step = null, bool IsAside = false) : PersonTask
 {
-	internal override PersonTaskRecord CreateRecord() => new BusyTaskRecord(Minutes) { ResumeMinutes = ResumeMinutes };
+	internal override PersonTaskRecord CreateRecord() => new BusyTaskRecord(Minutes, Step, IsAside ? true : null) { ResumeMinutes = ResumeMinutes };
 }
 
 /// <summary>
-/// Starts or stops working, which takes no time. Changing into or out of work clothes, if given, is part of starting or
-/// stopping work.
+/// Starts or stops working, which takes no time.
 /// </summary>
-public sealed record AtWorkTask(bool IsAtWork, OwnedOutfit? Clothes = null) : PersonTask
+public sealed record AtWorkTask(bool IsAtWork) : PersonTask
 {
-	internal override PersonTaskRecord CreateRecord() => new AtWorkTaskRecord(IsAtWork, Clothes?.Id);
-}
-
-/// <summary>
-/// Picks up the pieces of the person's outfit kept at home to carry them, such as their work clothes on the way to work,
-/// which takes no time.
-/// </summary>
-public sealed record FetchClothesTask(OwnedOutfit Outfit) : PersonTask
-{
-	internal override PersonTaskRecord CreateRecord() => new FetchClothesTaskRecord(Outfit.Id);
+	internal override PersonTaskRecord CreateRecord() => new AtWorkTaskRecord(IsAtWork);
 }
 
 /// <summary>
@@ -64,12 +55,30 @@ public sealed record ChangeClothesTask(OwnedOutfit Outfit, bool IsTakingOff) : P
 }
 
 /// <summary>
-/// Talks with someone, which interrupts whatever the person was doing until it's over, meeting the given level need while
-/// it lasts, if there is one, such as when socializing with a friend.
+/// Talks with someone, which interrupts whatever the person was doing until it's over, meeting the given need while it
+/// lasts, if there is one, such as socializing with a friend, or the quota of a "talk" step that meets it.
 /// </summary>
 public sealed record TalkTask(Person With, int Minutes, Need? Need = null) : PersonTask
 {
 	internal override PersonTaskRecord CreateRecord() => new TalkTaskRecord(With.Id, Minutes, Need?.Id) { ResumeMinutes = ResumeMinutes };
+}
+
+/// <summary>
+/// Waits for an appointment where it is, for a number of minutes: until it's time, or a while longer for the other person
+/// to arrive. Someone waiting is too busy to stop and talk.
+/// </summary>
+public sealed record MeetTask(Appointment Appointment, int Minutes) : PersonTask
+{
+	internal override PersonTaskRecord CreateRecord() => new MeetTaskRecord(Appointment.Id, Minutes) { ResumeMinutes = ResumeMinutes };
+}
+
+/// <summary>
+/// Follows someone wherever they go, for at most a number of minutes, which interrupts whatever the person was doing
+/// until they're let go. Someone following is too busy to stop and talk.
+/// </summary>
+public sealed record FollowTask(Person Leader, int Minutes) : PersonTask
+{
+	internal override PersonTaskRecord CreateRecord() => new FollowTaskRecord(Leader.Id, Minutes) { ResumeMinutes = ResumeMinutes };
 }
 
 /// <summary>
@@ -91,8 +100,9 @@ public sealed record WaitTask(Person For, int Minutes) : PersonTask
 [JsonDerivedType(typeof(AtWorkTaskRecord), "atWork")]
 [JsonDerivedType(typeof(TalkTaskRecord), "talk")]
 [JsonDerivedType(typeof(WaitTaskRecord), "wait")]
-[JsonDerivedType(typeof(FetchClothesTaskRecord), "fetchClothes")]
 [JsonDerivedType(typeof(ChangeClothesTaskRecord), "changeClothes")]
+[JsonDerivedType(typeof(FollowTaskRecord), "follow")]
+[JsonDerivedType(typeof(MeetTaskRecord), "meet")]
 public abstract record PersonTaskRecord
 {
 	/// <summary>
@@ -108,31 +118,36 @@ public sealed record TravelTaskRecord(WorldId Destination) : PersonTaskRecord
 	internal override PersonTask Create(WorldLoader loader) => new TravelTask(loader.Get<Location>(Destination)) { ResumeMinutes = ResumeMinutes };
 }
 
-public sealed record BusyTaskRecord(int? Minutes) : PersonTaskRecord
+public sealed record BusyTaskRecord(int? Minutes, int? Step = null, bool? IsAside = null) : PersonTaskRecord
 {
-	internal override PersonTask Create(WorldLoader loader) => new BusyTask(Minutes) { ResumeMinutes = ResumeMinutes };
+	internal override PersonTask Create(WorldLoader loader) => new BusyTask(Minutes, Step, IsAside ?? false) { ResumeMinutes = ResumeMinutes };
 }
 
-public sealed record AtWorkTaskRecord(bool IsAtWork, WorldId? Clothes = null) : PersonTaskRecord
+public sealed record AtWorkTaskRecord(bool IsAtWork) : PersonTaskRecord
 {
-	internal override PersonTask Create(WorldLoader loader) => new AtWorkTask(IsAtWork, Clothes is { } clothes ? loader.Get<OwnedOutfit>(clothes) : null);
+	internal override PersonTask Create(WorldLoader loader) => new AtWorkTask(IsAtWork);
 }
 
 public sealed record TalkTaskRecord(WorldId With, int Minutes, string? Need = null) : PersonTaskRecord
 {
 	internal override PersonTask Create(WorldLoader loader) =>
-		new TalkTask(loader.Get<Person>(With), Minutes, Need is null ? null : loader.GameData.Schedules.Needs.FirstOrDefault(x => x.Id == Need && x.Kind == NeedKind.Level)
-			?? throw new SaveLoadException(OurResources.SaveDataNotFound.FormatCurrentCulture("level need", Need))) { ResumeMinutes = ResumeMinutes };
+		new TalkTask(loader.Get<Person>(With), Minutes, Need is null ? null : loader.GameData.Schedules.Needs.FirstOrDefault(x => x.Id == Need)
+			?? throw new SaveLoadException(OurResources.SaveDataNotFound.FormatCurrentCulture("need", Need))) { ResumeMinutes = ResumeMinutes };
+}
+
+public sealed record MeetTaskRecord(WorldId Appointment, int Minutes) : PersonTaskRecord
+{
+	internal override PersonTask Create(WorldLoader loader) => new MeetTask(loader.Get<Appointment>(Appointment), Minutes) { ResumeMinutes = ResumeMinutes };
+}
+
+public sealed record FollowTaskRecord(WorldId Leader, int Minutes) : PersonTaskRecord
+{
+	internal override PersonTask Create(WorldLoader loader) => new FollowTask(loader.Get<Person>(Leader), Minutes) { ResumeMinutes = ResumeMinutes };
 }
 
 public sealed record WaitTaskRecord(WorldId For, int Minutes) : PersonTaskRecord
 {
 	internal override PersonTask Create(WorldLoader loader) => new WaitTask(loader.Get<Person>(For), Minutes) { ResumeMinutes = ResumeMinutes };
-}
-
-public sealed record FetchClothesTaskRecord(WorldId Outfit) : PersonTaskRecord
-{
-	internal override PersonTask Create(WorldLoader loader) => new FetchClothesTask(loader.Get<OwnedOutfit>(Outfit));
 }
 
 public sealed record ChangeClothesTaskRecord(WorldId Outfit, bool IsTakingOff) : PersonTaskRecord

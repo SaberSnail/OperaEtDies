@@ -113,7 +113,7 @@ public sealed class CharacterViewModel : ViewModelBase
 		var text = sighting.Activity switch
 		{
 			SightingActivity.Busy when sighting.Need is { } need => OurResources.SightingDoing.FormatCurrentCulture(name,
-				need.HomeActivity is { } homeActivity && need.ReturnHome && sighting.Location == other.Home ? homeActivity : need.Activity ?? need.Title, place, time),
+				sighting.Doing ?? need.GetActivityAt(x => Scheduler.IsPlaceFor(other, null, x, sighting.Location), other.Business?.Profession.Id), place, time),
 			SightingActivity.Idle => OurResources.SightingDoing.FormatCurrentCulture(name, schedules.Idle.Activity ?? OurResources.SightingIdle, place, time),
 			SightingActivity.Talking => OurResources.SightingDoing.FormatCurrentCulture(name, OurResources.SightingTalking, place, time),
 			SightingActivity.Walking => OurResources.SightingWalking.FormatCurrentCulture(name, place, sighting.Destination?.Title, time),

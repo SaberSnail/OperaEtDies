@@ -1,4 +1,3 @@
-using System.IO;
 using GoldenAnvil.Utility;
 using OperaEtDies.Characters;
 using OperaEtDies.Data;
@@ -9,19 +8,6 @@ namespace OperaEtDies.Test.Data;
 [TestFixture]
 public sealed class FrequencyOverrideTests
 {
-	[SetUp]
-	public void SetUp()
-	{
-		m_directory = Path.Combine(Path.GetTempPath(), $"OperaEtDiesTest_{Guid.NewGuid():N}");
-		Directory.CreateDirectory(m_directory);
-	}
-
-	[TearDown]
-	public void TearDown()
-	{
-		Directory.Delete(m_directory, recursive: true);
-	}
-
 	[TestCase(20, "young")]
 	[TestCase(29, "young")]
 	[TestCase(30, "old")]
@@ -236,6 +222,4 @@ public sealed class FrequencyOverrideTests
 			},
 			TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings());
 	}
-
-	private string m_directory = "";
 }

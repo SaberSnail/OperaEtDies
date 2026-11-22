@@ -85,7 +85,7 @@
 								TextAlignment="Center"
 								TextTrimming="CharacterEllipsis"
 								TextWrapping="Wrap" />
-								<!--  Markers for the player's home and the place they work, in the corner.  -->
+								<!--  Markers for the player's home, the place they work, and their next appointment, in the corner.  -->
 								<StackPanel
 									HorizontalAlignment="Left"
 									VerticalAlignment="Top"
@@ -112,6 +112,17 @@
 											FontWeight="Bold"
 											Foreground="{DynamicResource MapVillageBrush}"
 											Text="{x:Static operaEtDies:OurResources.MapWorkMarker}" />
+									</Border>
+									<Border
+										Margin="1"
+										Padding="2,0"
+										Background="{DynamicResource MapCurrentBrush}"
+										Visibility="{Binding HasAppointment, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+										<TextBlock
+											FontSize="{DynamicResource SmallFontSize}"
+											FontWeight="Bold"
+											Foreground="{DynamicResource MapVillageBrush}"
+											Text="{x:Static operaEtDies:OurResources.MapAppointmentMarker}" />
 									</Border>
 								</StackPanel>
 							</Grid>

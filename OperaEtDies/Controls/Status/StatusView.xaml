@@ -105,6 +105,44 @@
 							</DataTemplate>
 						</ItemsControl.ItemTemplate>
 					</ItemsControl>
+
+					<!--  The player's appointments.  -->
+					<StackPanel Visibility="{Binding Appointments, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
+						<TextBlock
+							Margin="0,12,0,8"
+							FontSize="{DynamicResource LargeFontSize}"
+							FontWeight="Bold"
+							Text="{x:Static operaEtDies:OurResources.StatusAppointmentsHeader}" />
+						<ItemsControl ItemsSource="{Binding Appointments}">
+							<ItemsControl.ItemTemplate>
+								<DataTemplate>
+									<TextBlock
+										Margin="0,0,0,8"
+										Text="{Binding}"
+										TextWrapping="Wrap" />
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+					</StackPanel>
+
+					<!--  The player's jobs, last, so showing them doesn't move anything.  -->
+					<StackPanel Visibility="{Binding HasJobs, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+						<TextBlock
+							Margin="0,12,0,8"
+							FontSize="{DynamicResource LargeFontSize}"
+							FontWeight="Bold"
+							Text="{x:Static operaEtDies:OurResources.StatusJobsHeader}" />
+						<ItemsControl ItemsSource="{Binding Jobs}">
+							<ItemsControl.ItemTemplate>
+								<DataTemplate>
+									<TextBlock
+										Margin="0,0,0,8"
+										Text="{Binding}"
+										TextWrapping="Wrap" />
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+					</StackPanel>
 				</StackPanel>
 			</ScrollViewer>
 		</Grid>

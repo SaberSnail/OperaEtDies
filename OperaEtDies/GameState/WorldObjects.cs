@@ -43,6 +43,15 @@ public sealed class WorldObjects
 	}
 
 	/// <summary>
+	/// Takes an object out of the world, such as an appointment that's over.
+	/// </summary>
+	public void Remove(IWorldObject item)
+	{
+		ArgumentNullException.ThrowIfNull(item);
+		m_objects.Remove(item.Id);
+	}
+
+	/// <summary>
 	/// Gets the object with the given id, or null if there isn't one.
 	/// </summary>
 	public IWorldObject? Find(WorldId id) => m_objects.GetValueOrDefault(id);

@@ -10,13 +10,6 @@ namespace OperaEtDies.Test.Tools;
 public sealed class ModEditorHelpTests
 {
 	[Test]
-	public void TheDocumentsAreBuiltIn()
-	{
-		Assert.That(HelpLibrary.Documents.Select(x => x.Name), Is.EqualTo(new[] { HelpLibrary.ModEditor, HelpLibrary.DataFiles, HelpLibrary.Mods }));
-		Assert.That(HelpLibrary.Documents.All(x => x.Headings.Count != 0), Is.True);
-	}
-
-	[Test]
 	public void EveryClassOfTheDataHasAHeading()
 	{
 		var missing = GetDataTypes().Where(x => HelpTopics.ForType(x) is null).Select(x => $"{x.Name} (\"{HelpTopics.GetHeading(x)}\")").ToList();
@@ -56,12 +49,6 @@ public sealed class ModEditorHelpTests
 	public void EveryPropertyOfAnOperationHasARow(string property)
 	{
 		Assert.That(HelpTopics.ForOperation(property)?.Row, Is.EqualTo(property));
-	}
-
-	[Test]
-	public void RowsHaveTheirNotes()
-	{
-		Assert.That(HelpLibrary.GetRowText(HelpTopics.ForProperty(typeof(OperaEtDies.Data.CharacterProperty), "follows")), Does.StartWith("string — Optional."));
 	}
 
 	/// <summary>

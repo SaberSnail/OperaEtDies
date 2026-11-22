@@ -76,6 +76,20 @@ public sealed class FormViewModel : ViewModelBase
 	public bool IsEditable => !IsReadOnly;
 
 	/// <summary>
+	/// Whether objects show every property they can have, rather than hiding the optional ones that aren't set (and
+	/// haven't been added since the form was built).
+	/// </summary>
+	public bool ShowAllProperties
+	{
+		get => VerifyAccess(m_showAllProperties);
+		set
+		{
+			if (SetPropertyField(value, ref m_showAllProperties))
+				Root?.Refresh();
+		}
+	}
+
+	/// <summary>
 	/// Asks the editor to show a place in the help.
 	/// </summary>
 	public void ShowHelp(HelpTarget target) => m_showHelp?.Invoke(target);
@@ -97,4 +111,5 @@ public sealed class FormViewModel : ViewModelBase
 
 	private readonly Action<FormViewModel> m_changed;
 	private readonly Action<HelpTarget>? m_showHelp;
+	private bool m_showAllProperties;
 }

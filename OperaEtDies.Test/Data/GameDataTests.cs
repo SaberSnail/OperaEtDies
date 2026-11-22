@@ -441,20 +441,6 @@ public sealed class GameDataTests
 	}
 
 	[Test]
-	public void CatalogsLookUpItemsById()
-	{
-		var gameData = TestData.CreateGameData();
-
-		Assert.That(gameData.CharacterProperties.Get("profession").Title, Is.EqualTo("Profession"));
-		Assert.That(gameData.CharacterProperties.Get("height"), Is.SameAs(gameData.CharacterProperties[10]));
-		Assert.That(gameData.QuarterTemplates.Get("square").Businesses, Is.EqualTo(3));
-		Assert.That(gameData.HouseTemplates.Get("hall").Wealth, Is.EqualTo(WealthLevel.High));
-		Assert.That(gameData.Professions.Get("smith").MaxBusinesses, Is.EqualTo(1));
-		Assert.That(gameData.Professions.Find("nowhere"), Is.Null);
-		Assert.That(() => gameData.Professions.Get("nowhere"), Throws.TypeOf<KeyNotFoundException>());
-	}
-
-	[Test]
 	public void InvalidLocationsReportErrors()
 	{
 		var errors = ValidateLocations("""
@@ -468,7 +454,9 @@ public sealed class GameDataTests
 				"quarterKinds": [
 					{ "id": "lane", "area": "village", "path": "lane", "travelTime": 2 },
 					{ "id": "lane", "area": "village", "path": "lane", "travelTime": 2 },
-					{ "id": "plaza", "area": "village", "unique": true, "path": " ", "travelTime": -1 }
+					{ "id": "plaza", "area": "village", "count": { "min": 1, "max": 1 }, "path": " ", "travelTime": -1 },
+					{ "id": "yard", "area": "village", "count": { "min": -1, "max": 0 }, "path": "lane", "travelTime": 2 },
+					{ "id": "court", "area": "village", "count": { "min": 3, "max": 2 }, "path": "lane", "travelTime": 2 }
 				],
 				"layouts": [ { "id": "layout", "shape": "radial", "center": "lane" } ],
 				"quarters": [
@@ -504,10 +492,14 @@ public sealed class GameDataTests
 			OurResources.DataValueMissing.FormatCurrentCulture("quarterKinds[plaza].path"),
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("village.buildingTravelTime", -1, 0),
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("quarterKinds[plaza].travelTime", -1, 0),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("quarterKinds[yard].count.min", -1, 0),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("quarterKinds[yard].count.max", 0, 1),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("quarterKinds[court].count.max", 2, 3),
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("village.familyCount.minimum", -1, 0),
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("village.landmarkCount.minimum", -1, 0),
 			OurResources.LayoutCenterInvalid.FormatCurrentCulture("radial", "lane"),
-			OurResources.QuarterKindUniqueMissing.FormatCurrentCulture("plaza"),
+			OurResources.QuarterKindMinimumMissing.FormatCurrentCulture("plaza"),
+			OurResources.QuarterKindMinimumMissing.FormatCurrentCulture("court"),
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("quarters[square].size.length", 0, 1),
 			OurResources.LocationDescriptionMissing.FormatCurrentCulture("lane", "description.short"),
 			OurResources.LocationDescriptionMissing.FormatCurrentCulture("lane", "description.medium"),
@@ -541,7 +533,7 @@ public sealed class GameDataTests
 			.Replace("\"crossings\": [ \"bridge\", \"ford\" ],", "\"size\": { \"length\": 2, \"width\": 1 },", StringComparison.Ordinal)
 			.Replace("\"borders\": \"river\"", "\"borders\": \"lake\"", StringComparison.Ordinal)
 			.Replace("\"To the {direction}, a reedy pond reflects the sky.\"", "\"To the {place}, a reedy pond reflects the sky.\"", StringComparison.Ordinal)
-			.Replace("\"id\": \"square\", \"area\": \"village\", \"unique\": true,", "\"id\": \"square\", \"area\": \"village\", \"unique\": true, \"borders\": \"hill\",", StringComparison.Ordinal));
+			.Replace("\"id\": \"square\", \"area\": \"village\",", "\"id\": \"square\", \"area\": \"village\", \"borders\": \"hill\",", StringComparison.Ordinal));
 
 		var result = GameData.Load(m_directory);
 
@@ -551,13 +543,13 @@ public sealed class GameDataTests
 			OurResources.FeatureSettingNotAllowed.FormatCurrentCulture("river", "size", "river"),
 			OurResources.FeatureTextInvalid.FormatCurrentCulture("features[pond].text", "To the {place}, a reedy pond reflects the sky."),
 			OurResources.FeatureUnknown.FormatCurrentCulture("quarterKinds[riverside].borders", "lake"),
-			OurResources.QuarterKindUniqueBorders.FormatCurrentCulture("square"),
+			OurResources.QuarterKindMinimumBorders.FormatCurrentCulture("square"),
 		}));
 		Assert.That(result.Errors.Select(x => Path.GetFileName(x.FilePath)), Is.All.EqualTo("Locations.json"));
 	}
 
 	[Test]
-	public void OnlyUniqueKindsCanBeOptional()
+	public void OnlyKindsWithAMinimumCanBeOptional()
 	{
 		CopyShippedData();
 		ModifyShipped("Locations.json", x => x
@@ -570,7 +562,7 @@ public sealed class GameDataTests
 		{
 			OurResources.FeatureUnknown.FormatCurrentCulture("quarterKinds[well].optional.with", "lake"),
 			OurResources.DataChanceInvalid.FormatCurrentCulture("quarterKinds[well].optional.chance", 150),
-			OurResources.QuarterKindOptionalNotUnique.FormatCurrentCulture("lane"),
+			OurResources.QuarterKindOptionalNoMinimum.FormatCurrentCulture("lane"),
 		}));
 	}
 
@@ -582,7 +574,7 @@ public sealed class GameDataTests
 			Professions = Read<List<Profession>>("""
 				[
 					{ "id": "smith", "title": "Smith", "business": { "wealth": "high", "maxBusinesses": 0, "helpers": -1, "forHouseholdElders": true } },
-					{ "id": "smith", "title": "Smith", "business": { "wealth": "low", "worksFromHome": true } },
+					{ "id": "smith", "title": "Smith", "business": { "wealth": "low" } },
 					{ "id": "brewer", "title": "Brewer", "business": { "wealth": "low", "hours": { "start": 20, "end": 20, "days": "day1" } } },
 					{ "id": "keeper", "title": "Keeper", "role": "homemaker" },
 					{ "id": "sick", "title": "Sick", "role": "infirm", "player": false, "business": { "wealth": "low" } }
@@ -594,7 +586,6 @@ public sealed class GameDataTests
 		{
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("professions[smith].business.maxBusinesses", 0, 1),
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("professions[smith].business.helpers", -1, 0),
-			OurResources.ProfessionElderTradeNotFromHome.FormatCurrentCulture("smith"),
 			OurResources.DataListItemIdDuplicate.FormatCurrentCulture("smith", "professions"),
 			OurResources.HoursInvalid.FormatCurrentCulture("professions[brewer].business.hours", 20, 20),
 			OurResources.HoursSettingNotAllowed.FormatCurrentCulture("professions[brewer].business.hours.days"),
@@ -662,23 +653,33 @@ public sealed class GameDataTests
 	{
 		CopyShippedData();
 		ModifyShipped("Professions.json", x => x
-			.Replace("\"wealth\": \"high-\",\n\t\t\t\t\"maxBusinesses\": 1", "\"wealth\": \"high-\", \"worksFromHome\": true, \"helperWhen\": { \"values\": { \"nothing\": [ \"nothing\" ] } }", StringComparison.Ordinal)
-			.Replace("\"wealth\": \"veryLow\",\n\t\t\t\t\"worksFromHome\": true", "\"wealth\": \"veryLow\"", StringComparison.Ordinal));
+			.Replace("\"wealth\": \"high-\",\n\t\t\t\t\"maxBusinesses\": 1", "\"wealth\": \"high-\", \"forHouseholdElders\": true, \"helperWhen\": { \"values\": { \"nothing\": [ \"nothing\" ] } }", StringComparison.Ordinal));
 
 		var result = GameData.Load(m_directory);
 
 		Assert.That(result.Succeeded, Is.False);
 		Assert.That(result.Errors.Where(x => Path.GetFileName(x.FilePath) == "Professions.json").Select(x => x.Message), Is.EquivalentTo(new[]
 		{
-			OurResources.ProfessionLocationsMissing.FormatCurrentCulture("profession_spinster"),
-			OurResources.ProfessionLocationsMissing.FormatCurrentCulture("profession_dairymaid"),
-			OurResources.ProfessionLocationsMissing.FormatCurrentCulture("profession_shepherd"),
+			OurResources.ProfessionElderTradeNotFromHome.FormatCurrentCulture("profession_smith"),
 			OurResources.ConditionPropertyWithoutValues.FormatCurrentCulture("professions[profession_smith].business.helperWhen.values", "nothing"),
 		}));
-		Assert.That(result.Errors.Where(x => Path.GetFileName(x.FilePath) == "Locations.json").Select(x => x.Message), Is.EquivalentTo(new[]
+	}
+
+	[Test]
+	public void WhoCanOnlySayMemberOrOtherForFamily()
+	{
+		CopyShippedData();
+		ModifyShipped("Professions.json", x => x
+			.Replace("\"who\": { \"values\": { \"gender\": [ \"gender_female\" ], \"age\": [ \"age_young\", \"age_adult\" ] } }", "\"who\": { \"values\": { \"family\": [ \"other\" ] }, \"notValues\": { \"family\": [ \"cousin\" ] } }", StringComparison.Ordinal));
+
+		var result = GameData.Load(m_directory);
+
+		// "other" is fine, and family isn't a property, so a condition only on family has nothing to check against them.
+		const string path = "professions[profession_midwife].business.steps[1].steps[0].options[1]";
+		Assert.That(result.Errors.Select(x => x.Message), Is.EquivalentTo(new[]
 		{
-			OurResources.BusinessProfessionWorksFromHome.FormatCurrentCulture("profession_smith_forge", "profession_smith"),
-			OurResources.BusinessProfessionWorksFromHome.FormatCurrentCulture("profession_smith_smithy", "profession_smith"),
+			OurResources.StepWhoFamilyInvalid.FormatCurrentCulture($"{path}.steps[0].who.notValues.family", "cousin"),
+			OurResources.StepWhoFamilyInvalid.FormatCurrentCulture($"{path}.steps[1].who.notValues.family", "cousin"),
 		}));
 	}
 

@@ -15,7 +15,10 @@ namespace OperaEtDies.GameState;
 /// place on the person's way.</param>
 /// <param name="Source">Who told them about the sighting, or null if they saw it themselves.</param>
 /// <param name="Plan">What the person said they were doing, if they were asked, or null if they weren't.</param>
-public sealed record Sighting(Location Location, TimePoint Time, SightingActivity Activity, Need? Need = null, Location? Destination = null, Person? Source = null, SightingPlan? Plan = null)
+/// <param name="Doing">For <see cref="SightingActivity.Busy"/>, what the person was shown to be doing, such as "Washing
+/// clothes": the activity of the step they were on.</param>
+public sealed record Sighting(Location Location, TimePoint Time, SightingActivity Activity, Need? Need = null, Location? Destination = null, Person? Source = null, SightingPlan? Plan = null,
+	string? Doing = null)
 {
 	/// <summary>
 	/// Whether the sighting was learned from someone else, rather than seen.
@@ -23,7 +26,7 @@ public sealed record Sighting(Location Location, TimePoint Time, SightingActivit
 	public bool IsSecondhand => Source is not null;
 
 	internal SightingRecord CreateRecord(Person person) =>
-		new(person.Id, Location.Id, Time.SaveToString(), Activity, Need?.Id, Destination?.Id, Source?.Id, Plan is { } plan ? new SightingPlanRecord(plan.Goal?.Id, plan.Destination?.Id) : null);
+		new(person.Id, Location.Id, Time.SaveToString(), Activity, Need?.Id, Destination?.Id, Source?.Id, Plan is { } plan ? new SightingPlanRecord(plan.Goal?.Id, plan.Destination?.Id, plan.Doing) : null, Doing);
 }
 
 /// <summary>
@@ -32,7 +35,9 @@ public sealed record Sighting(Location Location, TimePoint Time, SightingActivit
 /// </summary>
 /// <param name="Goal">The need they were trying to meet, or null if they were idle.</param>
 /// <param name="Destination">Where their walk ended, or null if they weren't walking.</param>
-public sealed record SightingPlan(Need? Goal, Location? Destination);
+/// <param name="Doing">What they said they were doing or going to do for their goal, such as "Washing clothes": the
+/// activity of the step they were on, or the next one that spends time, or null if they were idle.</param>
+public sealed record SightingPlan(Need? Goal, Location? Destination, string? Doing = null);
 
 /// <summary>
 /// What someone was doing when they were seen.
@@ -73,9 +78,10 @@ public enum SightingActivity
 /// <summary>
 /// The saved form of a sighting, with the person seen.
 /// </summary>
-public sealed record SightingRecord(WorldId Person, WorldId Location, string Time, SightingActivity Activity, string? Need, WorldId? Destination, WorldId? Source, SightingPlanRecord? Plan = null);
+public sealed record SightingRecord(WorldId Person, WorldId Location, string Time, SightingActivity Activity, string? Need, WorldId? Destination, WorldId? Source, SightingPlanRecord? Plan = null,
+	string? Doing = null);
 
 /// <summary>
 /// The saved form of what someone said they were doing.
 /// </summary>
-public sealed record SightingPlanRecord(string? Goal, WorldId? Destination);
+public sealed record SightingPlanRecord(string? Goal, WorldId? Destination, string? Doing = null);

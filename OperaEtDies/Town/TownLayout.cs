@@ -7,9 +7,9 @@ using OperaEtDies.Utility.Random;
 namespace OperaEtDies.Town;
 
 /// <summary>
-/// Lays out the town around its households and businesses. First the quarters are chosen: one of each unique kind,
-/// quarters for the houses, quarters for the businesses, and landmarks, leaving out quarters that border map features
-/// the town doesn't have. Then a shape arranges them on the map around the river, if there is one, and connects them.
+/// Lays out the town around its households and businesses. First the quarters are chosen: the fewest of each kind the
+/// town must have, quarters for the houses, quarters for the businesses, and landmarks, never more of a kind than its
+/// maximum, leaving out quarters that border map features the town doesn't have. Then a shape arranges them on the map around the river, if there is one, and connects them.
 /// Finally, areas such as a forest are placed next to the quarters that border them, and each quarter learns which
 /// features it borders.
 /// </summary>
@@ -19,7 +19,7 @@ internal sealed class TownLayout
 		IReadOnlyList<Household> households, IReadOnlyList<TownBusiness> businesses, IReadOnlyList<MapFeature> features)
 	{
 		var layout = new TownLayout(gameData, random, features);
-		layout.AddUniqueQuarters();
+		layout.AddRequiredQuarters();
 		foreach (var wealth in WealthLevelUtility.HouseholdLevels)
 			layout.PlaceHouses(households.Where(x => x.WealthLevel == wealth).ToList(), wealth);
 		foreach (var business in businesses.Where(x => !x.Profession.WorksFromHome))
@@ -42,33 +42,50 @@ internal sealed class TownLayout
 	}
 
 	/// <summary>
-	/// Adds a quarter of each unique kind, such as the village square, other than the optional kinds the town has the feature
-	/// for, which are added later.
+	/// Adds the fewest quarters of each kind the town must have, such as the village square or a field, other than the
+	/// optional kinds the town has the feature for, which are added later.
 	/// </summary>
-	private void AddUniqueQuarters()
+	private void AddRequiredQuarters()
 	{
-		foreach (var kind in m_gameData.QuarterKinds.Where(x => x.Unique && !IsOptional(x)))
-			AddUniqueQuarter(kind);
+		foreach (var kind in m_gameData.QuarterKinds.Where(x => x.MinCount > 0 && !IsOptional(x)))
+			AddRequiredQuarters(kind);
 	}
 
 	/// <summary>
-	/// Adds a quarter of each optional kind the town has the feature for, some of the time, once the houses and businesses
-	/// have their quarters. If none of those quarters border the feature, the town needs the optional quarter, so it's
-	/// always added, such as a well in a town whose river has no riverside quarters.
+	/// Adds the quarters of each optional kind the town has the feature for, some of the time, once the houses and
+	/// businesses have their quarters. If none of those quarters border the feature, the town needs the optional quarters,
+	/// so they're always added, such as a well in a town whose river has no riverside quarters.
 	/// </summary>
 	private void AddOptionalQuarters()
 	{
-		foreach (var kind in m_gameData.QuarterKinds.Where(x => x.Unique && IsOptional(x)))
+		foreach (var kind in m_gameData.QuarterKinds.Where(x => x.MinCount > 0 && IsOptional(x)))
 		{
 			if (!m_quarters.Any(x => x.Borders.Contains(kind.OptionalWith!, StringComparer.Ordinal)) || m_random.NextChance(kind.OptionalChance))
-				AddUniqueQuarter(kind);
+				AddRequiredQuarters(kind);
 		}
 	}
 
 	private bool IsOptional(QuarterKind kind) => kind.OptionalWith is { } feature && m_featureIds.Contains(feature);
 
-	private void AddUniqueQuarter(QuarterKind kind) =>
-		AddQuarter(ChooseTemplate(m_gameData.QuarterTemplates.Where(x => x.Kind == kind.Id && IsAvailable(x)).ToList(), $"the {kind.Id} kind"));
+	/// <summary>
+	/// Adds quarters of a kind until the town has the fewest it must have.
+	/// </summary>
+	private void AddRequiredQuarters(QuarterKind kind)
+	{
+		var templates = m_gameData.QuarterTemplates.Where(x => x.Kind == kind.Id && IsAvailable(x)).ToList();
+		while (CountQuarters(kind) < kind.MinCount)
+			AddQuarter(ChooseTemplate(templates, $"the {kind.Id} kind"));
+	}
+
+	private int CountQuarters(QuarterKind kind) => m_quarters.Count(x => x.Template.Kind == kind.Id);
+
+	/// <summary>
+	/// Whether a quarter from a template can be added for houses, businesses, or landmarks: the town has fewer quarters of
+	/// its kind than the kind's maximum, and the kind's quarters aren't optional in the town, since those are decided on
+	/// their own.
+	/// </summary>
+	private bool CanAddQuarter(QuarterTemplate template) =>
+		m_gameData.QuarterKinds.Get(template.Kind) is var kind && !IsOptional(kind) && (kind.MaxCount is not { } max || CountQuarters(kind) < max);
 
 	/// <summary>
 	/// Gives each household a house, in quarters of the same wealth. Quarters are added, each planning a number of houses
@@ -77,11 +94,11 @@ internal sealed class TownLayout
 	/// </summary>
 	private void PlaceHouses(IReadOnlyList<Household> households, WealthLevel wealth)
 	{
-		var templates = m_gameData.QuarterTemplates.Where(x => x.Wealth == wealth && x.MaxHouses > 0 && !IsUniqueKind(x) && IsAvailable(x)).ToList();
+		var templates = m_gameData.QuarterTemplates.Where(x => x.Wealth == wealth && x.MaxHouses > 0 && IsAvailable(x)).ToList();
 		var planned = new Dictionary<MapQuarter, int>();
 		while (planned.Values.Sum() < households.Count)
 		{
-			var quarter = AddQuarter(ChooseTemplate(templates, $"{wealth.GetDataName()} wealth quarters"));
+			var quarter = AddQuarter(ChooseTemplate(templates.Where(CanAddQuarter).ToList(), $"{wealth.GetDataName()} wealth quarters"));
 			var fewest = Math.Max(quarter.Template.MinHouses, 1);
 			planned[quarter] = quarter.Template.Houses?.Shape is { } shape
 				? m_random.NextShaped(shape, fewest, quarter.Template.MaxHouses, _ => true) ?? fewest
@@ -118,7 +135,7 @@ internal sealed class TownLayout
 	/// <summary>
 	/// Puts the business in a quarter of a kind its place allows, adding a quarter if none has room. Only places that can
 	/// go in a kind of quarter the town can have are used, if there are any. If no quarter can be added, such as when the
-	/// only kind allowed is unique, it goes in an allowed quarter even though it's full.
+	/// only kind allowed already has its most quarters, it goes in an allowed quarter even though it's full.
 	/// </summary>
 	private void PlaceBusiness(TownBusiness business)
 	{
@@ -131,7 +148,7 @@ internal sealed class TownLayout
 
 		// Every household already has a house, so a quarter that's meant to have people living in it is only added if
 		// there's no other choice.
-		var candidates = m_gameData.QuarterTemplates.Where(x => kinds.Contains(x.Kind) && x.Businesses > 0 && !IsUniqueKind(x) && IsAvailable(x)).ToList();
+		var candidates = m_gameData.QuarterTemplates.Where(x => kinds.Contains(x.Kind) && x.Businesses > 0 && CanAddQuarter(x) && IsAvailable(x)).ToList();
 		var empty = candidates.Where(x => x.MinHouses == 0).ToList();
 
 		MapQuarter quarter;
@@ -154,21 +171,26 @@ internal sealed class TownLayout
 	}
 
 	/// <summary>
-	/// Adds landmarks until the town has as many as it should, counting unique landmarks. Village and outskirts
-	/// landmarks take turns, starting with either, as long as both have templates.
+	/// Adds landmarks until the town has as many as it should, counting landmarks it already has, such as those of the
+	/// kinds it must have. Village and outskirts landmarks take turns, starting with either, as long as both have templates
+	/// that can be added.
 	/// </summary>
 	private void AddLandmarks()
 	{
 		var count = m_random.NextInRange(m_gameData.LandmarkCount);
-		var templates = m_gameData.QuarterTemplates.Where(x => x.IsLandmark && !IsUniqueKind(x) && IsAvailable(x)).ToList();
-		var byArea = templates.GroupBy(x => m_gameData.QuarterKinds.Get(x.Kind).Area).ToDictionary(x => x.Key, x => x.ToList());
+		var templates = m_gameData.QuarterTemplates.Where(x => x.IsLandmark && IsAvailable(x)).ToList();
+		var byArea = templates.Where(CanAddQuarter).GroupBy(x => m_gameData.QuarterKinds.Get(x.Kind).Area).ToDictionary(x => x.Key, x => x.ToList());
 		var areas = byArea.Keys.OrderBy(x => x).ToList();
 		var turn = areas.Count == 0 ? 0 : m_random.Next(areas.Count);
 
 		while (areas.Count != 0 && m_quarters.Count(x => x.Template.IsLandmark) < count)
 		{
 			var area = areas[turn++ % areas.Count];
-			AddQuarter(ChooseTemplate(byArea[area], $"{area.ToString().ToLowerInvariant()} landmarks"));
+			var choices = byArea[area].Where(CanAddQuarter).ToList();
+			if (choices.Count != 0)
+				AddQuarter(ChooseTemplate(choices, $"{area.ToString().ToLowerInvariant()} landmarks"));
+			else
+				areas.Remove(area);
 		}
 	}
 
@@ -262,7 +284,7 @@ internal sealed class TownLayout
 	/// <summary>
 	/// Gets what the path between two quarters is called. A path across the river is one of the river's crossings.
 	/// Otherwise, it's the path of the outskirts quarter's kind if one is in the outskirts, or else of either quarter's
-	/// kind, preferring kinds that aren't unique.
+	/// kind, preferring kinds a town can have more than one of.
 	/// </summary>
 	private string GetPath(MapQuarter first, MapQuarter second, bool isCrossing)
 	{
@@ -275,14 +297,12 @@ internal sealed class TownLayout
 		{
 			var kinds = new[] { first.Kind, second.Kind };
 			var outskirts = kinds.Where(x => x.Area == MapArea.Outskirts).ToList();
-			var choices = outskirts.Count != 0 ? outskirts : kinds.Where(x => !x.Unique).ToList();
+			var choices = outskirts.Count != 0 ? outskirts : kinds.Where(x => x.MaxCount != 1).ToList();
 			path = m_random.NextItem(choices.Count != 0 ? choices : kinds.ToList()).Path;
 		}
 
 		return path;
 	}
-
-	private bool IsUniqueKind(QuarterTemplate template) => m_gameData.QuarterKinds.Get(template.Kind).Unique;
 
 	/// <summary>
 	/// Whether the town has every map feature the quarter must border.

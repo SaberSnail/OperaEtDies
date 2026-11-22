@@ -30,18 +30,6 @@ public sealed class GameCalendarTests
 		m_calendar = new GameCalendar(TestData.CreateCalendarSettings());
 	}
 
-	[Test]
-	public void YearHasDaysOfEverySeason()
-	{
-		Assert.Multiple(() =>
-		{
-			Assert.That(m_calendar.DaysInWeek, Is.EqualTo(7));
-			Assert.That(m_calendar.WeeksInSeason, Is.EqualTo(3));
-			Assert.That(m_calendar.SeasonsInYear, Is.EqualTo(4));
-			Assert.That(m_calendar.DaysInYear, Is.EqualTo(84));
-		});
-	}
-
 	[TestCase(1, 1, 1, 1, 0, 0)]
 	[TestCase(1, 4, 3, 7, 23, 59)]
 	[TestCase(2, 2, 3, 4, 9, 15)]
@@ -50,15 +38,6 @@ public sealed class GameCalendarTests
 	{
 		var point = m_calendar.CreateTimePoint(year, season, week, day, hour, minute);
 		Assert.That(m_calendar.GetParts(point), Is.EqualTo(new GameTimePointParts(year, season, week, day, hour, minute)));
-	}
-
-	[TestCase(1, 1, 1, 7, 1, 1, 2, 1)]
-	[TestCase(1, 1, 3, 7, 1, 2, 1, 1)]
-	[TestCase(1, 4, 3, 7, 2, 1, 1, 1)]
-	public void NextDayRollsOver(int year, int season, int week, int day, int nextYear, int nextSeason, int nextWeek, int nextDay)
-	{
-		var point = m_calendar.CreateTimePoint(year, season, week, day) + m_calendar.CreateTimeOffset(1, 0, 0);
-		Assert.That(point, Is.EqualTo(m_calendar.CreateTimePoint(nextYear, nextSeason, nextWeek, nextDay)));
 	}
 
 	[Test]

@@ -1,3 +1,4 @@
+using System.IO;
 using OperaEtDies.Characters;
 using OperaEtDies.Data;
 using OperaEtDies.GameState;
@@ -8,22 +9,192 @@ namespace OperaEtDies.Test.GameState;
 public sealed class ClothingRulesTests
 {
 	[Test]
+	public void ClothesTakenOffToCarryStayCarriedAtHome()
+	{
+		var world = CreateWorld(0);
+		var player = world.Player;
+		world.MovePlayer(player.Home);
+		Assume.That(player.Clothing.Pieces, Is.Not.Empty, "The player has nothing on.");
+
+		// In the wardrobe, what comes off is put away at home. In the inventory, it's kept carried, so it can be put back on.
+		var kept = player.Clothing.Pieces[0];
+		world.PlayerTakeOff(kept);
+		Assert.That(kept.Container, Is.SameAs(player.Home.Items));
+		world.PlayerWear(kept);
+		world.PlayerTakeOff(kept, isCarried: true);
+		Assert.That(kept.Container, Is.SameAs(player.Inventory));
+		Assert.That(world.CanPlayerWear(kept), Is.True);
+	}
+
+	[Test]
+	public void WorkModestyAppliesOnceWorkIsStarted()
+	{
+		// Every trade calls for nothing to be covered while working.
+		var directory = Path.Combine(Path.GetTempPath(), $"OperaEtDiesTest_{Guid.NewGuid():N}");
+		Directory.CreateDirectory(directory);
+		try
+		{
+			foreach (var path in Directory.GetFiles(JsonDataLoader.DefaultDataDirectory, "*.json"))
+				File.Copy(path, Path.Combine(directory, Path.GetFileName(path)));
+			var professionsPath = Path.Combine(directory, "Professions.json");
+			File.WriteAllText(professionsPath, File.ReadAllText(professionsPath).Replace("\"business\": {",
+				"\"modesty\": { \"modesty_men\": { \"torso\": -10, \"hips\": -10 }, \"modesty_women\": { \"torso\": -10, \"hips\": -10 } }, \"business\": {", StringComparison.Ordinal));
+			var gameData = GameData.Load(directory).Value!;
+			var random = new Random(0);
+			var world = GameWorld.CreateNewGame(gameData, CharacterRandomizer.CreateRandomPlayer(gameData, random), random);
+			var player = world.Player;
+			var work = world.GetPlayerStartChoices().FirstOrDefault(x => x.Need.IsWork);
+			Assume.That(player.Business is not null && work is not null, "The player has no trade.");
+
+			// With nothing on, the player can't go out, until they start work, which lets them go out in nothing.
+			world.MovePlayer(player.Home);
+			world.PlayerTakeOffAll();
+			Assert.That(world.GetPlayerUncoveredSlotsOutside(), Is.Not.Empty);
+			world.StartPlayerSteps(work!.Need, isAutomatic: false);
+			Assert.That(world.GetPlayerUncoveredSlotsOutside(), Is.Empty);
+			Assert.That(world.GetPlayerUncoveredSlots(), Is.Empty);
+
+			// Giving up work, they have to cover up again.
+			world.StopPlayerSteps(player.GetSequence(work.Need)!);
+			Assert.That(world.GetPlayerUncoveredSlotsOutside(), Is.Not.Empty);
+		}
+		finally
+		{
+			Directory.Delete(directory, recursive: true);
+		}
+	}
+
+	[Test]
+	public void PartnersChangeClothesTogether()
+	{
+		// Like going swimming with a friend: both change into nothing, swim, and dress again. While swimming (until they start
+		// changing back), both have nothing on.
+		static Step Do(int minutes) => new() { Kind = StepKind.Do, Minutes = TestData.Amount(minutes) };
+		var swimming = new Need
+		{
+			Id = "swimming",
+			Title = "Swimming",
+			Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			StepSettings =
+			[
+				new Step { Kind = StepKind.Talk, With = StepTarget.Anyone, Minutes = TestData.Amount(5) },
+				Do(1),
+				new Step { Kind = StepKind.Lead, Minutes = TestData.Amount(120) },
+				new Step { Kind = StepKind.Dress, Outfit = OutfitKind.Nothing, WithPartner = true },
+				Do(30),
+				new Step { Kind = StepKind.Undress, Outfit = OutfitKind.Nothing, WithPartner = true },
+				new Step { Kind = StepKind.Release },
+				Do(10),
+			],
+		};
+		swimming.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);
+		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
+		gameData.Schedules.Needs = [.. gameData.Schedules.Needs, swimming];
+		var random = new Random(0);
+		var world = GameWorld.CreateNewGame(gameData, CharacterRandomizer.CreateRandomPlayer(gameData, random), random);
+		world.IsHeadless = true;
+
+		// Two people from different households, alone in a quarter, with the clothes they slept in on.
+		var person = world.Npcs[0];
+		var other = world.Npcs.First(x => x.Family != person.Family);
+		var place = world.Locations.First(x => x.Template is QuarterTemplate);
+		foreach (var someone in world.People.Where(x => x.Location == place))
+			someone.Location = someone.Home;
+		person.Location = place;
+		other.Location = place;
+		person.SetPlan(null, []);
+		other.SetPlan(null, [new BusyTask(600)]);
+		other.StartTask(gameData.Calendar.AddMinutes(world.Time, 600));
+		var dressed = (Person: person.Clothing.Pieces.ToList(), Other: other.Clothing.Pieces.ToList());
+		Assert.That(dressed.Person.Count != 0 && dressed.Other.Count != 0, Is.True);
+
+		(int Person, int Other)? swimmingWorn = null;
+		var isDone = false;
+		world.TaskStarted += (_, e) =>
+		{
+			if (e.Person == person && e.Task is ChangeClothesTask { IsTakingOff: true })
+				swimmingWorn = (person.Clothing.Pieces.Count, other.Clothing.Pieces.Count);
+			isDone |= e.Person == person && e.Task is BusyTask { Minutes: 10, ResumeMinutes: null };
+		};
+		person.SetPlan(swimming, [], startStep: 0);
+		world.AdvanceTime(gameData.Calendar.CreateTimeOffset(0, 2, 0), () => isDone);
+
+		// Once they're done (and everything ending then has ended), both are back in what they had on, and the other is let go.
+		Assert.That(swimmingWorn, Is.EqualTo(((int, int)?) (0, 0)));
+		Assert.That(isDone, Is.True);
+		Assert.That(person.Clothing.Pieces, Is.EquivalentTo(dressed.Person));
+		Assert.That(other.Clothing.Pieces, Is.EquivalentTo(dressed.Other));
+		Assert.That(other.Tasks.OfType<FollowTask>(), Is.Empty);
+	}
+
+	[Test]
+	public void ThePlayersClothesAreChangedWithTheirPartners()
+	{
+		// Someone who talked with the player changes into nothing with them: the player's clothes are changed at once.
+		static Step Do(int minutes) => new() { Kind = StepKind.Do, Minutes = TestData.Amount(minutes) };
+		var swimming = new Need
+		{
+			Id = "swimming",
+			Title = "Swimming",
+			Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			StepSettings =
+			[
+				new Step { Kind = StepKind.Talk, With = StepTarget.Anyone, Minutes = TestData.Amount(5) },
+				Do(1),
+				new Step { Kind = StepKind.Dress, Outfit = OutfitKind.Nothing, WithPartner = true },
+				Do(30),
+			],
+		};
+		swimming.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);
+		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
+		gameData.Schedules.Needs = [.. gameData.Schedules.Needs, swimming];
+		var random = new Random(0);
+		var world = GameWorld.CreateNewGame(gameData, CharacterRandomizer.CreateRandomPlayer(gameData, random), random);
+		var player = world.Player;
+		var person = world.Npcs.First(x => x.Family != player.Family);
+		var place = world.Locations.First(x => x.Template is QuarterTemplate);
+		foreach (var someone in world.People.Where(x => x.Location == place))
+			someone.Location = someone.Home;
+		person.Location = place;
+		player.Location = place;
+		Assume.That(player.Clothing.Pieces, Is.Not.Empty);
+
+		person.SetPlan(swimming, [], startStep: 0);
+		world.AdvanceTime(gameData.Calendar.CreateTimeOffset(0, 0, 30));
+		Assume.That(player.TalkRequest, Is.EqualTo(person));
+		world.AcceptTalk();
+		world.AdvanceTime(gameData.Calendar.CreateTimeOffset(0, 0, 15));
+
+		Assert.That((person.Clothing.Pieces.Count, player.Clothing.Pieces.Count), Is.EqualTo((0, 0)));
+	}
+
+	[Test]
 	public void NightClothesGoOnForSleepAtHomeAndComeOffAfter()
 	{
 		var world = CreateWorld(0);
+		world.IsHeadless = true;
+		var calendar = world.GameData.Calendar;
 		var sleep = world.GameData.Schedules.Needs.Single(x => x.Id == world.GameData.Schedules.SleepNeed);
-		var person = world.Npcs.First(x => !x.IsAsleep && x.Location == x.Home && x.GetOutfits(OutfitKind.Night).Any());
+		var person = world.Npcs.First(x => !x.IsAsleep && x.Goal != sleep && x.Location == x.Home && x.GetOutfits(OutfitKind.Night).Any() && x.CurrentTask is not TalkTask);
 		Assert.That(ClothingRules.IsWearingAny(person, OutfitKind.Night), Is.False);
 
-		person.SetPlan(sleep, [new BusyTask(60)]);
-		ClothingRules.DressForSleep(person, sleep, world.Time);
-		Assert.That(person.Clothing.Pieces, Is.EquivalentTo(person.GetOutfits(OutfitKind.Night).First().Pieces));
-		Assert.That(person.IsInDayClothes, Is.False);
+		// Sleep's steps change into night clothes, sleep, and change back. Someone may stop to chat along the way, so what
+		// they're wearing is checked as they start sleeping and as they start on what's next.
+		var whileAsleep = (IReadOnlyList<ClothingPiece>?) null;
+		var afterwards = (IReadOnlyList<ClothingPiece>?) null;
+		world.TaskStarted += (_, e) =>
+		{
+			if (e.Person == person && e.Task is BusyTask && person.Goal == sleep)
+				whileAsleep ??= [.. person.Clothing.Pieces];
+			else if (e.Person == person && e.Task is not TalkTask && person.Goal != sleep && whileAsleep is not null)
+				afterwards ??= [.. person.Clothing.Pieces];
+		};
+		person.SetPlan(sleep, [], startStep: 0, goalMinutes: 60);
+		world.AdvanceTime(calendar.CreateTimeOffset(0, 4, 0));
 
-		person.SetPlan(null, []);
-		ClothingRules.DressAfterSleep(person, world.Time);
-		Assert.That(person.Clothing.Pieces, Is.EquivalentTo(person.GetOutfits(OutfitKind.Everyday).First().Pieces));
-		Assert.That(person.Inventory.Items, Is.Empty);
+		Assert.That(whileAsleep, Is.EquivalentTo(person.GetOutfits(OutfitKind.Night).First().Pieces));
+		Assert.That(afterwards, Is.Not.Null);
+		Assert.That(afterwards, Is.EquivalentTo(person.GetOutfits(OutfitKind.Everyday).First(x => x.Pieces.All(afterwards!.Contains)).Pieces));
 	}
 
 	[Test]
@@ -40,19 +211,24 @@ public sealed class ClothingRulesTests
 	}
 
 	[Test]
-	public void WorkClothesAreFetchedFromHomeAndChangedIntoAndOutOf()
+	public void CarriedWorkClothesAreChangedIntoAndOutOf()
 	{
 		var world = CreateWorld(0);
-		var person = world.Npcs.First(x => x.Workplace != x.Home && x.GetOutfits(OutfitKind.Work).Any() && !x.IsAsleep);
+		var person = world.Npcs.First(x => x.Workplace != x.Home && x.GetOutfits(OutfitKind.Work).Any() && !x.IsAsleep &&
+			x.GetOutfits(OutfitKind.Everyday).Any(y => ClothingRules.IsWearing(x, y)) && ClothingRules.IsOutfitAtHome(x, OutfitKind.Work, world.Time));
 		var work = person.GetOutfits(OutfitKind.Work).Single();
 		var everyday = person.GetOutfits(OutfitKind.Everyday).First(x => ClothingRules.IsWearing(person, x));
 		person.Location = person.Home;
-		Assert.That(ClothingRules.GetWorkChange(person, person.Workplace, world.Time), Is.EqualTo((work, true)));
+		Assert.That(ClothingRules.IsOutfitAtHome(person, OutfitKind.Work, world.Time), Is.True);
 
-		ClothingRules.Fetch(person, work, world.Time);
-		Assert.That(person.Inventory.Items, Is.EquivalentTo(work.Pieces));
+		foreach (var piece in work.Pieces)
+		{
+			person.Home.Items.Remove(piece);
+			person.Inventory.Add(piece);
+		}
+
 		person.Location = person.Workplace;
-		Assert.That(ClothingRules.GetWorkChange(person, person.Workplace, world.Time), Is.EqualTo((work, false)));
+		Assert.That(ClothingRules.FindAtHand(person, OutfitKind.Work, world.Time), Is.EqualTo(work));
 
 		ClothingRules.Change(person, work, isTakingOff: false, world.Time);
 		var replaced = everyday.Pieces.Where(x => work.Pieces.Any(y => y.Clothing.Overlaps(x.Clothing))).ToList();
@@ -70,19 +246,103 @@ public sealed class ClothingRulesTests
 	}
 
 	[Test]
-	public void WorkClothesInTheWashArentWorn()
+	public void UndressingPutsBackWhatTheOutfitReplaced()
 	{
 		var world = CreateWorld(0);
-		var person = world.Npcs.First(x => x.Workplace != x.Home && x.GetOutfits(OutfitKind.Work).Any(y => y.Pieces.Any(z => !z.Clothing.Accessory)) && !x.IsAsleep);
+		var person = world.Npcs.First(x => !x.IsAsleep && x.GetOutfits(OutfitKind.Night).Any() && x.GetOutfits(OutfitKind.Everyday).Count() > 1);
 		person.Location = person.Home;
 
-		ClothingRules.TakeWashing(person.Home);
-		Assert.That(ClothingRules.GetWorkChange(person, person.Workplace, world.Time), Is.Null);
+		// They're in the everyday outfit that changing back would otherwise not choose.
+		var fallback = person.GetOutfits(OutfitKind.Everyday).MaxBy(x => x.Pieces.Count(y => ClothingRules.IsAtHand(person, y, world.Time)));
+		var everyday = person.GetOutfits(OutfitKind.Everyday).First(x => x != fallback);
+		ClothingRules.Change(person, everyday, isTakingOff: false, world.Time);
+		var before = person.Clothing.Pieces.ToList();
 
-		var dryAt = world.GameData.Calendar.AddMinutes(world.Time, 60);
-		ClothingRules.HangOutWashing(person.Home, dryAt);
-		Assert.That(ClothingRules.GetWorkChange(person, person.Workplace, world.Time), Is.Null);
-		Assert.That(ClothingRules.GetWorkChange(person, person.Workplace, dryAt), Is.Not.Null);
+		var night = person.GetOutfits(OutfitKind.Night).First();
+		ClothingRules.Change(person, night, isTakingOff: false, world.Time);
+		Assert.That(person.ReplacedClothes[night], Is.EquivalentTo(before.Except(night.Pieces)));
+
+		ClothingRules.Change(person, night, isTakingOff: true, world.Time);
+		Assert.That(person.Clothing.Pieces, Is.EquivalentTo(before));
+		Assert.That(person.ReplacedClothes.ContainsKey(night), Is.False);
+	}
+
+	[Test]
+	public void WorkClothesTakenToBeWashedArentWorn()
+	{
+		var world = CreateWorld(0);
+		var person = world.Npcs.First(x => x.Workplace != x.Home && x.Family.Members.Count > 1 && x.GetOutfits(OutfitKind.Work).Any(y => y.Pieces.Any(z => !z.Clothing.Accessory)) && !x.IsAsleep);
+		var washer = person.Family.Members.First(x => x != person);
+		person.Location = person.Home;
+		washer.Location = washer.Home;
+		Assert.That(ClothingRules.IsOutfitAtHome(person, OutfitKind.Work, world.Time), Is.True);
+
+		var washing = ClothingRules.Take(washer, StepOwner.Household, outfit: null, accessories: false, world.Time);
+		Assert.That(washing, Is.Not.Empty);
+		Assert.That(washing.Select(x => x.Container), Is.All.SameAs(washer.Inventory));
+		Assert.That(ClothingRules.FindAtHand(person, OutfitKind.Work, world.Time), Is.Null);
+		Assert.That(ClothingRules.IsOutfitAtHome(person, OutfitKind.Work, world.Time), Is.False);
+
+		var readyAt = world.GameData.Calendar.AddMinutes(world.Time, 60);
+		ClothingRules.Put(washer, washing, readyAt);
+		Assert.That(washing.Select(x => x.Container), Is.All.SameAs(washer.Home.Items));
+		Assert.That(ClothingRules.IsOutfitAtHome(person, OutfitKind.Work, world.Time), Is.False);
+		Assert.That(ClothingRules.IsOutfitAtHome(person, OutfitKind.Work, readyAt), Is.True);
+	}
+
+	[Test]
+	public void BundledClothesArentPutAwayOnTheWayHome()
+	{
+		var world = CreateWorld(0);
+		var person = world.Npcs.First(x => !x.IsAsleep && x.Home.Items.Clothing.Any(y => y.Owner == x && !y.Clothing.Accessory));
+		person.Location = person.Home;
+		var washing = ClothingRules.Take(person, StepOwner.Self, outfit: null, accessories: false, world.Time);
+		var bundle = world.CreateBundle(person, "Washing", washing);
+
+		world.MovePerson(person, person.Home.Quarter!, world.Time);
+		world.MovePerson(person, person.Home, world.Time);
+		Assert.That(washing.Select(x => x.Container), Is.All.SameAs(person.Inventory));
+
+		// Once the bundle is gone, they're put away like anything else carried home.
+		world.Unpack(bundle);
+		world.MovePerson(person, person.Home.Quarter!, world.Time);
+		world.MovePerson(person, person.Home, world.Time);
+		Assert.That(washing.Select(x => x.Container), Is.All.SameAs(person.Home.Items));
+	}
+
+	[Test]
+	public void LaundryTakesTheHouseholdsWashingAndHangsItOutAtHome()
+	{
+		var world = CreateWorld(0);
+		world.IsHeadless = true;
+		var calendar = world.GameData.Calendar;
+		var laundry = world.GameData.Schedules.Needs.Single(x => x.Id == "need_laundry");
+
+		// Wash day, when the laundry can be carried on with after a chat.
+		while (calendar.GetDayOfWeek(world.Time).Id != "day_threeday" || calendar.GetParts(world.Time).Hour < 8)
+			world.AdvanceTime(calendar.CreateTimeOffset(0, 1, 0));
+		var person = world.Npcs.First(x => !x.IsAsleep && x.CurrentTask is not TalkTask && x.Family.Members.All(y => y.Goal != laundry && y.GetProgress(laundry) == 0) &&
+			x.Home.Items.Clothing.Any(y => !y.Clothing.Accessory && y.IsReady(world.Time)));
+		var washing = person.Home.Items.Clothing.Where(x => !x.Clothing.Accessory && x.IsReady(world.Time)).ToList();
+
+		// The washing is carried to be washed, and hung out to dry once it's back home.
+		var whileWashing = (IReadOnlyList<Item>?) null;
+		var afterwards = (IReadOnlyList<ItemContainer?>?) null;
+		world.TaskStarted += (_, e) =>
+		{
+			if (e.Person == person && e.Task is BusyTask && person.Goal == laundry)
+				whileWashing ??= [.. person.Current?.Bundles.GetValueOrDefault("washing")?.Items ?? []];
+			else if (e.Person == person && e.Task is not TalkTask && person.Goal != laundry && whileWashing is not null)
+				afterwards ??= [.. washing.Select(x => x.Container)];
+		};
+		person.SetPlan(laundry, [], startStep: 0);
+		world.AdvanceTime(calendar.CreateTimeOffset(0, 8, 0));
+
+		Assert.That(whileWashing, Is.EquivalentTo(washing));
+		Assert.That(afterwards, Is.Not.Null);
+		Assert.That(afterwards, Is.All.SameAs(person.Home.Items));
+		Assert.That(person.GetProgress(laundry), Is.EqualTo(1));
+		Assert.That(washing.Select(x => x.ReadyAt), Is.All.Not.Null);
 	}
 
 	[Test]
@@ -104,22 +364,136 @@ public sealed class ClothingRulesTests
 	}
 
 	[Test]
-	public void ThePlayerChangesForWorkToo()
+	public void ClothesTakenOffAreCarriedUntilTheStepsThatNeedThemAreDone()
+	{
+		var world = CreateWorld(0);
+		var sleep = world.GameData.Schedules.Needs.Single(x => x.Id == world.GameData.Schedules.SleepNeed);
+		var person = world.People.First(x => !x.IsPlayer && !x.IsAsleep && x.GetOutfits(OutfitKind.Night).Any(y => y.IsComplete) && x.GetOutfits(OutfitKind.Everyday).Any(y => ClothingRules.IsDressedIn(x, y)));
+		var night = person.GetOutfits(OutfitKind.Night).First(x => x.IsComplete);
+		person.Location = person.Home;
+		foreach (var piece in night.Pieces.Where(x => x.Container is not null && x.Wearer is null))
+		{
+			piece.Container!.Remove(piece);
+			person.Home.Items.Add(piece);
+		}
+
+		// Changing at home leaves what came off carried, and putting things away keeps it while a later step needs it.
+		var dayClothes = person.Clothing.Pieces.Where(x => !night.Pieces.Contains(x)).ToList();
+		Assert.That(dayClothes, Is.Not.Empty);
+		ClothingRules.Change(person, night, isTakingOff: false, world.Time);
+		Assert.That(dayClothes.Select(x => x.Container), Is.All.SameAs(person.Inventory));
+		var sequence = new StepSequence(sleep, sleep.Steps.ToList().FindIndex(x => x.Kind == StepKind.Do));
+		person.AddSequence(sequence);
+		Assert.That(ClothingRules.GetNeededClothes(person, sequence), Is.EquivalentTo(dayClothes));
+		ClothingRules.PutAway(person);
+		Assert.That(dayClothes.Select(x => x.Container), Is.All.SameAs(person.Inventory));
+
+		// Once they're put away, they're only at hand at home.
+		foreach (var piece in dayClothes)
+		{
+			person.Inventory.Remove(piece);
+			person.Home.Items.Add(piece);
+		}
+		Assert.That(ClothingRules.IsMissingNeededClothes(person, sequence, world.Time), Is.False);
+		person.Location = world.Locations.First(x => x != person.Home);
+		Assert.That(ClothingRules.IsMissingNeededClothes(person, sequence, world.Time), Is.True);
+	}
+
+	[Test]
+	public void StartingWorkAtHomeTakesTheWorkClothesAlong()
 	{
 		var world = CreateWorld(0);
 		var player = world.Player;
 		var work = player.GetOutfits(OutfitKind.Work).FirstOrDefault();
-		var need = world.GameData.Schedules.Needs.FirstOrDefault(x => x.AtWork && Scheduler.HasNeed(player, x));
-		Assume.That(work is not null && need is not null && player.Workplace != player.Home && world.IsPlayerActionOpen(need) && world.GetPlayerRemainingMinutes(need) > 60,
+		var choice = world.GetPlayerStartChoices().FirstOrDefault(x => x.Need.IsWork);
+		Assume.That(work is not null && choice is { CanStart: true } && player.Workplace != player.Home, "The player has no work clothes, works at home, or can't start work now.");
+
+		// At home, taking the work clothes along is next, which the player does themselves.
+		player.Location = player.Home;
+		world.StartPlayerSteps(choice!.Need, isAutomatic: false);
+		var sequence = player.Current!;
+		Assert.That(player.Inventory.Items, Is.Empty);
+		Assert.That(sequence.CurrentStep?.Kind, Is.EqualTo(StepKind.Take));
+		foreach (var piece in work!.Pieces.Where(world.CanPlayerTake))
+			world.PlayerTake(piece);
+		Assert.That(world.GetPlayerSteps(sequence)[0].Place, Is.EqualTo(player.Workplace));
+
+		// Getting there, changing into them is next, which they do themselves too, and then work.
+		world.MovePlayer(player.Workplace);
+		Assert.That(sequence.CurrentStep?.Kind, Is.EqualTo(StepKind.Dress));
+		world.PlayerChangeInto(work);
+		world.UpdatePlayerSteps();
+		Assert.That(sequence.CurrentStep?.Player?.Title, Is.EqualTo("Work"));
+
+		// Once they've worked and said they're done, changing out of the work clothes is the last thing to do. They're only
+		// asked whether to keep going if there's time left for more.
+		sequence.MinutesLeft = 600;
+		world.DoPlayerStep(sequence);
+		world.AnswerKeepGoing(sequence, keepGoing: false);
+		Assert.That(world.GetPlayerSteps(sequence).Select(x => x.Step.Kind), Is.EqualTo(new[] { StepKind.Undress }));
+		world.PlayerTakeOff(work.Pieces.First(x => x.Wearer == player));
+		world.UpdatePlayerSteps();
+		Assert.That(player.Sequences, Is.Empty);
+	}
+
+	[Test]
+	public void ThePlayerChangesForWorkThemselves()
+	{
+		var world = CreateWorld(0);
+		var player = world.Player;
+		var work = player.GetOutfits(OutfitKind.Work).FirstOrDefault();
+		var need = world.GameData.Schedules.Needs.FirstOrDefault(x => x.IsWork && Scheduler.HasNeed(player, x));
+		Assume.That(work is not null && need is not null && player.Workplace != player.Home && world.GetPlayerRemainingMinutes(need) > 60,
 			"The player has no work clothes, works at home, or has no work to do today.");
 
+		// Leaving home doesn't take the work clothes along. The player has to bring them.
 		player.Location = player.Home;
 		world.MovePlayer(player.Workplace);
-		Assert.That(player.Inventory.Items, Is.SupersetOf(work!.Pieces));
+		Assert.That(player.Inventory.Items, Is.Empty);
+		world.MovePlayer(player.Home);
+		foreach (var piece in work!.Pieces)
+			world.PlayerTake(piece);
+		world.MovePlayer(player.Workplace);
+		Assert.That(player.Inventory.Items, Is.SupersetOf(work.Pieces));
 
-		var passed = world.DoPlayerAction(need!, 60);
-		Assert.That(world.GameData.Calendar.GetTotalMinutes(passed), Is.EqualTo(60));
-		Assert.That(ClothingRules.IsWearing(player, work), Is.True);
+		// Starting work, changing into the work clothes is next, which the player does themselves.
+		world.StartPlayerSteps(need!, isAutomatic: false);
+		Assert.That(player.Current?.CurrentStep?.Kind, Is.EqualTo(StepKind.Dress));
+		Assert.That(ClothingRules.IsWearing(player, work), Is.False);
+		Assert.That(world.CanPlayerChangeInto(work), Is.True);
+	}
+
+	[Test]
+	public void NightClothesStayOnWhenThePlayersSleepIsInterrupted()
+	{
+		var world = CreateWorld(0);
+		var player = world.Player;
+		bool IsSleepingInNightClothes() => player.IsAsleep && ClothingRules.IsWearingAny(player, OutfitKind.Night);
+		world.IsHeadless = true;
+		world.AdvanceTime(world.GameData.Calendar.CreateTimeOffset(2, 0, 0), IsSleepingInNightClothes);
+		Assume.That(IsSleepingInNightClothes(), Is.True, "The player never slept in night clothes.");
+
+		// Taking over from the game stops the player's sleep, leaving its steps to them, and they're still in their night clothes.
+		world.IsHeadless = false;
+		Assert.That((player.Tasks.Count, player.IsAsleep, ClothingRules.IsWearingAny(player, OutfitKind.Night)), Is.EqualTo((0, false, true)));
+	}
+
+	[Test]
+	public void NightClothesComeOffOnlyWhenChoosingSomethingOtherThanSleep()
+	{
+		var world = CreateWorld(0);
+		var schedules = world.GameData.Schedules;
+		var sleep = schedules.Needs.Single(x => x.Id == schedules.SleepNeed);
+		world.AdvanceTime(world.GameData.Calendar.CreateTimeOffset(2, 0, 0), () => world.Npcs.Any(x => x.IsAsleep && ClothingRules.IsWearingAny(x, OutfitKind.Night)));
+		var sleeper = world.Npcs.FirstOrDefault(x => x.IsAsleep && ClothingRules.IsWearingAny(x, OutfitKind.Night));
+		Assume.That(sleeper, Is.Not.Null, "No one slept in night clothes.");
+
+		// Rested, they choose something else, and changing out of their night clothes is the first thing they do.
+		sleeper!.SetLevel(sleep, 0);
+		world.CancelGoal(sleeper);
+		Assert.That(sleeper.Goal, Is.Not.EqualTo(sleep));
+		Assert.That(ClothingRules.IsWearingAny(sleeper, OutfitKind.Night), Is.True);
+		Assert.That(sleeper.CurrentTask, Is.EqualTo(new ChangeClothesTask(sleeper.GetOutfits(OutfitKind.Night).First(x => ClothingRules.IsWearing(sleeper, x)), IsTakingOff: true)));
 	}
 
 	[Test]
@@ -174,7 +548,7 @@ public sealed class ClothingRulesTests
 		Assert.That(piece.Container, Is.SameAs(player.Home.Items));
 
 		// Changing takes its time once, when the player is done, however many things they tried.
-		Assert.That(world.FinishPlayerChanging(wornBefore) is { } passed ? calendar.GetTotalMinutes(passed) : 0, Is.EqualTo(changeMinutes));
+		Assert.That(world.FinishPlayerChanging(wornBefore) is { } passed ? calendar.GetTotalMinutes(passed) : 0, Is.EqualTo(changeMinutes.Minutes));
 		Assert.That(world.FinishPlayerChanging(player.Clothing.Pieces.ToList()), Is.Null);
 
 		Assert.That(world.CanPlayerTake(piece), Is.True);
@@ -184,8 +558,8 @@ public sealed class ClothingRulesTests
 		world.PlayerPutAway(piece);
 		Assert.That(piece.Container, Is.SameAs(player.Home.Items));
 
-		// Clothes in the wash can't be worn or taken.
-		ClothingRules.TakeWashing(player.Home);
+		// Clothes still drying can't be worn or taken.
+		piece.ReadyAt = calendar.AddMinutes(world.Time, 60);
 		Assert.That(world.CanPlayerWear(piece), Is.False);
 		Assert.That(world.CanPlayerTake(piece), Is.False);
 	}
@@ -214,10 +588,12 @@ public sealed class ClothingRulesTests
 			Assert.That(pieces.Where(x => x.Clothing.Accessory).GroupBy(x => x.Clothing).Select(x => x.Distinct().Count()), Is.All.EqualTo(1), person.FullName);
 		}
 
-		var home = world.Player.Home;
-		ClothingRules.TakeWashing(home);
-		Assert.That(home.Items.Clothing.Where(x => x.Clothing.Accessory), Is.Not.Empty);
-		Assert.That(home.Items.Clothing.Select(x => x.IsInWash == !x.Clothing.Accessory), Is.All.True);
+		var player = world.Player;
+		world.MovePlayer(player.Home);
+		var washing = ClothingRules.Take(player, StepOwner.Household, outfit: null, accessories: false, world.Time);
+		Assert.That(player.Home.Items.Clothing.Where(x => x.Clothing.Accessory), Is.Not.Empty);
+		Assert.That(player.Home.Items.Clothing.Select(x => x.Clothing.Accessory), Is.All.True);
+		Assert.That(washing.Select(x => x.Clothing.Accessory), Is.All.False);
 	}
 
 	[Test]
@@ -275,9 +651,12 @@ public sealed class ClothingRulesTests
 		Assert.That(world.GetPlayerUncoveredSlots().Select(x => x.Id), Does.Contain("hips"));
 		Assert.That(world.GetPlayerUncoveredSlotsOutside().Select(x => x.Id), Is.EquivalentTo(new[] { "torso", "hips" }));
 
-		// Going to sleep puts on night clothes, which are fine at home.
+		// Going to sleep doesn't put on night clothes, so the player has to, but they're fine at home.
 		var sleep = world.GameData.Schedules.Needs.Single(x => x.Id == world.GameData.Schedules.SleepNeed);
-		Assert.That(world.GetPlayerActionUncoveredSlots(sleep), Is.Empty);
+		var sleeping = sleep.Steps.First(x => x.Kind == StepKind.Do);
+		Assert.That(world.GetPlayerStepUncoveredSlots(sleeping), Is.Not.Empty);
+		world.PlayerChangeInto(player.GetOutfits(OutfitKind.Night).First());
+		Assert.That(world.GetPlayerStepUncoveredSlots(sleeping), Is.Empty);
 	}
 
 	[Test]
@@ -314,10 +693,11 @@ public sealed class ClothingRulesTests
 	[Test]
 	public void CompleteWorkClothesOfWornAccessoriesAreStillChangedInto()
 	{
-		var world = CreateWorld(0);
-		var person = world.Npcs.First(x => !x.IsAsleep && !x.GetOutfits(OutfitKind.Work).Any() &&
-			x.GetOutfits(OutfitKind.Everyday).Any(y => ClothingRules.IsWearing(x, y) && y.Pieces.Any(z => z.Clothing.Accessory) && y.Pieces.Any(z => !z.Clothing.Accessory)));
-		var everyday = person.GetOutfits(OutfitKind.Everyday).First(x => ClothingRules.IsWearing(person, x));
+		var (world, person) = Enumerable.Range(0, 10).Select(CreateWorld)
+			.Select(x => (World: x, Person: x.Npcs.FirstOrDefault(y => !y.IsAsleep && !y.GetOutfits(OutfitKind.Work).Any() &&
+				y.GetOutfits(OutfitKind.Everyday).Any(z => ClothingRules.IsWearing(y, z) && z.Pieces.Any(piece => piece.Clothing.Accessory) && z.Pieces.Any(piece => !piece.Clothing.Accessory)))))
+			.First(x => x.Person is not null);
+		var everyday = person!.GetOutfits(OutfitKind.Everyday).First(x => ClothingRules.IsWearing(person, x));
 		var accessories = everyday.Pieces.Where(x => x.Clothing.Accessory).ToList();
 		var template = new Outfit { Id = "accessoriesOnly", Kind = OutfitKind.Work, Complete = true, Clothing = [.. accessories.Select(x => x.Clothing.Id)] };
 		var work = world.Objects.Create(id => new OwnedOutfit(id, person, OutfitKind.Work, template, accessories));
@@ -327,7 +707,7 @@ public sealed class ClothingRulesTests
 		// The accessories are already worn with the everyday clothes, but the rest of those still has to come off.
 		Assert.That(ClothingRules.IsWearing(person, work), Is.True);
 		Assert.That(ClothingRules.IsDressedIn(person, work), Is.False);
-		Assert.That(ClothingRules.GetWorkChange(person, person.Workplace, world.Time)?.Outfit, Is.EqualTo(work));
+		Assert.That(ClothingRules.FindAtHand(person, OutfitKind.Work, world.Time), Is.EqualTo(work));
 
 		ClothingRules.Change(person, work, isTakingOff: false, world.Time);
 		Assert.That(person.Clothing.Pieces, Is.EquivalentTo(accessories));

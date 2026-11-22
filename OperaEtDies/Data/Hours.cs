@@ -15,11 +15,13 @@ public sealed class Hours
 	/// <summary>
 	/// The ids of the days of the week it happens on, or null for every day.
 	/// </summary>
+	[AllowedFor(nameof(Need.Quota), OnParent = true)]
 	public IReadOnlyList<string>? Days { get; init; }
 
 	/// <summary>
 	/// Whether it happens on special days.
 	/// </summary>
+	[AllowedFor(nameof(Need.Quota), OnParent = true)]
 	public bool OnSpecialDays { get; init; } = true;
 
 	/// <summary>
@@ -33,15 +35,18 @@ public sealed class Hours
 	public bool Contains(int hour) => Start < End ? hour >= Start && hour < End : hour >= Start || hour < End;
 
 	/// <summary>
-	/// Checks the hours. Hours that can only have a start and an end report the other settings as not allowed.
+	/// Checks the hours, for what they belong to (such as a need). Which owners allow the settings other than the start and
+	/// end is marked on the settings.
 	/// </summary>
-	internal IEnumerable<string> Validate(string path, bool allowDays)
+	internal IEnumerable<string> Validate(string path, object owner)
 	{
+		var allowDays = DataRules.IsAllowed(this, nameof(Days), owner);
+		var allowSpecialDays = DataRules.IsAllowed(this, nameof(OnSpecialDays), owner);
 		if (Start is < 0 or > 23 || End is < 1 or > 24 || Start == End)
 			yield return OurResources.HoursInvalid.FormatCurrentCulture(path, Start, End);
 		if (!allowDays && Days is not null)
 			yield return OurResources.HoursSettingNotAllowed.FormatCurrentCulture($"{path}.days");
-		if (!allowDays && !OnSpecialDays)
+		if (!allowSpecialDays && !OnSpecialDays)
 			yield return OurResources.HoursSettingNotAllowed.FormatCurrentCulture($"{path}.onSpecialDays");
 		if (Days is not null)
 		{

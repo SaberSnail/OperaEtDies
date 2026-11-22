@@ -1,4 +1,3 @@
-using System.IO;
 using GoldenAnvil.Utility;
 using OperaEtDies.Characters;
 using OperaEtDies.Data;
@@ -8,19 +7,6 @@ namespace OperaEtDies.Test.Data;
 [TestFixture]
 public sealed class CharacterDependenciesTests
 {
-	[SetUp]
-	public void SetUp()
-	{
-		m_directory = Path.Combine(Path.GetTempPath(), $"OperaEtDiesTest_{Guid.NewGuid():N}");
-		Directory.CreateDirectory(m_directory);
-	}
-
-	[TearDown]
-	public void TearDown()
-	{
-		Directory.Delete(m_directory, recursive: true);
-	}
-
 	[TestCase("short", true)]
 	[TestCase("long", false)]
 	[TestCase(null, false)]
@@ -254,6 +240,4 @@ public sealed class CharacterDependenciesTests
 		When = conditionId is null ? null : TestData.Condition(conditionId, "x"),
 		Defaults = keyedBy is null ? null : new StringDefaults { KeyedBy = keyedBy, ValuesByKey = new Dictionary<string, IReadOnlyList<WeightedString>>() },
 	};
-
-	private string m_directory = "";
 }

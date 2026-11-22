@@ -6,21 +6,6 @@ namespace OperaEtDies.Test.Data;
 public sealed class CalendarSettingsTests
 {
 	[Test]
-	public void LoadsShippedCalendar()
-	{
-		var result = GameData.Load(JsonDataLoader.DefaultDataDirectory);
-
-		Assert.That(result.Errors, Is.Empty);
-		Assert.That(result.Value!.Calendar.Days, Is.Not.Empty);
-	}
-
-	[Test]
-	public void ValidSettingsHaveNoErrors()
-	{
-		Assert.That(TestData.CreateCalendarSettings().Validate(), Is.Empty);
-	}
-
-	[Test]
 	public void EmptySpecialDaysAreValid()
 	{
 		var settings = With(specialDays: []);

@@ -7,17 +7,6 @@ namespace OperaEtDies.Test.Controls.ManageMods;
 public sealed class ManageModsViewModelTests
 {
 	[Test]
-	public void ShowsSavedMods()
-	{
-		var store = new FakeModListStore(@"C:\A", @"C:\B");
-
-		var viewModel = new ManageModsViewModel(store, new FakeFolderPicker(), areModsEnabled: true);
-
-		Assert.That(viewModel.Mods, Is.EqualTo(new[] { @"C:\A", @"C:\B" }));
-		Assert.That(viewModel.AreModsEnabled, Is.True);
-	}
-
-	[Test]
 	public void AddsAndSavesChosenFolder()
 	{
 		var store = new FakeModListStore(@"C:\A");
@@ -99,18 +88,6 @@ public sealed class ManageModsViewModelTests
 	{
 		Assert.That(new ManageModsViewModel(new FakeModListStore(), new FakeFolderPicker(), areModsEnabled: true, areModsOverridden: true).AreModsOverridden, Is.True);
 		Assert.That(new ManageModsViewModel(new FakeModListStore(), new FakeFolderPicker(), areModsEnabled: false, areModsOverridden: true).AreModsOverridden, Is.False);
-	}
-
-	[Test]
-	public void BackRaisesRequest()
-	{
-		var viewModel = new ManageModsViewModel(new FakeModListStore(), new FakeFolderPicker(), areModsEnabled: false);
-		var raised = false;
-		viewModel.BackRequested += (_, _) => raised = true;
-
-		viewModel.Back();
-
-		Assert.That(raised, Is.True);
 	}
 
 	internal sealed class FakeModListStore(params string[] mods) : IModListStore

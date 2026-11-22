@@ -84,6 +84,13 @@ public abstract class FieldViewModel : ViewModelBase
 	/// </summary>
 	public string? DataPath => Place.DataPath;
 
+	/// <summary>
+	/// What the line beside the field's own fields (for an object, list, or map) says when hovered, since it can be taller
+	/// than the window: the path of the property they belong to, such as "needs[need_water].steps[1]", or its name if it has
+	/// no path.
+	/// </summary>
+	public string? IndentToolTip => DataPath ?? (HasLabel ? Label : null);
+
 	public bool CanCopyPath() => DataPath is not null && Place.IsCopyable;
 
 	/// <summary>
@@ -301,10 +308,11 @@ public sealed class TextFieldViewModel : FieldViewModel
 /// </summary>
 public sealed class NumberFieldViewModel : FieldViewModel
 {
-	public NumberFieldViewModel(FormViewModel form, string label, ValueSlot slot, bool isRequired, bool isInteger, FieldPlace? place = null)
+	public NumberFieldViewModel(FormViewModel form, string label, ValueSlot slot, bool isRequired, bool isInteger, FieldPlace? place = null, bool isDuration = false)
 		: base(form, label, slot, isRequired, place)
 	{
 		m_isInteger = isInteger;
+		m_isDuration = isDuration;
 		m_text = slot.Get() is JsonValue value ? value.ToJsonString().Trim('"') : "";
 	}
 
@@ -332,9 +340,14 @@ public sealed class NumberFieldViewModel : FieldViewModel
 				Error = null;
 				SetOrRemove(JsonValue.Create(number), isEmpty: false);
 			}
+			else if (m_isDuration && DurationConverter.Parse(text) is not null)
+			{
+				Error = null;
+				SetOrRemove(JsonValue.Create(text), isEmpty: false);
+			}
 			else
 			{
-				Error = m_isInteger ? "Not a whole number." : "Not a number.";
+				Error = m_isDuration ? "Not a whole number of minutes, or hours and minutes (\"1:30\")." : m_isInteger ? "Not a whole number." : "Not a number.";
 			}
 		}
 	}
@@ -346,6 +359,7 @@ public sealed class NumberFieldViewModel : FieldViewModel
 	}
 
 	private readonly bool m_isInteger;
+	private readonly bool m_isDuration;
 	private string m_text;
 	private string? m_error;
 }
@@ -398,6 +412,93 @@ public sealed class ChoiceFieldViewModel : FieldViewModel
 	}
 
 	private string m_selected;
+}
+
+/// <summary>
+/// A place, such as where a step goes: one of the named places (such as "home"), or a quarter or a remembered place,
+/// whose settings are fields below the choice.
+/// </summary>
+public sealed class PlaceFieldViewModel : FieldViewModel
+{
+	public PlaceFieldViewModel(FormViewModel form, string label, ValueSlot slot, bool isRequired, string? propertyId, FieldPlace? place = null)
+		: base(form, label, slot, isRequired, place)
+	{
+		m_propertyId = propertyId;
+		m_selected = slot.Get() switch
+		{
+			JsonValue value when value.GetValueKind() == JsonValueKind.String => value.GetValue<string>(),
+			JsonObject obj when ModJson.FindName(obj, "remembered") is not null => RememberedChoice,
+			JsonObject => QuarterChoice,
+			_ => "",
+		};
+		var all = isRequired ? Kinds : Kinds.Prepend("");
+		Choices = (m_selected.Length != 0 && !Kinds.Contains(m_selected) ? all.Append(m_selected) : all).ToList();
+		m_details = CreateDetails();
+	}
+
+	/// <summary>
+	/// The named places, then the kinds of place written as an object.
+	/// </summary>
+	public IReadOnlyList<string> Choices { get; }
+
+	public string Selected
+	{
+		get => VerifyAccess(m_selected);
+		set
+		{
+			if (!SetPropertyField(value ?? "", ref m_selected))
+				return;
+
+			// Choosing a kind of place written as an object starts it with the setting it needs.
+			if (m_selected == QuarterChoice)
+			{
+				Slot.Set(new JsonObject { ["quarterKinds"] = new JsonArray() });
+				Changed();
+			}
+			else if (m_selected == RememberedChoice)
+			{
+				Slot.Set(new JsonObject { ["remembered"] = "" });
+				Changed();
+			}
+			else
+			{
+				SetOrRemove(JsonValue.Create(m_selected), m_selected.Length == 0);
+			}
+
+			Details = CreateDetails();
+		}
+	}
+
+	/// <summary>
+	/// The settings of a quarter or remembered place, or null for a named place.
+	/// </summary>
+	public ObjectFieldViewModel? Details
+	{
+		get => VerifyAccess(m_details);
+		private set => SetPropertyField(value, ref m_details);
+	}
+
+	public override void Refresh() => m_details?.Refresh();
+
+	private ObjectFieldViewModel? CreateDetails() => Slot.Get() is JsonObject
+		? new ObjectFieldViewModel(Form, Label, new DataType(DataKind.Object, typeof(PlaceObject)), Slot, isRequired: true, isRoot: false, m_propertyId, Place)
+		: null;
+
+	/// <summary>
+	/// The choice for a quarter of some kinds.
+	/// </summary>
+	public const string QuarterChoice = "(quarter)";
+
+	/// <summary>
+	/// The choice for a place a "remember" step remembered.
+	/// </summary>
+	public const string RememberedChoice = "(remembered)";
+
+	private static IReadOnlyList<string> Kinds { get; } = ["home", "workplace", "otherHome", "partnerHome", "jobSite", QuarterChoice, RememberedChoice];
+
+	private readonly string? m_propertyId;
+	private string m_selected;
+	private ObjectFieldViewModel? m_details;
 }
 
 /// <summary>
@@ -458,7 +559,56 @@ public sealed class ObjectFieldViewModel : FieldViewModel
 		m_propertyId = propertyId;
 		IsRoot = isRoot;
 		Fields = [];
+		VisibleFields = [];
+		m_addableProperties = [];
 		BuildFields();
+	}
+
+	/// <summary>
+	/// The fields that are shown: those that are required (always, or by the object's other settings, such as a step's
+	/// kind), set, or added since the object was shown, and properties the game doesn't read there. With
+	/// <see cref="FormViewModel.ShowAllProperties"/>, every allowed property is shown. A property the object's other
+	/// settings don't allow is only shown while it's set, so it can be fixed.
+	/// </summary>
+	public ObservableCollection<FieldViewModel> VisibleFields { get; }
+
+	/// <summary>
+	/// The properties that aren't shown and can be added, in the order the class declares them.
+	/// </summary>
+	public IReadOnlyList<AddablePropertyViewModel> AddableProperties
+	{
+		get => VerifyAccess(m_addableProperties);
+		private set => SetPropertyField([nameof(AddableProperties), nameof(HasAddableProperties)], value, ref m_addableProperties);
+	}
+
+	public bool HasAddableProperties => AddableProperties.Count != 0;
+
+	/// <summary>
+	/// Adds the property chosen from the list of those that can be added. It's never anything for long, since the property
+	/// added leaves the list.
+	/// </summary>
+	public AddablePropertyViewModel? ChosenProperty
+	{
+		get
+		{
+			VerifyAccess();
+			return null;
+		}
+		set => value?.Add();
+	}
+
+	/// <summary>
+	/// Shows a property that isn't set, so it can be filled in. It stays shown while the object is, even if it's left
+	/// unset.
+	/// </summary>
+	public void AddProperty(string name)
+	{
+		VerifyAccess();
+		if (m_revealed.Add(name))
+		{
+			m_added.Add(name);
+			UpdateVisibleFields();
+		}
 	}
 
 	/// <summary>
@@ -584,6 +734,76 @@ public sealed class ObjectFieldViewModel : FieldViewModel
 	{
 		foreach (var field in Fields)
 			field.Refresh();
+		UpdateVisibleFields();
+	}
+
+	/// <summary>
+	/// Works out which fields are shown and which properties can be added, from what's set, what the object's other
+	/// settings allow and require, and what's been added. When only one property could be added, it's shown instead,
+	/// since it takes about as much room as the list would. Properties that were added (or are shown in place of the list)
+	/// come last, in the order they were added, where the list is, so they don't appear somewhere else in the object.
+	/// </summary>
+	private void UpdateVisibleFields()
+	{
+		var obj = Slot.Get() as JsonObject;
+
+		// The object that holds this one, for rules on it. A form's main object could be part of anything, so rules on its
+		// parent are taken as met for what it allows, and not met for what it requires.
+		var parent = IsRoot ? null : Slot.ParentObject;
+		bool IsMet(DataRule rule, bool isUnknownMet)
+		{
+			var target = rule.IsOnParent ? parent : obj;
+			if (rule.IsOnParent && parent is null)
+				return isUnknownMet;
+			var found = target is not null ? ModJson.FindName(target, rule.Property) : null;
+			var text = found is not null && target![found] is JsonValue value && value.TryGetValue<string>(out var valueText) ? valueText : null;
+			return rule.IsMetBy(found is not null && target![found] is not null, text);
+		}
+
+		var shown = new List<(FieldViewModel Field, bool IsShown, AddablePropertyViewModel? Addable)>();
+		foreach (var (info, field) in m_fieldInfos)
+		{
+			AddablePropertyViewModel? canAdd = null;
+			var isShown = info is null;
+			if (info is not null)
+			{
+				var isSet = obj is not null && ModJson.FindName(obj, info.Name) is not null;
+				var isAllowed = info.AllowedFor is not { } allowed || IsMet(allowed, isUnknownMet: true);
+				var isRequired = info.IsRequired || (info.RequiredFor is { } required && IsMet(required, isUnknownMet: false));
+
+				// Once a field is shown, it stays shown while it's allowed, even if it's emptied.
+				isShown = isSet || (isAllowed && (isRequired || Form.ShowAllProperties || m_revealed.Contains(info.Name)));
+				if (isShown && isAllowed)
+					m_revealed.Add(info.Name);
+				if (!isShown && isAllowed && IsEditable && obj is not null)
+				{
+					var name = info.Name;
+					canAdd = new AddablePropertyViewModel(name, HelpLibrary.GetRowText(HelpTopics.ForProperty(m_type.ClrType, name)), () => AddProperty(name));
+				}
+			}
+
+			shown.Add((field, isShown, canAdd));
+		}
+
+		var addable = shown.Select(x => x.Addable).OfType<AddablePropertyViewModel>().ToList();
+		var isLone = addable.Count == 1;
+		var lone = isLone ? shown.First(x => x.Addable is not null).Field : null;
+		var added = m_added.Select(name => shown.FirstOrDefault(x => x.IsShown && x.Field.Label == name).Field).OfType<FieldViewModel>().ToList();
+		var visible = shown.Where(x => x.IsShown && !added.Contains(x.Field)).Select(x => x.Field).Concat(added).ToList();
+		if (lone is not null)
+			visible.Add(lone);
+		if (isLone)
+			addable = [];
+
+		if (!visible.SequenceEqual(VisibleFields))
+		{
+			VisibleFields.Clear();
+			foreach (var field in visible)
+				VisibleFields.Add(field);
+		}
+
+		if (!addable.Select(x => x.Name).SequenceEqual(m_addableProperties.Select(x => x.Name)))
+			AddableProperties = addable;
 	}
 
 	/// <summary>
@@ -609,25 +829,53 @@ public sealed class ObjectFieldViewModel : FieldViewModel
 	private void BuildFields()
 	{
 		Fields.Clear();
+		m_fieldInfos.Clear();
 		if (Slot.Get() is JsonObject obj)
 		{
-			foreach (var field in m_type.Fields)
-				Fields.Add(FieldFactory.Create(Form, field.Name, field.Type, new PropertySlot(obj, field.Name), field.IsRequired, DataReferences.Find(field), m_propertyId, place: Place.Property(field.Name) with { Help = HelpTopics.ForProperty(m_type.ClrType, field.Name) }));
+			foreach (var info in m_type.Fields)
+			{
+				var field = FieldFactory.Create(Form, info.Name, info.Type, new PropertySlot(obj, info.Name), info.IsRequired, DataReferences.Find(info), m_propertyId, place: Place.Property(info.Name) with { Help = HelpTopics.ForProperty(m_type.ClrType, info.Name) });
+				Fields.Add(field);
+				m_fieldInfos.Add((info, field));
+			}
 
 			var known = m_type.Fields.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 			if (GetCommentsName() is { } commentsName)
 				known.Add(commentsName);
 			foreach (var name in obj.Select(x => x.Key).Where(x => !known.Contains(x)).ToList())
-				Fields.Add(new JsonFieldViewModel(Form, name, new PropertySlot(obj, name), isRequired: false, isUnknown: true, Place.Property(name) with { Help = null }));
+			{
+				var field = new JsonFieldViewModel(Form, name, new PropertySlot(obj, name), isRequired: false, isUnknown: true, Place.Property(name) with { Help = null });
+				Fields.Add(field);
+				m_fieldInfos.Add((null, field));
+			}
 		}
 
+		UpdateVisibleFields();
 		RaisePropertyChanged(nameof(IsPresent), nameof(IsInvalid));
 		RaiseCommentsChanged();
 	}
 
 	private readonly DataType m_type;
 	private readonly string? m_propertyId;
+	private readonly Collection<(DataField? Info, FieldViewModel Field)> m_fieldInfos = [];
+	private readonly HashSet<string> m_revealed = new(StringComparer.OrdinalIgnoreCase);
+	private readonly Collection<string> m_added = [];
+	private IReadOnlyList<AddablePropertyViewModel> m_addableProperties;
 	private bool m_isMain;
+}
+
+/// <summary>
+/// A property that can be added to an object in the form, with what the help says about it.
+/// </summary>
+public sealed class AddablePropertyViewModel(string name, string? toolTip, Action add)
+{
+	public string Name { get; } = name;
+
+	public string? ToolTip { get; } = toolTip;
+
+	public void Add() => add();
+
+	public override string ToString() => Name;
 }
 
 /// <summary>
@@ -663,6 +911,18 @@ public sealed class ListFieldViewModel : FieldViewModel
 		if (Slot.Get() is not JsonArray list)
 			Slot.Set(list = []);
 		list.Add(FieldFactory.CreateDefault(m_element));
+		BuildItems();
+		Changed();
+	}
+
+	/// <summary>
+	/// Adds a new item right after an item, so it can be added without going back to the top of the list.
+	/// </summary>
+	public void AddItemAfter(ListItemViewModel item)
+	{
+		if (!IsEditable || Slot.Get() is not JsonArray list || item.Index >= list.Count)
+			return;
+		list.Insert(item.Index + 1, FieldFactory.CreateDefault(m_element));
 		BuildItems();
 		Changed();
 	}
@@ -735,6 +995,10 @@ public sealed class ListItemViewModel(ListFieldViewModel list, int index, FieldV
 	public bool IsEditable => Field.IsEditable;
 
 	public void Remove() => list.RemoveItem(this);
+
+	public bool CanAddAfter() => IsEditable;
+
+	public void AddAfter() => list.AddItemAfter(this);
 
 	public bool CanMoveUp() => list.CanMoveItem(this, -1);
 
@@ -919,13 +1183,17 @@ public static class FieldFactory
 			getPropertyId = () => propertyId;
 		var resolve = getPropertyId ?? (() => propertyId);
 
+		// Places are named or written as an object, which the game reads with a converter of its own.
+		if (type.ClrType == typeof(SchedulePlace))
+			return new PlaceFieldViewModel(form, label, slot, isRequired, propertyId, place);
+
 		return type.Kind switch
 		{
 			DataKind.Text => new TextFieldViewModel(form, label, slot, isRequired,
 				source is ColorIds ? () => form.Catalog.GetColorIds(slot.ParentObject, form.Section, form.ItemId) : source is not null ? () => form.Catalog.GetIds(source, resolve()) : DataReferences.GetTextChoices(type.ClrType) is { } choices ? () => choices : null,
 				isColor: source is ColorIds,
 				isMultiline: slot.ParentObject is not null && IsLongText(slot, label), place),
-			DataKind.Integer => new NumberFieldViewModel(form, label, slot, isRequired, isInteger: true, place),
+			DataKind.Integer => new NumberFieldViewModel(form, label, slot, isRequired, isInteger: true, place, isDuration: type.ClrType == typeof(Duration)),
 			DataKind.Number => new NumberFieldViewModel(form, label, slot, isRequired, isInteger: false, place),
 			DataKind.Boolean => new BooleanFieldViewModel(form, label, slot, isRequired, place),
 			DataKind.Choice => new ChoiceFieldViewModel(form, label, slot, isRequired, type.Choices!, place),

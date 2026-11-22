@@ -6,7 +6,7 @@ namespace OperaEtDies.Data;
 /// <see cref="Hidden"/> has no visible value. A property with no value meets neither <see cref="Values"/> nor
 /// <see cref="NotValues"/>.
 /// </summary>
-public sealed class CharacterCondition
+public class CharacterCondition
 {
 	/// <summary>
 	/// The value ids allowed for each listed value list property.

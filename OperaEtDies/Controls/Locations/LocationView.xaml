@@ -200,57 +200,120 @@
 						Text="{Binding WaitResult}" />
 				</StackPanel>
 
-				<!--  What the player can spend time on here, each with its choices of how long, which show how long they take.  -->
-				<StackPanel Visibility="{Binding HasActions, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
-					<TextBlock Margin="0,24,0,8" Text="{x:Static operaEtDies:OurResources.ActionsHeader}" />
-					<ItemsControl ItemsSource="{Binding Actions}">
+				<!--  What the player is in the middle of: the step they're on, and buttons to have it or all of it done for them,
+					to stop, to show the steps after it (listed below the buttons, so the buttons don't move), and at the end of
+					the row, so they don't move the others, the step's own button or the options to choose from. Anything else
+					they're in the middle of is listed last, to switch to.  -->
+				<StackPanel DataContext="{Binding Steps}" Visibility="{Binding Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
+					<TextBlock Margin="0,24,0,8" Text="{Binding Title}" />
+					<TextBlock
+						FontWeight="Bold"
+						Text="{Binding Next}"
+						TextWrapping="Wrap"
+						Visibility="{Binding Next, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+					<StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+						<Button
+							Width="160"
+							Height="32"
+							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=DoStep}"
+							Content="{x:Static operaEtDies:OurResources.PlayerStepsAutomatic}"
+							ToolTip="{x:Static operaEtDies:OurResources.PlayerStepsAutomaticToolTip}" />
+						<Button
+							Width="160"
+							Height="32"
+							Margin="8,0,0,0"
+							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=DoAll}"
+							Content="{x:Static operaEtDies:OurResources.PlayerStepsDoAll}"
+							ToolTip="{x:Static operaEtDies:OurResources.PlayerStepsDoAllToolTip}" />
+						<Button
+							Width="120"
+							Height="32"
+							Margin="8,0,0,0"
+							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Stop}"
+							Content="{x:Static operaEtDies:OurResources.PlayerStepsStop}"
+							ToolTip="{x:Static operaEtDies:OurResources.PlayerStepsStopToolTip}" />
+						<Button
+							Width="160"
+							Height="32"
+							Margin="8,0,0,0"
+							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleExpanded}"
+							Content="{Binding ExpandText}" />
+						<Button
+							MinWidth="160"
+							Height="32"
+							Margin="8,0,0,0"
+							Padding="8,0"
+							Command="{Binding Action, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Do}"
+							Content="{Binding Action.Text}"
+							Visibility="{Binding Action, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+						<TextBlock
+							Margin="12,0,0,0"
+							VerticalAlignment="Center"
+							Foreground="{DynamicResource FontLightBrush}"
+							Text="{Binding Action.Note}" />
+						<ItemsControl ItemsSource="{Binding Choices}">
+							<ItemsControl.ItemsPanel>
+								<ItemsPanelTemplate>
+									<StackPanel Orientation="Horizontal" />
+								</ItemsPanelTemplate>
+							</ItemsControl.ItemsPanel>
+							<ItemsControl.ItemTemplate>
+								<DataTemplate DataType="{x:Type local:PlayerStepActionViewModel}">
+									<Button
+										MinWidth="120"
+										Height="32"
+										Margin="8,0,0,0"
+										Padding="8,0"
+										Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Do}"
+										Content="{Binding Text}" />
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+					</StackPanel>
+					<ItemsControl
+						Margin="0,8,0,0"
+						ItemsSource="{Binding Steps}"
+						Visibility="{Binding IsExpanded, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 						<ItemsControl.ItemTemplate>
-							<DataTemplate DataType="{x:Type local:PlayerActionViewModel}">
-								<Grid Margin="0,0,0,8">
-									<Grid.ColumnDefinitions>
-										<ColumnDefinition Width="160" />
-										<ColumnDefinition Width="*" />
-									</Grid.ColumnDefinitions>
-									<TextBlock
-										Grid.Column="0"
-										Margin="0,8,0,0"
-										VerticalAlignment="Top"
-										Text="{Binding Title}"
-										TextTrimming="CharacterEllipsis" />
-									<!--  While the action is closed, when it's open is shown in place of its options.  -->
-									<TextBlock
-										Grid.Column="1"
-										Margin="12,8,0,8"
-										VerticalAlignment="Top"
-										Foreground="{DynamicResource FontLightBrush}"
-										Text="{Binding OpeningHours}"
-										TextWrapping="Wrap"
-										Visibility="{Binding OpeningHours, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
-									<ItemsControl
-										Grid.Column="1"
-										Margin="12,0,0,0"
-										ItemsSource="{Binding Options}">
-										<ItemsControl.ItemsPanel>
-											<ItemsPanelTemplate>
-												<WrapPanel />
-											</ItemsPanelTemplate>
-										</ItemsControl.ItemsPanel>
-										<ItemsControl.ItemTemplate>
-											<DataTemplate DataType="{x:Type local:PlayerActionOptionViewModel}">
-												<Button
-													MinWidth="120"
-													Height="32"
-													Margin="0,0,8,8"
-													Padding="8,0"
-													Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Do}"
-													Content="{Binding Text}" />
-											</DataTemplate>
-										</ItemsControl.ItemTemplate>
-									</ItemsControl>
-								</Grid>
+							<DataTemplate DataType="{x:Type local:PlayerStepItemViewModel}">
+								<!--  The step the player is on stands out.  -->
+								<TextBlock Margin="0,0,0,4" Text="{Binding Text}" TextWrapping="Wrap">
+									<TextBlock.Style>
+										<Style TargetType="TextBlock">
+											<Setter Property="Foreground" Value="{DynamicResource FontLightBrush}" />
+											<Style.Triggers>
+												<DataTrigger Binding="{Binding IsNext}" Value="True">
+													<Setter Property="Foreground" Value="{DynamicResource FontBrush}" />
+													<Setter Property="FontWeight" Value="Bold" />
+												</DataTrigger>
+												<DataTrigger Binding="{Binding IsReached}" Value="True">
+													<Setter Property="TextDecorations" Value="Strikethrough" />
+												</DataTrigger>
+											</Style.Triggers>
+										</Style>
+									</TextBlock.Style>
+								</TextBlock>
 							</DataTemplate>
 						</ItemsControl.ItemTemplate>
 					</ItemsControl>
+					<StackPanel Visibility="{Binding HasOthers, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+						<TextBlock Margin="0,16,0,8" Text="{x:Static operaEtDies:OurResources.PlayerStepsOthersHeader}" />
+						<ItemsControl ItemsSource="{Binding Others}">
+							<ItemsControl.ItemTemplate>
+								<DataTemplate DataType="{x:Type local:PlayerStepActionViewModel}">
+									<Button
+										MinWidth="160"
+										Height="32"
+										Margin="0,0,0,4"
+										Padding="8,0"
+										HorizontalAlignment="Left"
+										Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Do}"
+										Content="{Binding Text}"
+										ToolTip="{x:Static operaEtDies:OurResources.PlayerStepsSwitchToolTip}" />
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+					</StackPanel>
 				</StackPanel>
 
 				<StackPanel Visibility="{Binding HasPeople, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
@@ -273,4 +336,117 @@
 		</ScrollViewer>
 	</DataTemplate>
 
+	<!--  The player being asked whether to keep going with what they're doing, with buttons to keep going or stop.  -->
+	<DataTemplate DataType="{x:Type local:RepeatPromptViewModel}">
+		<StackPanel Margin="24">
+			<TextBlock
+				FontSize="{DynamicResource LargeFontSize}"
+				Text="{Binding Text}"
+				TextWrapping="Wrap" />
+			<StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+				<Button
+					MinWidth="120"
+					Height="32"
+					Padding="12,0"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Continue}"
+					Content="{Binding ContinueText}" />
+				<Button
+					MinWidth="120"
+					Height="32"
+					Margin="8,0,0,0"
+					Padding="12,0"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Stop}"
+					Content="{x:Static operaEtDies:OurResources.RepeatPromptStop}" />
+			</StackPanel>
+		</StackPanel>
+	</DataTemplate>
+
+	<!--  Something that happened while time passed, such as a missed appointment, with a button to close it.  -->
+	<DataTemplate DataType="{x:Type local:NoticePromptViewModel}">
+		<StackPanel Margin="24">
+			<TextBlock
+				FontSize="{DynamicResource LargeFontSize}"
+				Text="{Binding Text}"
+				TextWrapping="Wrap" />
+			<Button
+				MinWidth="120"
+				Height="32"
+				Margin="0,12,0,0"
+				Padding="12,0"
+				HorizontalAlignment="Left"
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Dismiss}"
+				Content="{x:Static operaEtDies:OurResources.NoticeDismiss}" />
+		</StackPanel>
+	</DataTemplate>
+
+	<!--  A question someone asked the player as one of their steps, with their portrait, and buttons to answer.  -->
+	<DataTemplate DataType="{x:Type local:AskPromptViewModel}">
+		<StackPanel Margin="24">
+			<Image
+				Width="96"
+				HorizontalAlignment="Left"
+				Source="{Binding Asker.Portrait}"
+				Stretch="Uniform"
+				Visibility="{Binding Asker.Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+			<TextBlock
+				Margin="0,12,0,0"
+				FontSize="{DynamicResource LargeFontSize}"
+				Text="{Binding Text}"
+				TextWrapping="Wrap" />
+			<TextBlock
+				Margin="0,8,0,0"
+				Foreground="{DynamicResource FontLightBrush}"
+				Text="{Binding Warning}"
+				TextWrapping="Wrap"
+				Visibility="{Binding Warning, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+			<StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+				<Button
+					MinWidth="120"
+					Height="32"
+					Padding="12,0"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Yes}"
+					Content="{x:Static operaEtDies:OurResources.AskRequestYes}" />
+				<Button
+					MinWidth="120"
+					Height="32"
+					Margin="8,0,0,0"
+					Padding="12,0"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=No}"
+					Content="{x:Static operaEtDies:OurResources.AskRequestNo}" />
+			</StackPanel>
+		</StackPanel>
+	</DataTemplate>
+
+	<!--  A reminder that it's time to set off for an appointment, with the portrait of the one it's with, and buttons to set off
+		or call it off.  -->
+	<DataTemplate DataType="{x:Type local:AppointmentPromptViewModel}">
+		<StackPanel Margin="24">
+			<Image
+				Width="96"
+				HorizontalAlignment="Left"
+				Source="{Binding Client.Portrait}"
+				Stretch="Uniform"
+				Visibility="{Binding Client.Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+			<TextBlock
+				Margin="0,12,0,0"
+				FontSize="{DynamicResource LargeFontSize}"
+				Text="{Binding Text}"
+				TextWrapping="Wrap" />
+			<StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+				<Button
+					MinWidth="120"
+					Height="32"
+					Padding="12,0"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetOffNow}"
+					Content="{x:Static operaEtDies:OurResources.AppointmentSetOff}" />
+				<Button
+					MinWidth="120"
+					Height="32"
+					Margin="8,0,0,0"
+					Padding="12,0"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CallOff}"
+					Content="{x:Static operaEtDies:OurResources.AppointmentCallOff}" />
+			</StackPanel>
+		</StackPanel>
+	</DataTemplate>
 </ResourceDictionary>

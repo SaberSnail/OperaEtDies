@@ -26,7 +26,7 @@ internal static class GameDataValidation
 			errors.AddRange(CharacterData.ValidatePlaceholders("village.houseTitle", houseTitle, null, properties, new HashSet<string>(StringComparer.Ordinal), allowsClothing: false));
 
 		// Schedules use the character properties, the kinds of quarter, and the days of the week.
-		errors.AddRange(ValidateSchedules(schedules, properties, locations, calendar));
+		errors.AddRange(ValidateSchedules(schedules, properties, locations, calendar, professions));
 
 		// Portrait conditions use the character properties, like other conditions outside of templates.
 		if (portraits is not null)
@@ -199,18 +199,21 @@ internal static class GameDataValidation
 					yield return error;
 			}
 
-			if (profession.IsBusiness && !profession.WorksFromHome && !professionsWithBusinesses.Contains(profession.Id))
-				yield return OurResources.ProfessionLocationsMissing.FormatCurrentCulture(profession.Id);
+			if (profession.Business?.ForHouseholdElders == true && professionsWithBusinesses.Contains(profession.Id))
+				yield return OurResources.ProfessionElderTradeNotFromHome.FormatCurrentCulture(profession.Id);
 		}
 	}
 
-	private static IEnumerable<string> ValidateSchedules(ScheduleSettings schedules, IReadOnlyDictionary<string, CharacterProperty> properties, LocationList locations, CalendarSettings calendar)
+	private static IEnumerable<string> ValidateSchedules(ScheduleSettings schedules, IReadOnlyDictionary<string, CharacterProperty> properties, LocationList locations, CalendarSettings calendar, ProfessionList professions)
 	{
+		var businessProfessions = professions.Professions.Where(x => x is not null && x.IsBusiness).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
 		var quarterKinds = locations.QuarterKinds.Where(x => x?.Id is not null).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
 		var days = calendar.Days.Where(x => x?.Id is not null).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
-		return schedules.GetConditions().SelectMany(x => CharacterData.ValidateCondition(x.Path, x.Condition, properties, isTemplate: false))
+		return schedules.GetConditions().Select(x => (x.Path, Condition: x.Condition is StepWho who ? who.GetPropertyCondition() : x.Condition))
+			.SelectMany(x => x.Condition is null ? [] : CharacterData.ValidateCondition(x.Path, x.Condition, properties, isTemplate: false))
 			.Concat(schedules.GetQuarterKinds().Where(x => !quarterKinds.Contains(x.QuarterKind)).Select(x => OurResources.DataIdUnknown.FormatCurrentCulture(x.Path, x.QuarterKind, "quarterKinds")))
-			.Concat(schedules.GetDays().Where(x => !days.Contains(x.Day)).Select(x => OurResources.DataIdUnknown.FormatCurrentCulture(x.Path, x.Day, "days")));
+			.Concat(schedules.GetDays().Where(x => !days.Contains(x.Day)).Select(x => OurResources.DataIdUnknown.FormatCurrentCulture(x.Path, x.Day, "days")))
+			.Concat(schedules.GetBusinessProfessions().Where(x => !businessProfessions.Contains(x.Profession)).Select(x => OurResources.DataIdUnknown.FormatCurrentCulture(x.Path, x.Profession, "professions")));
 	}
 
 	private static IEnumerable<string> ValidateBusinesses(LocationList locations, ProfessionList professions)
@@ -221,10 +224,8 @@ internal static class GameDataValidation
 
 		foreach (var business in locations.Businesses.Where(x => x is not null))
 		{
-			if (professionsById.GetValueOrDefault(business.Profession) is not { } profession)
+			if (!professionsById.ContainsKey(business.Profession))
 				yield return OurResources.BusinessProfessionUnknown.FormatCurrentCulture(business.Id, business.Profession);
-			else if (profession.WorksFromHome)
-				yield return OurResources.BusinessProfessionWorksFromHome.FormatCurrentCulture(business.Id, business.Profession);
 		}
 	}
 }

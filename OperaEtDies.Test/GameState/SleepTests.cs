@@ -25,17 +25,19 @@ public sealed class SleepTests
 		person.SetLevel(fatigue, 95);
 		scheduler.ChooseGoal(person, night);
 		Assert.That((person.Goal, person.HasNapped), Is.EqualTo((fatigue, true)));
-		Assert.That(person.Tasks[^1], Is.EqualTo(new BusyTask(30)));
+		Assert.That((person.Current?.Step, person.Current?.MinutesLeft), Is.EqualTo(((int?) 0, (int?) 30)));
 
 		// Having napped, they don't nap again.
+		person.SetPlan(null, []);
 		scheduler.ChooseGoal(person, night);
 		Assert.That(person.Goal, Is.Not.SameAs(fatigue));
 
 		// Exhausted, they sleep until rested.
 		person.SetLevel(fatigue, 99.5);
+		person.SetPlan(null, []);
 		scheduler.ChooseGoal(person, night);
 		Assert.That((person.Goal, person.HasNapped), Is.EqualTo((fatigue, false)));
-		Assert.That(person.Tasks[^1], Is.EqualTo(new BusyTask(null)));
+		Assert.That((person.Current?.Step, person.Current?.MinutesLeft), Is.EqualTo(((int?) 0, (int?) null)));
 	}
 
 	[Test]

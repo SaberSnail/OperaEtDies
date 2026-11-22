@@ -40,11 +40,10 @@ public sealed class LocationPersonViewModelTests
 		Assert.That(viewModel.Activity, Is.EqualTo($"Walking to {lane.Title}"));
 		Assert.That((viewModel.DeveloperGoal, viewModel.DeveloperGoalReason), Is.EqualTo(((string?) null, (string?) null)));
 
-		// Time at the place has the need's activity, and time at home afterward has its home activity.
-		Start(laundry, new BusyTask(20));
-		person.Location = square;
+		// Time on a step has the step's activity, or the need's without one.
+		Start(laundry, new BusyTask(20, 3));
 		Assert.That(viewModel.Activity, Is.EqualTo("Washing"));
-		person.Location = home;
+		Start(laundry, new BusyTask(10, 5));
 		Assert.That(viewModel.Activity, Is.EqualTo("Hanging out the washing"));
 
 		Need Need(string id) => schedules.Needs.Single(x => x.Id == id);
@@ -77,11 +76,13 @@ public sealed class LocationPersonViewModelTests
 		Assert.That(viewModel.DeveloperGoal, Is.Null);
 		Assert.That(viewModel.DeveloperGoalReason, Is.EqualTo(OurResources.DeveloperNoGoalChoice));
 
-		// While walking, the goal, where it's met, and where the walk ends, with the chance each need had.
+		// While walking, the goal, where its current step is done, which step it is, and where the walk ends, with the
+		// chance each need had.
 		var choice = new GoalChoice(world.Time, [new NeedUrgency(fatigue, 30), new NeedUrgency(hunger, 60), new NeedUrgency(laundry, 80)], laundry, GoalChoiceResult.Chosen);
-		Start(laundry, choice, new TravelTask(lane), new TravelTask(square), new BusyTask(20), new TravelTask(lane), new TravelTask(home), new BusyTask(10));
+		person.SetPlan(laundry, [new TravelTask(lane), new TravelTask(square)], choice, startStep: 3);
+		person.StartTask(calendar.AddMinutes(world.Time, 1));
 		Assert.That(viewModel.Activity, Is.EqualTo($"Walking to {lane.Title}"));
-		Assert.That(viewModel.DeveloperGoal, Is.EqualTo($"Laundry at {square.Title}, then home (walking to {square.Title})"));
+		Assert.That(viewModel.DeveloperGoal, Is.EqualTo($"Laundry at {square.Title} (step 3 of 8) (walking to {square.Title})"));
 		var hungerChance = 60.0 * 60 / ((60 * 60) + (80 * 80));
 		Assert.That(viewModel.DeveloperGoalReason, Is.EqualTo(
 			$"At {clock}, chose Laundry. Urgencies: Fatigue 30 (below {schedules.MinimumUrgency:0}), Hunger 60 ({hungerChance:0%}), Laundry 80 ({1 - hungerChance:0%})."));
@@ -101,22 +102,5 @@ public sealed class LocationPersonViewModelTests
 			person.SetPlan(goal, tasks, goalChoice);
 			person.StartTask(calendar.AddMinutes(world.Time, 1));
 		}
-	}
-
-	[Test]
-	public void FollowingCanBeToggled()
-	{
-		var gameData = TestData.CreateGameData();
-		var world = new TestWorld(gameData);
-		var person = world.AddPerson(TestData.CreatePlayerTraits(gameData), world.AddLocation(gameData.HouseTemplates[0]));
-		var followed = new List<Person>();
-
-		var viewModel = new LocationPersonViewModel(person, null, toggleFollow: followed.Add);
-		viewModel.ToggleFollow();
-
-		Assert.That((viewModel.CanFollow, viewModel.FollowText), Is.EqualTo((true, OurResources.FollowPerson)));
-		Assert.That(followed, Is.EqualTo(new[] { person }));
-		viewModel.IsFollowed = true;
-		Assert.That(viewModel.FollowText, Is.EqualTo(OurResources.StopFollowing));
 	}
 }

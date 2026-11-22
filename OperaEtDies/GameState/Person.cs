@@ -72,7 +72,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	/// <summary>
 	/// Whether the person is wearing any of their everyday or work clothes.
 	/// </summary>
-	public bool IsInDayClothes => Clothing.Pieces.Any(piece => m_outfits.Any(x => x.Kind != OutfitKind.Night && x.Pieces.Contains(piece)));
+	public bool IsInDayClothes => Clothing.Pieces.Any(piece => m_outfits.Any(x => x.Kind is not (OutfitKind.Night or OutfitKind.Nothing) && x.Pieces.Contains(piece)));
 
 	/// <summary>
 	/// Gets how much a level need drops each hour while the person is meeting it. Sleep meets the sleep need more slowly
@@ -92,6 +92,12 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	/// The values of the character properties defined in the data files. The game keeps the at work property up to date.
 	/// </summary>
 	public CharacterTraits Traits => m_traits;
+
+	/// <summary>
+	/// Gets the id a condition matches for the value of one of the person's character properties, such as the age group
+	/// their age falls in, or null if they have no value for it.
+	/// </summary>
+	public string? GetConditionValueId(string propertyId) => m_gameData.CharacterProperties.Find(propertyId)?.GetConditionValueId(m_traits.Values.GetValueOrDefault(propertyId));
 
 	public string FullName => m_fullName;
 
@@ -192,9 +198,22 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	}
 
 	/// <summary>
-	/// The need the person is trying to meet, or null if they're idle or have no goal.
+	/// The sequences of steps the person is in the middle of, in the order they were last current: the last one that has
+	/// set off is <see cref="Current"/>, and the others are on hold, or for appointments they haven't set off for yet,
+	/// waiting. See Docs/Steps.md.
 	/// </summary>
-	public Need? Goal => m_goal;
+	public IReadOnlyList<StepSequence> Sequences => m_sequences;
+
+	/// <summary>
+	/// The sequence of steps the person is carrying out, or null if they aren't carrying out any.
+	/// </summary>
+	public StepSequence? Current => m_sequences.LastOrDefault(x => x.HasSetOff);
+
+	/// <summary>
+	/// The need the person is trying to meet: that of the steps they're carrying out, or null if they're idle, have no goal,
+	/// or are taking part in someone else's steps.
+	/// </summary>
+	public Need? Goal => Current is { Role: SequenceRole.Steps } current ? current.Need : null;
 
 	/// <summary>
 	/// How someone other than the player last chose their goal, for developers to see why, or null if they haven't chosen
@@ -203,13 +222,137 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	public GoalChoice? GoalChoice => m_goalChoice;
 
 	/// <summary>
-	/// A trip the person has been to the place for but hasn't finished at home yet, or null if there isn't one. Only the
-	/// player does trips in parts, since they choose each part themselves.
+	/// Who the steps the person is carrying out last talked with or asked, or null if there's no one.
 	/// </summary>
-	public Need? PendingTrip
+	public Person? Partner => Current?.Partner;
+
+	/// <summary>
+	/// Who the steps the person is carrying out are looking for, and where, or null if they aren't looking for anyone.
+	/// </summary>
+	public SeekChoice? Seeking => Current?.Seeking;
+
+	/// <summary>
+	/// Gets the sequence of a need's steps the person is in the middle of (rather than taking part in someone else's), or
+	/// null if there's none.
+	/// </summary>
+	public StepSequence? GetSequence(Need need) => m_sequences.LastOrDefault(x => x.Need == need && x.Role == SequenceRole.Steps && x.HasSetOff);
+
+	/// <summary>
+	/// Starts a sequence of steps, which becomes the current one. Any other is put on hold.
+	/// </summary>
+	internal void AddSequence(StepSequence sequence)
 	{
-		get => m_pendingTrip;
-		internal set => SetPropertyField(value, ref m_pendingTrip);
+		m_sequences.Add(sequence);
+		RaiseScheduleChanged();
+	}
+
+	/// <summary>
+	/// Makes a sequence the person is in the middle of the current one, putting the one that was on hold.
+	/// </summary>
+	internal void MakeCurrent(StepSequence sequence)
+	{
+		if (Current != sequence && m_sequences.Remove(sequence))
+		{
+			m_sequences.Add(sequence);
+			RaiseScheduleChanged();
+		}
+	}
+
+	/// <summary>
+	/// Has the person set off for the appointment a sequence of theirs is for: it becomes their current one, and any other
+	/// is put on hold.
+	/// </summary>
+	internal void SetOff(StepSequence sequence)
+	{
+		if (m_sequences.Remove(sequence))
+		{
+			sequence.SetOff = SetOffState.Gone;
+			m_sequences.Add(sequence);
+			RaiseScheduleChanged();
+		}
+	}
+
+	/// <summary>
+	/// Marks the player's sequence for an appointment as due: it's time for them to set off, and they're asked whether to.
+	/// </summary>
+	internal void AskToSetOff(StepSequence sequence)
+	{
+		if (m_sequences.Contains(sequence))
+		{
+			sequence.SetOff = SetOffState.Due;
+			RaiseScheduleChanged();
+		}
+	}
+
+	/// <summary>
+	/// Takes a sequence away, once it's done or given up. The one put on hold most recently becomes current.
+	/// </summary>
+	internal void RemoveSequence(StepSequence sequence)
+	{
+		if (m_sequences.Remove(sequence))
+			RaiseScheduleChanged();
+	}
+
+	/// <summary>
+	/// For each outfit the person changed into that replaced clothes they were wearing, the pieces it replaced, which they
+	/// change back into when they change out of it. Kept until then, however long that is.
+	/// </summary>
+	public IReadOnlyDictionary<OwnedOutfit, IReadOnlyList<ClothingPiece>> ReplacedClothes => m_replacedClothes;
+
+	/// <summary>
+	/// Remembers the pieces an outfit replaced when the person changed into it, or forgets them if it replaced none.
+	/// </summary>
+	internal void SetReplacedClothes(OwnedOutfit outfit, IReadOnlyList<ClothingPiece> pieces)
+	{
+		if (pieces.Count == 0)
+			m_replacedClothes.Remove(outfit);
+		else
+			m_replacedClothes[outfit] = pieces;
+	}
+
+	/// <summary>
+	/// Forgets the pieces an outfit replaced, returning them.
+	/// </summary>
+	internal IReadOnlyList<ClothingPiece> RemoveReplacedClothes(OwnedOutfit outfit) => m_replacedClothes.Remove(outfit, out var pieces) ? pieces : [];
+
+	/// <summary>
+	/// Whether an item is in one of the bundles the person carries.
+	/// </summary>
+	public bool IsInBundle(Item item) => Inventory.Items.OfType<Bundle>().Any(x => x.Items.Contains(item));
+
+	/// <summary>
+	/// Adds tasks after the person's other tasks, such as the tasks for one of the goal's steps.
+	/// </summary>
+	internal void AddTasks(IEnumerable<PersonTask> tasks)
+	{
+		foreach (var task in tasks)
+			m_tasks.Add(task);
+		RaiseScheduleChanged();
+	}
+
+	/// <summary>
+	/// Replaces the person's tasks, such as the walk and the wait of being idle, with how they chose what to do if they
+	/// did. They aren't doing any of them yet.
+	/// </summary>
+	internal void SetTasks(IEnumerable<PersonTask> tasks, GoalChoice? choice = null)
+	{
+		m_goalChoice = choice;
+		m_tasks.Clear();
+		foreach (var task in tasks)
+			m_tasks.Add(task);
+		m_taskEnd = null;
+		RaiseScheduleChanged();
+	}
+
+	/// <summary>
+	/// Drops every task but the one the person is doing, which they finish before going on, such as when someone they were
+	/// following lets them go while they're changing clothes.
+	/// </summary>
+	internal void DropTasksAfterCurrent()
+	{
+		var end = m_taskEnd;
+		SetTasks(m_tasks.Take(1).ToList(), m_goalChoice);
+		m_taskEnd = m_tasks.Count == 0 ? null : end;
 	}
 
 	/// <summary>
@@ -227,7 +370,18 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	}
 
 	/// <summary>
-	/// The tasks left toward the person's goal. The first one is the current task, if <see cref="TaskEnd"/> is set.
+	/// Someone who asked the player the question of an "ask" step they're on, and is waiting for an answer, or null if no one
+	/// is. Only the player is asked.
+	/// </summary>
+	public Person? AskRequest
+	{
+		get => m_askRequest;
+		internal set => SetPropertyField(value, ref m_askRequest);
+	}
+
+	/// <summary>
+	/// The tasks the person has left to do: those of the step they're carrying out, or of being idle. The first one is the
+	/// current task, if <see cref="TaskEnd"/> is set.
 	/// </summary>
 	public IReadOnlyList<PersonTask> Tasks => m_tasks;
 
@@ -249,26 +403,46 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	public double GetLevel(Need need) => m_levels.GetValueOrDefault(need.Id);
 
 	/// <summary>
-	/// Gets how many minutes the person has spent on a quota need this day or week (counting the minutes spent at the
-	/// place for a quota of trips).
+	/// Gets how much the person has done of a quota need this day or week: the minutes spent on it, or for a quota measured
+	/// in runs, the runs finished.
 	/// </summary>
 	public long GetProgress(Need need) => m_progress.GetValueOrDefault(need.Id);
 
 	/// <summary>
-	/// Gets how many more minutes the person plans to spend on a need: the time left in their current task and the tasks
-	/// after it, if the need is their goal, and the time at home to finish a trip they've been to the place for.
+	/// Gets how many minutes the person has spent on a quota need this day or week, counting each run finished of a quota
+	/// measured in runs by the minutes its "do" steps take.
+	/// </summary>
+	public long GetProgressMinutes(Need need) => need.IsRuns ? GetProgress(need) * need.GetRunMinutes(Family.Members.Count) : GetProgress(need);
+
+	/// <summary>
+	/// Gets how many more minutes the person plans to spend on a need, if they're in the middle of its steps. For a quota
+	/// measured in time, it's the time left in their current task and the tasks after it, if it's their goal, and what's
+	/// left of the time chosen for it while steps that could use it are left (a "do" step that meets it, or a "repeat"
+	/// step). For a quota measured in runs, it's a whole run, until the run is counted.
 	/// </summary>
 	internal long GetPlannedMinutes(Need need, TimePoint time)
 	{
 		var minutes = 0L;
-		if (m_pendingTrip == need)
-			minutes += need.GetHomeMinutes(Family.Members.Count);
-		if (m_goal == need)
+		if (GetSequence(need) is { } sequence)
 		{
-			for (var index = 0; index < m_tasks.Count; index++)
+			if (need.IsRuns)
 			{
-				if (m_tasks[index] is BusyTask { Minutes: { } busy } task)
-					minutes += index == 0 && m_taskEnd is { } end ? Math.Max(m_gameData.Calendar.GetTotalMinutes(end - time), 0) : task.ResumeMinutes ?? busy;
+				if (need.Steps.Skip(sequence.Step).Any(x => x.Kind == StepKind.CountRun))
+					minutes = need.GetRunMinutes(Family.Members.Count);
+			}
+			else
+			{
+				if (sequence == Current)
+				{
+					for (var index = 0; index < m_tasks.Count; index++)
+					{
+						if (m_tasks[index] is BusyTask { Minutes: { } busy } task && ActiveNeedOf(task) == need)
+							minutes += index == 0 && m_taskEnd is { } end ? Math.Max(m_gameData.Calendar.GetTotalMinutes(end - time), 0) : task.ResumeMinutes ?? busy;
+					}
+				}
+
+				if (need.Steps.Skip(sequence.Step).Any(x => x is { Kind: StepKind.Do, MeetsQuota: true } or { Kind: StepKind.Repeat }))
+					minutes += sequence.MinutesLeft ?? 0;
 			}
 		}
 
@@ -276,27 +450,67 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	}
 
 	/// <summary>
-	/// The need being met right now: the goal, while the person is busy with it, or the need a talk meets. Looking for a
-	/// friend to socialize with doesn't meet the socializing need by itself.
+	/// The need being met right now: the goal, while the person is busy with a step that meets it (any step, for a level
+	/// need), the need a talk meets, the need met for them by the one they follow, or for the worker waiting at an
+	/// appointment whose "meet" step meets the quota, its need. Looking for a friend to socialize with doesn't meet the
+	/// socializing need by itself.
 	/// </summary>
-	internal Need? ActiveNeed => CurrentTask switch
+	internal Need? ActiveNeed => m_taskEnd is null ? null : ActiveNeedOf(m_tasks[0]);
+
+	private Need? ActiveNeedOf(PersonTask task)
 	{
-		BusyTask => m_goal?.Id == m_gameData.Schedules.SocializeNeed ? null : m_goal,
-		TalkTask talk => talk.Need,
-		_ => null,
-	};
+		var goal = Goal;
+		return task switch
+		{
+			BusyTask { Step: { } waitStep } when goal is not null && waitStep < goal.Steps.Count && goal.Steps[waitStep] is { Kind: StepKind.Wait } or { Kind: StepKind.Seek, MeetsQuota: false } => null,
+			BusyTask { IsAside: true } => null,
+			BusyTask busy => goal is null ? null :
+				goal.Kind == NeedKind.Level || (busy.Step is { } step ? step < goal.Steps.Count && goal.Steps[step].MeetsQuota : !goal.IsRuns) ? goal : null,
+			TalkTask talk => talk.Need,
+			FollowTask follow => GetNeedMetFollowing(follow.Leader),
+			MeetTask { Appointment: { } appointment } when appointment.Worker == this && appointment.Need.GetAppointmentSteps(appointment.Step) is { } steps &&
+				appointment.Need.Steps[steps.Meet].MeetsQuota && appointment.Need.Quota?.Time is not null => appointment.Need,
+			_ => null,
+		};
+	}
+
+	/// <summary>
+	/// Gets the need of the person's met by following someone, while that person is spending time on a "do" step that meets
+	/// a need for their partner (see <see cref="Step.PartnerMeets"/>), if the person is their partner and has it.
+	/// </summary>
+	private Need? GetNeedMetFollowing(Person leader) =>
+		leader.CurrentTask is BusyTask { Step: { } step, IsAside: false } && leader.Current is { Partner: { } partner } current && partner == this &&
+		step < current.Need.Steps.Count && current.Need.Steps[step] is { Kind: StepKind.Do, PartnerMeets: { } id }
+			? m_gameData.Schedules.Needs.FirstOrDefault(x => x.Id == id && Scheduler.HasNeed(this, x))
+			: null;
 
 	public WorldObjectRecord CreateRecord() =>
 		new PersonRecord(Id, IsPlayer, Role, m_location.Id, m_traits.Values.ToDictionary(x => x.Key, x => JsonSerializer.SerializeToElement(x.Value switch
 		{
 			CharacterPropertyOption option => option.Id,
 			var value => value,
-		}), StringComparer.Ordinal), m_goal?.Id, m_tasks.Select(x => x.CreateRecord()).ToList(), m_taskEnd?.SaveToString(),
-			new Dictionary<string, double>(m_levels, StringComparer.Ordinal), new Dictionary<string, long>(m_progress, StringComparer.Ordinal), m_pendingTrip?.Id,
+		}), StringComparer.Ordinal), m_tasks.Select(x => x.CreateRecord()).ToList(), m_taskEnd?.SaveToString(),
+			new Dictionary<string, double>(m_levels, StringComparer.Ordinal), new Dictionary<string, long>(m_progress, StringComparer.Ordinal),
 			m_goalChoice?.CreateRecord(), m_sightings.Count == 0 ? null : m_sightings.Select(x => x.Value.CreateRecord(x.Key)).ToList(), m_talkRequest?.Id, HasNapped,
-			Inventory.CreateRecord(), Clothing.CreateRecord());
+			Inventory.CreateRecord(), Clothing.CreateRecord(), m_sequences.Count == 0 ? null : m_sequences.Select(x => x.CreateRecord()).ToList(),
+			m_replacedClothes.Count == 0 ? null : m_replacedClothes.Select(x => new ReplacedClothesRecord(x.Key.Id, x.Value.Select(y => y.Id).ToList())).ToList(),
+			m_askRequest?.Id);
 
 	internal void SetFamily(Family family) => m_family = family;
+
+	/// <summary>
+	/// The jobs the person has taken on and not yet finished, one for each of their needs at most.
+	/// </summary>
+	public IReadOnlyList<Job> Jobs => m_jobs;
+
+	/// <summary>
+	/// Gets the person's job for a need, or null if they have none.
+	/// </summary>
+	public Job? GetJob(Need need) => m_jobs.FirstOrDefault(x => x.Need == need);
+
+	internal void AddJob(Job job) => m_jobs.Add(job);
+
+	internal void RemoveJob(Job job) => m_jobs.Remove(job);
 
 	/// <summary>
 	/// The person's relationships with everyone else, by the other person.
@@ -319,7 +533,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	/// <summary>
 	/// Whether the person is asleep: spending time on the need people meet while asleep.
 	/// </summary>
-	public bool IsAsleep => CurrentTask is BusyTask && m_goal is { } goal && goal.Id == m_gameData.Schedules.SleepNeed;
+	public bool IsAsleep => CurrentTask is BusyTask { IsAside: false } && Goal is { } goal && goal.Id == m_gameData.Schedules.SleepNeed;
 
 	/// <summary>
 	/// Remembers seeing someone, replacing any earlier sighting of them. What they said they were doing is kept while
@@ -366,21 +580,6 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	internal void SetProgress(Need need, long minutes) => m_progress[need.Id] = minutes;
 
 	/// <summary>
-	/// Gives the person a new goal and the tasks to reach it, replacing any they had, with how they chose it if they did.
-	/// They aren't doing any of them yet.
-	/// </summary>
-	internal void SetPlan(Need? goal, IEnumerable<PersonTask> tasks, GoalChoice? choice = null)
-	{
-		m_goal = goal;
-		m_goalChoice = choice;
-		m_tasks.Clear();
-		foreach (var task in tasks)
-			m_tasks.Add(task);
-		m_taskEnd = null;
-		RaiseScheduleChanged();
-	}
-
-	/// <summary>
 	/// Starts the first task, which ends at the given time.
 	/// </summary>
 	internal void StartTask(TimePoint end)
@@ -394,7 +593,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	/// <summary>
 	/// Interrupts what the person is doing at the given time with another task, which ends at the given time. Their needs
 	/// are brought up to date first. The task they were doing is kept after the interruption, with the minutes it had left,
-	/// and their goal stays the same.
+	/// and their steps stay the same.
 	/// </summary>
 	internal void Interrupt(PersonTask interruption, TimePoint time, TimePoint end)
 	{
@@ -414,8 +613,6 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 		var task = m_tasks[0];
 		m_tasks.RemoveAt(0);
 		m_taskEnd = null;
-		if (m_tasks.Count == 0)
-			m_goal = null;
 		RaiseScheduleChanged();
 		return task;
 	}
@@ -445,7 +642,13 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 			}
 
 			if (active is { Kind: NeedKind.Quota })
+			{
 				m_progress[active.Id] = GetProgress(active) + minutes;
+
+				// Time spent at a job's site on its need counts toward the job.
+				if (GetJob(active) is { IsDone: false } job && job.Place == m_location)
+					job.MinutesDone += minutes;
+			}
 
 			m_needsTime = time;
 			StartPeriods(time);
@@ -455,9 +658,12 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	/// <summary>
 	/// Sets the person's schedule state when loading a save, at the time the save was made.
 	/// </summary>
-	internal void LoadSchedule(Need? goal, IReadOnlyList<PersonTask> tasks, TimePoint? taskEnd, GoalChoice? choice)
+	internal void LoadSchedule(IReadOnlyList<StepSequence> sequences, IReadOnlyList<PersonTask> tasks, TimePoint? taskEnd, GoalChoice? choice)
 	{
-		SetPlan(goal, tasks, choice);
+		m_sequences.Clear();
+		foreach (var sequence in sequences)
+			m_sequences.Add(sequence);
+		SetTasks(tasks, choice);
 		if (taskEnd is not null)
 			StartTask(taskEnd);
 	}
@@ -465,7 +671,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	/// <summary>
 	/// Tells listeners that the person's goal or tasks changed, such as to show what they're doing.
 	/// </summary>
-	private void RaiseScheduleChanged() => RaisePropertyChanged(nameof(Goal), nameof(GoalChoice), nameof(Tasks), nameof(CurrentTask), nameof(TaskEnd));
+	private void RaiseScheduleChanged() => RaisePropertyChanged(nameof(Goal), nameof(Current), nameof(Sequences), nameof(GoalChoice), nameof(Tasks), nameof(CurrentTask), nameof(TaskEnd));
 
 	/// <summary>
 	/// Starts the quotas again for the time's day and week, if they've changed.
@@ -499,9 +705,11 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	private readonly Dictionary<Person, Sighting> m_sightings = [];
 	private Person? m_talkRequest;
 	private Location m_location;
-	private Need? m_goal;
 	private GoalChoice? m_goalChoice;
-	private Need? m_pendingTrip;
+	private Person? m_askRequest;
+	private readonly Collection<StepSequence> m_sequences = [];
+	private readonly Collection<Job> m_jobs = [];
+	private readonly Dictionary<OwnedOutfit, IReadOnlyList<ClothingPiece>> m_replacedClothes = [];
 	private TimePoint? m_taskEnd;
 	private TimePoint m_needsTime;
 	private TimePoint m_progressDay;
@@ -510,14 +718,18 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 
 /// <summary>
 /// The saved form of a person: whether they're the player, their role in their family, where they are, their
-/// character property values (with value list properties saved as the value's id), and their schedule: their goal, the
-/// tasks left toward it, when the current task ends, their level needs, and the minutes spent on quota needs this day or week, and any trip
-/// they still have to finish at home, and how they last chose their goal, and the items they carry and the clothing they wear. Their home and workplace come from their family and business.
+/// character property values (with value list properties saved as the value's id), and their schedule: the tasks they
+/// have left, when the current task ends, their level needs, what they've done of quota needs this day or week (minutes,
+/// or runs for a quota measured in runs), how they last chose their goal, the items they carry and the clothing they
+/// wear, and the sequences of steps they're in the middle of, the current one last of those that have set off. For the player, it also has someone who
+/// asked them something, while they're waiting for an answer. Their home and workplace come from their
+/// family and business, and their goal from their current sequence.
 /// </summary>
 public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, WorldId Location, IReadOnlyDictionary<string, JsonElement> Traits,
-	string? Goal, IReadOnlyList<PersonTaskRecord> Tasks, string? TaskEnd, IReadOnlyDictionary<string, double> Needs, IReadOnlyDictionary<string, long> Progress,
-	string? PendingTrip = null, GoalChoiceRecord? GoalChoice = null, IReadOnlyList<SightingRecord>? Sightings = null, WorldId? TalkRequest = null, bool HasNapped = false,
-	IReadOnlyList<WorldId>? Inventory = null, IReadOnlyList<WorldId>? Clothing = null)
+	IReadOnlyList<PersonTaskRecord> Tasks, string? TaskEnd, IReadOnlyDictionary<string, double> Needs, IReadOnlyDictionary<string, long> Progress,
+	GoalChoiceRecord? GoalChoice = null, IReadOnlyList<SightingRecord>? Sightings = null, WorldId? TalkRequest = null, bool HasNapped = false,
+	IReadOnlyList<WorldId>? Inventory = null, IReadOnlyList<WorldId>? Clothing = null, IReadOnlyList<StepSequenceRecord>? Sequences = null,
+	IReadOnlyList<ReplacedClothesRecord>? ReplacedClothes = null, WorldId? AskRequest = null)
 	: WorldObjectRecord(Id)
 {
 	internal override IWorldObject Create(WorldLoader loader)
@@ -560,16 +772,24 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 			person.SetProgress(need, minutes);
 		}
 
-		var goal = Goal is null ? null : GetNeed(gameData, Goal);
 		// Tasks and goal choices can refer to other people, such as someone they're talking with, who may not exist yet.
-		loader.Defer(() => person.LoadSchedule(goal, Tasks.Select(x => x.Create(loader)).ToList(), TaskEnd is null || Tasks.Count == 0 ? null : LoadTime(gameData, TaskEnd),
-			GoalChoice is { } choiceRecord ? LoadGoalChoice(loader, choiceRecord) : null));
-		if (PendingTrip is not null)
+		var sequences = new List<StepSequence>();
+		foreach (var sequenceRecord in Sequences ?? [])
 		{
-			var trip = GetNeed(gameData, PendingTrip);
-			if (!trip.IsTrips || !trip.ReturnHome)
-				throw new SaveLoadException(OurResources.SaveNeedInvalid.FormatCurrentCulture(Id, PendingTrip));
-			person.PendingTrip = trip;
+			if (sequenceRecord.Step < 0 || sequenceRecord.MinutesLeft is < 0)
+				throw new SaveLoadException(OurResources.SaveStepsInvalid.FormatCurrentCulture(Id, sequenceRecord.Need));
+			sequences.Add(sequenceRecord.Load(loader, x => GetNeed(gameData, x)));
+		}
+
+		loader.Defer(() => person.LoadSchedule(sequences, Tasks.Select(x => x.Create(loader)).ToList(), TaskEnd is null || Tasks.Count == 0 ? null : LoadTime(gameData, TaskEnd),
+			GoalChoice is { } choiceRecord ? LoadGoalChoice(loader, choiceRecord) : null));
+		if (ReplacedClothes is { } replaced)
+		{
+			loader.Defer(() =>
+			{
+				foreach (var record in replaced)
+					person.SetReplacedClothes(loader.Get<OwnedOutfit>(record.Outfit), record.Pieces.Select(loader.Get<ClothingPiece>).ToList());
+			});
 		}
 
 		// Sightings refer to other people, who may not exist yet.
@@ -577,6 +797,8 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 			loader.Defer(() => LoadSightings(loader, person, sightings));
 		if (TalkRequest is { } talkRequest)
 			loader.Defer(() => person.TalkRequest = loader.Get<Person>(talkRequest));
+		if (AskRequest is { } asker)
+			loader.Defer(() => person.AskRequest = loader.Get<Person>(asker));
 
 		// Items refer to their owners, who may not exist yet.
 		if (Inventory is { } inventory)
@@ -600,8 +822,7 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 		}
 
 		var chosen = record.Need is null ? null : GetNeed(gameData, record.Need);
-		var seeking = record.Seeking is { } seek ? new SeekChoice(loader.Get<Person>(seek.Friend), loader.Get<Location>(seek.Place), seek.Clue) : null;
-		return new GoalChoice(LoadTime(gameData, record.Time), urgencies, chosen, record.Result, seeking);
+		return new GoalChoice(LoadTime(gameData, record.Time), urgencies, chosen, record.Result);
 	}
 
 	private void LoadSightings(WorldLoader loader, Person person, IReadOnlyList<SightingRecord> sightings)
@@ -615,10 +836,11 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 				throw new SaveLoadException(OurResources.SaveSightingInvalid.FormatCurrentCulture(Id, record.Person));
 
 			var plan = record.Plan is { } planRecord
-				? new SightingPlan(planRecord.Goal is null ? null : GetNeed(loader.GameData, planRecord.Goal), planRecord.Destination is { } planDestination ? loader.Get<Location>(planDestination) : null)
+				? new SightingPlan(planRecord.Goal is null ? null : GetNeed(loader.GameData, planRecord.Goal), planRecord.Destination is { } planDestination ? loader.Get<Location>(planDestination) : null,
+					planRecord.Doing)
 				: null;
 			person.LoadSighting(other, new Sighting(loader.Get<Location>(record.Location), loader.LoadTime(record.Time), record.Activity, need,
-				record.Destination is { } destination ? loader.Get<Location>(destination) : null, record.Source is { } source ? loader.Get<Person>(source) : null, plan));
+				record.Destination is { } destination ? loader.Get<Location>(destination) : null, record.Source is { } source ? loader.Get<Person>(source) : null, plan, record.Doing));
 		}
 	}
 
@@ -627,3 +849,8 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 
 	private static TimePoint LoadTime(GameData gameData, string text) => WorldLoader.LoadTime(gameData, text);
 }
+
+/// <summary>
+/// The saved form of the pieces an outfit replaced when someone changed into it, by id.
+/// </summary>
+public sealed record ReplacedClothesRecord(WorldId Outfit, IReadOnlyList<WorldId> Pieces);

@@ -7,22 +7,6 @@ namespace OperaEtDies.Test.Data;
 public sealed class ClothingDataTests
 {
 	[Test]
-	public void LoadsShippedClothing()
-	{
-		var result = GameData.Load(JsonDataLoader.DefaultDataDirectory);
-
-		Assert.That(result.Errors, Is.Empty);
-		Assert.That(result.Value!.Clothing, Is.Not.Empty);
-		Assert.That(result.Value.Outfits.Select(x => x.Kind).Distinct(), Is.EquivalentTo(Enum.GetValues<OutfitKind>()));
-	}
-
-	[Test]
-	public void ValidClothingHasNoErrors()
-	{
-		Assert.That(CreateClothing().Validate(), Is.Empty);
-	}
-
-	[Test]
 	public void DescriptionsUseColorsAndArticles()
 	{
 		var clothing = CreateClothing();

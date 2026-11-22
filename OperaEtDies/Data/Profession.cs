@@ -101,10 +101,11 @@ public sealed class Profession : IIdentified
 	public CharacterCondition? HelperWhen => Business?.HelperWhen;
 
 	/// <summary>
-	/// Whether the business has no place of its own, because the work is done at home or in other people's homes.
+	/// Whether the business has no place of its own, because the work is done at home or in other people's homes: no
+	/// business templates are for this profession. Worked out once the game data is put together.
 	/// </summary>
 	[JsonIgnore]
-	public bool WorksFromHome => Business?.WorksFromHome ?? false;
+	public bool WorksFromHome { get; internal set; }
 
 	/// <summary>
 	/// Whether a household elder can take up this profession as their own business.
@@ -172,10 +173,16 @@ public sealed class ProfessionBusiness
 	public CharacterCondition? HelperWhen { get; init; }
 
 	/// <summary>
-	/// Whether the business has no place of its own, because the work is done at home or in other people's homes.
-	/// Otherwise, the places a business can be run from are the business templates for this profession.
+	/// What the people in a business in this profession do to work, replacing the steps of the work need (or each need
+	/// that's work), or null to use the need's own steps.
 	/// </summary>
-	public bool WorksFromHome { get; init; }
+	public IReadOnlyList<Step>? Steps { get; init; }
+
+	/// <summary>
+	/// What the people in a business in this profession are shown to be doing while they work, such as "Brewing ale",
+	/// unless their step says otherwise, or null to show the work need's activity.
+	/// </summary>
+	public string? Activity { get; init; }
 
 	/// <summary>
 	/// Whether a household elder can take up this profession as their own business. Only allowed for professions that
