@@ -33,6 +33,7 @@ public interface IWorldObject
 [JsonDerivedType(typeof(AppointmentRecord), "appointment")]
 [JsonDerivedType(typeof(BundleRecord), "bundle")]
 [JsonDerivedType(typeof(JobRecord), "job")]
+[JsonDerivedType(typeof(EventLogRecord), "eventLog")]
 public abstract record WorldObjectRecord(WorldId Id)
 {
 	/// <summary>

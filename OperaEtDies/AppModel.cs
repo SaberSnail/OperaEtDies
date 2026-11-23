@@ -237,7 +237,7 @@ public sealed class AppModel : ViewModelBase
 	private void OpenGame(GameWorld world)
 	{
 		// Open the main window before closing the start up window, so there's always a window showing.
-		MainWindow = new MainWindowViewModel(m_gameInfoResult.Value?.Title ?? OurResources.EngineName, world, m_isDeveloper, m_saveSettings);
+		MainWindow = new MainWindowViewModel(m_gameInfoResult.Value?.Title ?? OurResources.EngineName, world, m_isDeveloper, m_saveSettings, isTimePaced: true);
 		CloseStartUpWindow();
 	}
 

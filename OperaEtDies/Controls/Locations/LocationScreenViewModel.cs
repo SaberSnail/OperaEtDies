@@ -18,10 +18,11 @@ namespace OperaEtDies.Controls.Locations;
 /// </summary>
 public sealed class LocationScreenViewModel : ViewModelBase
 {
-	public LocationScreenViewModel(Location location, GameWorld world, Person? following = null, bool isDeveloper = false)
+	public LocationScreenViewModel(Location location, GameWorld world, TimeRunner timeRunner, Person? following = null, bool isDeveloper = false)
 	{
 		Location = location;
 		m_world = world;
+		m_timeRunner = timeRunner;
 		m_isDeveloper = isDeveloper;
 		m_following = following is not null && location.People.Contains(following) ? following : null;
 		var calendar = world.GameData.Calendar;
@@ -156,9 +157,14 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	public void Wait()
 	{
 		VerifyAccess();
+		m_timeRunner.Run(WaitAsync);
+	}
+
+	private async Task WaitAsync()
+	{
 		var start = m_world.Time;
 		var following = Following;
-		var isChanged = m_world.WaitForPeople(Location, following);
+		var isChanged = await m_world.WaitForPeopleAsync(Location, following).ConfigureAwait(true);
 		var calendar = m_world.GameData.Calendar;
 		var waited = calendar.FormatOffsetFrom(start, m_world.Time - start, TimeFormat.Long);
 		if (following is not null && following.Location != Location && m_world.Player.Location != Location)
@@ -216,7 +222,9 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	/// Has the player press the button of the step they're on, which carries it out, and shows how long it took. When the
 	/// player has more steps to do somewhere else, they're told what to do next.
 	/// </summary>
-	private void DoAction(StepSequence sequence)
+	private void DoAction(StepSequence sequence) => m_timeRunner.Run(() => DoActionAsync(sequence));
+
+	private async Task DoActionAsync(StepSequence sequence)
 	{
 		var step = sequence.CurrentStep!;
 		var start = m_world.Time;
@@ -229,7 +237,7 @@ public sealed class LocationScreenViewModel : ViewModelBase
 		}
 		else
 		{
-			m_world.DoPlayerStep(sequence);
+			await m_world.DoPlayerStepAsync(sequence).ConfigureAwait(true);
 			var spent = m_world.GameData.Calendar.FormatOffsetFrom(start, m_world.Time - start, TimeFormat.Long);
 			var result = step.Player!.Result!;
 			var text = m_world.Time == start ? OurResources.PlayerActionResultInstant.FormatCurrentCulture(result) : OurResources.PlayerActionResult.FormatCurrentCulture(result, spent);
@@ -254,14 +262,16 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	/// Has the step the player is on carried out for them, or all of the steps, and tells them how long it took, or once
 	/// that finishes what they started, that they finished it.
 	/// </summary>
-	private void DoSteps(StepSequence sequence, bool isAll)
+	private void DoSteps(StepSequence sequence, bool isAll) => m_timeRunner.Run(() => DoStepsAsync(sequence, isAll));
+
+	private async Task DoStepsAsync(StepSequence sequence, bool isAll)
 	{
 		var activity = PlayerStepsViewModel.LowerFirst(sequence.Need.GetActivity(sequence.IsDone ? null : sequence.Step, m_world.Player.Business?.Profession.Id));
 		var start = m_world.Time;
 		if (isAll)
-			m_world.DoPlayerStepsAutomatically(sequence);
+			await m_world.DoPlayerStepsAutomaticallyAsync(sequence).ConfigureAwait(true);
 		else
-			m_world.DoPlayerStep(sequence);
+			await m_world.DoPlayerStepAsync(sequence).ConfigureAwait(true);
 		var spent = m_world.GameData.Calendar.FormatOffsetFrom(start, m_world.Time - start, TimeFormat.Long);
 		var result = m_world.Player.Sequences.Contains(sequence) ? OurResources.PlayerStepDone.FormatCurrentCulture(spent) : OurResources.PlayerStepsDone.FormatCurrentCulture(activity, spent);
 		Steps = CreateSteps();
@@ -271,10 +281,12 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	/// <summary>
 	/// Has the player choose an option of the step they're on.
 	/// </summary>
-	private void Choose(StepSequence sequence, StepOption option)
+	private void Choose(StepSequence sequence, StepOption option) => m_timeRunner.Run(() => ChooseAsync(sequence, option));
+
+	private async Task ChooseAsync(StepSequence sequence, StepOption option)
 	{
 		var start = m_world.Time;
-		m_world.ChoosePlayerOption(sequence, option);
+		await m_world.ChoosePlayerOptionAsync(sequence, option).ConfigureAwait(true);
 		Steps = CreateSteps();
 		if (m_world.Time != start)
 			StepsCarriedOut.Raise(this, new GenericEventArgs<string>(OurResources.PlayerStepDone.FormatCurrentCulture(m_world.GameData.Calendar.FormatOffsetFrom(start, m_world.Time - start, TimeFormat.Long))));
@@ -283,12 +295,13 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	/// <summary>
 	/// Switches the player to something else they're in the middle of.
 	/// </summary>
-	private void Switch(StepSequence sequence)
-	{
-		m_world.FocusPlayerSteps(sequence);
-		m_world.UpdatePlayerSteps();
-		Steps = CreateSteps();
-	}
+	private void Switch(StepSequence sequence) =>
+		m_timeRunner.Run(async () =>
+		{
+			m_world.FocusPlayerSteps(sequence);
+			await m_world.UpdatePlayerStepsAsync().ConfigureAwait(true);
+			Steps = CreateSteps();
+		});
 
 	/// <summary>
 	/// Creates the steps of what the player is in the middle of, keeping whether they're expanded, or null if they aren't
@@ -351,6 +364,7 @@ public sealed class LocationScreenViewModel : ViewModelBase
 	private void OnTravelRequested(Location location) => TravelRequested.Raise(this, new GenericEventArgs<Location>(location));
 
 	private readonly GameWorld m_world;
+	private readonly TimeRunner m_timeRunner;
 	private readonly bool m_isDeveloper;
 	private Person? m_following;
 	private IReadOnlyList<LocationPersonViewModel> m_people;

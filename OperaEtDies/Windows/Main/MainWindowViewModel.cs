@@ -10,6 +10,7 @@ using OperaEtDies.Controls.Characters;
 using OperaEtDies.Controls.Clothing;
 using OperaEtDies.Controls.Conversation;
 using OperaEtDies.Controls.Locations;
+using OperaEtDies.Controls.Log;
 using OperaEtDies.Controls.Map;
 using OperaEtDies.Controls.Start;
 using OperaEtDies.Controls.Status;
@@ -20,16 +21,17 @@ namespace OperaEtDies.Windows.Main;
 
 public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 {
-	public MainWindowViewModel(string title, GameWorld world, bool isDeveloper = false, SaveSettings? saveSettings = null)
+	public MainWindowViewModel(string title, GameWorld world, bool isDeveloper = false, SaveSettings? saveSettings = null, bool isTimePaced = false)
 	{
 		m_saveSettings = saveSettings;
-		m_taskGroup = new TaskGroup();
 		Title = title;
 		IsDeveloper = isDeveloper;
 		World = world;
+		TimeRunner = new TimeRunner(world, isTimePaced);
 		Player = new LocationPersonViewModel(world.Player, world.GameData.PortraitRenderer);
 		m_currentLocation = CreateLocationScreen(world.Player.Location);
 		m_miniMap = CreateMiniMap(world.Player.Location);
+		EventLog = new EventLogViewModel(world.EventLog, world.GameData.Calendar, OnLogPersonClicked, OnLogPlaceClicked);
 		World.PropertyChanged += OnWorldPropertyChanged;
 		World.Player.PropertyChanged += OnPlayerPropertyChanged;
 		World.AppointmentMissed += OnAppointmentMissed;
@@ -116,6 +118,17 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 				.ToList();
 		}
 	}
+
+	/// <summary>
+	/// Runs what the player does that passes time. While it runs, the player can't do anything else but stop it.
+	/// </summary>
+	public TimeRunner TimeRunner { get; }
+
+	/// <summary>
+	/// What the player has seen happen, shown in the sidebar on the right. Clicking a person in it examines them, and
+	/// clicking a place opens the map.
+	/// </summary>
+	public EventLogViewModel EventLog { get; }
 
 	/// <summary>
 	/// The screen showing the location the player is in.
@@ -276,7 +289,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	{
 		VerifyAccess();
 		CloseConversation();
-		var conversation = new ConversationViewModel(person, World);
+		var conversation = new ConversationViewModel(person, World, TimeRunner);
 		conversation.CloseRequested += OnConversationCloseRequested;
 		Conversation = conversation;
 	}
@@ -387,7 +400,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		{
 			var start = new StartScreenViewModel(World);
 			start.CloseRequested += OnStartCloseRequested;
-			start.Started += OnStarted;
+			start.StartRequested += OnStartRequested;
 			StartScreen = start;
 		}
 	}
@@ -401,7 +414,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		if (m_start is { } start)
 		{
 			start.CloseRequested -= OnStartCloseRequested;
-			start.Started -= OnStarted;
+			start.StartRequested -= OnStartRequested;
 			StartScreen = null;
 		}
 	}
@@ -571,7 +584,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		CloseStatus();
 		if (m_clothing?.IsWardrobe != isWardrobe && TryCloseClothing())
 		{
-			var clothing = new ClothingScreenViewModel(World, isWardrobe, IsDeveloper);
+			var clothing = new ClothingScreenViewModel(World, TimeRunner, isWardrobe, IsDeveloper);
 			clothing.CloseRequested += OnClothingCloseRequested;
 			Clothing = clothing;
 		}
@@ -588,14 +601,16 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		{
 			clothing.CloseRequested -= OnClothingCloseRequested;
 			Clothing = null;
+			TimeRunner.Run(async () =>
+			{
+				// Changing clothes takes its time once the player is done.
+				if (await clothing.FinishAsync().ConfigureAwait(true) is { } result)
+					m_currentLocation.ShowWaitResult(result);
 
-			// Changing clothes takes its time once the player is done.
-			if (clothing.Finish() is { } result)
-				m_currentLocation.ShowWaitResult(result);
-
-			// Changing or carrying clothes can do one of the player's steps, such as changing into their work clothes.
-			World.UpdatePlayerSteps();
-			ShowPlayerLocation();
+				// Changing or carrying clothes can do one of the player's steps, such as changing into their work clothes.
+				await World.UpdatePlayerStepsAsync().ConfigureAwait(true);
+				ShowPlayerLocation();
+			});
 		}
 	}
 
@@ -656,8 +671,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Moves the player to a location next to theirs, which takes the travel time between them. They can't leave home unless
-	/// they're dressed enough to go out.
+	/// Moves the player to a location next to theirs, which takes the travel time between them, and can't be stopped
+	/// partway. They can't leave home unless they're dressed enough to go out.
 	/// </summary>
 	public void TravelTo(Location location)
 	{
@@ -670,48 +685,55 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		}
 		else
 		{
-			World.AdvanceTime(World.GetTravelTime(player.Location, location));
-
-			// Someone asking the player to chat on the way stops them where they are.
-			if (player.TalkRequest is null)
+			TimeRunner.Run(async () =>
 			{
-				MoveTo(location);
-				m_currentLocation.Refresh();
-			}
+				await World.AdvanceTimeAsync(World.GetTravelTime(player.Location, location), canStop: false, isPaced: false).ConfigureAwait(true);
+
+				// Someone asking the player to chat on the way stops them where they are.
+				if (player.TalkRequest is null)
+				{
+					await MoveToAsync(location).ConfigureAwait(true);
+					m_currentLocation.Refresh();
+				}
+			});
 		}
 	}
 
 	/// <summary>
 	/// Moves the player straight to any location without any time passing, for developers.
 	/// </summary>
-	private void JumpTo(Location location) => MoveTo(location);
+	private void JumpTo(Location location) => TimeRunner.Run(() => MoveToAsync(location));
 
 	/// <summary>
-	/// Moves the player to a location and shows it, still following the given person, if any.
+	/// Moves the player to a location and shows it.
 	/// </summary>
-	private void MoveTo(Location location, Person? following = null)
+	private async Task MoveToAsync(Location location)
 	{
 		var player = World.Player;
 		Log.Info($"Traveling from {player.Location.Title} ({player.Location.Id}) to {location.Title} ({location.Id})");
 
-		World.MovePlayer(location);
-		ShowLocation(following);
+		await World.MovePlayerAsync(location).ConfigureAwait(true);
+		ShowLocation();
 	}
 
 	/// <summary>
-	/// Shows the location the player is in, still following the given person, if any.
+	/// Shows the location the player is in, still following the given person, if any. The screen it replaces stops being
+	/// listened to, unless it's kept, such as while it's running something the player did that will say how it went.
 	/// </summary>
-	private void ShowLocation(Person? following = null)
+	private void ShowLocation(Person? following = null, bool isOldScreenKept = false)
 	{
 		var location = World.Player.Location;
 		SaveStatus = null;
 		CloseCharacter();
 		CloseConversation();
-		m_currentLocation.TravelRequested -= OnTravelRequested;
-		m_currentLocation.Followed -= OnFollowed;
-		m_currentLocation.ExamineRequested -= OnExamineRequested;
-		m_currentLocation.TalkRequested -= OnTalkRequested;
-		m_currentLocation.StepsCarriedOut -= OnStepsCarriedOut;
+		if (!isOldScreenKept)
+		{
+			m_currentLocation.TravelRequested -= OnTravelRequested;
+			m_currentLocation.Followed -= OnFollowed;
+			m_currentLocation.ExamineRequested -= OnExamineRequested;
+			m_currentLocation.TalkRequested -= OnTalkRequested;
+			m_currentLocation.StepsCarriedOut -= OnStepsCarriedOut;
+		}
 		CurrentLocation = CreateLocationScreen(location, following);
 		MiniMap = CreateMiniMap(location);
 	}
@@ -773,7 +795,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		if (m_start is not null)
 		{
 			m_start.CloseRequested -= OnStartCloseRequested;
-			m_start.Started -= OnStarted;
+			m_start.StartRequested -= OnStartRequested;
 		}
 		if (m_clothing is not null)
 			m_clothing.CloseRequested -= OnClothingCloseRequested;
@@ -786,12 +808,12 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 			m_characterStatus.CloseRequested -= OnCharacterStatusCloseRequested;
 		if (m_conversation is not null)
 			m_conversation.CloseRequested -= OnConversationCloseRequested;
-		DisposableUtility.Dispose(ref m_taskGroup);
+		TimeRunner.Dispose();
 	}
 
 	private LocationScreenViewModel CreateLocationScreen(Location location, Person? following = null)
 	{
-		var viewModel = new LocationScreenViewModel(location, World, following, IsDeveloper);
+		var viewModel = new LocationScreenViewModel(location, World, TimeRunner, following, IsDeveloper);
 		viewModel.TravelRequested += OnTravelRequested;
 		viewModel.Followed += OnFollowed;
 		viewModel.ExamineRequested += OnExamineRequested;
@@ -838,7 +860,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	private void OnFollowed(object? sender, GenericEventArgs<Location> e)
 	{
 		var following = m_currentLocation.Following;
-		MoveTo(e.Value, following);
+		Log.Info($"Followed {following?.FullName} to {e.Value.Title} ({e.Value.Id})");
+		ShowLocation(following);
 		if (following is not null)
 			m_currentLocation.ShowWaitResult(OurResources.WaitResultFollowed.FormatCurrentCulture(following.FullName, e.Value.Title));
 	}
@@ -869,14 +892,24 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	private void OnStartCloseRequested(object? sender, EventArgs e) => CloseStart();
 
 	/// <summary>
-	/// Shows where the player is once they've started something, and how it went if it was done for them.
+	/// Starts something the player chose, or carries on with it, showing where they are while it goes on, and how it went
+	/// if it was done for them.
 	/// </summary>
-	private void OnStarted(object? sender, GenericEventArgs<string?> e)
+	private void OnStartRequested(object? sender, GenericEventArgs<StartRequest> e)
 	{
 		CloseStart();
 		ShowPlayerLocation();
-		if (e.Value is { } result)
-			m_currentLocation.ShowWaitResult(result);
+		var (need, isAutomatic) = e.Value;
+		TimeRunner.Run(async () =>
+		{
+			var activity = PlayerStepsViewModel.LowerFirst(need.GetActivity(0, World.Player.Business?.Profession.Id));
+			var start = World.Time;
+			await World.StartPlayerStepsAsync(need, isAutomatic).ConfigureAwait(true);
+			var spent = World.GameData.Calendar.FormatOffsetFrom(start, World.Time - start, TimeFormat.Long);
+			ShowPlayerLocation();
+			if (isAutomatic)
+				m_currentLocation.ShowWaitResult((World.Player.GetSequence(need) is not null ? OurResources.PlayerStepsStopped : OurResources.PlayerStepsDone).FormatCurrentCulture(activity, spent));
+		});
 	}
 
 	private void OnClothingCloseRequested(object? sender, EventArgs e) => CloseClothing();
@@ -893,6 +926,10 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
 	private void OnPlayerPropertyChanged(object? sender, PropertyChangedEventArgs e)
 	{
+		// While time passes, the player's location is shown as they go, such as on a walk done for them. The screen they
+		// left is still running what they did, and says how it went once it's done.
+		if (e.PropertyName is nameof(Person.Location) && TimeRunner.IsRunning && World.Player.Location != m_currentLocation.Location)
+			ShowLocation(m_currentLocation.Following, isOldScreenKept: true);
 		if (e.PropertyName is nameof(Person.TalkRequest) or null or "")
 			UpdateTalkPrompt();
 		if (e.PropertyName is nameof(Person.Sequences) or null or "")
@@ -928,15 +965,16 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	/// <summary>
 	/// Answers the question, and tells the player of any appointment it made.
 	/// </summary>
-	private void OnAskPromptAnswered(object? sender, GenericEventArgs<bool> e)
-	{
-		var asker = World.Player.AskRequest;
-		var appointment = World.AnswerAsk(e.Value);
-		ShowPlayerLocation();
-		if (appointment is not null && asker is not null)
-			m_currentLocation.ShowWaitResult(OurResources.ConversationAgreedToMeet.FormatCurrentCulture(asker.FullName, AppointmentText.FormatPlace(World, appointment), AppointmentText.FormatWhen(World, appointment.Time)));
-		OnAppointmentsChanged();
-	}
+	private void OnAskPromptAnswered(object? sender, GenericEventArgs<bool> e) =>
+		TimeRunner.Run(async () =>
+		{
+			var asker = World.Player.AskRequest;
+			var appointment = await World.AnswerAskAsync(e.Value).ConfigureAwait(true);
+			ShowPlayerLocation();
+			if (appointment is not null && asker is not null)
+				m_currentLocation.ShowWaitResult(OurResources.ConversationAgreedToMeet.FormatCurrentCulture(asker.FullName, AppointmentText.FormatPlace(World, appointment), AppointmentText.FormatWhen(World, appointment.Time)));
+			OnAppointmentsChanged();
+		});
 
 	/// <summary>
 	/// Shows the reminder while it's time for the player to set off for an appointment, and closes it once they've answered.
@@ -963,19 +1001,21 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	/// <summary>
 	/// Sets off for the appointment, showing its steps in place of what the player was doing.
 	/// </summary>
-	private void OnAppointmentPromptSetOff(object? sender, EventArgs e)
-	{
-		World.AnswerSetOff(isSettingOff: true);
-		UpdateAppointmentPrompt();
-		ShowPlayerLocation();
-	}
+	private void OnAppointmentPromptSetOff(object? sender, EventArgs e) =>
+		TimeRunner.Run(async () =>
+		{
+			await World.AnswerSetOffAsync(isSettingOff: true).ConfigureAwait(true);
+			UpdateAppointmentPrompt();
+			ShowPlayerLocation();
+		});
 
-	private void OnAppointmentPromptCalledOff(object? sender, EventArgs e)
-	{
-		World.AnswerSetOff(isSettingOff: false);
-		UpdateAppointmentPrompt();
-		OnAppointmentsChanged();
-	}
+	private void OnAppointmentPromptCalledOff(object? sender, EventArgs e) =>
+		TimeRunner.Run(async () =>
+		{
+			await World.AnswerSetOffAsync(isSettingOff: false).ConfigureAwait(true);
+			UpdateAppointmentPrompt();
+			OnAppointmentsChanged();
+		});
 
 	/// <summary>
 	/// Tells the player they missed an appointment, on top of whatever they were doing.
@@ -997,24 +1037,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		if (e.Person != player || e.Cause == Data.FailCause.NoShow)
 			return;
 		var step = PlayerStepsViewModel.Describe(e.Sequence.Need, e.Step, place: null, player);
-		ShowNotice(OurResources.PlayerStepFailed.FormatCurrentCulture(step, GetCauseText(e.Cause)));
+		ShowNotice(OurResources.PlayerStepFailed.FormatCurrentCulture(step, LogEntryText.GetCauseText(e.Cause)));
 	}
-
-	/// <summary>
-	/// Describes why a step failed, to go in a sentence.
-	/// </summary>
-	internal static string GetCauseText(Data.FailCause cause) => cause switch
-	{
-		Data.FailCause.No => OurResources.FailCauseNo,
-		Data.FailCause.Nobody => OurResources.FailCauseNobody,
-		Data.FailCause.Unreachable => OurResources.FailCauseUnreachable,
-		Data.FailCause.Missing => OurResources.FailCauseMissing,
-		Data.FailCause.Left => OurResources.FailCauseLeft,
-		Data.FailCause.Interrupted => OurResources.FailCauseInterrupted,
-		Data.FailCause.Hours => OurResources.FailCauseHours,
-		Data.FailCause.NoShow => OurResources.FailCauseNoShow,
-		_ => OurResources.FailCauseNoOption,
-	};
 
 	/// <summary>
 	/// Shows a notice, along with any the player hasn't closed yet.
@@ -1067,11 +1091,14 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	{
 		if (World.Player.TalkRequest is { } asker)
 		{
-			var start = World.Time;
-			var passed = World.AcceptTalk();
-			m_currentLocation.ShowWaitResult(passed is { } time
-				? OurResources.TalkPromptChatted.FormatCurrentCulture(asker.FullName, World.GameData.Calendar.FormatOffsetFrom(start, time, TimeFormat.Long))
-				: OurResources.TalkPromptGone.FormatCurrentCulture(asker.FullName));
+			TimeRunner.Run(async () =>
+			{
+				var start = World.Time;
+				var passed = await World.AcceptTalkAsync().ConfigureAwait(true);
+				m_currentLocation.ShowWaitResult(passed is { } time
+					? OurResources.TalkPromptChatted.FormatCurrentCulture(asker.FullName, World.GameData.Calendar.FormatOffsetFrom(start, time, TimeFormat.Long))
+					: OurResources.TalkPromptGone.FormatCurrentCulture(asker.FullName));
+			});
 		}
 	}
 
@@ -1102,13 +1129,14 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	/// <summary>
 	/// Keeps going, which for steps done for the player carries them on, and goes back to their steps.
 	/// </summary>
-	private void OnRepeatPromptContinued(object? sender, EventArgs e)
-	{
-		if (World.Player.Current is { } sequence && World.IsAskingPlayerToKeepGoing(sequence))
-			World.AnswerKeepGoing(sequence, keepGoing: true);
-		UpdateRepeatPrompt();
-		ShowPlayerLocation();
-	}
+	private void OnRepeatPromptContinued(object? sender, EventArgs e) =>
+		TimeRunner.Run(async () =>
+		{
+			if (World.Player.Current is { } sequence && World.IsAskingPlayerToKeepGoing(sequence))
+				await World.AnswerKeepGoingAsync(sequence, keepGoing: true).ConfigureAwait(true);
+			UpdateRepeatPrompt();
+			ShowPlayerLocation();
+		});
 
 	/// <summary>
 	/// Stops, carrying on with the steps after the ones repeated, such as changing out of work clothes.
@@ -1118,15 +1146,36 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		var player = World.Player;
 		if (player.Current is { } sequence && World.IsAskingPlayerToKeepGoing(sequence))
 		{
-			var activity = sequence.Need.GetActivity(null, player.Business?.Profession.Id);
-			World.AnswerKeepGoing(sequence, keepGoing: false);
-			UpdateRepeatPrompt();
-			ShowPlayerLocation();
-			m_currentLocation.ShowWaitResult(OurResources.RepeatPromptStopped.FormatCurrentCulture(char.ToLower(activity[0], CultureInfo.CurrentCulture) + activity[1..]));
+			TimeRunner.Run(async () =>
+			{
+				var activity = sequence.Need.GetActivity(null, player.Business?.Profession.Id);
+				await World.AnswerKeepGoingAsync(sequence, keepGoing: false).ConfigureAwait(true);
+				UpdateRepeatPrompt();
+				ShowPlayerLocation();
+				m_currentLocation.ShowWaitResult(OurResources.RepeatPromptStopped.FormatCurrentCulture(char.ToLower(activity[0], CultureInfo.CurrentCulture) + activity[1..]));
+			});
 		}
 	}
 
 	private void OnConversationCloseRequested(object? sender, EventArgs e) => CloseConversation();
+
+	/// <summary>
+	/// Examines someone clicked in the event log, unless time is passing.
+	/// </summary>
+	private void OnLogPersonClicked(Person person)
+	{
+		if (!TimeRunner.IsRunning)
+			ShowCharacter(person);
+	}
+
+	/// <summary>
+	/// Opens the map for a place clicked in the event log, unless time is passing.
+	/// </summary>
+	private void OnLogPlaceClicked(Location place)
+	{
+		if (!TimeRunner.IsRunning)
+			ShowMap();
+	}
 
 	private void OnMapTravelRequested(object? sender, GenericEventArgs<Location> e)
 	{
@@ -1142,7 +1191,6 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	private static ILogSource Log { get; } = LogManager.CreateLogSource(nameof(MainWindowViewModel));
 
 	private readonly SaveSettings? m_saveSettings;
-	private TaskGroup m_taskGroup;
 	private LocationScreenViewModel m_currentLocation;
 	private VillagersViewModel? m_villagers;
 	private TownMapViewModel? m_map;

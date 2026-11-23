@@ -9,7 +9,7 @@
 		doesn't move the buttons. In the player's location, they can be talked with and followed. Also used by the list of
 		villagers, where the player is labeled, and developers can go to where anyone else is.  -->
 	<DataTemplate DataType="{x:Type local:LocationPersonViewModel}">
-		<Grid Margin="0,0,0,8">
+		<Grid Margin="0,0,0,4">
 			<Grid.ColumnDefinitions>
 				<ColumnDefinition Width="160" />
 				<ColumnDefinition Width="*" />
@@ -33,38 +33,38 @@
 					Text="{Binding Name}"
 					TextTrimming="CharacterEllipsis" />
 			</DockPanel>
-			<StackPanel
+			<WrapPanel
 				Grid.Row="0"
 				Grid.Column="1"
-				Margin="12,0,0,0"
-				Orientation="Horizontal">
+				Margin="12,0,0,0">
 				<Button
 					Width="120"
 					Height="32"
+					Margin="0,0,0,4"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
 					Content="{x:Static operaEtDies:OurResources.ExamineCharacter}" />
 				<Button
 					Width="80"
 					Height="32"
-					Margin="8,0,0,0"
+					Margin="8,0,0,4"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Talk}"
 					Content="{x:Static operaEtDies:OurResources.TalkToPerson}"
 					Visibility="{Binding CanTalk, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
 				<Button
 					Width="130"
 					Height="32"
-					Margin="8,0,0,0"
+					Margin="8,0,0,4"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleFollow}"
 					Content="{Binding FollowText}"
 					Visibility="{Binding CanFollow, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
 				<TextBlock
-					Margin="12,0,0,0"
+					Margin="12,0,0,4"
 					VerticalAlignment="Center"
 					FontWeight="Bold"
 					Text="{Binding PlayerLabel}"
 					Visibility="{Binding PlayerLabel, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 				<Border
-					Margin="12,0,0,0"
+					Margin="12,0,0,4"
 					Style="{DynamicResource DeveloperBorderStyle}"
 					Visibility="{Binding CanGoTo, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 					<Button
@@ -73,11 +73,12 @@
 						Content="{x:Static operaEtDies:OurResources.GoToPerson}" />
 				</Border>
 				<TextBlock
-					Margin="12,0,0,0"
+					Margin="12,0,0,4"
 					VerticalAlignment="Center"
 					Foreground="{DynamicResource FontLightBrush}"
-					Text="{Binding Activity}" />
-			</StackPanel>
+					Text="{Binding Activity}"
+					TextWrapping="Wrap" />
+			</WrapPanel>
 
 			<!--  For developers, where the person is going and why they chose to.  -->
 			<Border
@@ -179,14 +180,16 @@
 					</ItemsControl.ItemTemplate>
 				</ItemsControl>
 
-				<!--  Examining the location, and waiting here. How the last wait went is beside the buttons, so it doesn't move anything.  -->
-				<StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+				<!--  Examining the location, and waiting here. How the last wait went is beside the buttons, wrapping in the space left, so it doesn't move anything.  -->
+				<DockPanel Margin="0,12,0,0">
 					<Button
+						DockPanel.Dock="Left"
 						Width="120"
 						Height="32"
 						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
 						Content="{x:Static operaEtDies:OurResources.ExamineLocation}" />
 					<Button
+						DockPanel.Dock="Left"
 						Width="120"
 						Height="32"
 						Margin="8,0,0,0"
@@ -197,8 +200,9 @@
 						Margin="12,0,0,0"
 						VerticalAlignment="Center"
 						Foreground="{DynamicResource FontLightBrush}"
-						Text="{Binding WaitResult}" />
-				</StackPanel>
+						Text="{Binding WaitResult}"
+						TextWrapping="Wrap" />
+				</DockPanel>
 
 				<!--  What the player is in the middle of: the step they're on, and buttons to have it or all of it done for them,
 					to stop, to show the steps after it (listed below the buttons, so the buttons don't move), and at the end of
@@ -211,43 +215,44 @@
 						Text="{Binding Next}"
 						TextWrapping="Wrap"
 						Visibility="{Binding Next, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
-					<StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+					<WrapPanel Margin="0,8,0,0">
 						<Button
 							Width="160"
 							Height="32"
+							Margin="0,0,0,4"
 							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=DoStep}"
 							Content="{x:Static operaEtDies:OurResources.PlayerStepsAutomatic}"
 							ToolTip="{x:Static operaEtDies:OurResources.PlayerStepsAutomaticToolTip}" />
 						<Button
 							Width="160"
 							Height="32"
-							Margin="8,0,0,0"
+							Margin="8,0,0,4"
 							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=DoAll}"
 							Content="{x:Static operaEtDies:OurResources.PlayerStepsDoAll}"
 							ToolTip="{x:Static operaEtDies:OurResources.PlayerStepsDoAllToolTip}" />
 						<Button
 							Width="120"
 							Height="32"
-							Margin="8,0,0,0"
+							Margin="8,0,0,4"
 							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Stop}"
 							Content="{x:Static operaEtDies:OurResources.PlayerStepsStop}"
 							ToolTip="{x:Static operaEtDies:OurResources.PlayerStepsStopToolTip}" />
 						<Button
 							Width="160"
 							Height="32"
-							Margin="8,0,0,0"
+							Margin="8,0,0,4"
 							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleExpanded}"
 							Content="{Binding ExpandText}" />
 						<Button
 							MinWidth="160"
 							Height="32"
-							Margin="8,0,0,0"
+							Margin="8,0,0,4"
 							Padding="8,0"
 							Command="{Binding Action, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Do}"
 							Content="{Binding Action.Text}"
 							Visibility="{Binding Action, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 						<TextBlock
-							Margin="12,0,0,0"
+							Margin="12,0,0,4"
 							VerticalAlignment="Center"
 							Foreground="{DynamicResource FontLightBrush}"
 							Text="{Binding Action.Note}" />
@@ -262,14 +267,14 @@
 									<Button
 										MinWidth="120"
 										Height="32"
-										Margin="8,0,0,0"
+										Margin="8,0,0,4"
 										Padding="8,0"
 										Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Do}"
 										Content="{Binding Text}" />
 								</DataTemplate>
 							</ItemsControl.ItemTemplate>
 						</ItemsControl>
-					</StackPanel>
+					</WrapPanel>
 					<ItemsControl
 						Margin="0,8,0,0"
 						ItemsSource="{Binding Steps}"

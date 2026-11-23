@@ -299,7 +299,7 @@ public sealed class MainWindowViewModelTests
 	}
 
 	[Test]
-	public void ThePlayerIsAskedWhetherToKeepGoing()
+	public async Task ThePlayerIsAskedWhetherToKeepGoingAsync()
 	{
 		using var viewModel = CreateViewModel(withSchedules: true);
 		var world = viewModel.World;
@@ -308,7 +308,7 @@ public sealed class MainWindowViewModelTests
 		var loop = work.Steps.ToList().FindIndex(x => x.Kind == StepKind.Do);
 		player.SetProgress(work, 0);
 		player.SetPlan(work, [], startStep: loop + 1, goalMinutes: 60);
-		world.UpdatePlayerSteps();
+		await world.UpdatePlayerStepsAsync();
 
 		var prompt = viewModel.Overlay as RepeatPromptViewModel;
 		Assert.That(prompt, Is.Not.Null);
@@ -870,7 +870,7 @@ public sealed class MainWindowViewModelTests
 				OurResources.AppointmentPlaceOffQuarter.FormatCurrentCulture(OurResources.AppointmentPlaceNamedHome.FormatCurrentCulture(client.FullName), client.Home.Quarter!.Title)))));
 
 		// Missing it is a notice, which closes.
-		world.OnAppointmentMissed(appointment, isOtherWaiting: true);
+		world.OnAppointmentMissed(appointment, isOtherWaiting: true, world.Time);
 		Assert.That(viewModel.NoticePrompt!.Text, Is.EqualTo(OurResources.AppointmentGaveUp.FormatCurrentCulture(client.FullName)));
 		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.NoticePrompt));
 		viewModel.NoticePrompt.Dismiss();

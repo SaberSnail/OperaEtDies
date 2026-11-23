@@ -184,7 +184,7 @@ public sealed class AppointmentTests
 	}
 
 	[Test]
-	public void ThePlayerAsksInConversationAndKeepsAppointments()
+	public async Task ThePlayerAsksInConversationAndKeepsAppointmentsAsync()
 	{
 		var need = Errand([Asking(Do(Amount(30)))]);
 		var (world, player, client) = CreateWorld(need, isPlayer: true);
@@ -193,7 +193,7 @@ public sealed class AppointmentTests
 		// The player asks the client in conversation, who agrees to meet at their home.
 		Scheduler.StartSequence(player, need, 0, null, [], null);
 		Assert.That(world.GetPlayerAsk(client)?.StepIndex, Is.Zero);
-		var answer = world.AskPlayerQuestion(client);
+		var answer = await world.AskPlayerQuestionAsync(client);
 		var appointment = answer.Appointment!;
 		Assert.That((answer.IsYes, appointment.Worker, appointment.Client, appointment.Place), Is.EqualTo((true, player, client, client.Home)));
 		Assert.That(world.GetPlayerAppointments(), Is.EqualTo(new[] { appointment }));
@@ -201,62 +201,62 @@ public sealed class AppointmentTests
 		Assert.That((player.Sequences.Single(), keeping.HasSetOff, player.Current), Is.EqualTo((keeping, false, (StepSequence?) null)));
 
 		// Once it's time to set off (here, as soon as they're done talking), time stops to ask them, and stays stopped until they answer.
-		world.AdvanceTime(calendar.CreateTimeOffset(1, 0, 0));
+		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(1, 0, 0));
 		Assert.That(world.GetPlayerSetOffSequence(), Is.SameAs(keeping));
-		Assert.That(world.AdvanceTime(calendar.CreateTimeOffset(0, 1, 0)), Is.EqualTo(calendar.CreateTimeOffset(0, 0, 0)));
+		Assert.That(await world.AdvanceTimeAsync(calendar.CreateTimeOffset(0, 1, 0)), Is.EqualTo(calendar.CreateTimeOffset(0, 0, 0)));
 		AssertSavesAndLoads(world);
 
 		// Setting off, they first go there and meet the client.
-		world.AnswerSetOff(isSettingOff: true);
+		await world.AnswerSetOffAsync(isSettingOff: true);
 		Assert.That((world.GetPlayerSetOffSequence(), player.Current, keeping.SetOff), Is.EqualTo(((StepSequence?) null, keeping, SetOffState.Gone)));
 		Assert.That(world.GetPlayerSteps(keeping).Select(x => x.Kind), Is.EqualTo(new[] { PlayerStepKind.GoToAppointment, PlayerStepKind.Meet, PlayerStepKind.Step }));
 		AssertSavesAndLoads(world);
-		world.DoPlayerStep(keeping);
+		await world.DoPlayerStepAsync(keeping);
 		Assert.That(player.Location, Is.EqualTo(appointment.Place));
 		for (var count = 0; count < 3 && !appointment.IsStarted; count++)
-			world.DoPlayerStep(keeping);
+			await world.DoPlayerStepAsync(keeping);
 
 		// Once both are there, the client follows them while they take its steps, and is let go at the end.
 		Assert.That(appointment.IsStarted, Is.True);
 		Assert.That(client.CurrentTask, Is.TypeOf<FollowTask>());
 		Assert.That(world.GetPlayerSteps(keeping).Select(x => (x.Kind, x.Step.Kind)), Is.EqualTo(new[] { (PlayerStepKind.Step, StepKind.Do) }));
 		AssertSavesAndLoads(world);
-		world.DoPlayerStep(keeping);
+		await world.DoPlayerStepAsync(keeping);
 		Assert.That((player.Sequences.Count, world.Appointments.Count), Is.EqualTo((0, 0)));
 		Assert.That(client.CurrentTask, Is.Not.TypeOf<FollowTask>());
 	}
 
 	[Test]
-	public void ThePlayerCanCallOffAppointments()
+	public async Task ThePlayerCanCallOffAppointmentsAsync()
 	{
 		var need = Errand([Asking(Do(Amount(30)))]);
 		var (world, player, client) = CreateWorld(need, isPlayer: true);
 		Scheduler.StartSequence(player, need, 0, null, [], null);
-		world.AskPlayerQuestion(client);
-		world.AdvanceTime(world.GameData.Calendar.CreateTimeOffset(1, 0, 0));
+		await world.AskPlayerQuestionAsync(client);
+		await world.AdvanceTimeAsync(world.GameData.Calendar.CreateTimeOffset(1, 0, 0));
 		Assume.That(world.GetPlayerSetOffSequence(), Is.Not.Null);
 
-		world.AnswerSetOff(isSettingOff: false);
+		await world.AnswerSetOffAsync(isSettingOff: false);
 
 		Assert.That((world.GetPlayerSetOffSequence(), world.Appointments.Count, player.Sequences.Count, client.Sequences.Count), Is.EqualTo(((StepSequence?) null, 0, 0, 0)));
 		Assert.That(client.Tasks.OfType<MeetTask>(), Is.Empty);
 	}
 
 	[Test]
-	public void ClientsGiveUpOnThePlayerAfterAWhile()
+	public async Task ClientsGiveUpOnThePlayerAfterAWhileAsync()
 	{
 		var need = Errand([Asking(Do(Amount(30)))]);
 		var (world, player, client) = CreateWorld(need, isPlayer: true);
 		var calendar = world.GameData.Calendar;
 		Scheduler.StartSequence(player, need, 0, null, [], null);
-		var appointment = world.AskPlayerQuestion(client).Appointment!;
+		var appointment = (await world.AskPlayerQuestionAsync(client)).Appointment!;
 		var missed = new List<(Appointment Appointment, bool IsClientWaiting)>();
 		world.AppointmentMissed += (_, e) => missed.Add((e.Appointment, e.IsOtherWaiting));
-		world.AdvanceTime(calendar.CreateTimeOffset(1, 0, 0));
-		world.AnswerSetOff(isSettingOff: true);
+		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(1, 0, 0));
+		await world.AnswerSetOffAsync(isSettingOff: true);
 
 		// The player never goes, so the client waits there until a while after it was to start, and gives up.
-		world.AdvanceTime(calendar.CreateTimeOffset(0, 3, 0));
+		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(0, 3, 0));
 
 		Assert.That(missed, Is.EqualTo(new[] { (appointment, true) }));
 		Assert.That((player.Sequences.Count, world.Appointments.Count), Is.EqualTo((0, 0)));
@@ -282,7 +282,7 @@ public sealed class AppointmentTests
 	}
 
 	[Test]
-	public void AnswersAndPartnersAreKeptWhileStepsArePending()
+	public async Task AnswersAndPartnersAreKeptWhileStepsArePendingAsync()
 	{
 		var need = Errand([
 			new Step { Kind = StepKind.Ask, With = StepTarget.Anyone, Name = "agreed", Player = new StepPlayer { Title = "Ask" }, Minutes = Amount(5), Chance = new StepChance { Base = 100 } },
@@ -292,7 +292,7 @@ public sealed class AppointmentTests
 		var (world, player, client) = CreateWorld(need, isPlayer: true);
 		var sequence = Scheduler.StartSequence(player, need, 0, null, [], null);
 
-		var answer = world.AskPlayerQuestion(client);
+		var answer = await world.AskPlayerQuestionAsync(client);
 
 		// They stopped at the next step they take themselves, still knowing the answer, and who they asked.
 		Assert.That(answer.IsYes, Is.True);

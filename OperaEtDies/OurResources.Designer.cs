@@ -5766,5 +5766,176 @@ namespace OperaEtDies {
                 return ResourceManager.GetString("AppointmentPlaceOffQuarter", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The saved game has more than one event log..
+        /// </summary>
+        public static string SaveEventLogInvalid {
+            get {
+                return ResourceManager.GetString("SaveEventLogInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The event log {0} has an entry at {1} with a step its need doesn't have, or a step without a need..
+        /// </summary>
+        public static string SaveLogEntryInvalid {
+            get {
+                return ResourceManager.GetString("SaveLogEntryInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to What's happening.
+        /// </summary>
+        public static string EventLogHeader {
+            get {
+                return ResourceManager.GetString("EventLogHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You.
+        /// </summary>
+        public static string LogYou {
+            get {
+                return ResourceManager.GetString("LogYou", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to you.
+        /// </summary>
+        public static string LogYouObject {
+            get {
+                return ResourceManager.GetString("LogYouObject", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} arrived from {1}..
+        /// </summary>
+        public static string LogArrived {
+            get {
+                return ResourceManager.GetString("LogArrived", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} arrived at {1}..
+        /// </summary>
+        public static string LogArrivedPlayer {
+            get {
+                return ResourceManager.GetString("LogArrivedPlayer", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} left for {1}..
+        /// </summary>
+        public static string LogLeft {
+            get {
+                return ResourceManager.GetString("LogLeft", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} started {1}..
+        /// </summary>
+        public static string LogBusy {
+            get {
+                return ResourceManager.GetString("LogBusy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} had nothing to do..
+        /// </summary>
+        public static string LogIdle {
+            get {
+                return ResourceManager.GetString("LogIdle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} started changing clothes..
+        /// </summary>
+        public static string LogChangingClothes {
+            get {
+                return ResourceManager.GetString("LogChangingClothes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} started talking with {1}..
+        /// </summary>
+        public static string LogTalking {
+            get {
+                return ResourceManager.GetString("LogTalking", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} waited for {1}..
+        /// </summary>
+        public static string LogWaiting {
+            get {
+                return ResourceManager.GetString("LogWaiting", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} waited to meet {1}..
+        /// </summary>
+        public static string LogMeeting {
+            get {
+                return ResourceManager.GetString("LogMeeting", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} followed {1}..
+        /// </summary>
+        public static string LogFollowing {
+            get {
+                return ResourceManager.GetString("LogFollowing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} couldn't finish {1}: {2}..
+        /// </summary>
+        public static string LogFailed {
+            get {
+                return ResourceManager.GetString("LogFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to they left before it was done.
+        /// </summary>
+        public static string FailCauseLeftOther {
+            get {
+                return ResourceManager.GetString("FailCauseLeftOther", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Stop.
+        /// </summary>
+        public static string StopTime {
+            get {
+                return ResourceManager.GetString("StopTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Stop time passing. Whatever you were doing stops, though you finish walking to the next place first..
+        /// </summary>
+        public static string StopTimeToolTip {
+            get {
+                return ResourceManager.GetString("StopTimeToolTip", resourceCulture);
+            }
+        }
     }
 }

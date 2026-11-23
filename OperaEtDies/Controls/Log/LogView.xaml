@@ -1,0 +1,53 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:local="clr-namespace:OperaEtDies.Controls.Log"
+	xmlns:operaEtDies="clr-namespace:OperaEtDies"
+	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
+
+	<!--  The event log, oldest first, staying scrolled to the newest entry unless the player scrolled back. Each entry has the
+		date above it when the day changes, and the time beside it when the time changes.  -->
+	<DataTemplate DataType="{x:Type local:EventLogViewModel}">
+		<DockPanel>
+			<TextBlock
+				Margin="12,12,12,8"
+				DockPanel.Dock="Top"
+				Foreground="{DynamicResource FontLightBrush}"
+				Text="{x:Static operaEtDies:OurResources.EventLogHeader}" />
+			<ScrollViewer
+				local:LogViewBehaviors.IsScrolledToEnd="True"
+				HorizontalScrollBarVisibility="Disabled"
+				VerticalScrollBarVisibility="Auto">
+				<ItemsControl Margin="12,0,12,12" ItemsSource="{Binding Entries}">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate DataType="{x:Type local:LogEntryViewModel}">
+							<StackPanel>
+								<TextBlock
+									Margin="0,8,0,4"
+									FontWeight="Bold"
+									Text="{Binding Day}"
+									TextWrapping="Wrap"
+									Visibility="{Binding Day, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+								<Grid Margin="0,0,0,4">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="40" />
+										<ColumnDefinition Width="*" />
+									</Grid.ColumnDefinitions>
+									<TextBlock
+										Grid.Column="0"
+										Foreground="{DynamicResource FontLightBrush}"
+										Text="{Binding Clock}" />
+									<TextBlock
+										Grid.Column="1"
+										local:LogViewBehaviors.Parts="{Binding Parts}"
+										TextWrapping="Wrap" />
+								</Grid>
+							</StackPanel>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+			</ScrollViewer>
+		</DockPanel>
+	</DataTemplate>
+
+</ResourceDictionary>

@@ -15,9 +15,10 @@ namespace OperaEtDies.Controls.Clothing;
 /// </summary>
 public sealed class ClothingScreenViewModel : ViewModelBase
 {
-	public ClothingScreenViewModel(GameWorld world, bool isWardrobe, bool isDeveloper = false)
+	public ClothingScreenViewModel(GameWorld world, TimeRunner timeRunner, bool isWardrobe, bool isDeveloper = false)
 	{
 		m_world = world;
+		m_timeRunner = timeRunner;
 		IsWardrobe = isWardrobe;
 		IsDeveloper = isDeveloper;
 		m_wornBefore = world.Player.Clothing.Pieces.ToList();
@@ -134,13 +135,24 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 	/// Finishes changing clothes as the page closes, which takes time if the player is wearing something different from
 	/// when it opened. Returns how long it took, to show the player, or null if nothing changed.
 	/// </summary>
-	internal string? Finish()
+	internal async Task<string?> FinishAsync()
 	{
 		var start = m_world.Time;
-		var passed = m_world.FinishPlayerChanging(m_wornBefore);
+		var passed = await m_world.FinishPlayerChangingAsync(m_wornBefore).ConfigureAwait(true);
 		m_wornBefore = m_world.Player.Clothing.Pieces.ToList();
 		return passed is { } offset ? OurResources.ClothingChanged.FormatCurrentCulture(m_world.GameData.Calendar.FormatOffsetFrom(start, offset, TimeFormat.Long)) : null;
 	}
+
+	/// <summary>
+	/// Runs something the player does here that can pass time, such as picking up clothes, which can carry them on through
+	/// their steps, then shows their clothes as they are now.
+	/// </summary>
+	internal void Run(Func<Task> action) =>
+		m_timeRunner.Run(async () =>
+		{
+			await action().ConfigureAwait(true);
+			Refresh();
+		});
 
 	/// <summary>
 	/// Has the player change clothes, which takes no time until they're done, then shows their clothes as they are now.
@@ -172,6 +184,7 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 	}
 
 	private readonly GameWorld m_world;
+	private readonly TimeRunner m_timeRunner;
 	private IReadOnlyList<ClothingPieceViewModel> m_wearing;
 	private IReadOnlyList<ClothingPieceViewModel> m_carrying;
 	private IReadOnlyList<BundleViewModel> m_bundles;
@@ -268,8 +281,7 @@ public sealed class ClothingPieceViewModel : ViewModelBase
 	public void Take()
 	{
 		VerifyAccess();
-		m_world.PlayerTake(Piece);
-		m_screen.Refresh();
+		m_screen.Run(() => m_world.PlayerTakeAsync(Piece));
 	}
 
 	public bool CanPutAway() => m_world.CanPlayerPutAway(Piece);
@@ -277,8 +289,7 @@ public sealed class ClothingPieceViewModel : ViewModelBase
 	public void PutAway()
 	{
 		VerifyAccess();
-		m_world.PlayerPutAway(Piece);
-		m_screen.Refresh();
+		m_screen.Run(() => m_world.PlayerPutAwayAsync(Piece));
 	}
 
 	internal static string FirstUpper(string text) => text.Length == 0 ? text : text[..1].ToUpper(CultureInfo.CurrentCulture) + text[1..];

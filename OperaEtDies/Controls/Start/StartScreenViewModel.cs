@@ -17,7 +17,6 @@ public sealed class StartScreenViewModel : ViewModelBase
 {
 	public StartScreenViewModel(GameWorld world)
 	{
-		m_world = world;
 		var player = world.Player;
 		InProgress = player.Current is { } current ? OurResources.StartInProgress.FormatCurrentCulture(current.Need.Title) : null;
 		Choices = world.GetPlayerStartChoices().Select(x => new StartChoiceViewModel(x, world, Start)).ToList();
@@ -29,9 +28,9 @@ public sealed class StartScreenViewModel : ViewModelBase
 	public event EventHandler? CloseRequested;
 
 	/// <summary>
-	/// Raised when the player has started something, with how it went if it was done for them, or null.
+	/// Raised when the player chooses something to start, or carry on with, and whether it's done for them.
 	/// </summary>
-	public event EventHandler<GenericEventArgs<string?>>? Started;
+	public event EventHandler<GenericEventArgs<StartRequest>>? StartRequested;
 
 	public string Title { get; } = OurResources.StartTitle;
 
@@ -58,23 +57,17 @@ public sealed class StartScreenViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Starts something, or carries on with it, and says how it went if it was done for the player.
+	/// Asks for something to be started, or carried on with.
 	/// </summary>
-	private void Start(PlayerStartChoice choice)
-	{
-		var isAutomatic = IsAutomatic;
-		var activity = choice.Need.GetActivity(0, m_world.Player.Business?.Profession.Id);
-		activity = char.ToLower(activity[0], CultureInfo.CurrentCulture) + activity[1..];
-		var start = m_world.Time;
-		m_world.StartPlayerSteps(choice.Need, isAutomatic);
-		var spent = m_world.GameData.Calendar.FormatOffsetFrom(start, m_world.Time - start, TimeFormat.Long);
-		var result = !isAutomatic ? null : (m_world.Player.GetSequence(choice.Need) is not null ? OurResources.PlayerStepsStopped : OurResources.PlayerStepsDone).FormatCurrentCulture(activity, spent);
-		Started.Raise(this, new GenericEventArgs<string?>(result));
-	}
+	private void Start(PlayerStartChoice choice) => StartRequested.Raise(this, new GenericEventArgs<StartRequest>(new StartRequest(choice.Need, IsAutomatic)));
 
-	private readonly GameWorld m_world;
 	private bool m_isAutomatic;
 }
+
+/// <summary>
+/// Something the player chose to start, or carry on with, and whether it's done for them.
+/// </summary>
+public sealed record StartRequest(Need Need, bool IsAutomatic);
 
 /// <summary>
 /// Something the player can start: the need, how it's going, and a button to start it (or carry on with it), or why it

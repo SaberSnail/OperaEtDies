@@ -2359,4 +2359,78 @@
 		<value>{0}, off {1}</value>
 		<comment>Where an appointment is, when it's a house or business. {0} is the place, such as "her home", and {1} is the quarter it's off.</comment>
 	</data>
+	<data name="SaveEventLogInvalid" xml:space="preserve">
+		<value>The saved game has more than one event log.</value>
+	</data>
+	<data name="SaveLogEntryInvalid" xml:space="preserve">
+		<value>The event log {0} has an entry at {1} with a step its need doesn&apos;t have, or a step without a need.</value>
+		<comment>{0} is the world id of the event log, and {1} is the saved time of the entry.</comment>
+	</data>
+	<data name="EventLogHeader" xml:space="preserve">
+		<value>What&apos;s happening</value>
+		<comment>The heading of the log of what the player has seen happen, in the sidebar.</comment>
+	</data>
+	<data name="LogYou" xml:space="preserve">
+		<value>You</value>
+		<comment>The player, at the start of an entry in the log, such as &quot;You started sleeping.&quot;</comment>
+	</data>
+	<data name="LogYouObject" xml:space="preserve">
+		<value>you</value>
+		<comment>The player, in the middle of an entry in the log, such as &quot;Mary Smith started talking with you.&quot;</comment>
+	</data>
+	<data name="LogArrived" xml:space="preserve">
+		<value>{0} arrived from {1}.</value>
+		<comment>An entry in the log. {0} is who arrived, and {1} is where they came from.</comment>
+	</data>
+	<data name="LogArrivedPlayer" xml:space="preserve">
+		<value>{0} arrived at {1}.</value>
+		<comment>An entry in the log, when the player arrives somewhere. {0} is &quot;You&quot;, and {1} is where they arrived.</comment>
+	</data>
+	<data name="LogLeft" xml:space="preserve">
+		<value>{0} left for {1}.</value>
+		<comment>An entry in the log. {0} is who left, and {1} is where they went.</comment>
+	</data>
+	<data name="LogBusy" xml:space="preserve">
+		<value>{0} started {1}.</value>
+		<comment>An entry in the log. {0} is who, and {1} what they started doing, from the data, such as &quot;washing clothes&quot;.</comment>
+	</data>
+	<data name="LogIdle" xml:space="preserve">
+		<value>{0} had nothing to do.</value>
+		<comment>An entry in the log, when someone starts being idle. {0} is who.</comment>
+	</data>
+	<data name="LogChangingClothes" xml:space="preserve">
+		<value>{0} started changing clothes.</value>
+		<comment>An entry in the log. {0} is who.</comment>
+	</data>
+	<data name="LogTalking" xml:space="preserve">
+		<value>{0} started talking with {1}.</value>
+		<comment>An entry in the log. {0} and {1} are the two people talking.</comment>
+	</data>
+	<data name="LogWaiting" xml:space="preserve">
+		<value>{0} waited for {1}.</value>
+		<comment>An entry in the log, when someone waits for someone they called out to or asked something. {0} is who waited, and {1} who for.</comment>
+	</data>
+	<data name="LogMeeting" xml:space="preserve">
+		<value>{0} waited to meet {1}.</value>
+		<comment>An entry in the log, when someone waits for an appointment. {0} is who waited, and {1} who they are meeting.</comment>
+	</data>
+	<data name="LogFollowing" xml:space="preserve">
+		<value>{0} followed {1}.</value>
+		<comment>An entry in the log. {0} is who followed, and {1} who they followed.</comment>
+	</data>
+	<data name="LogFailed" xml:space="preserve">
+		<value>{0} couldn&apos;t finish {1}: {2}.</value>
+		<comment>An entry in the log, when a step fails. {0} is who, {1} what they were doing, from the data, such as &quot;washing clothes&quot;, and {2} why, such as &quot;they said no&quot;.</comment>
+	</data>
+	<data name="FailCauseLeftOther" xml:space="preserve">
+		<value>they left before it was done</value>
+		<comment>Why someone other than the player couldn&apos;t finish a step.</comment>
+	</data>
+	<data name="StopTime" xml:space="preserve">
+		<value>Stop</value>
+		<comment>Button that stops time passing, while it passes.</comment>
+	</data>
+	<data name="StopTimeToolTip" xml:space="preserve">
+		<value>Stop time passing. Whatever you were doing stops, though you finish walking to the next place first.</value>
+	</data>
 </root>

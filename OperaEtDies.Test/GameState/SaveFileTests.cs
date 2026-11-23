@@ -105,6 +105,54 @@ public sealed class SaveFileTests
 	}
 
 	[Test]
+	public void EventLogSavesAndLoads()
+	{
+		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
+		world.AdvanceTime(world.GameData.Calendar.CreateTimeOffset(0, 6, 0));
+		var npc = world.Npcs.First(x => x.Location != world.Player.Location);
+		var from = npc.Location;
+		world.MovePerson(npc, world.Player.Location, world.Time);
+		world.MovePerson(npc, from, world.Time);
+
+		var json = CreateSave(world).Serialize();
+		var loaded = SaveFile.Deserialize(json).Load(world.GameData, GameTitle, new Random(0));
+
+		AssertSameWorld(loaded, world);
+		Assert.That(CreateSave(loaded).Serialize(), Is.EqualTo(json));
+		Assert.That(loaded.EventLog.Entries.Select(x => x.Kind), Is.SupersetOf(new[] { LogEntryKind.Arrived, LogEntryKind.Left }));
+	}
+
+	[Test]
+	public void GameSavedWithoutAnEventLogLoadsWithAnEmptyOne()
+	{
+		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
+		var save = CreateSave(world);
+		save = save with { Objects = save.Objects.Where(x => x is not EventLogRecord).ToList() };
+
+		var loaded = SaveFile.Deserialize(save.Serialize()).Load(world.GameData, GameTitle, new Random(0));
+
+		Assert.That(loaded.EventLog.Entries, Is.Empty);
+	}
+
+	[Test]
+	public void LoadFailsForInvalidEventLogs()
+	{
+		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
+		var npc = world.Npcs.First(x => x.Location != world.Player.Location);
+		world.MovePerson(npc, world.Player.Location, world.Time);
+		var save = CreateSave(world);
+		var log = save.Objects.OfType<EventLogRecord>().Single();
+		var entry = log.Entries[^1];
+
+		SaveFile With(LogEntryRecord record) => Replace(save, log, log with { Entries = [record] });
+		AssertLoadFails(With(entry with { Need = "flying" }), world.GameData, "flying");
+		AssertLoadFails(With(entry with { Need = "work", Step = 999 }), world.GameData, "step");
+		AssertLoadFails(With(entry with { Step = 0 }), world.GameData, "step");
+		AssertLoadFails(With(entry with { Person = entry.Location }), world.GameData, nameof(Person));
+		AssertLoadFails(save with { Objects = [.. save.Objects, log with { Id = new WorldId(save.NextId) }] } with { NextId = save.NextId + 1 }, world.GameData, "event log");
+	}
+
+	[Test]
 	public void FollowingSavesAndLoads()
 	{
 		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
@@ -500,6 +548,7 @@ public sealed class SaveFileTests
 		Assert.That(actual.Objects.All.Select(x => (x.Id, x.GetType())), Is.EqualTo(expected.Objects.All.Select(x => (x.Id, x.GetType()))));
 		Assert.That(actual.Time, Is.EqualTo(expected.Time));
 		Assert.That(actual.Player.Id, Is.EqualTo(expected.Player.Id));
+		Assert.That(actual.EventLog.Entries.Select(x => x.CreateRecord()), Is.EqualTo(expected.EventLog.Entries.Select(x => x.CreateRecord())));
 		Assert.That(actual.Families.Select(x => x.Id), Is.EqualTo(expected.Families.Select(x => x.Id)));
 		Assert.That(actual.Npcs.Select(x => x.Id), Is.EqualTo(expected.Npcs.Select(x => x.Id)));
 

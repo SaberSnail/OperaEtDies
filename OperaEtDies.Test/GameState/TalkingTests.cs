@@ -7,7 +7,7 @@ namespace OperaEtDies.Test.GameState;
 public sealed class TalkingTests
 {
 	[Test]
-	public void AskingWhatSomeoneIsDoingTellsTheirGoalAndWhereTheyreGoing()
+	public async Task AskingWhatSomeoneIsDoingTellsTheirGoalAndWhereTheyreGoingAsync()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
 		var restlessness = Need(world, "restlessness");
@@ -17,7 +17,7 @@ public sealed class TalkingTests
 		var calendar = world.GameData.Calendar;
 		var start = world.Time;
 
-		var answer = world.AskWhatDoing(person);
+		var answer = await world.AskWhatDoingAsync(person);
 
 		Assert.That(answer.Time, Is.EqualTo(calendar.CreateTimeOffset(0, 0, world.GameData.Schedules.Talking.AskDoingMinutes)));
 		var plan = new SightingPlan(restlessness, end, restlessness.GetActivity(null));
@@ -29,25 +29,25 @@ public sealed class TalkingTests
 	}
 
 	[Test]
-	public void SomeoneWithNothingLeftToDoDoesntMentionTheirGoal()
+	public async Task SomeoneWithNothingLeftToDoDoesntMentionTheirGoalAsync()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
 		var water = Need(world, "water");
 		person.SetPlan(water, [new TravelTask(person.Home)]);
 		person.StartTask(world.GameData.Calendar.AddMinutes(world.Time, 10));
 
-		Assert.That(world.AskWhatDoing(person).Sighting!.Plan, Is.EqualTo(new SightingPlan(null, person.Home)));
+		Assert.That((await world.AskWhatDoingAsync(person)).Sighting!.Plan, Is.EqualTo(new SightingPlan(null, person.Home)));
 	}
 
 	[Test]
-	public void BeingAskedToChatStopsWhatThePlayerIsDoing()
+	public async Task BeingAskedToChatStopsWhatThePlayerIsDoingAsync()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
 		var fatigue = Need(world, world.GameData.Schedules.SleepNeed!);
 		var start = world.Time;
 		world.Player.TalkRequest = person;
 
-		var passed = world.StartPlayerSteps(fatigue, isAutomatic: true);
+		var passed = await world.StartPlayerStepsAsync(fatigue, isAutomatic: true);
 
 		Assert.That(passed, Is.LessThan(world.GameData.Calendar.CreateTimeOffset(0, 2, 0)));
 		Assert.That(world.Player.Tasks, Is.Empty);
@@ -98,7 +98,7 @@ public sealed class TalkingTests
 	}
 
 	[Test]
-	public void AskingAboutSomeoneTellsWhatTheyKnowAsSecondhand()
+	public async Task AskingAboutSomeoneTellsWhatTheyKnowAsSecondhandAsync()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
 		// They're asked about people who aren't here, so the player doesn't see them for themselves.
@@ -112,16 +112,16 @@ public sealed class TalkingTests
 		person.ForgetSightingsBefore(world.GameData.Calendar.AddMinutes(world.Time, 1));
 		person.See(seen, sighting);
 
-		var answer = world.AskAbout(person, seen);
+		var answer = await world.AskAboutAsync(person, seen);
 		Assert.That(answer.Sighting, Is.EqualTo(sighting));
 		Assert.That(world.Player.Sightings[seen], Is.EqualTo(sighting with { Source = person }));
 
-		Assert.That(world.AskAbout(person, unseen).Sighting, Is.Null);
+		Assert.That((await world.AskAboutAsync(person, unseen)).Sighting, Is.Null);
 		Assert.That(world.Player.Sightings.ContainsKey(unseen), Is.False);
 	}
 
 	[Test]
-	public void SocializingMeetsTheNeedOfFriends()
+	public async Task SocializingMeetsTheNeedOfFriendsAsync()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
 		var socializing = Need(world, world.GameData.Schedules.SocializeNeed!);
@@ -130,13 +130,13 @@ public sealed class TalkingTests
 		world.Player.SetLevel(socializing, 80);
 
 		relationship.Score = 0;
-		world.Socialize(person);
+		await world.SocializeAsync(person);
 		Assert.That(person.GetLevel(socializing), Is.GreaterThan(80));
 
 		relationship.Score = RelationshipSettings.MaximumScore;
 		person.SetLevel(socializing, 80);
 		world.Player.SetLevel(socializing, 80);
-		world.Socialize(person);
+		await world.SocializeAsync(person);
 		var met = socializing.SatisfyPerHour!.Value * world.GameData.Schedules.Socializing.ChatMinutes / 60;
 		Assert.That(person.GetLevel(socializing), Is.EqualTo(80 - met));
 		Assert.That(world.Player.GetLevel(socializing), Is.EqualTo(80 - met));
@@ -253,15 +253,15 @@ public sealed class TalkingTests
 	}
 
 	[Test]
-	public void ThePlayerCanOnlyTalkWithSomeoneHere()
+	public async Task ThePlayerCanOnlyTalkWithSomeoneHereAsync()
 	{
 		var (world, person) = CreateWorldWithSomeoneHere();
 		var away = world.Npcs.First(x => x.Location != world.Player.Location);
 
 		Assert.That(world.CanTalkTo(person), Is.True);
 		Assert.That((world.CanTalkTo(away), world.CanTalkTo(world.Player)), Is.EqualTo((false, false)));
-		Assert.That(() => world.AskWhatDoing(away), Throws.InvalidOperationException);
-		Assert.That(() => world.Socialize(away), Throws.InvalidOperationException);
+		await Assert.ThatAsync(() => world.AskWhatDoingAsync(away), Throws.InvalidOperationException);
+		await Assert.ThatAsync(() => world.SocializeAsync(away), Throws.InvalidOperationException);
 	}
 
 	/// <summary>

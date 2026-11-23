@@ -16,10 +16,11 @@ namespace OperaEtDies.Controls.Conversation;
 /// </summary>
 public sealed class ConversationViewModel : ViewModelBase
 {
-	public ConversationViewModel(Person person, GameWorld world)
+	public ConversationViewModel(Person person, GameWorld world, TimeRunner timeRunner)
 	{
 		var gameData = world.GameData;
 		m_world = world;
+		m_timeRunner = timeRunner;
 		m_person = person;
 		Person = new LocationPersonViewModel(person, gameData.PortraitRenderer, gameData.Schedules, gameData.Relationships);
 		Subjects = world.People
@@ -105,15 +106,18 @@ public sealed class ConversationViewModel : ViewModelBase
 	public void AskStep()
 	{
 		VerifyAccess();
-		if (m_world.GetPlayerAsk(m_person) is { } ask)
+		m_timeRunner.Run(async () =>
 		{
-			Say(ask.Step.Player!.Text?.Text ?? ask.Step.Player.Title!);
-			var answer = m_world.AskPlayerQuestion(m_person);
-			Say(answer.Appointment is { } appointment ?
-				OurResources.ConversationAgreedToMeet.FormatCurrentCulture(m_person.FullName, AppointmentText.FormatPlace(m_world, appointment), AppointmentText.FormatWhen(m_world, appointment.Time)) :
-				(answer.IsYes ? OurResources.ConversationAgreed : OurResources.ConversationSaidNo).FormatCurrentCulture(m_person.FullName));
-		}
-		Refresh();
+			if (m_world.GetPlayerAsk(m_person) is { } ask)
+			{
+				Say(ask.Step.Player!.Text?.Text ?? ask.Step.Player.Title!);
+				var answer = await m_world.AskPlayerQuestionAsync(m_person).ConfigureAwait(true);
+				Say(answer.Appointment is { } appointment ?
+					OurResources.ConversationAgreedToMeet.FormatCurrentCulture(m_person.FullName, AppointmentText.FormatPlace(m_world, appointment), AppointmentText.FormatWhen(m_world, appointment.Time)) :
+					(answer.IsYes ? OurResources.ConversationAgreed : OurResources.ConversationSaidNo).FormatCurrentCulture(m_person.FullName));
+			}
+			Refresh();
+		});
 	}
 
 	/// <summary>
@@ -141,13 +145,16 @@ public sealed class ConversationViewModel : ViewModelBase
 	public void AskWhatDoing()
 	{
 		VerifyAccess();
-		if (CanAskWhatDoing())
+		m_timeRunner.Run(async () =>
 		{
-			Say(OurResources.ConversationAskedDoing.FormatCurrentCulture(m_person.FullName));
-			var answer = m_world.AskWhatDoing(m_person);
-			Say(DescribePlan(m_person, answer.Sighting?.Location ?? m_person.Location, answer.Sighting?.Plan));
-		}
-		Refresh();
+			if (CanAskWhatDoing())
+			{
+				Say(OurResources.ConversationAskedDoing.FormatCurrentCulture(m_person.FullName));
+				var answer = await m_world.AskWhatDoingAsync(m_person).ConfigureAwait(true);
+				Say(DescribePlan(m_person, answer.Sighting?.Location ?? m_person.Location, answer.Sighting?.Plan));
+			}
+			Refresh();
+		});
 	}
 
 	public bool CanAskAbout() => m_selectedSubject is not null && m_world.CanTalkTo(m_person);
@@ -158,13 +165,16 @@ public sealed class ConversationViewModel : ViewModelBase
 	public void AskAbout()
 	{
 		VerifyAccess();
-		if (CanAskAbout() && m_selectedSubject is { } subject)
+		m_timeRunner.Run(async () =>
 		{
-			Say(OurResources.ConversationAskedAbout.FormatCurrentCulture(m_person.FullName, subject.FullName));
-			var answer = m_world.AskAbout(m_person, subject);
-			Say(answer.Sighting is { } sighting ? DescribeSighting(subject, sighting) : OurResources.TalkNotSeen.FormatCurrentCulture(subject.FullName));
-		}
-		Refresh();
+			if (CanAskAbout() && m_selectedSubject is { } subject)
+			{
+				Say(OurResources.ConversationAskedAbout.FormatCurrentCulture(m_person.FullName, subject.FullName));
+				var answer = await m_world.AskAboutAsync(m_person, subject).ConfigureAwait(true);
+				Say(answer.Sighting is { } sighting ? DescribeSighting(subject, sighting) : OurResources.TalkNotSeen.FormatCurrentCulture(subject.FullName));
+			}
+			Refresh();
+		});
 	}
 
 	public bool CanSocialize() => m_world.CanTalkTo(m_person);
@@ -175,13 +185,16 @@ public sealed class ConversationViewModel : ViewModelBase
 	public void Socialize()
 	{
 		VerifyAccess();
-		if (CanSocialize())
+		m_timeRunner.Run(async () =>
 		{
-			var start = m_world.Time;
-			var time = m_world.Socialize(m_person);
-			Say(OurResources.ConversationSocialized.FormatCurrentCulture(m_person.FullName, m_world.GameData.Calendar.FormatOffsetFrom(start, time, TimeFormat.Long)));
-		}
-		Refresh();
+			if (CanSocialize())
+			{
+				var start = m_world.Time;
+				var time = await m_world.SocializeAsync(m_person).ConfigureAwait(true);
+				Say(OurResources.ConversationSocialized.FormatCurrentCulture(m_person.FullName, m_world.GameData.Calendar.FormatOffsetFrom(start, time, TimeFormat.Long)));
+			}
+			Refresh();
+		});
 	}
 
 	/// <summary>
@@ -288,6 +301,7 @@ public sealed class ConversationViewModel : ViewModelBase
 	}
 
 	private readonly GameWorld m_world;
+	private readonly TimeRunner m_timeRunner;
 	private readonly Person m_person;
 	private Person? m_selectedSubject;
 }

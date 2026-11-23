@@ -12,7 +12,7 @@ namespace OperaEtDies.Test.GameState;
 public sealed class PlayerStepsTests
 {
 	[Test]
-	public void StartingPassesStepsAlreadyDoneAndStopsAtOnesThePlayerTakes()
+	public async Task StartingPassesStepsAlreadyDoneAndStopsAtOnesThePlayerTakesAsync()
 	{
 		var (world, _) = CreateWorld();
 		var player = world.Player;
@@ -22,7 +22,7 @@ public sealed class PlayerStepsTests
 		// Starting laundry at home, the player is already where its first step goes, so gathering the washing is next.
 		var choice = world.GetPlayerStartChoices().Single(x => x.Need == laundry);
 		Assert.That((choice.CanStart, choice.IsInProgress), Is.EqualTo((true, false)));
-		world.StartPlayerSteps(laundry, isAutomatic: false);
+		await world.StartPlayerStepsAsync(laundry, isAutomatic: false);
 		Assert.That(player.Current?.Step, Is.EqualTo(1));
 		Assert.That(world.GetPlayerStartChoices().Single(x => x.Need == laundry).IsInProgress, Is.True);
 
@@ -34,38 +34,38 @@ public sealed class PlayerStepsTests
 	}
 
 	[Test]
-	public void ThePlayerTakesStepsThemselvesAndWithButtons()
+	public async Task ThePlayerTakesStepsThemselvesAndWithButtonsAsync()
 	{
 		var (world, square) = CreateWorld();
 		var player = world.Player;
 		var water = GetNeed(world, "water");
 		player.Location = square;
-		world.StartPlayerSteps(water, isAutomatic: false);
+		await world.StartPlayerStepsAsync(water, isAutomatic: false);
 		var sequence = player.Current!;
 
 		// Fetching the water is a button, after which they carry a bucket of water and have to take it home.
 		Assert.That(sequence.Step, Is.EqualTo(1));
 		var start = world.Time;
-		world.DoPlayerStep(sequence);
+		await world.DoPlayerStepAsync(sequence);
 		Assert.That(world.GameData.Calendar.GetTotalMinutes(world.Time - start), Is.EqualTo(5));
 		Assert.That((sequence.Step, player.GetBundles().Keys.Single()), Is.EqualTo((3, "Bucket of water")));
 
 		// Walking home themselves gets them to putting it away, which finishes it.
-		world.MovePlayer(player.Home);
+		await world.MovePlayerAsync(player.Home);
 		Assert.That(sequence.Step, Is.EqualTo(4));
-		world.DoPlayerStep(sequence);
+		await world.DoPlayerStepAsync(sequence);
 		Assert.That((player.Sequences.Count, player.GetProgress(water), player.GetBundles().Count), Is.EqualTo((0, 1L, 0)));
 	}
 
 	[Test]
-	public void StepsCanAllBeDoneForThePlayer()
+	public async Task StepsCanAllBeDoneForThePlayerAsync()
 	{
 		var (world, _) = CreateWorld();
 		var player = world.Player;
 		var laundry = GetNeed(world, "laundry");
 		player.Location = player.Home;
 		var start = world.Time;
-		world.StartPlayerSteps(laundry, isAutomatic: true);
+		await world.StartPlayerStepsAsync(laundry, isAutomatic: true);
 
 		// Washing and hanging out the washing take their time, and the washing is put away.
 		var members = player.Family.Members.Count;
@@ -74,48 +74,48 @@ public sealed class PlayerStepsTests
 	}
 
 	[Test]
-	public void LeavingWhereAStepIsDoneFailsIt()
+	public async Task LeavingWhereAStepIsDoneFailsItAsync()
 	{
 		var (world, square) = CreateWorld();
 		var player = world.Player;
 		var water = GetNeed(world, "water");
 		player.Location = square;
-		world.StartPlayerSteps(water, isAutomatic: false);
+		await world.StartPlayerStepsAsync(water, isAutomatic: false);
 		var failures = new List<FailCause>();
 		world.StepFailed += (_, e) => failures.Add(e.Cause);
 
 		// Walking off before fetching the water gives it up, as the need says nothing else.
-		world.MovePlayer(player.Home);
+		await world.MovePlayerAsync(player.Home);
 		Assert.That((failures, player.Sequences.Count), Is.EqualTo((new[] { FailCause.Left }, 0)));
 	}
 
 	[Test]
-	public void ThePlayerCanBeInTheMiddleOfMoreThanOneThing()
+	public async Task ThePlayerCanBeInTheMiddleOfMoreThanOneThingAsync()
 	{
 		var (world, square) = CreateWorld();
 		var player = world.Player;
 		var water = GetNeed(world, "water");
 		var upkeep = GetNeed(world, "upkeep");
 		player.Location = square;
-		world.StartPlayerSteps(water, isAutomatic: false);
+		await world.StartPlayerStepsAsync(water, isAutomatic: false);
 		var fetching = player.Current!;
-		world.DoPlayerStep(fetching);
+		await world.DoPlayerStepAsync(fetching);
 
 		// Starting upkeep puts the water on hold, still on its way home.
-		world.StartPlayerSteps(upkeep, isAutomatic: false);
+		await world.StartPlayerStepsAsync(upkeep, isAutomatic: false);
 		var tidying = player.Current!;
 		Assert.That((player.Sequences, fetching.Step), Is.EqualTo((new[] { fetching, tidying }, 3)));
 
 		// Getting home does both of their walks home, and the water can be put away once it's switched to.
-		world.MovePlayer(player.Home);
+		await world.MovePlayerAsync(player.Home);
 		Assert.That((fetching.Step, tidying.Step), Is.EqualTo((4, 1)));
 		world.FocusPlayerSteps(fetching);
-		world.DoPlayerStep(fetching);
+		await world.DoPlayerStepAsync(fetching);
 		Assert.That((player.Sequences, player.GetProgress(water)), Is.EqualTo((new[] { tidying }, 1L)));
 	}
 
 	[Test]
-	public void ThePlayerChoosesAmongTheOptions()
+	public async Task ThePlayerChoosesAmongTheOptionsAsync()
 	{
 		var (world, _) = CreateWorld();
 		var player = world.Player;
@@ -137,7 +137,7 @@ public sealed class PlayerStepsTests
 				Do(Amount(1)),
 			],
 		});
-		world.StartPlayerSteps(need, isAutomatic: false);
+		await world.StartPlayerStepsAsync(need, isAutomatic: false);
 		var sequence = player.Current!;
 
 		// The options are shown, followed by the steps of whichever is chosen and the step after them.
@@ -147,12 +147,12 @@ public sealed class PlayerStepsTests
 		Assert.That(options.Select(x => x.Player?.Title), Is.EqualTo(new[] { "Rest", "Stretch" }));
 		Assert.That(world.CanDoPlayerStep(sequence), Is.False);
 
-		world.ChoosePlayerOption(sequence, options[1]);
+		await world.ChoosePlayerOptionAsync(sequence, options[1]);
 		Assert.That(sequence.CurrentStep?.Player?.Title, Is.EqualTo("Stretch"));
 	}
 
 	[Test]
-	public void ThePlayerIsAskedWhetherToKeepGoing()
+	public async Task ThePlayerIsAskedWhetherToKeepGoingAsync()
 	{
 		var (world, _) = CreateWorld();
 		var player = world.Player;
@@ -163,29 +163,29 @@ public sealed class PlayerStepsTests
 			Quota = new QuotaNeedSettings { Lead = 600, Time = new QuotaTime { Minutes = Amount(120), Shift = 120 } },
 			StepSettings = [new Step { Kind = StepKind.Repeat, Reconsider = true, Steps = [new Step { Kind = StepKind.Do, Minutes = Amount(30), MeetsQuota = true, Player = new StepPlayer { Title = "Work", Result = "You worked" } }] }],
 		});
-		world.StartPlayerSteps(need, isAutomatic: false);
+		await world.StartPlayerStepsAsync(need, isAutomatic: false);
 		var sequence = player.Current!;
 
 		// After each pass, they're asked, with what's left of the shift.
-		world.DoPlayerStep(sequence);
+		await world.DoPlayerStepAsync(sequence);
 		Assert.That((world.IsAskingPlayerToKeepGoing(sequence), sequence.MinutesLeft), Is.EqualTo((true, 90)));
-		world.AnswerKeepGoing(sequence, keepGoing: true);
+		await world.AnswerKeepGoingAsync(sequence, keepGoing: true);
 		Assert.That((world.IsAskingPlayerToKeepGoing(sequence), sequence.Step), Is.EqualTo((false, 0)));
-		world.DoPlayerStep(sequence);
-		world.AnswerKeepGoing(sequence, keepGoing: false);
+		await world.DoPlayerStepAsync(sequence);
+		await world.AnswerKeepGoingAsync(sequence, keepGoing: false);
 		Assert.That((player.Sequences.Count, player.GetProgress(need)), Is.EqualTo((0, 60L)));
 	}
 
 	[Test]
-	public void StoppingGivesUpTheStepsAndKeepsWhatWasCarried()
+	public async Task StoppingGivesUpTheStepsAndKeepsWhatWasCarriedAsync()
 	{
 		var (world, _) = CreateWorld();
 		var player = world.Player;
 		var laundry = GetNeed(world, "laundry");
 		player.Location = player.Home;
-		world.StartPlayerSteps(laundry, isAutomatic: false);
+		await world.StartPlayerStepsAsync(laundry, isAutomatic: false);
 		var sequence = player.Current!;
-		world.DoPlayerStep(sequence);
+		await world.DoPlayerStepAsync(sequence);
 		Assert.That(player.GetBundles().Keys, Is.EqualTo(new[] { "Washing" }));
 
 		// Anything in the washing stays carried, without its bundle, and is put away when they're next at home.
@@ -194,13 +194,13 @@ public sealed class PlayerStepsTests
 	}
 
 	[Test]
-	public void StepsInProgressAreSaved()
+	public async Task StepsInProgressAreSavedAsync()
 	{
 		var (world, square) = CreateWorld();
 		var player = world.Player;
 		player.Location = square;
-		world.StartPlayerSteps(GetNeed(world, "water"), isAutomatic: false);
-		world.DoPlayerStep(player.Current!);
+		await world.StartPlayerStepsAsync(GetNeed(world, "water"), isAutomatic: false);
+		await world.DoPlayerStepAsync(player.Current!);
 
 		var settings = new SaveSettings("Title", "", "", [], "");
 		var json = SaveFile.Create(world, settings, DateTimeOffset.UnixEpoch).Serialize();

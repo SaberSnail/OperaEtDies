@@ -6,6 +6,7 @@
 		<ResourceDictionary Source="Clothing/ClothingView.xaml" />
 		<ResourceDictionary Source="Conversation/ConversationView.xaml" />
 		<ResourceDictionary Source="LoadGame/LoadGameView.xaml" />
+		<ResourceDictionary Source="Log/LogView.xaml" />
 		<ResourceDictionary Source="Locations/LocationView.xaml" />
 		<ResourceDictionary Source="ManageMods/ManageModsView.xaml" />
 		<ResourceDictionary Source="Map/TownMapView.xaml" />

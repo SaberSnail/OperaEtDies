@@ -35,7 +35,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 		m_location.AddPerson(this);
 
 		m_tasks = [];
-		m_levels = new Dictionary<string, double>(StringComparer.Ordinal);
+		m_levels = new Dictionary<string, long>(StringComparer.Ordinal);
 		m_progress = new Dictionary<string, long>(StringComparer.Ordinal);
 		m_needsTime = time;
 		m_progressDay = gameData.Calendar.GetStartOfDay(time);
@@ -400,7 +400,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	/// Gets how high a level need is, from 0 to <see cref="Need.MaximumLevel"/>, as of the last time the person's needs
 	/// were brought up to date.
 	/// </summary>
-	public double GetLevel(Need need) => m_levels.GetValueOrDefault(need.Id);
+	public double GetLevel(Need need) => m_levels.GetValueOrDefault(need.Id) / (double) LevelUnits;
 
 	/// <summary>
 	/// Gets how much the person has done of a quota need this day or week: the minutes spent on it, or for a quota measured
@@ -490,7 +490,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 			CharacterPropertyOption option => option.Id,
 			var value => value,
 		}), StringComparer.Ordinal), m_tasks.Select(x => x.CreateRecord()).ToList(), m_taskEnd?.SaveToString(),
-			new Dictionary<string, double>(m_levels, StringComparer.Ordinal), new Dictionary<string, long>(m_progress, StringComparer.Ordinal),
+			m_levels.ToDictionary(x => x.Key, x => x.Value / (double) LevelUnits, StringComparer.Ordinal), new Dictionary<string, long>(m_progress, StringComparer.Ordinal),
 			m_goalChoice?.CreateRecord(), m_sightings.Count == 0 ? null : m_sightings.Select(x => x.Value.CreateRecord(x.Key)).ToList(), m_talkRequest?.Id, HasNapped,
 			Inventory.CreateRecord(), Clothing.CreateRecord(), m_sequences.Count == 0 ? null : m_sequences.Select(x => x.CreateRecord()).ToList(),
 			m_replacedClothes.Count == 0 ? null : m_replacedClothes.Select(x => new ReplacedClothesRecord(x.Key.Id, x.Value.Select(y => y.Id).ToList())).ToList(),
@@ -575,7 +575,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 			m_sightings.Remove(other);
 	}
 
-	internal void SetLevel(Need need, double level) => m_levels[need.Id] = Math.Clamp(level, 0, Need.MaximumLevel);
+	internal void SetLevel(Need need, double level) => m_levels[need.Id] = (long) Math.Round(Math.Clamp(level, 0, Need.MaximumLevel) * LevelUnits);
 
 	internal void SetProgress(Need need, long minutes) => m_progress[need.Id] = minutes;
 
@@ -629,16 +629,16 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 			var calendar = m_gameData.Calendar;
 			StartPeriods(m_needsTime);
 
+			// Levels change by whole units each minute, so they come out the same however often they're brought up to date.
 			var minutes = calendar.GetTotalMinutes(time - m_needsTime);
-			var hours = minutes / 60.0;
 			var active = ActiveNeed;
 			foreach (var need in m_gameData.Schedules.Needs.Where(x => x.Kind == NeedKind.Level))
 			{
-				var level = GetLevel(need);
+				var units = m_levels.GetValueOrDefault(need.Id);
 				if (need == active)
-					SetLevel(need, level - (GetSatisfyPerHour(need) * hours));
+					m_levels[need.Id] = Math.Clamp(units - (GetUnitsPerMinute(GetSatisfyPerHour(need)) * minutes), 0, MaximumLevelUnits);
 				else if (active is null || need.PausedBy?.Contains(active.Id, StringComparer.Ordinal) != true)
-					SetLevel(need, level + (need.PerHour!.Value * hours));
+					m_levels[need.Id] = Math.Clamp(units + (GetUnitsPerMinute(need.PerHour!.Value) * minutes), 0, MaximumLevelUnits);
 			}
 
 			if (active is { Kind: NeedKind.Quota })
@@ -696,7 +696,21 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	private readonly string m_fullName;
 	private readonly Collection<PersonTask> m_tasks;
 	private readonly Collection<OwnedOutfit> m_outfits;
-	private readonly Dictionary<string, double> m_levels;
+	/// <summary>
+	/// Gets how many units a level changes by each minute, for a change of so much each hour.
+	/// </summary>
+	private static long GetUnitsPerMinute(double perHour) => (long) Math.Round(perHour * LevelUnits / 60);
+
+	/// <summary>
+	/// How many units each point of a level is kept in. Levels are kept in whole units, so they don't gather rounding errors
+	/// as they change, and an hourly rate of up to six decimal places changes them by a whole number of units each minute.
+	/// </summary>
+	private const long LevelUnits = 60_000_000;
+
+	private const long MaximumLevelUnits = (long) Need.MaximumLevel * LevelUnits;
+
+	// Each level need's level, in units of LevelUnits.
+	private readonly Dictionary<string, long> m_levels;
 	private readonly Dictionary<string, long> m_progress;
 	private CharacterTraits m_traits;
 	private string? m_description;

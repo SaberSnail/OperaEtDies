@@ -7,7 +7,7 @@ namespace OperaEtDies.Test.GameState;
 public sealed class InterruptTests
 {
 	[Test]
-	public void TalkingPausesWhatSomeoneWasDoing()
+	public async Task TalkingPausesWhatSomeoneWasDoingAsync()
 	{
 		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true, isHeadless: false);
 		var calendar = world.GameData.Calendar;
@@ -20,7 +20,7 @@ public sealed class InterruptTests
 		var start = world.Time;
 
 		Assert.That(world.IsTooBusyToTalk(person), Is.False);
-		var passed = world.TalkTo(person, 5);
+		var passed = await world.TalkToAsync(person, 5);
 
 		// The player spent the time talking, and the person carries on afterward, with no progress while they talked.
 		Assert.That(passed, Is.EqualTo(calendar.CreateTimeOffset(0, 0, 5)));
@@ -53,7 +53,7 @@ public sealed class InterruptTests
 	}
 
 	[Test]
-	public void SomeoneChoosesAgainIfTheyCantFinishAfterTalking()
+	public async Task SomeoneChoosesAgainIfTheyCantFinishAfterTalkingAsync()
 	{
 		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
 		var calendar = world.GameData.Calendar;
@@ -63,23 +63,23 @@ public sealed class InterruptTests
 		person.StartTask(calendar.AddMinutes(world.Time, 60));
 
 		// While they talk, the rest of their household finishes the chore.
-		world.TalkTo(person, 1);
+		await world.TalkToAsync(person, 1);
 		world.StartTalking(world.Player, person, 5, world.Time);
 		person.SetProgress(upkeep, upkeep.GetQuotaMinutes(person.Family.Members.Count));
-		world.AdvanceTime(calendar.CreateTimeOffset(0, 0, 5));
+		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(0, 0, 5));
 
 		Assert.That(person.GoalChoice!.Time, Is.EqualTo(world.Time));
 		Assert.That(person.Goal, Is.Not.SameAs(upkeep));
 	}
 
 	[Test]
-	public void WakingSomeoneTiresThemAndTheyRefuseWhenDesperate()
+	public async Task WakingSomeoneTiresThemAndTheyRefuseWhenDesperateAsync()
 	{
 		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
 		var calendar = world.GameData.Calendar;
 		var schedules = world.GameData.Schedules;
 		var fatigue = Need(world, schedules.SleepNeed!);
-		world.AdvanceTime(calendar.GetStartOfDay(world.Time) + calendar.CreateTimeOffset(0, 23, 0) - world.Time);
+		await world.AdvanceTimeAsync(calendar.GetStartOfDay(world.Time) + calendar.CreateTimeOffset(0, 23, 0) - world.Time);
 		var person = world.Npcs[0];
 		person.SetLevel(fatigue, 50);
 		person.SetPlan(fatigue, [new BusyTask(null)]);
@@ -98,7 +98,7 @@ public sealed class InterruptTests
 		other.StartTask(calendar.AddMinutes(world.Time, 240));
 		var time = world.Time;
 		Assert.That(world.IsTooBusyToTalk(other), Is.True);
-		Assert.That(world.TalkTo(other, 5), Is.Null);
+		Assert.That(await world.TalkToAsync(other, 5), Is.Null);
 		Assert.That(world.Time, Is.EqualTo(time));
 	}
 

@@ -70,7 +70,6 @@
 ### Telling the Player What's Going On
 
 * Show more of the game's status
-* In-game log of what happens, with links to places (tokens written and read by WorldId), saved with a maximum length.
 * A journal or notes recording what has happened and what the player has learned about people.
 * Make it clear where firewood can be gathered (any wayside or fields quarter). Nothing tells the player that, so they don't know where to go.
 * Make it clear to the player when a rest day cuts a night shift in half.
@@ -78,6 +77,7 @@
 ### Interface and Saves
 
 * Settings screen: text size, a dark theme, and similar options.
+* A setting for how fast time passes (including instant), once there's a settings screen.
 * Keyboard navigation for choosing exits and actions.
 * Hotkeys for common commands, including quick save and quick load.
 * Pictures and simple animation, such as a clearer map style, or small illustrations for places.

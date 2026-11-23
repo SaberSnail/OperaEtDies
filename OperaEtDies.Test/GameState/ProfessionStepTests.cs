@@ -72,7 +72,7 @@ public sealed class ProfessionStepTests
 	}
 
 	[Test]
-	public void ThePlayersWorkActionFollowsTheirProfessionsSteps()
+	public async Task ThePlayersWorkActionFollowsTheirProfessionsStepsAsync()
 	{
 		var (world, work) = CreateWorld(new Dictionary<string, IReadOnlyList<Step>>(StringComparer.Ordinal) { ["smith"] = MillerSteps() }, x => x.Business is not null && x.IsPlayer);
 		var player = world.Player;
@@ -80,7 +80,7 @@ public sealed class ProfessionStepTests
 
 		// The player (a smith here) follows the profession's steps: in someone else's home, grinding there is next.
 		player.Location = house;
-		world.StartPlayerSteps(work, isAutomatic: false);
+		await world.StartPlayerStepsAsync(work, isAutomatic: false);
 		Assert.That(player.Current?.CurrentStep?.Activity, Is.EqualTo("Grinding for a neighbor"));
 	}
 

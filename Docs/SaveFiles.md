@@ -36,7 +36,7 @@ Every world object has these properties:
 
 | Property | Type | Notes |
 |---|---|---|
-| `kind` | string | `feature`, `location`, `person`, `family`, `business`, `relationship`, `clothing`, `outfit`, `appointment`, `bundle`, or `job`. Must come first. |
+| `kind` | string | `feature`, `location`, `person`, `family`, `business`, `relationship`, `clothing`, `outfit`, `appointment`, `bundle`, `job`, or `eventLog`. Must come first. |
 | `id` | world id | |
 
 **Feature** (`feature`)
@@ -189,6 +189,30 @@ Clothing a person owns that's worn together.
 | `outfitKind` | string | When it's worn: `everyday`, `work`, `night`, or `nothing`. |
 | `template` | string | Optional. The id of the outfit in `outfits` it was made from, or `null` if none. |
 | `pieces` | list of world id | Each must be clothing. No piece can be listed twice, and no two can take the same clothing slot in the same layer. |
+
+**Event Log** (`eventLog`)
+
+What the player has seen happen: everything that happened to anyone in the player's location while they were there, including the player. There must be at most one. A save without one starts with an empty log.
+
+| Property | Type | Notes |
+|---|---|---|
+| `entries` | list of Log Entry | Oldest first. The game keeps only the most recent 500. |
+
+**Log Entry**
+
+Something the player saw happen. Its text is built from these and the game data when it's shown.
+
+| Property | Type | Notes |
+|---|---|---|
+| `time` | string | When it happened, written the same way as `time`. |
+| `kind` | string | What happened: `arrived` (from `place`, or for the player, at `location`), `left` (for `place`), `busy` (started spending time on `need`), `idle`, `changingClothes`, `talking` (with `other`), `waiting` (for `other`, who they called out to or asked something), `meeting` (waiting to meet `other` for an appointment), `following` (`other`), `failed` (a step of `need` failed), `gaveUpWaiting` (`person`, who the player was to meet, gave up waiting for them), or `neverCame` (`person`, who the player was to meet, never came). |
+| `person` | world id | Who it happened to. Must be a person. |
+| `location` | world id | Where it happened. Must be a location. |
+| `other` | world id | Optional. Anyone else it involved, or `null`. Must be a person. |
+| `place` | world id | Optional. Where they came from or went to, for `arrived` and `left`, or `null`. Must be a location. |
+| `need` | string | Optional. The id of a need in `needs`, for `busy` and `failed`, or `null`. |
+| `step` | number | Optional. The index of a step in `need`'s steps: the `do` step they started, or the step that failed, or `null`. Needs `need`. |
+| `cause` | string | Optional. Why the step failed, for `failed`, as in the cause of a failure in the data (`no`, `nobody`, `unreachable`, `missing`, `left`, `interrupted`, `hours`, `noShow`, or `noOption`), or `null`. |
 
 **Goal Choice**
 

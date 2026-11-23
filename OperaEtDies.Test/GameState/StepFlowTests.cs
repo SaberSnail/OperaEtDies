@@ -200,7 +200,7 @@ public sealed class StepFlowTests
 	}
 
 	[Test]
-	public void StepsDoneForThePlayerIncludeStepsWithOtherPeople()
+	public async Task StepsDoneForThePlayerIncludeStepsWithOtherPeopleAsync()
 	{
 		var need = Errand([new Step { Kind = StepKind.Talk, With = StepTarget.Anyone, Minutes = Amount(10) }, Do(Amount(5))]);
 		var (world, _, other) = CreateWorldWithSomeoneThere(need);
@@ -216,12 +216,12 @@ public sealed class StepFlowTests
 				talks++;
 		};
 
-		world.DoPlayerStepsAutomatically(sequence);
+		await world.DoPlayerStepsAutomaticallyAsync(sequence);
 		Assert.That((talks, player.Sequences.Count), Is.EqualTo((1, 0)));
 	}
 
 	[Test]
-	public void ThePlayerTakesTheSameStepsOneAtATime()
+	public async Task ThePlayerTakesTheSameStepsOneAtATimeAsync()
 	{
 		var need = Errand([
 			new Step { Kind = StepKind.Seek, Place = Quarters(false, "square"), Minutes = Amount(10) },
@@ -238,7 +238,7 @@ public sealed class StepFlowTests
 		Assert.That(world.GetPlayerSteps(sequence).Select(x => x.Step.Kind), Is.EqualTo(new[] { StepKind.Seek, StepKind.Ask, StepKind.Do }));
 
 		// Having one done for them does just that one: walking to the square and looking around, and then asking is next.
-		world.DoPlayerStep(sequence);
+		await world.DoPlayerStepAsync(sequence);
 		Assert.That(player.Location.QuarterKind, Is.EqualTo("square"));
 		Assert.That(sequence.Step, Is.EqualTo(1));
 	}

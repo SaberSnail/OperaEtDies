@@ -7,6 +7,7 @@ using System.Windows.Media.Imaging;
 using GoldenAnvil.Utility.Calendar;
 using GoldenAnvil.Utility.Logging;
 using OperaEtDies.Characters;
+using OperaEtDies.Controls.Log;
 using OperaEtDies.Data;
 using OperaEtDies.GameState;
 using OperaEtDies.Town;
@@ -254,6 +255,7 @@ public sealed class VillageReport : ILogDestination
 		WriteRecord("#relationship", "village", "household", "member", "otherHousehold", "otherMember", "score", "isFriend", "familyTie", "isNeighbor", "lastTalked");
 		WriteRecord("#appointment", "village", "household", "member", "clientHousehold", "clientMember", "need", "step", "place", "time", "workerOnTheWay", "clientOnTheWay", "started");
 		WriteRecord("#job", "village", "household", "member", "clientHousehold", "clientMember", "need", "place", "minutes", "minutesDone");
+		WriteRecord("#event", "village", "time", "kind", "household", "member", "otherHousehold", "otherMember", "location", "place", "need", "step", "cause", "text");
 		WriteRecord("#sighting", "village", "household", "member", "otherHousehold", "otherMember", "location", "time", "activity", "need", "doing", "destination", "source", "toldGoal", "toldDestination", "toldDoing");
 		WriteRecord("#business", "village", "household", "profession", "ownerRole", "helpers", "location", "quarter", "quarterKind");
 		WriteRecord("#clothing", "village", "household", "member", "clothing", "colors", "outfit", "kind", "place", "description", "readyAt", "delayActivity");
@@ -363,6 +365,15 @@ public sealed class VillageReport : ILogDestination
 					sighting.Source is { } source ? FormattableString.Invariant($"{members[source].index}-{members[source].member}") : null,
 					sighting.Plan is null ? null : sighting.Plan.Goal?.Id ?? "idle", sighting.Plan?.Destination is { } told ? names[told] : null, sighting.Plan?.Doing);
 			}
+		}
+
+		// What the player saw happen where they were, as the event log has it.
+		foreach (var entry in world.EventLog.Entries)
+		{
+			WriteRecord("event", village, gameData.Calendar.FormatTime(entry.Time, TimeFormat.Long), JsonNamingPolicy.CamelCase.ConvertName(entry.Kind.ToString()),
+				members[entry.Person].index, members[entry.Person].member, entry.Other is { } other ? members[other].index : null, entry.Other is { } otherMember ? members[otherMember].member : null,
+				names[entry.Location], entry.Place is { } place ? names[place] : null, entry.Need?.Id, entry.Step, entry.Cause is { } cause ? JsonNamingPolicy.CamelCase.ConvertName(cause.ToString()) : null,
+				LogEntryText.ToPlainText(LogEntryText.Format(entry)));
 		}
 
 		// Each piece of clothing, with its owner, the first outfit it's part of (accessories can be part of several), and where it is: worn, carried, or in a location.

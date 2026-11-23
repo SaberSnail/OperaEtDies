@@ -27,13 +27,17 @@ internal sealed partial class Scheduler
 	/// <summary>
 	/// Runs everyone's tasks from one time to another, in the order they end, then brings everyone's needs up to the end.
 	/// If the stop check is met after a task ends, it stops at that time instead, once every task ending then has ended.
-	/// Returns the time it ran until.
+	/// Anyone the game decides for who has no task decides what to do first, unless it carries on from where it ran until
+	/// before, as time passing in slices does, so it runs the same however it's sliced. Returns the time it ran until.
 	/// </summary>
-	public TimePoint RunUntil(TimePoint start, TimePoint end, Func<bool>? shouldStop = null)
+	public TimePoint RunUntil(TimePoint start, TimePoint end, Func<bool>? shouldStop = null, bool isContinuing = false)
 	{
 		// Anyone the game decides for who has no task decides what to do now.
-		foreach (var person in m_world.People.Where(x => m_world.IsAutomatic(x) && x.TaskEnd is null))
-			Continue(person, start);
+		if (!isContinuing)
+		{
+			foreach (var person in m_world.People.Where(x => m_world.IsAutomatic(x) && x.TaskEnd is null))
+				Continue(person, start);
+		}
 
 		while (true)
 		{
@@ -321,11 +325,11 @@ internal sealed partial class Scheduler
 	{
 		var index = sequence.Step;
 		var (kind, target) = sequence.IsDone || sequence.CurrentStep?.Kind == StepKind.Meet ? (StepFailureKind.Stop, null) : sequence.Need.GetFailure(index, cause);
-		m_world.OnStepFailed(person, sequence, index, cause);
+		m_world.OnStepFailed(person, sequence, index, cause, time);
 
 		// The player is told if they missed an appointment: the other gave up waiting for them, or never came.
 		if (cause == FailCause.NoShow && sequence.Appointment is { } missed && missed.GetOther(person) is var other && (!m_world.IsAutomatic(person) || !m_world.IsAutomatic(other)))
-			m_world.OnAppointmentMissed(missed, isOtherWaiting: !m_world.IsAutomatic(other));
+			m_world.OnAppointmentMissed(missed, isOtherWaiting: !m_world.IsAutomatic(other), time);
 		if (kind == StepFailureKind.Next)
 			MoveOn(sequence, sequence.Need.GetNextStep(index));
 		else if (kind == StepFailureKind.SkipTo && target is { } skipTo)
@@ -1713,9 +1717,16 @@ internal sealed partial class Scheduler
 		TravelTask travel => GetTravelMinutes(person, person.Location, travel.Destination),
 		BusyTask { Minutes: { } minutes } => Math.Max(minutes, 1),
 		ChangeClothesTask => m_settings.Clothing.ChangeMinutes,
-		BusyTask when person.Goal is { Kind: NeedKind.Level, SatisfyPerHour: not null } goal => Math.Max((int) Math.Ceiling(person.GetLevel(goal) / person.GetSatisfyPerHour(goal) * 60), 1),
+		// A level that's met in a whole number of minutes mustn't take a minute more because of rounding.
+		BusyTask when person.Goal is { Kind: NeedKind.Level, SatisfyPerHour: not null } goal =>
+			Math.Max((int) Math.Ceiling((person.GetLevel(goal) / person.GetSatisfyPerHour(goal) * 60) - LevelMinutesTolerance), 1),
 		_ => 1,
 	};
+
+	/// <summary>
+	/// How far over a whole number of minutes the time to meet a level can be and still count as that number of minutes.
+	/// </summary>
+	private const double LevelMinutesTolerance = 1e-6;
 
 	/// <summary>
 	/// Gets the change of clothes a "dress" or "undress" step makes for someone, or null if there's none to make: into the

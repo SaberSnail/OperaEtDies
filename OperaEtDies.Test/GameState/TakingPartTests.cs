@@ -12,7 +12,7 @@ namespace OperaEtDies.Test.GameState;
 public sealed class TakingPartTests
 {
 	[Test]
-	public void ThePlayerIsAskedAndKeepsAnAppointmentAsItsClient()
+	public async Task ThePlayerIsAskedAndKeepsAnAppointmentAsItsClientAsync()
 	{
 		var need = Errand([new Step
 		{
@@ -24,12 +24,12 @@ public sealed class TakingPartTests
 
 		// The worker asks the player, who's asked to answer, with time stopped until they do.
 		worker.SetPlan(need, [], startStep: 0);
-		world.AdvanceTime(calendar.CreateTimeOffset(0, 0, 30));
+		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(0, 0, 30));
 		Assert.That(player.AskRequest, Is.EqualTo(worker));
-		Assert.That(world.AdvanceTime(calendar.CreateTimeOffset(0, 1, 0)), Is.EqualTo(calendar.CreateTimeOffset(0, 0, 0)));
+		Assert.That(await world.AdvanceTimeAsync(calendar.CreateTimeOffset(0, 1, 0)), Is.EqualTo(calendar.CreateTimeOffset(0, 0, 0)));
 
 		// Saying yes makes an appointment with the player as its client, however unlikely a yes would be from anyone else.
-		var appointment = world.AnswerAsk(isYes: true)!;
+		var appointment = (await world.AnswerAskAsync(isYes: true))!;
 		Assert.That((appointment.Worker, appointment.Client, player.AskRequest), Is.EqualTo((worker, player, (Person?) null)));
 		Assert.That(world.GetPlayerAppointments(), Is.EqualTo(new[] { appointment }));
 
@@ -39,49 +39,49 @@ public sealed class TakingPartTests
 		AssertSavesAndLoads(world);
 
 		// When it's time, they set off, and their part is going there, meeting the worker, and staying with them.
-		world.AdvanceTime(calendar.CreateTimeOffset(1, 0, 0));
+		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(1, 0, 0));
 		Assert.That(world.GetPlayerSetOffSequence(), Is.SameAs(part));
-		world.AnswerSetOff(isSettingOff: true);
+		await world.AnswerSetOffAsync(isSettingOff: true);
 		Assert.That(player.Current, Is.SameAs(part));
 		Assert.That(part.Role, Is.EqualTo(SequenceRole.Client));
 		Assert.That(world.GetPlayerSteps(part).Select(x => x.Kind), Is.EqualTo(new[] { PlayerStepKind.GoToAppointment, PlayerStepKind.Meet, PlayerStepKind.Follow }));
 		AssertSavesAndLoads(world);
 		for (var count = 0; count < 4 && !appointment.IsStarted; count++)
-			world.DoPlayerStep(part);
+			await world.DoPlayerStepAsync(part);
 
 		// Once both are there, the player follows the worker, until they're done and let them go.
 		Assert.That(appointment.IsStarted, Is.True);
 		Assert.That((world.GetPlayerLeader(), world.GetPlayerSteps(part).Select(x => x.Kind)), Is.EqualTo((worker, new[] { PlayerStepKind.Follow })));
 		AssertSavesAndLoads(world);
-		world.AdvanceTime(calendar.CreateTimeOffset(0, 2, 0));
+		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(0, 2, 0));
 		Assert.That((player.Sequences.Count, world.Appointments.Count), Is.EqualTo((0, 0)));
 	}
 
 	[Test]
-	public void ThePlayerCanSayNo()
+	public async Task ThePlayerCanSayNoAsync()
 	{
 		var need = Errand([new Step { Kind = StepKind.Ask, With = StepTarget.Anyone, Name = "agreed", Player = new StepPlayer { Title = "Ask" }, Minutes = Amount(5), Chance = new StepChance { Base = 100 } }, Do(Amount(5))]);
 		var (world, worker, player) = CreateWorld(need);
 		worker.SetPlan(need, [], startStep: 0);
-		world.AdvanceTime(world.GameData.Calendar.CreateTimeOffset(0, 0, 30));
+		await world.AdvanceTimeAsync(world.GameData.Calendar.CreateTimeOffset(0, 0, 30));
 		Assume.That(player.AskRequest, Is.EqualTo(worker));
 
 		// However likely a yes would be from anyone else, the player's no fails the step, and the worker doesn't ask again for a while.
-		world.AnswerAsk(isYes: false);
+		await world.AnswerAskAsync(isYes: false);
 		Assert.That((player.AskRequest, worker.Goal, worker.GetRelationship(player).LastDeclined is not null), Is.EqualTo(((Person?) null, (Need?) null, true)));
 	}
 
 	[Test]
-	public void ThePlayerIsAskedToTalkForATalkStep()
+	public async Task ThePlayerIsAskedToTalkForATalkStepAsync()
 	{
 		var need = Errand([new Step { Kind = StepKind.Talk, With = StepTarget.Anyone, Minutes = Amount(15) }, Do(Amount(5))]);
 		var (world, worker, player) = CreateWorld(need);
 		worker.SetPlan(need, [], startStep: 0);
-		world.AdvanceTime(world.GameData.Calendar.CreateTimeOffset(0, 0, 30));
+		await world.AdvanceTimeAsync(world.GameData.Calendar.CreateTimeOffset(0, 0, 30));
 		Assert.That((player.TalkRequest, world.IsTalkStepRequest(worker), world.GetTalkRequestMinutes(worker)), Is.EqualTo(((Person?) worker, true, 15)));
 
 		// Agreeing, they talk for as long as the step takes.
-		world.AcceptTalk();
+		await world.AcceptTalkAsync();
 		Assert.That((player.TalkRequest, worker.Current?.Partner), Is.EqualTo(((Person?) null, (Person?) player)));
 	}
 
@@ -99,7 +99,7 @@ public sealed class TakingPartTests
 	}
 
 	[Test]
-	public void ThePlayerIsLedOnlyForTheLeadStepsMinutes()
+	public async Task ThePlayerIsLedOnlyForTheLeadStepsMinutesAsync()
 	{
 		var need = Errand([
 			new Step { Kind = StepKind.Ask, With = StepTarget.Anyone, Name = "coming", Player = new StepPlayer { Title = "Ask" }, Minutes = Amount(5), ForMinutes = Amount(30), Chance = new StepChance { Base = 0 } },
@@ -109,24 +109,24 @@ public sealed class TakingPartTests
 		var (world, worker, player) = CreateWorld(need);
 		var calendar = world.GameData.Calendar;
 		worker.SetPlan(need, [], startStep: 0);
-		world.AdvanceTime(calendar.CreateTimeOffset(0, 0, 30));
+		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(0, 0, 30));
 		Assume.That(player.AskRequest, Is.EqualTo(worker));
-		world.AnswerAsk(isYes: true);
+		await world.AnswerAskAsync(isYes: true);
 		Assume.That(world.GetPlayerLeader(), Is.EqualTo(worker));
 		AssertSavesAndLoads(world);
 
-		world.AdvanceTime(calendar.CreateTimeOffset(0, 0, 45));
-		world.UpdatePlayerSteps();
+		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(0, 0, 45));
+		await world.UpdatePlayerStepsAsync();
 		Assert.That((world.GetPlayerLeader(), player.Sequences.Count), Is.EqualTo(((Person?) null, 0)));
 	}
 
 	[Test]
-	public void ThePlayerIsWarnedOfNeedsSayingYesWouldKeepThemFrom()
+	public async Task ThePlayerIsWarnedOfNeedsSayingYesWouldKeepThemFromAsync()
 	{
 		var need = Errand([new Step { Kind = StepKind.Ask, With = StepTarget.Anyone, Name = "coming", Player = new StepPlayer { Title = "Ask" }, Minutes = Amount(5), ForMinutes = Amount(60), Chance = new StepChance { Base = 0 } }]);
 		var (world, worker, player) = CreateWorld(need);
 		worker.SetPlan(need, [], startStep: 0);
-		world.AdvanceTime(world.GameData.Calendar.CreateTimeOffset(0, 0, 30));
+		await world.AdvanceTimeAsync(world.GameData.Calendar.CreateTimeOffset(0, 0, 30));
 		Assume.That(player.AskRequest, Is.EqualTo(worker));
 		Assert.That(world.GetPlayerAskConflicts(worker), Is.Empty);
 
@@ -134,12 +134,12 @@ public sealed class TakingPartTests
 		var hunger = world.GameData.Schedules.Needs.First(x => x.Kind == NeedKind.Level && x.PerHour > 0 && x != need && x.Id != world.GameData.Schedules.SleepNeed);
 		player.SetLevel(hunger, Need.MaximumLevel);
 		Assert.That(world.GetPlayerAskConflicts(worker), Does.Contain(hunger));
-		world.AnswerAsk(isYes: true);
+		await world.AnswerAskAsync(isYes: true);
 		Assert.That(player.AskRequest, Is.Null);
 	}
 
 	[Test]
-	public void ThePlayerFollowsSomeoneWhoLeadsThemUntilTheyCallItOff()
+	public async Task ThePlayerFollowsSomeoneWhoLeadsThemUntilTheyCallItOffAsync()
 	{
 		var need = Errand([
 			new Step { Kind = StepKind.Ask, With = StepTarget.Anyone, Name = "coming", Player = new StepPlayer { Title = "Ask" }, Minutes = Amount(5), ForMinutes = Amount(60), Chance = new StepChance { Base = 0 } },
@@ -151,13 +151,13 @@ public sealed class TakingPartTests
 		var (world, worker, player) = CreateWorld(need);
 		var calendar = world.GameData.Calendar;
 		worker.SetPlan(need, [], startStep: 0);
-		world.AdvanceTime(calendar.CreateTimeOffset(0, 0, 30));
+		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(0, 0, 30));
 		Assume.That(player.AskRequest, Is.EqualTo(worker));
 
 		// Saying yes, the player follows the worker as part of their steps, going wherever they go while they wait.
-		world.AnswerAsk(isYes: true);
+		await world.AnswerAskAsync(isYes: true);
 		Assert.That((world.GetPlayerLeader(), player.Current?.Role), Is.EqualTo((worker, (SequenceRole?) SequenceRole.Follower)));
-		world.AdvanceTime(calendar.CreateTimeOffset(0, 0, 30), () => worker.Location == worker.Home);
+		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(0, 0, 30), () => worker.Location == worker.Home);
 		Assert.That(player.Location, Is.EqualTo(worker.Home));
 		AssertSavesAndLoads(world);
 

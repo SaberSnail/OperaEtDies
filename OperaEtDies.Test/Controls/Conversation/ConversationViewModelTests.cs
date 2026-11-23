@@ -1,4 +1,5 @@
 using GoldenAnvil.Utility;
+using OperaEtDies.Controls;
 using OperaEtDies.Controls.Conversation;
 using OperaEtDies.Data;
 using OperaEtDies.GameState;
@@ -13,7 +14,8 @@ public sealed class ConversationViewModelTests
 	public void WhatIsSaidIsKept()
 	{
 		var (world, person) = TalkingTests.CreateWorldWithSomeoneHere();
-		var viewModel = new ConversationViewModel(person, world);
+		using var timeRunner = new TimeRunner(world, isPaced: false);
+		var viewModel = new ConversationViewModel(person, world, timeRunner);
 
 		Assert.That(viewModel.Title, Is.EqualTo(OurResources.ConversationHeader.FormatCurrentCulture(person.FullName)));
 		Assert.That(viewModel.Unavailable, Is.Null);
@@ -36,7 +38,8 @@ public sealed class ConversationViewModelTests
 	public void TheNextAskStepCanBeAsked()
 	{
 		var (world, person) = TalkingTests.CreateWorldWithSomeoneHere();
-		var viewModel = new ConversationViewModel(person, world);
+		using var timeRunner = new TimeRunner(world, isPaced: false);
+		var viewModel = new ConversationViewModel(person, world, timeRunner);
 		Assert.That((viewModel.AskStepText, viewModel.CanAskStep()), Is.EqualTo(((string?) null, false)));
 
 		// With an "ask" step next, its title is a button, and asking says its text and the answer.
@@ -66,7 +69,8 @@ public sealed class ConversationViewModelTests
 	public void SomeoneWhoLeftCantBeTalkedWith()
 	{
 		var (world, person) = TalkingTests.CreateWorldWithSomeoneHere();
-		var viewModel = new ConversationViewModel(person, world);
+		using var timeRunner = new TimeRunner(world, isPaced: false);
+		var viewModel = new ConversationViewModel(person, world, timeRunner);
 
 		person.Location = world.Locations.First(x => x != world.Player.Location);
 
@@ -80,7 +84,8 @@ public sealed class ConversationViewModelTests
 	public void SightingsAreDescribedInWords()
 	{
 		var (world, person) = TalkingTests.CreateWorldWithSomeoneHere();
-		var viewModel = new ConversationViewModel(person, world);
+		using var timeRunner = new TimeRunner(world, isPaced: false);
+		var viewModel = new ConversationViewModel(person, world, timeRunner);
 		var subject = world.Npcs.First(x => x != person);
 		var laundry = world.GameData.Schedules.Needs.Single(x => x.Id == "laundry");
 		var quarter = world.Locations.First(x => x.Template is OperaEtDies.Data.QuarterTemplate);

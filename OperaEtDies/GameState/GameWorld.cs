@@ -83,6 +83,9 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		foreach (var person in people)
 			ClothingGenerator.GiveOutfits(gameData, objects, random, person);
 
+		// What the player sees happen is logged from the start.
+		objects.Create(id => new EventLog(id, []));
+
 		var world = new GameWorld(gameData, objects, random, startTime);
 		world.StartAsleep();
 		return world;
@@ -118,6 +121,13 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		foreach (var person in people)
 			ClothingGenerator.GiveNothing(objects, person);
 
+		// A game saved before there was an event log starts with an empty one.
+		var logs = objects.OfType<EventLog>().Count();
+		if (logs > 1)
+			throw new SaveLoadException(OurResources.SaveEventLogInvalid);
+		if (logs == 0)
+			objects.Create(id => new EventLog(id, []));
+
 		return new GameWorld(gameData, objects, random, time);
 	}
 
@@ -143,6 +153,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		People = Families.SelectMany(x => x.Members).ToList();
 		Player = People.Single(x => x.IsPlayer);
 		Npcs = People.Where(x => !x.IsPlayer).ToList();
+		EventLog = objects.OfType<EventLog>().Single();
 		m_scheduler = new Scheduler(this);
 	}
 
@@ -155,6 +166,11 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// Every object in the world.
 	/// </summary>
 	public WorldObjects Objects { get; }
+
+	/// <summary>
+	/// What the player has seen happen.
+	/// </summary>
+	public EventLog EventLog { get; }
 
 	/// <summary>
 	/// The appointments people have made and not yet kept, in the order they were made.
@@ -230,8 +246,11 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// </summary>
 	public event EventHandler<AppointmentMissedEventArgs>? AppointmentMissed;
 
-	internal void OnAppointmentMissed(Appointment appointment, bool isOtherWaiting) =>
+	internal void OnAppointmentMissed(Appointment appointment, bool isOtherWaiting, TimePoint time)
+	{
+		EventLog.Add(new LogEntry(time, isOtherWaiting ? LogEntryKind.GaveUpWaiting : LogEntryKind.NeverCame, appointment.GetOther(Player), Player.Location));
 		AppointmentMissed?.Invoke(this, new AppointmentMissedEventArgs(appointment, isOtherWaiting));
+	}
 
 	/// <summary>
 	/// The random numbers used while playing. Their state isn't saved.
@@ -268,7 +287,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 
 	/// <summary>
 	/// The current time in the game, from <see cref="GameData.Calendar"/>. It only moves forward, through
-	/// <see cref="AdvanceTime"/>.
+	/// <see cref="AdvanceTimeAsync"/>.
 	/// </summary>
 	public TimePoint Time
 	{
@@ -291,25 +310,104 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 			: GameData.BuildingTravelTime;
 
 	/// <summary>
+	/// How time is paced as it passes while the player plays, so they can see it go by, or null for it to pass at once, as
+	/// for tests and reports. It's a setting for this session rather than game state, so it isn't saved.
+	/// </summary>
+	public ITimePacer? Pacer { get; set; }
+
+	/// <summary>
+	/// Whether the player asked to stop time passing, so none passes until what they were doing is over.
+	/// </summary>
+	private bool IsStopRequested => Pacer?.IsStopRequested == true;
+
+	/// <summary>
 	/// Moves the time forward. All time passes through here, so anything that happens as time passes can be handled in
 	/// one place: everyone works through their tasks in the order they end, choosing new goals as they finish them. If
 	/// the stop check is met after a task ends, someone asks the player to chat, or it's time for the player to set off for
 	/// an appointment, time stops there instead, and the player stops whatever they were doing so they can answer. No
-	/// time passes at all while they're being asked whether to set off. Returns how much time passed.
+	/// time passes at all while they're being asked whether to set off. With a <see cref="Pacer"/>, time passes a slice at a
+	/// time, pausing after each, except while the player walks somewhere, or if it isn't to be paced: then it passes at
+	/// once, without the pacing counting it, since it isn't clear where the player is waiting while they walk. If the
+	/// player asks it to stop, it stops at the end of a slice (or once they arrive, if they're walking somewhere), and they
+	/// stop whatever they were doing, unless it can't be stopped. Returns how much time passed.
 	/// </summary>
 	/// <exception cref="ArgumentException">The offset is negative.</exception>
-	public TimeOffset AdvanceTime(TimeOffset offset, Func<bool>? shouldStop = null)
+	public async Task<TimeOffset> AdvanceTimeAsync(TimeOffset offset, Func<bool>? shouldStop = null, bool canStop = true, bool isPaced = true)
 	{
 		if (offset < GameData.Calendar.CreateTimeOffset(0, 0, 0))
 			throw new ArgumentException("Time can't move backward.", nameof(offset));
 
-		// No time passes while the player is being asked whether to set off for an appointment, until they answer.
-		if (GetPlayerSetOffSequence() is not null || Player.AskRequest is not null)
-			return GameData.Calendar.CreateTimeOffset(0, 0, 0);
+		var start = Time;
+		var end = start + offset;
+		var player = Player;
+		bool IsPlayerStopping() => canStop && IsStopRequested && player.CurrentTask is not TravelTask;
+		if (!IsPlayerStopping())
+		{
+			bool isDone;
+			var isContinuing = false;
+			do
+			{
+				var pacer = Pacer;
+				var sliceStart = Time;
+				var walkEnd = isPaced && player.CurrentTask is TravelTask && player.TaskEnd is { } taskEnd && taskEnd > Time ? taskEnd : null;
+				var sliceEnd = pacer is null || !isPaced ? end : walkEnd is not null ? (walkEnd < end ? walkEnd : end) : pacer.GetSliceEnd(Time, end);
+				isDone = !RunTimeUntil(sliceEnd, shouldStop, isContinuing) || Time >= end;
+				isContinuing = true;
+				if (pacer is not null)
+				{
+					if (isPaced && walkEnd is null)
+						await pacer.WaitUntilAsync(Time).ConfigureAwait(true);
+					else
+						pacer.Skip(Time - sliceStart);
+				}
+			}
+			while (!isDone && !IsPlayerStopping());
+
+			// The player asking time to stop stops whatever they were doing.
+			if (IsPlayerStopping() && player.Tasks.Count != 0 && player.CurrentTask is not TalkTask)
+				ClearPlayerTasks();
+		}
+
+		return Time - start;
+	}
+
+	/// <summary>
+	/// Moves the time forward at once, as <see cref="AdvanceTimeAsync"/> does without a <see cref="Pacer"/>, for the village
+	/// report and tests. Returns how much time passed.
+	/// </summary>
+	/// <exception cref="ArgumentException">The offset is negative.</exception>
+	/// <exception cref="InvalidOperationException">Time is paced.</exception>
+	internal TimeOffset AdvanceTime(TimeOffset offset, Func<bool>? shouldStop = null)
+	{
+		if (offset < GameData.Calendar.CreateTimeOffset(0, 0, 0))
+			throw new ArgumentException("Time can't move backward.", nameof(offset));
+		if (Pacer is not null)
+			throw new InvalidOperationException("Paced time can only pass through AdvanceTimeAsync.");
 
 		var start = Time;
+		RunTimeUntil(start + offset, shouldStop);
+		return Time - start;
+	}
+
+	/// <summary>
+	/// Runs time up to the given end, as <see cref="AdvanceTimeAsync"/> does, without pausing, carrying on from the slice
+	/// before if it's continuing. Returns whether it got there, rather than stopping first.
+	/// </summary>
+	private bool RunTimeUntil(TimePoint end, Func<bool>? shouldStop, bool isContinuing = false)
+	{
+		// No time passes while the player is being asked whether to set off for an appointment, until they answer.
+		if (GetPlayerSetOffSequence() is not null || Player.AskRequest is not null)
+			return false;
+
+		// Whether to stop is only checked as tasks end, so time passes the same way however it's sliced.
 		var player = Player;
-		Time = m_scheduler.RunUntil(start, start + offset, () => IsPlayerAsked || shouldStop?.Invoke() == true);
+		var isStopped = false;
+		Time = m_scheduler.RunUntil(Time, end, () =>
+		{
+			var isStopping = IsPlayerAsked || shouldStop?.Invoke() == true;
+			isStopped |= isStopping;
+			return isStopping;
+		}, isContinuing);
 
 		// Someone asking the player to chat, or an appointment to set off for, stops time, and whatever the player was doing,
 		// so they can answer.
@@ -322,7 +420,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		var forgetBefore = Time - GameData.Calendar.CreateTimeOffset(0, GameData.Schedules.SightingHours, 0);
 		foreach (var person in People)
 			person.ForgetSightingsBefore(forgetBefore);
-		return Time - start;
+		return !isStopped;
 	}
 
 	/// <summary>
@@ -332,7 +430,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// they'd be leaving home without being dressed enough to go out. Starting another stretch of the same goal, such as
 	/// resting again, doesn't stop it. Returns whether the wait was stopped by someone.
 	/// </summary>
-	public bool WaitForPeople(Location location, Person? following = null)
+	public async Task<bool> WaitForPeopleAsync(Location location, Person? following = null)
 	{
 		var isChanged = false;
 		var goal = following?.Goal;
@@ -351,7 +449,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		TaskStarted += OnTaskStarted;
 		try
 		{
-			AdvanceTime(GameData.Calendar.GetNextDayPartStart(Time) - Time, () => isChanged);
+			await AdvanceTimeAsync(GameData.Calendar.GetNextDayPartStart(Time) - Time, () => isChanged).ConfigureAwait(true);
 		}
 		finally
 		{
@@ -361,9 +459,9 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 
 		// The player can't follow someone out of their home unless they're dressed enough to go out.
 		if (following is not null && following.Location != location && (location != Player.Home || GetPlayerUncoveredSlotsOutside().Count == 0))
-			MovePlayer(following.Location);
+			await MovePlayerAsync(following.Location).ConfigureAwait(true);
 		else
-			UpdatePlayerSteps();
+			await UpdatePlayerStepsAsync().ConfigureAwait(true);
 
 		return isChanged;
 	}
@@ -402,7 +500,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// steps, and any others they're in the middle of are put on hold. Either they're carried out for them, or the player
 	/// takes them themselves, starting with any they've already done. Returns how much time passed.
 	/// </summary>
-	public TimeOffset StartPlayerSteps(Need need, bool isAutomatic)
+	public async Task<TimeOffset> StartPlayerStepsAsync(Need need, bool isAutomatic)
 	{
 		ArgumentNullException.ThrowIfNull(need);
 		var player = Player;
@@ -418,7 +516,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 			FocusPlayerSteps(sequence);
 		}
 
-		return isAutomatic ? DoPlayerStepsAutomatically(sequence) : UpdatePlayerSteps();
+		return isAutomatic ? await DoPlayerStepsAutomaticallyAsync(sequence).ConfigureAwait(true) : await UpdatePlayerStepsAsync().ConfigureAwait(true);
 	}
 
 	/// <summary>
@@ -442,39 +540,39 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// step's button, spending time on it. Before an appointment's steps, it's going to it or meeting the one they're
 	/// meeting. Returns how much time passed.
 	/// </summary>
-	public TimeOffset DoPlayerStep(StepSequence sequence)
+	public Task<TimeOffset> DoPlayerStepAsync(StepSequence sequence)
 	{
 		ArgumentNullException.ThrowIfNull(sequence);
 		FocusPlayerSteps(sequence);
 		sequence.Takeover = StepTakeover.Step;
-		return RunPlayerSteps(sequence);
+		return RunPlayerStepsAsync(sequence);
 	}
 
 	/// <summary>
 	/// Has a sequence of the player's carried out for them, as for anyone else, walking included, until it's done, while
 	/// time passes for everyone. After a pass of a "repeat" step that reconsiders, the player is asked whether to keep going
-	/// (see <see cref="AnswerKeepGoing"/>), and it carries on for them once they answer. Anything that stops them partway,
+	/// (see <see cref="AnswerKeepGoingAsync"/>), and it carries on for them once they answer. Anything that stops them partway,
 	/// such as someone asking to chat, leaves the rest for them to take themselves. Returns how much time passed.
 	/// </summary>
-	public TimeOffset DoPlayerStepsAutomatically(StepSequence sequence)
+	public Task<TimeOffset> DoPlayerStepsAutomaticallyAsync(StepSequence sequence)
 	{
 		ArgumentNullException.ThrowIfNull(sequence);
 		FocusPlayerSteps(sequence);
 		sequence.Takeover = StepTakeover.All;
-		return RunPlayerSteps(sequence);
+		return RunPlayerStepsAsync(sequence);
 	}
 
 	/// <summary>
 	/// Passes time while the game carries out the player's current steps, until it leaves the rest to them, or something
-	/// stops it. Returns how much time passed.
+	/// stops it, such as the player asking time to stop. Returns how much time passed.
 	/// </summary>
-	private TimeOffset RunPlayerSteps(StepSequence sequence)
+	private async Task<TimeOffset> RunPlayerStepsAsync(StepSequence sequence)
 	{
 		var player = Player;
 		var start = Time;
 		m_scheduler.Continue(player, Time);
-		for (var count = 0; count < MaxPlayerRuns && player.Tasks.Count != 0 && player.Sequences.Contains(sequence) && !IsPlayerAsked; count++)
-			AdvanceTime(GameData.Calendar.CreateTimeOffset(1, 0, 0), () => player.Tasks.Count == 0 || player.Current != sequence);
+		for (var count = 0; count < MaxPlayerRuns && player.Tasks.Count != 0 && player.Sequences.Contains(sequence) && !IsPlayerAsked && !IsStopRequested; count++)
+			await AdvanceTimeAsync(GameData.Calendar.CreateTimeOffset(1, 0, 0), () => player.Tasks.Count == 0 || player.Current != sequence).ConfigureAwait(true);
 		// Someone asking the player to chat, or an appointment to set off for, stops what's being done for them, so they can answer.
 		if (IsPlayerAsked && player.CurrentTask is not TalkTask)
 			ClearPlayerTasks();
@@ -488,7 +586,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// (being where a step goes, or having on what it puts on) and the steps that only keep track of things, up to the next
 	/// one they take themselves. Steps fail if the player left where they were being done. Returns how much time passed.
 	/// </summary>
-	public TimeOffset UpdatePlayerSteps()
+	public async Task<TimeOffset> UpdatePlayerStepsAsync()
 	{
 		var player = Player;
 		var start = Time;
@@ -502,7 +600,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 			}
 
 			if (player.Current is { } current && player.TaskEnd is null)
-				RunPlayerSteps(current);
+				await RunPlayerStepsAsync(current).ConfigureAwait(true);
 		}
 
 		return Time - start;
@@ -525,7 +623,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// steps. Returns how much time passed.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The option can't be chosen now.</exception>
-	public TimeOffset ChoosePlayerOption(StepSequence sequence, StepOption option)
+	public Task<TimeOffset> ChoosePlayerOptionAsync(StepSequence sequence, StepOption option)
 	{
 		if (!GetPlayerOptions(sequence).Contains(option))
 			throw new InvalidOperationException("The player can't choose that option now.");
@@ -534,7 +632,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		var chosen = need.GetOptions(sequence.Step).First(x => x.Option == option);
 		sequence.GoTo(Scheduler.GetOptionStart(need, sequence.Step, chosen));
 		FocusPlayerSteps(sequence);
-		return ContinuePlayerSteps(sequence);
+		return ContinuePlayerStepsAsync(sequence);
 	}
 
 	/// <summary>
@@ -556,7 +654,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// back to the first step repeated, or carry on with the steps after the "repeat" step. Returns how much time passed.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The player isn't being asked.</exception>
-	public TimeOffset AnswerKeepGoing(StepSequence sequence, bool keepGoing)
+	public Task<TimeOffset> AnswerKeepGoingAsync(StepSequence sequence, bool keepGoing)
 	{
 		if (!IsAskingPlayerToKeepGoing(sequence))
 			throw new InvalidOperationException("The player isn't being asked whether to keep going.");
@@ -564,14 +662,14 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		var need = sequence.Need;
 		sequence.GoTo(keepGoing ? need.GetLoopStart(sequence.Step) : need.GetNextStep(sequence.Step));
 		FocusPlayerSteps(sequence);
-		return ContinuePlayerSteps(sequence);
+		return ContinuePlayerStepsAsync(sequence);
 	}
 
 	/// <summary>
 	/// Carries on with a sequence of the player's after they decided something: for them, if all of it is being done for
 	/// them, or else up to the next step they take themselves.
 	/// </summary>
-	private TimeOffset ContinuePlayerSteps(StepSequence sequence) => sequence.Takeover == StepTakeover.All ? RunPlayerSteps(sequence) : UpdatePlayerSteps();
+	private Task<TimeOffset> ContinuePlayerStepsAsync(StepSequence sequence) => sequence.Takeover == StepTakeover.All ? RunPlayerStepsAsync(sequence) : UpdatePlayerStepsAsync();
 
 	/// <summary>
 	/// Has the player give up a sequence of steps they're in the middle of. What they carry for it stays with them, and is
@@ -708,7 +806,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// Not setting off calls it off, and the one they were to meet goes on with their day. Returns how much time passed.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The player isn't being asked whether to set off.</exception>
-	public TimeOffset AnswerSetOff(bool isSettingOff)
+	public async Task<TimeOffset> AnswerSetOffAsync(bool isSettingOff)
 	{
 		var sequence = GetPlayerSetOffSequence() ?? throw new InvalidOperationException("The player isn't being asked whether to set off for an appointment.");
 		var start = Time;
@@ -716,7 +814,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		{
 			ClearPlayerTasks();
 			m_scheduler.TakeUpAppointment(sequence, Player, Time);
-			UpdatePlayerSteps();
+			await UpdatePlayerStepsAsync().ConfigureAwait(true);
 		}
 		else
 		{
@@ -738,11 +836,11 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// make an appointment with them, or lead to them following the one asking. Returns the appointment a yes made, if any.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">No one is asking the player anything.</exception>
-	public Appointment? AnswerAsk(bool isYes)
+	public async Task<Appointment?> AnswerAskAsync(bool isYes)
 	{
 		var appointment = m_scheduler.AnswerPlayerAsk(Player, isYes, Time);
 		if (Player.CurrentTask is TalkTask)
-			FinishPlayerTalk();
+			await FinishPlayerTalkAsync().ConfigureAwait(true);
 		return appointment;
 	}
 
@@ -832,15 +930,15 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// step. Returns the answer.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The player has no question to ask the person.</exception>
-	public PlayerAskAnswer AskPlayerQuestion(Person person)
+	public async Task<PlayerAskAnswer> AskPlayerQuestionAsync(Person person)
 	{
 		var ask = GetPlayerAsk(person) ?? throw new InvalidOperationException($"The player has nothing to ask person {person.Id}.");
 		var start = Time;
 		FocusPlayerSteps(ask.Sequence);
 		var (isYes, appointment) = m_scheduler.TalkOrAskWith(Player, ask.Sequence, ask.Step, ask.StepIndex, person, Time);
 		ask.Sequence.IsCarriedOut = true;
-		FinishPlayerTalk();
-		UpdatePlayerSteps();
+		await FinishPlayerTalkAsync().ConfigureAwait(true);
+		await UpdatePlayerStepsAsync().ConfigureAwait(true);
 		return new PlayerAskAnswer(isYes, appointment, Time - start);
 	}
 
@@ -869,8 +967,13 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// </summary>
 	public event EventHandler<StepFailedEventArgs>? StepFailed;
 
-	internal void OnStepFailed(Person person, StepSequence sequence, int step, FailCause cause) =>
+	internal void OnStepFailed(Person person, StepSequence sequence, int step, FailCause cause, TimePoint time)
+	{
+		// The player missing an appointment is logged as such (see OnAppointmentMissed).
+		if (person.Location == Player.Location && !(person == Player && cause == FailCause.NoShow))
+			EventLog.Add(new LogEntry(time, LogEntryKind.Failed, person, person.Location, Need: sequence.Need, Step: step, Cause: cause));
 		StepFailed?.Invoke(this, new StepFailedEventArgs(person, sequence, step, cause));
+	}
 
 	/// <summary>
 	/// Makes a bundle for someone to carry, standing for the given items.
@@ -900,7 +1003,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// <summary>
 	/// Has the player put on a piece of clothing, taking off whatever they're wearing in its slots in its layer. What
 	/// they take off is kept at home if they're there, or carried. It takes no time until they're done changing (see
-	/// <see cref="FinishPlayerChanging"/>).
+	/// <see cref="FinishPlayerChangingAsync"/>).
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The player can't put the piece on.</exception>
 	public void PlayerWear(ClothingPiece piece, bool isCarried = false)
@@ -922,7 +1025,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 
 	/// <summary>
 	/// Has the player take off a piece of clothing they're wearing. It's kept at home if they're there, or carried (always, with <paramref name="isCarried"/>). It takes
-	/// no time until they're done changing (see <see cref="FinishPlayerChanging"/>).
+	/// no time until they're done changing (see <see cref="FinishPlayerChangingAsync"/>).
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The player isn't wearing the piece.</exception>
 	public void PlayerTakeOff(ClothingPiece piece, bool isCarried = false)
@@ -936,7 +1039,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 
 	/// <summary>
 	/// Has the player take off everything they're wearing. It's kept at home if they're there, or carried (always, with <paramref name="isCarried"/>). It takes no time
-	/// until they're done changing (see <see cref="FinishPlayerChanging"/>).
+	/// until they're done changing (see <see cref="FinishPlayerChangingAsync"/>).
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The player isn't wearing anything.</exception>
 	public void PlayerTakeOffAll(bool isCarried = false)
@@ -960,7 +1063,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// Work clothes that aren't complete go over what they're wearing instead, taking off only what's in the same slots in
 	/// the same layers.
 	/// What they take off is kept at home if they're there, or carried (always, with <paramref name="isCarried"/>). It takes no time until they're done changing (see
-	/// <see cref="FinishPlayerChanging"/>).
+	/// <see cref="FinishPlayerChangingAsync"/>).
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The player can't change into the outfit.</exception>
 	public void PlayerChangeInto(OwnedOutfit outfit, bool isCarried = false)
@@ -984,10 +1087,10 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// different from what they were wearing before, however many things they tried, it takes the time to change clothes,
 	/// while time passes for everyone. Returns how much time passed, or null if nothing changed.
 	/// </summary>
-	public TimeOffset? FinishPlayerChanging(IReadOnlyCollection<ClothingPiece> wornBefore)
+	public async Task<TimeOffset?> FinishPlayerChangingAsync(IReadOnlyCollection<ClothingPiece> wornBefore)
 	{
-		var spent = Player.Clothing.Pieces.ToHashSet().SetEquals(wornBefore) ? (TimeOffset?) null : PassPlayerChangingTime();
-		UpdatePlayerSteps();
+		var spent = Player.Clothing.Pieces.ToHashSet().SetEquals(wornBefore) ? (TimeOffset?) null : await PassPlayerChangingTimeAsync().ConfigureAwait(true);
+		await UpdatePlayerStepsAsync().ConfigureAwait(true);
 		return spent;
 	}
 
@@ -998,17 +1101,17 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	public bool CanPlayerTake(ClothingPiece piece) => Player.Location == Player.Home && piece.Container == Player.Home.Items && piece.IsReady(Time);
 
 	/// <summary>
-	/// Has the player pick up a piece of clothing kept at home to carry it, which takes no time.
+	/// Has the player pick up a piece of clothing kept at home to carry it, which takes no time, though it can carry them on through their steps.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The player can't take the piece.</exception>
-	public void PlayerTake(ClothingPiece piece)
+	public async Task PlayerTakeAsync(ClothingPiece piece)
 	{
 		if (!CanPlayerTake(piece))
 			throw new InvalidOperationException($"The player can't take {piece.Id}.");
 
 		Player.Home.Items.Remove(piece);
 		Player.Inventory.Add(piece);
-		UpdatePlayerSteps();
+		await UpdatePlayerStepsAsync().ConfigureAwait(true);
 	}
 
 	/// <summary>
@@ -1018,17 +1121,17 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	public bool CanPlayerPutAway(ClothingPiece piece) => Player.Location == Player.Home && piece.Container == Player.Inventory && !Player.IsInBundle(piece);
 
 	/// <summary>
-	/// Has the player put away a piece of clothing they're carrying at home, which takes no time.
+	/// Has the player put away a piece of clothing they're carrying at home, which takes no time, though it can carry them on through their steps.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The player can't put the piece away.</exception>
-	public void PlayerPutAway(ClothingPiece piece)
+	public async Task PlayerPutAwayAsync(ClothingPiece piece)
 	{
 		if (!CanPlayerPutAway(piece))
 			throw new InvalidOperationException($"The player can't put away {piece.Id}.");
 
 		Player.Inventory.Remove(piece);
 		Player.Home.Items.Add(piece);
-		UpdatePlayerSteps();
+		await UpdatePlayerStepsAsync().ConfigureAwait(true);
 	}
 
 	/// <summary>
@@ -1079,13 +1182,13 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// <summary>
 	/// Passes the time it takes the player to change clothes, while time passes for everyone.
 	/// </summary>
-	private TimeOffset PassPlayerChangingTime()
+	private Task<TimeOffset> PassPlayerChangingTimeAsync()
 	{
 		var player = Player;
 		var minutes = GameData.Schedules.Clothing.ChangeMinutes;
 		player.SetTasks([new BusyTask(minutes, IsAside: true)]);
 		m_scheduler.Continue(player, Time);
-		return AdvanceTime(GameData.Calendar.CreateTimeOffset(0, 0, minutes), () => player.Tasks.Count == 0);
+		return AdvanceTimeAsync(GameData.Calendar.CreateTimeOffset(0, 0, minutes), () => player.Tasks.Count == 0);
 	}
 
 	/// <summary>
@@ -1133,7 +1236,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		// The game begins once the player has woken and finished their sleep's steps, such as changing out of night clothes,
 		// and put away what they took off, as anyone else does before choosing what to do.
 		while (Player.TaskEnd is { } end)
-			AdvanceTime(end - Time);
+			RunTimeUntil(end, null);
 		if (Player.Location == Player.Home)
 			ClothingRules.PutAway(Player);
 	}
@@ -1150,15 +1253,15 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// refused because their goal is too urgent.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">The minutes aren't more than 0.</exception>
-	public TimeOffset? TalkTo(Person person, int minutes, bool isSocializing = false)
+	public async Task<TimeOffset?> TalkToAsync(Person person, int minutes, bool isSocializing = false)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minutes);
 		if (person.IsPlayer || IsTooBusyToTalk(person))
 			return null;
 
 		StartTalking(Player, person, minutes, Time, isSocializing);
-		var spent = AdvanceTime(GameData.Calendar.CreateTimeOffset(0, 0, minutes), () => Player.Tasks.Count == 0);
-		UpdatePlayerSteps();
+		var spent = await AdvanceTimeAsync(GameData.Calendar.CreateTimeOffset(0, 0, minutes), () => Player.Tasks.Count == 0).ConfigureAwait(true);
+		await UpdatePlayerStepsAsync().ConfigureAwait(true);
 		return spent;
 	}
 
@@ -1168,14 +1271,14 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// player saw and was told.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The person isn't with the player, or won't talk.</exception>
-	public TalkAnswer AskWhatDoing(Person person)
+	public async Task<TalkAnswer> AskWhatDoingAsync(Person person)
 	{
 		CheckCanTalk(person);
 		var time = Time;
 		var seen = Observe(person, time) with { Plan = GetPlan(person) };
 		StartTalking(Player, person, GameData.Schedules.Talking.AskDoingMinutes, time);
 		Player.See(person, seen);
-		return new TalkAnswer(FinishPlayerTalk(), seen);
+		return new TalkAnswer(await FinishPlayerTalkAsync().ConfigureAwait(true), seen);
 	}
 
 	/// <summary>
@@ -1184,14 +1287,14 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// sighting, or no sighting if they haven't seen the person.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The person isn't with the player, or won't talk.</exception>
-	public TalkAnswer AskAbout(Person person, Person subject)
+	public async Task<TalkAnswer> AskAboutAsync(Person person, Person subject)
 	{
 		CheckCanTalk(person);
 		var known = person.Sightings.GetValueOrDefault(subject);
 		StartTalking(Player, person, GameData.Schedules.Talking.AskAboutMinutes, Time);
 		if (known is not null)
 			Player.LearnSighting(subject, known, person);
-		return new TalkAnswer(FinishPlayerTalk(), known);
+		return new TalkAnswer(await FinishPlayerTalkAsync().ConfigureAwait(true), known);
 	}
 
 	/// <summary>
@@ -1199,18 +1302,18 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// them who counts the other as a friend. Returns how much time passed.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The person isn't with the player, or won't talk.</exception>
-	public TimeOffset Socialize(Person person)
+	public Task<TimeOffset> SocializeAsync(Person person)
 	{
 		CheckCanTalk(person);
 		StartTalking(Player, person, GameData.Schedules.Socializing.ChatMinutes, Time, isSocializing: true);
-		return FinishPlayerTalk();
+		return FinishPlayerTalkAsync();
 	}
 
 	/// <summary>
 	/// Agrees to talk with whoever asked the player, to chat or for a "talk" step of theirs, if they're still there and
 	/// free, while time passes for everyone. Returns how much time passed, or null if they couldn't talk after all.
 	/// </summary>
-	public TimeOffset? AcceptTalk()
+	public async Task<TimeOffset?> AcceptTalkAsync()
 	{
 		var player = Player;
 		var asker = player.TalkRequest;
@@ -1227,7 +1330,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 				m_scheduler.ChatWith(asker!, player, Time);
 		}
 
-		return canTalk ? FinishPlayerTalk() : null;
+		return canTalk ? await FinishPlayerTalkAsync().ConfigureAwait(true) : null;
 	}
 
 	/// <summary>
@@ -1269,11 +1372,11 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// <summary>
 	/// Passes time until the player's talk is over, then carries the player on through their steps.
 	/// </summary>
-	private TimeOffset FinishPlayerTalk()
+	private async Task<TimeOffset> FinishPlayerTalkAsync()
 	{
 		var start = Time;
-		AdvanceTime(Player.TaskEnd! - Time, () => Player.Tasks.Count == 0);
-		UpdatePlayerSteps();
+		await AdvanceTimeAsync(Player.TaskEnd! - Time, () => Player.Tasks.Count == 0).ConfigureAwait(true);
+		await UpdatePlayerStepsAsync().ConfigureAwait(true);
 		return Time - start;
 	}
 
@@ -1381,11 +1484,11 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// Moves the player to another location now, such as along a path, and has them see the people there and be seen.
 	/// Leaving where a step of theirs was being done fails it.
 	/// </summary>
-	public void MovePlayer(Location location)
+	public async Task MovePlayerAsync(Location location)
 	{
 		MovePerson(Player, location, Time);
 		SeeEachOther(Player, Time);
-		UpdatePlayerSteps();
+		await UpdatePlayerStepsAsync().ConfigureAwait(true);
 	}
 
 	/// <summary>
@@ -1395,7 +1498,16 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	internal void MovePerson(Person person, Location location, TimePoint time)
 	{
 		var from = person.Location;
+		var playerLocation = Player.Location;
 		person.Location = location;
+
+		// The player sees themselves arrive, and anyone else come or go where they are.
+		var seen = from == location ? null :
+			person == Player || location == playerLocation ? new LogEntry(time, LogEntryKind.Arrived, person, location, Place: from) :
+			from == playerLocation ? new LogEntry(time, LogEntryKind.Left, person, from, Place: location) :
+			null;
+		if (seen is not null)
+			EventLog.Add(seen);
 
 		// Clothes carried home are put away.
 		if (location == person.Home)
@@ -1425,9 +1537,39 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 
 	internal void OnTaskStarted(Person person, PersonTask task, TimePoint time)
 	{
+		if (person.Location == Player.Location)
+			LogTaskStarted(person, task, time);
 		SeeEachOther(person, time);
 		TaskStarted?.Invoke(this, new PersonTaskEventArgs(person, task, time));
 		m_scheduler.OnTaskStarted(person, task, time);
+	}
+
+	/// <summary>
+	/// Logs someone in the player's location starting a task, unless it only carries on with what was last logged for
+	/// them, such as resting again, or it's the other half of a talk just logged. Walking isn't logged, since leaving is.
+	/// </summary>
+	private void LogTaskStarted(Person person, PersonTask task, TimePoint time)
+	{
+		var location = person.Location;
+		LogEntry? entry = task switch
+		{
+			BusyTask { IsAside: true } => new LogEntry(time, LogEntryKind.ChangingClothes, person, location),
+			BusyTask busy => person.Goal is { } goal
+				? new LogEntry(time, LogEntryKind.Busy, person, location, Need: goal, Step: busy.Step is { } step && step < goal.Steps.Count ? step : null)
+				: new LogEntry(time, LogEntryKind.Idle, person, location),
+			ChangeClothesTask => new LogEntry(time, LogEntryKind.ChangingClothes, person, location),
+			TalkTask talk => new LogEntry(time, LogEntryKind.Talking, person, location, Other: talk.With),
+			WaitTask wait => new LogEntry(time, LogEntryKind.Waiting, person, location, Other: wait.For),
+			MeetTask meet => new LogEntry(time, LogEntryKind.Meeting, person, location, Other: meet.Appointment.GetOther(person)),
+			FollowTask follow => new LogEntry(time, LogEntryKind.Following, person, location, Other: follow.Leader),
+			_ => null,
+		};
+
+		var isRepeat = entry is not null && EventLog.GetLatest(person) is { } latest && latest with { Time = time } == entry;
+		var isOtherHalf = entry is { Kind: LogEntryKind.Talking } && EventLog.Entries.Count != 0 && EventLog.Entries[^1] is { Kind: LogEntryKind.Talking } last &&
+			last.Time == time && last.Person == entry.Other && last.Other == person;
+		if (entry is not null && !isRepeat && !isOtherHalf)
+			EventLog.Add(entry);
 	}
 
 	/// <summary>
