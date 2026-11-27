@@ -27,7 +27,8 @@ public sealed class PortraitRenderer
 		foreach (var set in data.ShapeSets)
 			shapeSets.TryAdd(set.Id, new ParsedShapeSet(set, set.Shapes.Select(x => Parse(x, null)).ToList()));
 		m_layers = data.Layers
-			.Select(layer => new ParsedLayer(layer, layer.Shapes.Select(shape => Parse(shape, shape.Include is { } include ? shapeSets.GetValueOrDefault(include) : null)).ToList()))
+			.Select(layer => new ParsedLayer(layer, layer.Shapes.Select(shape => Parse(shape, shape.Include is { } include ? shapeSets.GetValueOrDefault(include) : null)).ToList(),
+				layer.Cut?.Path is { } cut && PortraitShape.TryParsePath(cut, out var cutGeometry, out _) ? cutGeometry : null))
 			.ToList();
 
 		var bounds = new RectangleGeometry(new Rect(Size));
@@ -72,6 +73,17 @@ public sealed class PortraitRenderer
 
 		// Fixes the drawing's bounds to the full portrait, whatever its layers cover.
 		portrait.Children.Add(new GeometryDrawing(Brushes.Transparent, null, m_bounds));
+
+		// The cuts of the layers that are drawn, which cut away parts of the layers under them.
+		var cuts = m_layers
+			.Select((layer, index) => (Layer: layer, Index: index))
+			.Where(x => x.Layer.Cut is not null && (layerOverride?.Invoke(x.Index) ?? x.Layer.Layer.IsDrawn(getValueId, place, clothing)))
+			.Select(x => (x.Index, x.Layer.Layer.Cut!, Geometry: Transform(x.Layer.Cut!, CombineTransforms(scales.GetValueOrDefault(x.Layer.Layer.Scale ?? ""), offsets.GetValueOrDefault(x.Layer.Layer.Offset ?? "")))))
+			.ToList();
+
+		// The filled shapes drawn so far of the layers drawn anywhere, which the layers drawn only over the character are
+		// clipped to.
+		var character = new List<Geometry>();
 		for (var layerIndex = 0; layerIndex < m_layers.Count; layerIndex++)
 		{
 			var layer = m_layers[layerIndex];
@@ -80,6 +92,16 @@ public sealed class PortraitRenderer
 			var index = layerIndex;
 			bool IsDrawn(int shapeIndex) =>
 				IsShapeDrawn(isLayerDrawn, CharacterCondition.IsMet(layer.Shapes[shapeIndex].Shape.When, getValueId), layerOverride?.Invoke(index), shapeOverride?.Invoke(index, shapeIndex));
+
+			// The layer goes in a group of its own when it's clipped, by the cuts of the layers over it or to the character.
+			var layerCuts = cuts.Where(x => x.Index > index && x.Item2.AppliesTo(layer.Layer)).Select(x => x.Geometry).ToList();
+			var layerClip = GetLayerClip(layerCuts, layer.Layer.OnCharacter ? CombineGeometries(character) : null);
+			var target = portrait;
+			if (layerClip is not null)
+			{
+				target = new DrawingGroup { ClipGeometry = layerClip };
+				portrait.Children.Add(target);
+			}
 
 			IReadOnlyDictionary<string, Color>? layerColors = null;
 			Geometry? clip = null;
@@ -93,11 +115,17 @@ public sealed class PortraitRenderer
 					{
 						if (shape.Shape.Clip)
 							clip ??= GetClip(layer, scales, offset, IsDrawn);
-						portrait.Children.Add(CreateIncludeDrawing(set, shape.Shape.Clip ? clip : null, layerColors, getValueId, x => CombineTransforms(scales.GetValueOrDefault(x.Scale ?? set.Set.Scale ?? layer.Layer.Scale ?? ""), offset)));
+						target.Children.Add(CreateIncludeDrawing(set, shape.Shape.Clip ? clip : null, layerColors, getValueId, x => CombineTransforms(scales.GetValueOrDefault(x.Scale ?? set.Set.Scale ?? layer.Layer.Scale ?? ""), offset)));
 					}
 					else
 					{
-						portrait.Children.Add(CreateDrawing(shape, layerColors, CombineTransforms(scales.GetValueOrDefault(shape.Shape.Scale ?? layer.Layer.Scale ?? ""), offset)));
+						var transform = CombineTransforms(scales.GetValueOrDefault(shape.Shape.Scale ?? layer.Layer.Scale ?? ""), offset);
+						target.Children.Add(CreateDrawing(shape, layerColors, transform));
+						if (layer.Layer.At is null && shape.Shape.Fill is not null)
+						{
+							var drawnGeometry = Transform(shape.Geometry, transform);
+							character.Add(layerClip is null ? drawnGeometry : Clip(drawnGeometry, layerClip));
+						}
 					}
 				}
 			}
@@ -295,6 +323,29 @@ public sealed class PortraitRenderer
 			.Select(x => Transform(x.shape.Geometry, CombineTransforms(scales.GetValueOrDefault(x.shape.Shape.Scale ?? layer.Layer.Scale ?? ""), offset))));
 
 	/// <summary>
+	/// Gets the area a layer is drawn in, or null if it's drawn everywhere: the portrait less what the cuts over it cut
+	/// away, and within the character, if it's only drawn over the character.
+	/// </summary>
+	private Geometry? GetLayerClip(IReadOnlyList<Geometry> cuts, Geometry? character)
+	{
+		Geometry? clip = cuts.Count == 0 ? null : new CombinedGeometry(GeometryCombineMode.Exclude, m_bounds, CombineGeometries(cuts));
+		if (character is not null)
+			clip = clip is null ? character : new CombinedGeometry(GeometryCombineMode.Intersect, clip, character);
+		clip?.Freeze();
+		return clip;
+	}
+
+	/// <summary>
+	/// Gets the part of a geometry inside a clip.
+	/// </summary>
+	private static Geometry Clip(Geometry geometry, Geometry clip)
+	{
+		var clipped = new CombinedGeometry(GeometryCombineMode.Intersect, geometry, clip);
+		clipped.Freeze();
+		return clipped;
+	}
+
+	/// <summary>
 	/// Combines geometries into one that covers everywhere any of them does.
 	/// </summary>
 	private static Geometry CombineGeometries(IEnumerable<Geometry> geometries)
@@ -374,7 +425,7 @@ public sealed class PortraitRenderer
 		};
 	}
 
-	private sealed record ParsedLayer(PortraitLayer Layer, IReadOnlyList<ParsedShape> Shapes);
+	private sealed record ParsedLayer(PortraitLayer Layer, IReadOnlyList<ParsedShape> Shapes, Geometry? Cut);
 
 	/// <summary>
 	/// A shape with its parsed path, or the shape set it includes.

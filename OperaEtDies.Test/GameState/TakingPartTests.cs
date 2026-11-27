@@ -202,7 +202,7 @@ public sealed class TakingPartTests
 
 	private static Need Errand(IReadOnlyList<Step> steps)
 	{
-		var need = new Need { Id = "errand", Title = "Errand", StepSettings = steps, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 } };
+		var need = new Need { Id = "errand", Title = "Errand", Icon = "icon", StepSettings = steps, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 } };
 		need.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);
 		return need;
 	}

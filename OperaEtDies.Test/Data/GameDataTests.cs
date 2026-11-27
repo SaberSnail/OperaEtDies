@@ -420,6 +420,7 @@ public sealed class GameDataTests
 	[TestCase("{{literal}} {a}", "{literal} a")]
 	[TestCase("{b.c:first_upper} {a}", "B.c a")]
 	[TestCase("{x:first_upper}", "X")]
+	[TestCase("{a.b.c}", "a.b.c")]
 	public void TemplatesFillInPlaceholders(string text, string expected)
 	{
 		Assert.That(TextTemplate.TryParse(text, out var template), Is.True);
@@ -430,7 +431,6 @@ public sealed class GameDataTests
 	[TestCase("}")]
 	[TestCase("{}")]
 	[TestCase("{a.}")]
-	[TestCase("{a.b.c}")]
 	[TestCase("{a{b}")]
 	[TestCase("{a:}")]
 	[TestCase("{:first_upper}")]
@@ -670,7 +670,7 @@ public sealed class GameDataTests
 	{
 		CopyShippedData();
 		ModifyShipped("Professions.json", x => x
-			.Replace("\"who\": { \"values\": { \"gender\": [ \"gender_female\" ], \"age\": [ \"age_young\", \"age_adult\" ] } }", "\"who\": { \"values\": { \"family\": [ \"other\" ] }, \"notValues\": { \"family\": [ \"cousin\" ] } }", StringComparison.Ordinal));
+			.Replace("\"who\": { \"values\": { \"gender\": [ \"gender_female\" ], \"age\": [ \"age_young\", \"age_adult\" ] }, \"notValues\": { \"family\": [ \"member\" ] } }", "\"who\": { \"values\": { \"family\": [ \"other\" ] }, \"notValues\": { \"family\": [ \"cousin\" ] } }", StringComparison.Ordinal));
 
 		var result = GameData.Load(m_directory);
 

@@ -358,6 +358,32 @@ public sealed class NewGameViewModelTests
 		Assert.That(settings.Player.GetOption("build").Id, Is.AnyOf("slender", "wiry"));
 	}
 
+	[Test]
+	public void HasOneStepForTheCharacter()
+	{
+		var viewModel = CreateViewModel();
+
+		var step = (CharacterStepViewModel) viewModel.Steps.Single();
+		Assert.That(step.Title, Is.EqualTo(OurResources.NewGameCharacterStep));
+		Assert.That(step.Properties, Is.SameAs(viewModel.Properties));
+		Assert.That(viewModel.CurrentStep, Is.SameAs(step));
+	}
+
+	[Test]
+	public void SummaryFollowsTheCharacter()
+	{
+		var viewModel = CreateViewModel();
+		var changed = new List<string?>();
+		viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+		FirstName(viewModel).Text = "Bob";
+		SetProfession(viewModel, "smith");
+
+		Assert.That(viewModel.Name, Does.Contain("Bob"));
+		Assert.That(viewModel.Profession, Is.EqualTo(Profession(viewModel).SelectedOption!.Title));
+		Assert.That(changed, Does.Contain(nameof(NewGameViewModel.Name)).And.Contain(nameof(NewGameViewModel.Profession)));
+	}
+
 	private static void SetProfession(NewGameViewModel viewModel, string id)
 	{
 		var editor = Profession(viewModel);

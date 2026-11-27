@@ -163,11 +163,18 @@ public sealed class Step
 	public string? DelayActivity { get; init; }
 
 	/// <summary>
-	/// For a "repeat" step, the steps it repeats.
+	/// For a "repeat" step, the steps it repeats, and for a "group" step, the steps it carries out.
 	/// </summary>
-	[AllowedFor(nameof(Kind), StepKind.Repeat)]
-	[RequiredFor(nameof(Kind), StepKind.Repeat)]
+	[AllowedFor(nameof(Kind), StepKind.Repeat, StepKind.Group)]
+	[RequiredFor(nameof(Kind), StepKind.Repeat, StepKind.Group)]
 	public IReadOnlyList<Step>? Steps { get; init; }
+
+	/// <summary>
+	/// For a "repeat" or "group" step, steps carried out whenever its steps are left, however that happens (for a "repeat"
+	/// step, once the loop as a whole ends), such as changing back out of clothes its steps changed into.
+	/// </summary>
+	[AllowedFor(nameof(Kind), StepKind.Repeat, StepKind.Group)]
+	public IReadOnlyList<Step>? Finally { get; init; }
 
 	/// <summary>
 	/// For a "repeat" step, whether someone other than the player stops repeating after a pass when another of their needs
@@ -267,6 +274,13 @@ public sealed class Step
 	public bool WithPartner { get; init; }
 
 	/// <summary>
+	/// How much more (or, when negative, less) comfortable people on the step are with how covered they are, such as for
+	/// a swimming lesson. Only for steps that spend time where the person is.
+	/// </summary>
+	[AllowedFor(nameof(Kind), StepKind.Do, StepKind.Dress, StepKind.Undress, StepKind.Wait, StepKind.Wander, StepKind.Seek, StepKind.Talk, StepKind.Ask, StepKind.Meet)]
+	public int ModestyComfort { get; init; }
+
+	/// <summary>
 	/// How the player takes the step, or null if they don't take it themselves.
 	/// </summary>
 	[AllowedFor(nameof(Kind), StepKind.GoTo, StepKind.Do, StepKind.Take, StepKind.Put, StepKind.Dress, StepKind.Undress, StepKind.Wait, StepKind.Ask)]
@@ -350,6 +364,8 @@ public sealed class Step
 			errors.AddRange(ForMinutes.Validate($"{path}.forMinutes", isWhole: true));
 		errors.AddRange(Check(nameof(Appointment), Appointment is not null));
 		errors.AddRange(Check(nameof(WithPartner), WithPartner));
+		errors.AddRange(Check(nameof(ModestyComfort), ModestyComfort != 0));
+		errors.AddRange(ModestySettings.ValidateRange($"{path}.modestyComfort", ModestyComfort, -ModestySettings.MaxComfort));
 		if (Appointment is not null)
 			errors.AddRange(Appointment.Validate($"{path}.appointment"));
 		errors.AddRange(Check(nameof(Job), Job is not null));
@@ -391,6 +407,7 @@ public sealed class Step
 		errors.AddRange(Check(nameof(Accessories), !Accessories));
 		errors.AddRange(Check(nameof(Bundle), Bundle is not null));
 		errors.AddRange(Check(nameof(Steps), Steps is not null));
+		errors.AddRange(Check(nameof(Finally), Finally is not null));
 		errors.AddRange(Check(nameof(Reconsider), Reconsider));
 		errors.AddRange(Check(nameof(Options), Options is not null));
 		errors.AddRange(Check(nameof(First), First));
@@ -479,6 +496,11 @@ public enum StepKind
 	/// Carries out the steps of a step list.
 	/// </summary>
 	Call,
+
+	/// <summary>
+	/// Carries out its steps, as though they were in its place, with steps of its own carried out whenever they're left.
+	/// </summary>
+	Group,
 
 	/// <summary>
 	/// Stops carrying out the goal's steps, skipping the rest of them.
@@ -668,8 +690,27 @@ public sealed class StepAppointment
 	/// </summary>
 	public IReadOnlyList<Step?>? Steps { get; init; }
 
+	/// <summary>
+	/// Steps the one asking carries out whenever its steps are left, however that happens, other than through its "meet"
+	/// step failing.
+	/// </summary>
+	public IReadOnlyList<Step?>? Finally { get; init; }
+
+	/// <summary>
+	/// How the one asking asks the other whether they're ready to start, once both are there. Without it, generic text.
+	/// </summary>
+	public AppointmentLine? Start { get; init; }
+
+	/// <summary>
+	/// How the one asked tells the one asking that they're ready now, after someone said no to starting. Without it,
+	/// generic text.
+	/// </summary>
+	public AppointmentLine? Ready { get; init; }
+
 	internal IEnumerable<string> Validate(string path)
 	{
+		foreach (var error in (Start?.Validate($"{path}.start") ?? []).Concat(Ready?.Validate($"{path}.ready") ?? []))
+			yield return error;
 		if (Place is null)
 			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.place");
 		else
@@ -694,6 +735,38 @@ public sealed class StepAppointment
 			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.steps");
 		else if (Steps.Count == 0)
 			yield return OurResources.DataListEmpty.FormatCurrentCulture($"{path}.steps");
+	}
+}
+
+/// <summary>
+/// Something one of an appointment's two says to the other about starting it: what the player can choose in conversation,
+/// what they say, and what they're told when the other says it to them.
+/// </summary>
+public sealed class AppointmentLine
+{
+	/// <summary>
+	/// What the player can choose in conversation, such as "Start the lesson".
+	/// </summary>
+	public string? Title { get; init; }
+
+	/// <summary>
+	/// What the player says when they choose it. Without it, they say the title.
+	/// </summary>
+	public LongText? Text { get; init; }
+
+	/// <summary>
+	/// What the player is told when the other says it to them. Without it, generic text.
+	/// </summary>
+	public LongText? Asked { get; init; }
+
+	internal IEnumerable<string> Validate(string path)
+	{
+		if (string.IsNullOrWhiteSpace(Title))
+			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.title");
+		if (Text is not null && string.IsNullOrWhiteSpace(Text.Text))
+			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.text.text");
+		if (Asked is not null && string.IsNullOrWhiteSpace(Asked.Text))
+			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.asked.text");
 	}
 }
 
@@ -859,6 +932,11 @@ public sealed class StepCondition
 	public bool? HasJob { get; init; }
 
 	/// <summary>
+	/// Met when the person carries the bundle with this id, taken or made by an earlier step.
+	/// </summary>
+	public string? Carrying { get; init; }
+
+	/// <summary>
 	/// Met when this condition isn't met.
 	/// </summary>
 	public StepCondition? Not { get; init; }
@@ -900,7 +978,7 @@ public sealed class StepCondition
 		if (DoneForToday is not null && need is not null && need.Kind != NeedKind.Quota)
 			yield return OurResources.StepConditionQuotaOnly.FormatCurrentCulture($"{path}.doneForToday");
 		if (OutfitAtHome is null && DoneForToday is null && At is null && Hours is null && ShiftLeft is null && BusinessProfession is null && AnsweredYes is null && AnsweredNo is null &&
-			HasJob is null && Not is null && Any is null)
+			HasJob is null && Carrying is null && Not is null && Any is null)
 		{
 			yield return OurResources.DataValueMissing.FormatCurrentCulture(path);
 		}
@@ -941,6 +1019,8 @@ public sealed class StepCondition
 
 		if (ShiftLeft < 1)
 			yield return OurResources.DataNumberNotPositive.FormatCurrentCulture($"{path}.shiftLeft", ShiftLeft);
+		if (Carrying is not null && string.IsNullOrWhiteSpace(Carrying))
+			yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.carrying");
 	}
 }
 
@@ -976,6 +1056,11 @@ public sealed class StepOption : IHasFrequency
 	public IReadOnlyList<Step> Steps { get; init; } = [];
 
 	/// <summary>
+	/// Steps carried out whenever its steps are left, however that happens.
+	/// </summary>
+	public IReadOnlyList<Step>? Finally { get; init; }
+
+	/// <summary>
 	/// Whether the ids of its steps are its own, so an "onFail" in them skips to a step among them, as for a profession's
 	/// steps, which are checked on their own.
 	/// </summary>
@@ -1006,6 +1091,11 @@ public sealed class StepList : IIdentified
 	public StepFailure? OnFail { get; init; }
 
 	public IReadOnlyList<Step> Steps { get; init; } = [];
+
+	/// <summary>
+	/// Steps carried out whenever its steps are left, however that happens.
+	/// </summary>
+	public IReadOnlyList<Step>? Finally { get; init; }
 }
 
 /// <summary>

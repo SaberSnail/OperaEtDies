@@ -41,13 +41,14 @@ public sealed class EventLog : NotifyPropertyChangedBase, IWorldObject
 	}
 
 	/// <summary>
-	/// Gets the latest entry about someone (as the one it happened to), or null if there's none.
+	/// Gets the latest entry about someone (as the one it happened to), of those that match, if given, or null if there's
+	/// none.
 	/// </summary>
-	internal LogEntry? GetLatest(Person person)
+	internal LogEntry? GetLatest(Person person, Func<LogEntry, bool>? isMatch = null)
 	{
 		for (var index = m_entries.Count - 1; index >= 0; index--)
 		{
-			if (m_entries[index].Person == person)
+			if (m_entries[index].Person == person && (isMatch?.Invoke(m_entries[index]) ?? true))
 				return m_entries[index];
 		}
 
@@ -66,7 +67,9 @@ public sealed class EventLog : NotifyPropertyChangedBase, IWorldObject
 /// <param name="Kind">What happened.</param>
 /// <param name="Person">Who it happened to.</param>
 /// <param name="Location">Where it happened.</param>
-/// <param name="Other">Anyone else it involved, such as who they talked with, waited for, or followed.</param>
+/// <param name="Other">Anyone else it involved, such as who they talked with, waited for, or followed, for
+/// <see cref="LogEntryKind.Busy"/>, the partner its activity names, and for <see cref="LogEntryKind.Failed"/>, who it was
+/// down to (who said no, didn't come, or was too shy), if anyone in particular.</param>
 /// <param name="Place">For <see cref="LogEntryKind.Arrived"/>, where they came from, and for <see cref="LogEntryKind.Left"/>,
 /// where they went.</param>
 /// <param name="Need">For <see cref="LogEntryKind.Busy"/>, the need they spent time on, and for
@@ -144,6 +147,32 @@ public enum LogEntryKind
 	/// Someone the player was to meet never came.
 	/// </summary>
 	NeverCame,
+
+	/// <summary>
+	/// Someone started changing into more clothes, being less covered than they were comfortable with.
+	/// </summary>
+	CoveringUp,
+
+	/// <summary>
+	/// Someone started heading home to cover up, with no clothes at hand that were enough.
+	/// </summary>
+	Retreating,
+
+	/// <summary>
+	/// Someone looked embarrassed at being less covered than they were comfortable with, with no way to cover up, or only
+	/// people passing through to see them.
+	/// </summary>
+	Embarrassed,
+
+	/// <summary>
+	/// Someone started waiting for others to leave before changing.
+	/// </summary>
+	WaitingForPrivacy,
+
+	/// <summary>
+	/// The player found themselves less covered than they were comfortable with.
+	/// </summary>
+	Exposed,
 }
 
 /// <summary>

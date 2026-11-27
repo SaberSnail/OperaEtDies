@@ -118,6 +118,17 @@ public sealed class LoadGameViewModel : ViewModelBase
 		ConfirmingDelete = null;
 	}
 
+	/// <summary>
+	/// Loads the save in the given file, if it's listed, as if it was chosen: a save made with different data or mods
+	/// waits for the player to confirm it.
+	/// </summary>
+	public void Load(string filePath)
+	{
+		VerifyAccess();
+		if (m_saves.FirstOrDefault(x => string.Equals(x.FilePath, filePath, StringComparison.OrdinalIgnoreCase)) is { } save)
+			save.Load();
+	}
+
 	public void Back()
 	{
 		VerifyAccess();
@@ -221,7 +232,9 @@ public sealed class SavedGameViewModel : ViewModelBase
 		m_load = load;
 		m_delete = delete;
 		SavedAt = save?.SavedAt ?? new DateTimeOffset(File.GetLastWriteTimeUtc(filePath), TimeSpan.Zero);
-		Title = save?.PlayerName ?? Path.GetFileNameWithoutExtension(filePath);
+		Title = save is null ? Path.GetFileNameWithoutExtension(filePath) :
+			SaveFile.IsQuickSave(filePath) ? OurResources.QuickSaveTitle.FormatCurrentCulture(save.PlayerName) :
+			save.PlayerName;
 		Details = save is null
 			? error ?? ""
 			: OurResources.SavedGameTime.FormatCurrentCulture(SavedAt.ToLocalTime().ToString("G", CultureInfo.CurrentCulture));

@@ -21,10 +21,10 @@
 			<TextBlock Grid.Column="1" Text="{Binding Level}">
 				<TextBlock.Style>
 					<Style TargetType="TextBlock">
-						<Setter Property="Foreground" Value="{DynamicResource FontLightBrush}" />
+						<Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
 						<Style.Triggers>
 							<DataTrigger Binding="{Binding IsFriend}" Value="True">
-								<Setter Property="Foreground" Value="{DynamicResource FontBrush}" />
+								<Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
 								<Setter Property="FontWeight" Value="Bold" />
 							</DataTrigger>
 						</Style.Triggers>
@@ -55,46 +55,26 @@
 		</Grid>
 	</DataTemplate>
 
-	<!--  One person: their name and how they're related to the player, what they're doing, their portrait beside their
-		description, their relationships if they're the player, and for developers, where they're going and why,
-		everyone's relationships, and who they've seen lately.  -->
+	<!--  The sheet for one person, whose title is their name: how they're related to the player, what they're doing, their
+		portrait beside their description, their relationships if they're the player, and for developers, a way to their
+		needs, where they're going and why, everyone's relationships, and who they've seen lately.  -->
 	<DataTemplate DataType="{x:Type local:CharacterViewModel}">
-		<Grid Margin="24">
-			<Grid.RowDefinitions>
-				<RowDefinition Height="Auto" />
-				<RowDefinition Height="*" />
-			</Grid.RowDefinitions>
-
-			<DockPanel Grid.Row="0" LastChildFill="True">
+		<DockPanel>
+			<!--  For developers, a way to see and change the person's needs.  -->
+			<Border
+				Margin="0,0,0,12"
+				HorizontalAlignment="Left"
+				DockPanel.Dock="Top"
+				Style="{DynamicResource DeveloperBorderStyle}"
+				Visibility="{Binding CanViewStatus, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 				<Button
 					Width="120"
 					Height="32"
-					VerticalAlignment="Center"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Close}"
-					Content="{x:Static operaEtDies:OurResources.CloseView}"
-					DockPanel.Dock="Right" />
-				<!--  For developers, a way to see and change the person's needs.  -->
-				<Border
-					Margin="0,0,8,0"
-					VerticalAlignment="Center"
-					DockPanel.Dock="Right"
-					Style="{DynamicResource DeveloperBorderStyle}"
-					Visibility="{Binding CanViewStatus, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
-					<Button
-						Width="120"
-						Height="32"
-						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ViewStatus}"
-						Content="{x:Static operaEtDies:OurResources.ViewPersonStatus}" />
-				</Border>
-				<TextBlock
-					FontSize="{DynamicResource TitleFontSize}"
-					Text="{Binding Person.Name}"
-					TextWrapping="Wrap" />
-			</DockPanel>
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ViewStatus}"
+					Content="{x:Static operaEtDies:OurResources.ViewPersonStatus}" />
+			</Border>
 
 			<ScrollViewer
-				Grid.Row="1"
-				Margin="0,12,0,0"
 				HorizontalScrollBarVisibility="Disabled"
 				VerticalScrollBarVisibility="Auto">
 				<StackPanel>
@@ -105,7 +85,7 @@
 							Text="{Binding PlayerLabel}"
 							Visibility="{Binding PlayerLabel, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 						<TextBlock
-							Foreground="{DynamicResource FontLightBrush}"
+							Foreground="{DynamicResource TextMutedBrush}"
 							Text="{Binding Activity}"
 							Visibility="{Binding Activity, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 
@@ -117,7 +97,7 @@
 							<StackPanel>
 								<TextBlock Text="{Binding DeveloperGoal}" TextWrapping="Wrap" />
 								<TextBlock
-									Foreground="{DynamicResource FontLightBrush}"
+									Foreground="{DynamicResource TextMutedBrush}"
 									Text="{Binding DeveloperGoalReason}"
 									TextWrapping="Wrap" />
 							</StackPanel>
@@ -133,11 +113,37 @@
 								Stretch="Uniform"
 								Visibility="{Binding Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 							<TextBlock
-								Foreground="{DynamicResource FontLightBrush}"
+								Foreground="{DynamicResource TextMutedBrush}"
 								Text="{Binding Person.Description}"
 								TextWrapping="Wrap" />
 						</DockPanel>
 					</StackPanel>
+
+					<!--  The player's own boldness, with a slider for developers that changes it, or for developers, anyone's.  -->
+					<StackPanel Margin="0,12,0,0" Visibility="{Binding IsBoldnessShown, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+						<TextBlock Text="{Binding BoldnessText}" />
+						<Border
+							Margin="0,4,0,0"
+							HorizontalAlignment="Left"
+							Style="{DynamicResource DeveloperBorderStyle}"
+							Visibility="{Binding CanChangeBoldness, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+							<Slider
+								Width="200"
+								VerticalAlignment="Center"
+								IsSnapToTickEnabled="True"
+								Maximum="{Binding BoldnessMaximum}"
+								Minimum="{Binding BoldnessMinimum}"
+								TickFrequency="1"
+								Value="{Binding Boldness}" />
+						</Border>
+					</StackPanel>
+					<Border
+						Margin="0,12,0,0"
+						HorizontalAlignment="Left"
+						Style="{DynamicResource DeveloperBorderStyle}"
+						Visibility="{Binding IsBoldnessDeveloperOnly, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+						<TextBlock Text="{Binding BoldnessText}" />
+					</Border>
 
 					<!--  The player's own relationships, or for developers, anyone's.  -->
 					<StackPanel Visibility="{Binding IsRelationshipsShown, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
@@ -176,7 +182,7 @@
 								FontWeight="Bold"
 								Text="{x:Static operaEtDies:OurResources.SightingsHeader}" />
 							<TextBlock
-								Foreground="{DynamicResource FontLightBrush}"
+								Foreground="{DynamicResource TextMutedBrush}"
 								Text="{x:Static operaEtDies:OurResources.SightingsNone}"
 								Visibility="{Binding IsSightingsEmpty, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
 							<ItemsControl ItemsSource="{Binding Sightings}">
@@ -193,7 +199,7 @@
 					</Border>
 				</StackPanel>
 			</ScrollViewer>
-		</Grid>
+		</DockPanel>
 	</DataTemplate>
 
 </ResourceDictionary>

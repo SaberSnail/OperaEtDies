@@ -50,6 +50,8 @@ public static partial class HelpTopics
 		[typeof(ScheduleStart)] = "Start",
 		[typeof(SchedulePlace)] = "Place",
 		[typeof(PlaceObject)] = "Place",
+		[typeof(OutfitClothing)] = "Outfit Clothing",
+		[typeof(OutfitClothingChoice)] = "Outfit Clothing",
 		[typeof(LevelNeedSettings)] = "Level Need",
 		[typeof(NeedLevel)] = "Level",
 		[typeof(QuotaNeedSettings)] = "Quota Need",

@@ -26,7 +26,12 @@ public sealed class ClothingGeneratorTests
 				{
 					Assert.That(outfit.Template!.Kind, Is.EqualTo(outfit.Kind));
 					Assert.That(CharacterCondition.IsMet(outfit.Template.When, person.Traits.GetValueId), Is.True);
-					Assert.That(outfit.Pieces.Select(x => x.Clothing.Id), Is.EqualTo(outfit.Template.Clothing));
+					// One piece from each entry, unless the option chosen was nothing, in the order of the entries.
+					var entries = outfit.Template.GetOptions(person.GetConditionValueId);
+					var ids = outfit.Pieces.Select(x => x.Clothing.Id).ToList();
+					var entryIndexes = ids.Select(id => entries.ToList().FindIndex(x => x.Any(y => y.Clothing == id))).ToList();
+					Assert.That(entryIndexes, Has.All.GreaterThanOrEqualTo(0), $"{person.FullName}, {outfit.Template.Id}");
+					Assert.That(entryIndexes, Is.Ordered.Ascending.And.Unique, $"{person.FullName}, {outfit.Template.Id}");
 					Assert.That(outfit.Pieces.Select(x => x.Owner), Is.All.SameAs(person));
 				}
 			}
@@ -50,10 +55,25 @@ public sealed class ClothingGeneratorTests
 	}
 
 	[Test]
+	public void SomeoneStartingAsleepInNothingIsInTheirNightClothes()
+	{
+		// Night clothes of nothing at all count as changed into, so the sleeper dresses again when they get up.
+		var sleepers = Enumerable.Range(0, 200).Select(CreateWorld)
+			.Select(world => world.People.Where(x => x.IsAsleep && x.GetOutfits(OutfitKind.Night).Single().Pieces.Count == 0).ToList())
+			.FirstOrDefault(x => x.Count != 0) ?? [];
+		Assume.That(sleepers, Is.Not.Empty, "No one sleeps in nothing.");
+		foreach (var person in sleepers)
+		{
+			Assert.That(person.Clothing.Pieces, Is.Empty, person.FullName);
+			Assert.That(ClothingRules.IsChangedInto(person, person.GetOutfits(OutfitKind.Night).Single()), Is.True, person.FullName);
+		}
+	}
+
+	[Test]
 	public void SomeoneStartingAtWorkWearsTheirWorkClothesOverEverydayClothes()
 	{
 		var world = CreateWorld(0);
-		var person = world.People.First(x => x.GetOutfits(OutfitKind.Work).Any() && x.GetOutfits(OutfitKind.Night).Any());
+		var person = world.People.First(x => x.GetOutfits(OutfitKind.Work).Any(y => !y.IsComplete) && x.GetOutfits(OutfitKind.Night).Any());
 		person.Clothing.TakeOffAll(person.Home.Items);
 		foreach (var item in person.Inventory.Items.ToList())
 		{

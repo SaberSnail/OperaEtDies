@@ -1,3 +1,4 @@
+using GoldenAnvil.Utility.Logging;
 using OperaEtDies.Data;
 
 namespace OperaEtDies.GameState;
@@ -14,16 +15,14 @@ internal static class ClothingGenerator
 	public static IReadOnlyList<(OutfitKind Kind, int Count)> OutfitCounts { get; } = [(OutfitKind.Everyday, 2), (OutfitKind.Work, 1), (OutfitKind.Night, 1), (OutfitKind.Nothing, 1)];
 
 	/// <summary>
-	/// Gives a person their outfits, chosen by frequency from those of each kind whose conditions they meet (with the
-	/// shares worked out among those outfits alone, since outfits for different people aren't alternatives), with each
-	/// piece's colors chosen by frequency. Every piece belongs to the person and starts in their home. Their outfits
-	/// share any accessory they have in common. Everyone has an outfit for wearing nothing, which is nothing at all if
-	/// there's none they can have.
+	/// Gives a person their outfits, chosen by frequency from those of each kind whose conditions they meet and that
+	/// they're comfortable enough in, made of the options chosen for them (see <see cref="OutfitModesty.Choose"/>), with each piece's colors chosen by
+	/// frequency. Work clothes must do over each of their everyday outfits. Every piece belongs to the person and starts in
+	/// their home. Their outfits share any accessory they have in common. Everyone has an outfit for wearing nothing, which
+	/// is nothing at all if there's none they can have.
 	/// </summary>
 	public static void GiveOutfits(GameData gameData, WorldObjects objects, Random random, Person person)
 	{
-		string? GetValueId(string propertyId) => gameData.CharacterProperties.Find(propertyId)?.GetConditionValueId(person.Traits.Values.GetValueOrDefault(propertyId));
-
 		// Accessories already given are shared by the outfits after.
 		var accessories = new Dictionary<ClothingItem, ClothingPiece>();
 		ClothingPiece GetPiece(ClothingItem clothing)
@@ -39,15 +38,19 @@ internal static class ClothingGenerator
 			return piece;
 		}
 
+		var businessProfession = person.Business?.Profession.Id;
 		foreach (var (kind, count) in OutfitCounts)
 		{
-			var outfits = gameData.Outfits.Where(x => x.Kind == kind && CharacterCondition.IsMet(x.When, GetValueId)).ToList();
-			if (outfits.Count != 0)
+			IReadOnlyList<IReadOnlyList<ClothingItem>> wornUnder = kind == OutfitKind.Work
+				? person.GetOutfits(OutfitKind.Everyday).Select(x => (IReadOnlyList<ClothingItem>) x.Pieces.Select(y => y.Clothing).ToList()).ToList()
+				: [];
+			for (var index = 0; index < count; index++)
 			{
-				for (var index = 0; index < count; index++)
+				if (OutfitModesty.Choose(gameData, random, kind, person.Traits, businessProfession, wornUnder) is ({ } template, var clothing, var isModestEnough))
 				{
-					var template = gameData.FrequencyChances.Choose(random, outfits);
-					var pieces = template.Clothing.Select(x => GetPiece(gameData.Clothing.Get(x))).ToList();
+					if (!isModestEnough)
+						Log.Warn($"No {kind.ToString().ToLowerInvariant()} outfit is modest enough for {person.FullName}, so they were given {template.Id}.");
+					var pieces = clothing.Select(GetPiece).ToList();
 					objects.Create(id => new OwnedOutfit(id, person, kind, template, pieces));
 				}
 			}
@@ -90,8 +93,14 @@ internal static class ClothingGenerator
 		else if ((person.GetOutfits(OutfitKind.Night).FirstOrDefault() ?? everyday) is { } outfit)
 		{
 			person.Clothing.PutOn(outfit, home);
+
+			// Night clothes of nothing at all are only changed into by what they replaced, which here is nothing.
+			if (outfit.Kind == OutfitKind.Night && outfit.Pieces.Count == 0)
+				person.SetReplacedClothes(outfit, []);
 		}
 	}
+
+	private static ILogSource Log { get; } = LogManager.CreateLogSource(nameof(ClothingGenerator));
 
 	private static ClothingPiece CreatePiece(GameData gameData, WorldObjects objects, Random random, ClothingItem clothing, Person owner)
 	{

@@ -83,6 +83,8 @@ public sealed class ClothingDataTests
 			new Outfit { Id = "allDay", Kind = OutfitKind.Everyday, Complete = true, Clothing = ["hat"] },
 			new Outfit { Id = "empty", Kind = OutfitKind.Work, Clothing = [] },
 			new Outfit { Id = "unclothed", Kind = OutfitKind.Work, Complete = true, Clothing = [] },
+			new Outfit { Id = "bareDay", Kind = OutfitKind.Everyday, Clothing = [] },
+			new Outfit { Id = "bareNight", Kind = OutfitKind.Night, Clothing = [] },
 		};
 
 		Assert.That(new ClothingData { Slots = clothing.Slots, Layers = clothing.Layers, Colors = clothing.Colors, Items = clothing.Items, Outfits = outfits }.Validate(), Is.EquivalentTo(new[]
@@ -91,7 +93,52 @@ public sealed class ClothingDataTests
 			OurResources.DataIdUnknown.FormatCurrentCulture("outfits[missing].clothing", "cape", "clothing"),
 			OurResources.OutfitCompleteNotWork.FormatCurrentCulture("outfits[allDay].complete"),
 			OurResources.DataListEmpty.FormatCurrentCulture("outfits[empty].clothing"),
+			OurResources.DataListEmpty.FormatCurrentCulture("outfits[bareDay].clothing"),
 		}));
+	}
+
+	[Test]
+	public void OutfitOptionsMustBeValid()
+	{
+		var clothing = CreateClothing();
+		static OutfitClothing Options(params string?[] ids) => new() { Options = ids.Select(x => new OutfitClothingOption { Clothing = x }).ToList() };
+		var outfits = new[]
+		{
+			// Options in one entry are alternatives, so they can share a slot, but not with another entry's options.
+			new Outfit { Id = "choice", Kind = OutfitKind.Everyday, Clothing = [Options("tunic", "gown", null), "hat"] },
+			new Outfit { Id = "clash", Kind = OutfitKind.Everyday, Clothing = ["tunic", Options("hat", "gown")] },
+			new Outfit { Id = "twice", Kind = OutfitKind.Everyday, Clothing = ["hat", Options("hat", null)] },
+			new Outfit { Id = "unknown", Kind = OutfitKind.Everyday, Clothing = [Options("cape")] },
+			new Outfit { Id = "none", Kind = OutfitKind.Everyday, Clothing = [Options()] },
+		};
+
+		Assert.That(new ClothingData { Slots = clothing.Slots, Layers = clothing.Layers, Colors = clothing.Colors, Items = clothing.Items, Outfits = outfits }.Validate(), Is.EquivalentTo(new[]
+		{
+			OurResources.OutfitSlotTaken.FormatCurrentCulture("outfits[clash]", "tunic", "gown", "torso", "clothes"),
+			OurResources.DataListValueDuplicate.FormatCurrentCulture("hat", "outfits[twice].clothing"),
+			OurResources.DataIdUnknown.FormatCurrentCulture("outfits[unknown].clothing[0].options[0].clothing", "cape", "clothing"),
+			OurResources.DataListEmpty.FormatCurrentCulture("outfits[none].clothing[0].options"),
+		}));
+	}
+
+	[Test]
+	public void OutfitClothingIsAnIdOrOptions()
+	{
+		var outfit = System.Text.Json.JsonSerializer.Deserialize<Outfit>(
+			"""{ "id": "o", "kind": "everyday", "clothing": [ "tunic", { "comments": "A hat or not.", "options": [ { }, { "clothing": "hat", "frequency": "rare", "when": { "values": { "gender": "gender_male" } } } ] } ] }""",
+			JsonDataLoader.Options)!;
+		Assert.That(outfit.Clothing[0].Clothing, Is.EqualTo("tunic"));
+		Assert.That(outfit.Clothing[1].Options!.Select(x => x.Clothing), Is.EqualTo(new[] { null, "hat" }));
+		Assert.That(outfit.Clothing[1].Options![1].Frequency.Tier, Is.EqualTo(global::OperaEtDies.Utility.Random.Frequency.Rare));
+
+		// A single entry needn't be in a list.
+		var single = System.Text.Json.JsonSerializer.Deserialize<Outfit>("""{ "id": "o", "kind": "work", "clothing": "apron" }""", JsonDataLoader.Options)!;
+		Assert.That(single.Clothing.Select(x => x.Clothing), Is.EqualTo(new[] { "apron" }));
+		Assert.That(() => System.Text.Json.JsonSerializer.Deserialize<Outfit>("""{ "id": "o", "kind": "work", "clothing": [ 3 ] }""", JsonDataLoader.Options), Throws.InstanceOf<System.Text.Json.JsonException>());
+
+		// Options are chosen only for those who meet their conditions, and an entry with none they meet holds nothing.
+		var options = outfit.GetOptions(_ => "gender_female");
+		Assert.That(options[1].Select(x => x.Clothing), Is.EqualTo(new string?[] { null }));
 	}
 
 	[Test]
@@ -116,41 +163,45 @@ public sealed class ClothingDataTests
 	{
 		var clothing = CreateClothing();
 		var bulk = new ClothingBulk { Id = "sheer", Title = "Sheer", Modesty = -11 };
-		var rule = new ModestyRule { Id = "rule", Outside = new Dictionary<string, int> { ["torso"] = -1, ["wings"] = 3 } };
+		var rule = new ModestyRule
+		{
+			Id = "rule",
+			Slots = new Dictionary<string, IReadOnlyList<ModestyMinimum>>
+			{
+				["torso"] = [new ModestyMinimum { Comfort = 10, Minimum = 5 }, new ModestyMinimum { Comfort = 10, Minimum = 11 }],
+				["wings"] = [new ModestyMinimum { Comfort = 0, Minimum = 3 }],
+				["legs"] = [],
+			},
+		};
+		var modesty = new ModestySettings { Company = new ModestyCompany { Spouse = 101 }, Asleep = -1 };
 
-		Assert.That(new ClothingData { Slots = clothing.Slots, Layers = clothing.Layers, Bulks = [bulk], ModestyRules = [rule], Settings = new ClothingSettings { HidesClothingAt = 12 } }.Validate(), Is.EquivalentTo(new[]
+		Assert.That(new ClothingData { Slots = clothing.Slots, Layers = clothing.Layers, Bulks = [bulk], ModestyRules = [rule], Modesty = modesty, Settings = new ClothingSettings { HidesClothingAt = 12 } }.Validate(), Is.EquivalentTo(new[]
 		{
 			OurResources.DataNumberTooSmall.FormatCurrentCulture("clothingBulks[sheer].modesty", -11, -10),
 			OurResources.DataNumberTooLarge.FormatCurrentCulture("clothingSettings.hidesClothingAt", 12, 10),
-			OurResources.SlotValueOutOfRange.FormatCurrentCulture("modestyRules[rule].outside", "torso", -1, 0, 10),
-			OurResources.DataIdUnknown.FormatCurrentCulture("modestyRules[rule].outside", "wings", "clothingSlots"),
+			OurResources.DataNumberTooLarge.FormatCurrentCulture("modestySettings.company.spouse", 101, 100),
+			OurResources.DataNumberTooSmall.FormatCurrentCulture("modestySettings.asleep", -1, 0),
+			OurResources.DataNumberTooLarge.FormatCurrentCulture("modestyRules[rule].slots.torso[1].minimum", 11, 10),
+			OurResources.ModestyComfortOutOfOrder.FormatCurrentCulture("modestyRules[rule].slots.torso", 10, 10),
+			OurResources.DataIdUnknown.FormatCurrentCulture("modestyRules[rule].slots", "wings", "clothingSlots"),
+			OurResources.DataListEmpty.FormatCurrentCulture("modestyRules[rule].slots.legs"),
 		}));
 	}
 
 	[Test]
-	public void ProfessionModestyMustNameRulesAndSlots()
+	public void BoldnessMustBeAnIntegerProperty()
 	{
 		var clothing = CreateClothing();
-		var rule = new ModestyRule { Id = "rule", Outside = new Dictionary<string, int> { ["torso"] = 5 } };
-		var data = new ClothingData { Slots = clothing.Slots, Layers = clothing.Layers, ModestyRules = [rule] };
-		var professions = TestData.CreateProfessionList();
-		var modesty = new Dictionary<string, IReadOnlyDictionary<string, int>>
-		{
-			["rule"] = new Dictionary<string, int> { ["torso"] = 2, ["legs"] = -11, ["wings"] = 1 },
-			["other"] = new Dictionary<string, int> { ["torso"] = 1 },
-		};
-		professions = new ProfessionList { Professions = [.. professions.Professions.Select(x => x.Id == "smith" ? new Profession { Id = x.Id, Title = x.Title, Business = x.Business, Modesty = modesty } : x)] };
+		IReadOnlyList<string> Validate(string property) =>
+			GameDataValidation.Validate(TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(),
+				TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings(), ScheduleSettings.None,
+				clothing: new ClothingData { Slots = clothing.Slots, Layers = clothing.Layers, Modesty = new ModestySettings { Boldness = new ModestyBoldness { Property = property } } }).ToList();
 
-		var errors = GameDataValidation.Validate(TestData.CreateCharacterData(), TestData.CreateLocationList(), professions, TestData.CreateFamilySettings(),
-			TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings(), ScheduleSettings.None, clothing: data);
-
-		Assert.That(errors.Where(x => x.Contains("professions[smith].modesty", StringComparison.Ordinal)), Is.EquivalentTo(new[]
-		{
-			OurResources.SlotValueOutOfRange.FormatCurrentCulture("professions[smith].modesty.rule", "legs", -11, -10, 10),
-			OurResources.DataIdUnknown.FormatCurrentCulture("professions[smith].modesty.rule", "wings", "clothingSlots"),
-			OurResources.DataIdUnknown.FormatCurrentCulture("professions[smith].modesty", "other", "modestyRules"),
-		}));
+		Assert.That(Validate("height"), Does.Contain(OurResources.PropertyNotInteger.FormatCurrentCulture("modestySettings.boldness.property", "height")));
+		Assert.That(Validate("nerve"), Does.Contain(OurResources.DataIdUnknown.FormatCurrentCulture("modestySettings.boldness.property", "nerve", "properties")));
+		Assert.That(Validate("age").Where(x => x.Contains("boldness", StringComparison.Ordinal)), Is.Empty);
 	}
+
 
 	private static ClothingData CreateClothing() => new()
 	{

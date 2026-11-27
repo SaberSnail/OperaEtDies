@@ -1,21 +1,31 @@
+using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
+using System.ComponentModel;
 using OperaEtDies.GameState;
+using OperaEtDies.Settings;
 
 namespace OperaEtDies.Controls;
 
 /// <summary>
-/// Runs what the player does that passes time, one thing at a time. When it's paced, time takes a little while to go by
-/// (see <see cref="TimePacer"/>), and while it does, the player can't do anything else, only stop it. Unpaced, as for
-/// tests, time passes at once.
+/// Runs what the player does that passes time, one thing at a time. Time takes a little while to go by, at the speed
+/// chosen in the settings (see <see cref="TimePacer"/>), and while it does, the player can't do anything else, only stop
+/// it. At the instant speed, or without settings (as for tests), time passes at once.
 /// </summary>
 public sealed class TimeRunner : ViewModelBase, IDisposable
 {
-	public TimeRunner(GameWorld world, bool isPaced)
+	public TimeRunner(GameWorld world, AppSettings? settings)
 	{
 		m_world = world;
-		m_isPaced = isPaced;
+		m_settings = settings;
 		m_taskGroup = new TaskGroup();
+		if (settings is not null)
+			settings.PropertyChanged += OnSettingsPropertyChanged;
 	}
+
+	/// <summary>
+	/// Whether time passes at once, so there's never anything to stop.
+	/// </summary>
+	public bool IsInstant => VerifyAccess(GetPaceScale() is null);
 
 	/// <summary>
 	/// Whether something the player did is running, so they can't do anything else until it's done, other than stop it.
@@ -37,13 +47,26 @@ public sealed class TimeRunner : ViewModelBase, IDisposable
 	public bool CanBeStopped => IsRunning && !IsStopping;
 
 	/// <summary>
-	/// Runs something the player did that passes time, unless something else is already running.
+	/// Whether time is held still, such as while a sheet is open, so nothing new can run.
+	/// </summary>
+	public bool IsHeld
+	{
+		get => VerifyAccess(m_isHeld);
+		set => SetPropertyField(value, ref m_isHeld);
+	}
+
+	/// <summary>
+	/// Runs something the player did that passes time, unless something else is already running, or time is held.
 	/// </summary>
 	public void Run(Func<Task> action)
 	{
 		VerifyAccess();
 		ArgumentNullException.ThrowIfNull(action);
-		if (m_watcher is null)
+		if (m_isHeld)
+		{
+			Log.Warn("Time is held, so nothing can run");
+		}
+		else if (m_watcher is null)
 		{
 			var watcher = TaskWatcher.Create(state => RunAsync(action, state), m_taskGroup);
 			m_watcher = watcher;
@@ -66,11 +89,17 @@ public sealed class TimeRunner : ViewModelBase, IDisposable
 		}
 	}
 
-	public void Dispose() => m_taskGroup.Dispose();
+	public void Dispose()
+	{
+		if (m_settings is not null)
+			m_settings.PropertyChanged -= OnSettingsPropertyChanged;
+		m_taskGroup.Dispose();
+	}
 
 	private async Task RunAsync(Func<Task> action, TaskStateController state)
 	{
-		m_world.Pacer = m_isPaced ? new TimePacer(m_world.GameData.Calendar, m_world.Time, state) : null;
+		// The speed is read as each thing starts. It can only change from the settings, and opening them stops time.
+		m_world.Pacer = GetPaceScale() is { } scale ? new TimePacer(m_world.GameData.Calendar, m_world.Time, state, scale) : null;
 		try
 		{
 			await action().ConfigureAwait(true);
@@ -84,9 +113,20 @@ public sealed class TimeRunner : ViewModelBase, IDisposable
 		}
 	}
 
+	private double? GetPaceScale() => m_settings?.TimeSpeed.GetPaceScale();
+
+	private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (e.PropertyName == nameof(AppSettings.TimeSpeed))
+			RaisePropertyChanged(nameof(IsInstant));
+	}
+
+	private static ILogSource Log { get; } = LogManager.CreateLogSource(nameof(TimeRunner));
+
 	private readonly GameWorld m_world;
-	private readonly bool m_isPaced;
+	private readonly AppSettings? m_settings;
 	private readonly TaskGroup m_taskGroup;
 	private TaskWatcher? m_watcher;
 	private bool m_isStopping;
+	private bool m_isHeld;
 }

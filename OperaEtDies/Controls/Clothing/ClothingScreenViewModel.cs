@@ -11,7 +11,7 @@ namespace OperaEtDies.Controls.Clothing;
 /// The player's clothes: their inventory, with what they're wearing and carrying, or their wardrobe at home, which also
 /// has the outfits they can change into and the clothes they keep there. Changing clothes takes time once, when the player
 /// leaves the page having changed what they're wearing, however many things they tried. They can't leave it while they
-/// aren't dressed enough to be seen where they are.
+/// aren't dressed enough to be seen where they are, unless they're no less covered than when they opened it.
 /// </summary>
 public sealed class ClothingScreenViewModel : ViewModelBase
 {
@@ -22,6 +22,7 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 		IsWardrobe = isWardrobe;
 		IsDeveloper = isDeveloper;
 		m_wornBefore = world.Player.Clothing.Pieces.ToList();
+		m_wornWhenOpened = m_wornBefore;
 		Title = isWardrobe ? OurResources.WardrobeHeader : OurResources.InventoryHeader;
 		m_wearing = [];
 		m_carrying = [];
@@ -120,9 +121,10 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// The page can only be closed while the player is dressed enough to be seen where they are.
+	/// The page can only be closed while the player is dressed enough to be seen where they are, or no less covered than
+	/// when it opened, so they can always put more on.
 	/// </summary>
-	public bool CanClose() => Warning is null;
+	public bool CanClose() => Warning is null || m_world.IsPlayerNoLessCovered(m_wornWhenOpened);
 
 	public void Close()
 	{
@@ -180,7 +182,7 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 		Outfits = IsWardrobe ? [.. player.Outfits.OrderBy(x => x.Kind == OutfitKind.Nothing).Select(x => new OutfitViewModel(x, m_world, this))] : [];
 
 		Warning = ModestyWarning.FormatHere(m_world.GetPlayerUncoveredSlots());
-		DeveloperModesty = IsDeveloper ? ModestyWarning.FormatDeveloper(m_world.GetPlayerModesty()) : null;
+		DeveloperModesty = IsDeveloper ? ModestyWarning.FormatDeveloper(m_world.GetPlayerModesty(), m_world.GetPlayerComfort()) : null;
 	}
 
 	private readonly GameWorld m_world;
@@ -193,6 +195,7 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 	private string? m_warning;
 	private string? m_developerModesty;
 	private IReadOnlyList<ClothingPiece> m_wornBefore;
+	private readonly IReadOnlyList<ClothingPiece> m_wornWhenOpened;
 }
 
 /// <summary>
@@ -321,7 +324,8 @@ public sealed class OutfitViewModel : ViewModelBase
 		var pieces = TextList.Join(WornClothing.Order(outfit.Pieces, gameData.ClothingSlots, gameData.ClothingLayers).Select(x => x.Description).ToList());
 		Description = outfit.Pieces.Count == 0 ? OurResources.OutfitNothingDescription :
 			ClothingPieceViewModel.FirstUpper(!outfit.IsComplete ? OurResources.OutfitOverOtherClothes.FormatCurrentCulture(pieces) : pieces);
-		Note = outfit.Pieces.Any(x => ClothingPieceViewModel.GetCarrier(x, world) is not null) ? OurResources.OutfitCarriedByOthers :
+		var carriers = outfit.Pieces.Select(x => ClothingPieceViewModel.GetCarrier(x, world)).OfType<Person>().Distinct().Select(x => x.FullName).ToList();
+		Note = carriers.Count != 0 ? OurResources.OutfitCarriedBy.FormatCurrentCulture(TextList.Join(carriers)) :
 			outfit.Pieces.Any(x => !x.IsReady(world.Time)) ? OurResources.OutfitNotReady.FormatCurrentCulture(TextList.Join(outfit.Pieces.Where(x => !x.IsReady(world.Time))
 				.Select(x => PlayerStepsViewModel.LowerFirst(x.DelayActivity ?? OurResources.ClothingNotReadyActivity)).Distinct(StringComparer.CurrentCulture).ToList())) :
 			ClothingRules.IsDressedIn(world.Player, outfit) ? OurResources.OutfitWearing :

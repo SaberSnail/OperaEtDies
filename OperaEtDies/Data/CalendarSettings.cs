@@ -143,6 +143,12 @@ public sealed class CalendarDayPart : IIdentified
 	/// only which part of the day it is.
 	/// </summary>
 	public LongText? Announcement { get; init; }
+
+	/// <summary>
+	/// How many steps more common (or, when negative, less common) it is for someone to come by during this part of the
+	/// day, which decides how comfortable someone alone is with how covered they are.
+	/// </summary>
+	public int TrafficSteps { get; init; }
 }
 
 /// <summary>

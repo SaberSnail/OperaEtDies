@@ -17,7 +17,7 @@
 			<TextBlock
 				Grid.Row="0"
 				HorizontalAlignment="Center"
-				FontSize="{DynamicResource TitleFontSize}"
+				Style="{DynamicResource TitleTextStyle}"
 				Text="{x:Static operaEtDies:OurResources.LoadGameHeader}" />
 
 			<!--  The saved games, newest first. A save is loaded by choosing it, and deleted with the button beside it.  -->
@@ -28,7 +28,7 @@
 				VerticalScrollBarVisibility="Auto">
 				<StackPanel>
 					<TextBlock
-						Foreground="{DynamicResource FontLightBrush}"
+						Foreground="{DynamicResource TextMutedBrush}"
 						Text="{x:Static operaEtDies:OurResources.NoSavedGames}"
 						Visibility="{Binding HasSaves, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
 					<ItemsControl ItemsSource="{Binding Saves}">
@@ -48,7 +48,7 @@
 											<TextBlock Text="{Binding Title}" />
 											<TextBlock
 												FontSize="{DynamicResource SmallFontSize}"
-												Foreground="{DynamicResource FontLightBrush}"
+												Foreground="{DynamicResource TextMutedBrush}"
 												Text="{Binding Details}"
 												TextWrapping="Wrap" />
 										</StackPanel>
@@ -112,8 +112,7 @@
 				Height="32"
 				HorizontalAlignment="Left"
 				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Back}"
-				Content="{x:Static operaEtDies:OurResources.Back}"
-				IsCancel="True" />
+				Content="{x:Static operaEtDies:OurResources.Back}" />
 		</Grid>
 	</DataTemplate>
 

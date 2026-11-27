@@ -1,4 +1,3 @@
-using System.Text.Json;
 using GoldenAnvil.Utility;
 
 namespace OperaEtDies.Data;
@@ -34,6 +33,11 @@ public sealed class ClothingData
 	/// </summary>
 	public IReadOnlyList<ModestyRule> ModestyRules { get; init; } = [];
 
+	/// <summary>
+	/// How comfortable people are with how covered they are, which decides what their modesty rule calls for.
+	/// </summary>
+	public ModestySettings Modesty { get; init; } = ModestySettings.None;
+
 	public ClothingSettings Settings { get; init; } = ClothingSettings.None;
 
 	/// <summary>
@@ -41,6 +45,8 @@ public sealed class ClothingData
 	/// </summary>
 	internal IEnumerable<(string Path, CharacterCondition Condition)> GetConditions() =>
 		Outfits.OfType<Outfit>().Where(x => x.When is not null).Select(x => ($"outfits[{x.Id}].when", x.When!))
+			.Concat(Outfits.OfType<Outfit>().SelectMany(outfit => (outfit.Clothing ?? []).SelectMany((entry, index) => (entry?.Options ?? []).Select((option, optionIndex) => (option, Path: $"outfits[{outfit.Id}].clothing[{index}].options[{optionIndex}].when")))
+				.Where(x => x.option?.When is not null).Select(x => (x.Path, x.option.When!))))
 			.Concat(ModestyRules.OfType<ModestyRule>().Where(x => x.When is not null).Select(x => ($"modestyRules[{x.Id}].when", x.When!)));
 
 	/// <summary>
@@ -85,13 +91,48 @@ public sealed class ClothingData
 		foreach (var outfit in Outfits.Where(IsIdentified))
 			errors.AddRange(ValidateOutfit(outfit, items));
 
+		errors.AddRange((Modesty ?? ModestySettings.None).Validate());
 		foreach (var rule in ModestyRules.Where(IsIdentified))
-		{
-			foreach (var level in Enum.GetValues<ModestyLevel>())
-				errors.AddRange(ValidateSlotValues($"modestyRules[{rule.Id}].{JsonNamingPolicy.CamelCase.ConvertName(level.ToString())}", rule.GetMinimums(level) ?? new Dictionary<string, int>(), slotIds, 0));
-		}
+			errors.AddRange(ValidateRule(rule, slotIds));
 
 		return errors;
+	}
+
+	/// <summary>
+	/// Checks a modesty rule: each slot it lists must be a clothing slot, with at least one minimum, in order of comfort,
+	/// each comfort from 0 to <see cref="ModestySettings.MaxComfort"/> and more than the one before it, and each minimum from
+	/// 0 to <see cref="ClothingItem.MaxCoverage"/>.
+	/// </summary>
+	private static IEnumerable<string> ValidateRule(ModestyRule rule, IReadOnlySet<string> slotIds)
+	{
+		var path = $"modestyRules[{rule.Id}].slots";
+		foreach (var (slot, minimums) in rule.Slots ?? new Dictionary<string, IReadOnlyList<ModestyMinimum>>())
+		{
+			if (!slotIds.Contains(slot))
+				yield return OurResources.DataIdUnknown.FormatCurrentCulture(path, slot, "clothingSlots");
+			if (minimums is not { Count: > 0 })
+			{
+				yield return OurResources.DataListEmpty.FormatCurrentCulture($"{path}.{slot}");
+			}
+			else
+			{
+				for (var index = 0; index < minimums.Count; index++)
+				{
+					var itemPath = $"{path}.{slot}[{index}]";
+					if (minimums[index] is not { } minimum)
+					{
+						yield return OurResources.DataListItemEmpty.FormatCurrentCulture($"{path}.{slot}");
+					}
+					else
+					{
+						foreach (var error in ModestySettings.ValidateRange($"{itemPath}.comfort", minimum.Comfort, 0).Concat(ValidateRange($"{itemPath}.minimum", minimum.Minimum, 0)))
+							yield return error;
+						if (index > 0 && minimums[index - 1] is { } previous && minimum.Comfort <= previous.Comfort)
+							yield return OurResources.ModestyComfortOutOfOrder.FormatCurrentCulture($"{path}.{slot}", minimum.Comfort, previous.Comfort);
+					}
+				}
+			}
+		}
 	}
 
 	private static IEnumerable<string> ValidateItem(ClothingItem item, IReadOnlySet<string> slotIds, IReadOnlySet<string> layerIds, IReadOnlySet<string> bulkIds)
@@ -150,29 +191,66 @@ public sealed class ClothingData
 		var path = $"outfits[{outfit.Id}]";
 		if (outfit.Complete && !DataRules.IsAllowed(outfit, nameof(Outfit.Complete)))
 			yield return OurResources.OutfitCompleteNotWork.FormatCurrentCulture($"{path}.complete");
-		// A complete work outfit, or one for wearing nothing, can be nothing at all.
-		if (!(outfit.Complete || outfit.Kind == OutfitKind.Nothing) || outfit.Clothing is { Count: > 0 })
-		{
-			foreach (var error in DataValidation.ValidateStrings($"{path}.clothing", outfit.Clothing ?? []))
-				yield return error;
-		}
+		// A complete work outfit, night clothes, or an outfit for wearing nothing can be nothing at all.
+		var entries = outfit.Clothing ?? [];
+		if (entries.Count == 0 && !(outfit.Complete || outfit.Kind is OutfitKind.Night or OutfitKind.Nothing))
+			yield return OurResources.DataListEmpty.FormatCurrentCulture($"{path}.clothing");
 
-		// Which piece of the outfit takes each slot in each layer, so two pieces in the same place can be reported.
-		var slotItems = new Dictionary<(string Slot, string? Layer), string>();
-		foreach (var itemId in (outfit.Clothing ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal))
+		// The clothing each entry can hold, which can't take the same slot in the same layer as any other entry's.
+		var entryItems = new List<List<ClothingItem>>();
+		var seen = new HashSet<string>(StringComparer.Ordinal);
+		for (var index = 0; index < entries.Count; index++)
 		{
-			if (!items.TryGetValue(itemId, out var item))
+			var entryItemList = new List<ClothingItem>();
+			entryItems.Add(entryItemList);
+			if (entries[index] is not { } entry)
 			{
-				yield return OurResources.DataIdUnknown.FormatCurrentCulture($"{path}.clothing", itemId, "clothing");
+				yield return OurResources.DataListItemEmpty.FormatCurrentCulture($"{path}.clothing");
 			}
 			else
 			{
-				foreach (var slot in (item.Slots ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal))
+				var isChoice = entry.Options is not null;
+				var options = entry.GetOptions();
+				var optionsPath = $"{path}.clothing[{index}].options";
+				if (options.Count == 0)
+					yield return OurResources.DataListEmpty.FormatCurrentCulture(optionsPath);
+				for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
 				{
-					if (slotItems.TryGetValue((slot, item.Layer), out var otherId))
-						yield return OurResources.OutfitSlotTaken.FormatCurrentCulture(path, otherId, itemId, slot, item.Layer);
-					else
-						slotItems.Add((slot, item.Layer), itemId);
+					var clothingPath = isChoice ? $"{optionsPath}[{optionIndex}].clothing" : $"{path}.clothing";
+					if (options[optionIndex] is not { } option)
+					{
+						yield return OurResources.DataListItemEmpty.FormatCurrentCulture(optionsPath);
+					}
+					else if (option.Clothing is { } itemId)
+					{
+						if (string.IsNullOrWhiteSpace(itemId))
+							yield return isChoice ? OurResources.DataValueMissing.FormatCurrentCulture(clothingPath) : OurResources.DataListItemBlank.FormatCurrentCulture(clothingPath);
+						else if (!seen.Add(itemId))
+							yield return OurResources.DataListValueDuplicate.FormatCurrentCulture(itemId, $"{path}.clothing");
+						else if (!items.TryGetValue(itemId, out var item))
+							yield return OurResources.DataIdUnknown.FormatCurrentCulture(clothingPath, itemId, "clothing");
+						else
+							entryItemList.Add(item);
+					}
+					else if (!isChoice)
+					{
+						yield return OurResources.DataListItemEmpty.FormatCurrentCulture(clothingPath);
+					}
+				}
+			}
+		}
+
+		for (var first = 0; first < entryItems.Count; first++)
+		{
+			for (var second = first + 1; second < entryItems.Count; second++)
+			{
+				foreach (var item in entryItems[first])
+				{
+					foreach (var other in entryItems[second].Where(item.Overlaps))
+					{
+						var slot = (item.Slots ?? []).First(x => (other.Slots ?? []).Contains(x, StringComparer.Ordinal));
+						yield return OurResources.OutfitSlotTaken.FormatCurrentCulture(path, item.Id, other.Id, slot, item.Layer);
+					}
 				}
 			}
 		}

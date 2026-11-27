@@ -23,23 +23,19 @@ public sealed class PortraitClothing : IEquatable<PortraitClothing>
 
 	/// <summary>
 	/// Chooses clothing for a character who isn't in the world, such as one being created or previewed: an outfit of
-	/// each kind, in order, chosen by frequency from those whose conditions they meet, each over the ones before it (or instead of them, for a complete outfit),
-	/// with each piece's colors chosen by frequency.
+	/// each kind, in order, chosen as people's outfits are (see <see cref="OutfitModesty.Choose"/>), each over the ones before
+	/// it (or instead of them, for a complete outfit), with each piece's colors chosen by frequency.
 	/// </summary>
 	public static PortraitClothing ChooseOutfits(GameData gameData, CharacterTraits traits, IEnumerable<OutfitKind> kinds, Random random)
 	{
-		string? GetValueId(string propertyId) => gameData.CharacterProperties.Find(propertyId)?.GetConditionValueId(traits.Values.GetValueOrDefault(propertyId));
-
 		var pieces = new List<PortraitClothingPiece>();
 		foreach (var kind in kinds)
 		{
-			var outfits = gameData.Outfits.Where(x => x.Kind == kind && CharacterCondition.IsMet(x.When, GetValueId)).ToList();
-			if (outfits.Count != 0)
+			if (OutfitModesty.Choose(gameData, random, kind, traits, null, [pieces.Select(x => x.Clothing).ToList()]) is ({ } outfit, var outfitClothing, _))
 			{
-				var outfit = gameData.FrequencyChances.Choose(random, outfits);
 				if (outfit.Complete)
 					pieces.Clear();
-				foreach (var clothing in outfit.Clothing.Select(x => gameData.Clothing.Find(x)).OfType<ClothingItem>())
+				foreach (var clothing in outfitClothing)
 				{
 					pieces.RemoveAll(x => x.Clothing.Overlaps(clothing));
 					var colors = clothing.Colors.ToDictionary(x => x, _ => gameData.FrequencyChances.Choose(random, gameData.ClothingColors).Color, StringComparer.Ordinal);

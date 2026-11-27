@@ -155,6 +155,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		Npcs = People.Where(x => !x.IsPlayer).ToList();
 		EventLog = objects.OfType<EventLog>().Single();
 		m_scheduler = new Scheduler(this);
+		m_stepsDestination = GetPlayerStepsDestination();
 	}
 
 	/// <summary>
@@ -203,6 +204,8 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		{
 			foreach (var sequence in person.Sequences.Where(x => x.Appointment == appointment && appointment.IsStarted))
 				sequence.Appointment = null;
+			if (person.StartRequest == appointment)
+				person.StartRequest = null;
 		}
 	}
 
@@ -395,8 +398,9 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// </summary>
 	private bool RunTimeUntil(TimePoint end, Func<bool>? shouldStop, bool isContinuing = false)
 	{
-		// No time passes while the player is being asked whether to set off for an appointment, until they answer.
-		if (GetPlayerSetOffSequence() is not null || Player.AskRequest is not null)
+		// No time passes while the player is being asked whether to set off for an appointment, a question someone asked
+		// them, or whether to start an appointment, until they answer.
+		if (GetPlayerSetOffSequence() is not null || Player.AskRequest is not null || Player.StartRequest is not null)
 			return false;
 
 		// Whether to stop is only checked as tasks end, so time passes the same way however it's sliced.
@@ -420,24 +424,28 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		var forgetBefore = Time - GameData.Calendar.CreateTimeOffset(0, GameData.Schedules.SightingHours, 0);
 		foreach (var person in People)
 			person.ForgetSightingsBefore(forgetBefore);
+		UpdatePlayerDestination();
 		return !isStopped;
 	}
 
 	/// <summary>
-	/// Passes time until someone arrives at or leaves the location, or until the next part of the day starts, whichever
-	/// comes first. While following someone, the wait stops instead when they start spending time on a different goal (or
-	/// on being idle), or when they leave, and if they leave, the player goes with them, arriving when they do, unless
-	/// they'd be leaving home without being dressed enough to go out. Starting another stretch of the same goal, such as
-	/// resting again, doesn't stop it. Returns whether the wait was stopped by someone.
+	/// Passes time until someone arrives at or leaves the location, until an appointment of the player's starts, or until
+	/// the next part of the day starts, whichever comes first. While following someone, the wait stops instead when they
+	/// start spending time on a different goal (or on being idle), or when they leave, and if they leave, the player goes
+	/// with them, arriving when they do, unless they'd be leaving home without being dressed enough to go out. Starting
+	/// another stretch of the same goal, such as resting again, doesn't stop it. Returns whether the wait was stopped by
+	/// someone. Given a time to wait until, it waits until then instead, and before then, only the one followed leaving
+	/// stops it (besides an appointment starting).
 	/// </summary>
-	public async Task<bool> WaitForPeopleAsync(Location location, Person? following = null)
+	public async Task<bool> WaitForPeopleAsync(Location location, Person? following = null, TimePoint? until = null)
 	{
 		var isChanged = false;
+		var appointments = Appointments.Where(x => !x.IsStarted && (x.Worker == Player || x.Client == Player)).ToList();
 		var goal = following?.Goal;
-		void OnPeopleChanged(object? sender, NotifyCollectionChangedEventArgs e) => isChanged |= following is null || following.Location != location;
+		void OnPeopleChanged(object? sender, NotifyCollectionChangedEventArgs e) => isChanged |= following is null ? until is null : following.Location != location;
 		void OnTaskStarted(object? sender, PersonTaskEventArgs e)
 		{
-			if (e.Person == following && e.Task is BusyTask)
+			if (e.Person == following && e.Task is BusyTask && until is null)
 			{
 				isChanged |= following.Goal != goal;
 				goal = following.Goal;
@@ -449,7 +457,8 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		TaskStarted += OnTaskStarted;
 		try
 		{
-			await AdvanceTimeAsync(GameData.Calendar.GetNextDayPartStart(Time) - Time, () => isChanged).ConfigureAwait(true);
+			var end = until ?? GameData.Calendar.GetNextDayPartStart(Time);
+			await AdvanceTimeAsync(end > Time ? end - Time : GameData.Calendar.CreateTimeOffset(0, 0, 0), () => isChanged || appointments.Any(x => x.IsStarted)).ConfigureAwait(true);
 		}
 		finally
 		{
@@ -457,8 +466,8 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 			TaskStarted -= OnTaskStarted;
 		}
 
-		// The player can't follow someone out of their home unless they're dressed enough to go out.
-		if (following is not null && following.Location != location && (location != Player.Home || GetPlayerUncoveredSlotsOutside().Count == 0))
+		// The player can only follow someone where they would be dressed enough, with the people there.
+		if (following is not null && following.Location != location && GetPlayerUncoveredSlotsAt(following.Location).Count == 0)
 			await MovePlayerAsync(following.Location).ConfigureAwait(true);
 		else
 			await UpdatePlayerStepsAsync().ConfigureAwait(true);
@@ -472,6 +481,104 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// done.
 	/// </summary>
 	public long GetPlayerRemainingMinutes(Need need) => Scheduler.GetRemainingMinutes(Player, need, Time);
+
+	/// <summary>
+	/// Gets how far along the player is with each quota need they have this day or week, in the order of the needs: the
+	/// minutes (or runs, for a quota measured in runs) done of how many it takes, counting the whole family's for a need it
+	/// shares, and whether it can be worked on today.
+	/// </summary>
+	public IReadOnlyList<PlayerQuotaProgress> GetPlayerQuotaProgress()
+	{
+		var player = Player;
+		var progress = new List<PlayerQuotaProgress>();
+		foreach (var need in GameData.Schedules.Needs.Where(x => x.Kind == NeedKind.Quota && Scheduler.HasNeed(player, x)))
+		{
+			var people = need.SharedByFamily ? player.Family.Members : [player];
+			foreach (var person in people)
+				person.UpdateNeeds(Time);
+			var done = people.Sum(x => x.GetProgress(need));
+			var total = need.IsRuns ? need.GetQuotaRuns(people.Count) : need.GetQuotaMinutes(people.Count);
+			progress.Add(new PlayerQuotaProgress(need, Math.Min(done, total), total, m_scheduler.IsQuotaDayOpen(player, need, Time)));
+		}
+
+		return progress;
+	}
+
+	/// <summary>
+	/// Gets the other times the player can wait until, besides until something changes, soonest first: those the schedules
+	/// offer (see <see cref="PlayerTimeSettings.Waits"/>), when it's time to set off for their next appointment, and when the
+	/// step they're on opens, if it's closed now. Times that have passed, or that another choice already waits until, are
+	/// left out.
+	/// </summary>
+	public IReadOnlyList<PlayerWaitChoice> GetPlayerWaitChoices()
+	{
+		var calendar = GameData.Calendar;
+		var choices = new List<PlayerWaitChoice>();
+		foreach (var wait in GameData.Schedules.Player.Waits)
+		{
+			if (wait.Minutes is { } minutes)
+				choices.Add(new PlayerWaitChoice(Time + calendar.CreateTimeOffset(0, 0, minutes.Minutes), PlayerWaitReason.Minutes));
+			else if (wait.Until == PlayerTimeUntil.NextDayPart)
+				choices.Add(new PlayerWaitChoice(calendar.GetNextDayPartStart(Time), PlayerWaitReason.DayPart, DayPart: calendar.GetDayPart(calendar.GetNextDayPartStart(Time))));
+		}
+
+		var setOff = Player.Sequences.Where(x => x is { HasSetOff: false, Appointment: not null }).Select(x => x.Appointment!)
+			.Select(x => (Appointment: x, Time: m_scheduler.GetSetOffTime(Player, x, Time))).Where(x => x.Time > Time).OrderBy(x => x.Time).ToList();
+		if (setOff.Count != 0)
+			choices.Add(new PlayerWaitChoice(setOff[0].Time, PlayerWaitReason.SetOff, Appointment: setOff[0].Appointment));
+
+		if (Player.Current is { CurrentStep: { IsPlayerAction: true, Hours: { } hours } step } && !hours.Contains(calendar.GetParts(Time).Hour))
+		{
+			var opens = calendar.GetStartOfDay(Time) + calendar.CreateTimeOffset(0, hours.Start, 0);
+			if (opens <= Time)
+				opens += calendar.CreateTimeOffset(1, 0, 0);
+			choices.Add(new PlayerWaitChoice(opens, PlayerWaitReason.Opens, Title: step.Player!.Title));
+		}
+
+		return choices.Where(x => x.Until > Time).GroupBy(x => x.Until).Select(x => x.First()).OrderBy(x => x.Until).ToList();
+	}
+
+	/// <summary>
+	/// Gets the minutes the player would spend on a quota need measured in time if they started it now, as anyone else
+	/// would choose (a shift, less if less is left), or null for any other need.
+	/// </summary>
+	public int? GetPlayerShiftMinutes(Need need) => m_scheduler.GetSequenceMinutes(Player, need, Time);
+
+	/// <summary>
+	/// Gets when the player would finish spending so many minutes on a need if they started it now, walking to its first
+	/// "do" step included.
+	/// </summary>
+	public TimePoint GetPlayerShiftEnd(Need need, int minutes) =>
+		Time + GameData.Calendar.CreateTimeOffset(0, 0, m_scheduler.GetMinutesBeforeFirstDo(Player, need, Time) + minutes);
+
+	/// <summary>
+	/// Gets the shorter shifts the player can choose for a quota need measured in time, in the order the schedules offer
+	/// them (see <see cref="PlayerTimeSettings.Shifts"/>), with when each would end: so many minutes, or until the next
+	/// part of the day starts, less the walk to its first "do" step. Only those shorter than the shift anyone else would
+	/// choose are offered, and none for a need the player is already in the middle of.
+	/// </summary>
+	public IReadOnlyList<PlayerShiftChoice> GetPlayerShiftChoices(Need need)
+	{
+		ArgumentNullException.ThrowIfNull(need);
+		var choices = new List<PlayerShiftChoice>();
+		if (Player.GetSequence(need) is null && GetPlayerShiftMinutes(need) is { } shift)
+		{
+			var calendar = GameData.Calendar;
+			var walk = m_scheduler.GetMinutesBeforeFirstDo(Player, need, Time);
+			var nextDayPart = calendar.GetNextDayPartStart(Time);
+			foreach (var choice in GameData.Schedules.Player.Shifts)
+			{
+				var minutes = choice.Minutes is { } amount ? amount.Minutes : (int) calendar.GetTotalMinutes(nextDayPart - Time) - walk;
+				if (minutes > 0 && minutes < shift && choices.All(x => x.Minutes != minutes))
+				{
+					choices.Add(new PlayerShiftChoice(minutes, Time + calendar.CreateTimeOffset(0, 0, walk + minutes),
+						choice.Until == PlayerTimeUntil.NextDayPart ? calendar.GetDayPart(nextDayPart) : null));
+				}
+			}
+		}
+
+		return choices;
+	}
 
 	/// <summary>
 	/// Gets what the player can start: each need they have with steps, in the order of the needs, with whether they can
@@ -500,7 +607,21 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// steps, and any others they're in the middle of are put on hold. Either they're carried out for them, or the player
 	/// takes them themselves, starting with any they've already done. Returns how much time passed.
 	/// </summary>
-	public async Task<TimeOffset> StartPlayerStepsAsync(Need need, bool isAutomatic)
+	public async Task<TimeOffset> StartPlayerStepsAsync(Need need, bool isAutomatic, int? minutes = null)
+	{
+		var sequence = StartPlayerSteps(need, minutes);
+		return isAutomatic ? await DoPlayerStepsAutomaticallyAsync(sequence).ConfigureAwait(true) : await UpdatePlayerStepsAsync().ConfigureAwait(true);
+	}
+
+	/// <summary>
+	/// Makes a need's steps the player's current steps, as anyone else choosing it as their goal would, with the time anyone
+	/// else would choose for it, or carries on with them, if they're already in the middle of them. Any others they're in
+	/// the middle of are put on hold. No time passes, and the player takes none of the steps until their steps are next
+	/// brought up to date (see <see cref="UpdatePlayerStepsAsync"/>). Given minutes for a need measured in time, it spends
+	/// that long on it (one of <see cref="GetPlayerShiftChoices"/>) rather than the shift anyone else would choose, if
+	/// that's less. Returns the steps.
+	/// </summary>
+	public StepSequence StartPlayerSteps(Need need, int? minutes = null)
 	{
 		ArgumentNullException.ThrowIfNull(need);
 		var player = Player;
@@ -509,14 +630,15 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		if (sequence is null)
 		{
 			ClearPlayerTasks();
-			sequence = Scheduler.StartSequence(player, need, 0, m_scheduler.GetSequenceMinutes(player, need, Time), [], null);
+			var shift = m_scheduler.GetSequenceMinutes(player, need, Time);
+			sequence = Scheduler.StartSequence(player, need, 0, shift is { } most && minutes is { } chosen ? Math.Min(most, chosen) : shift, [], null);
 		}
 		else
 		{
 			FocusPlayerSteps(sequence);
 		}
 
-		return isAutomatic ? await DoPlayerStepsAutomaticallyAsync(sequence).ConfigureAwait(true) : await UpdatePlayerStepsAsync().ConfigureAwait(true);
+		return sequence;
 	}
 
 	/// <summary>
@@ -584,7 +706,8 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// <summary>
 	/// Carries the player on through every sequence of steps they're in the middle of, past the steps they've already done
 	/// (being where a step goes, or having on what it puts on) and the steps that only keep track of things, up to the next
-	/// one they take themselves. Steps fail if the player left where they were being done. Returns how much time passed.
+	/// one they take themselves. Steps fail if the player left where they were being done. First, the other of an
+	/// appointment where the player is may ask them to start it. Returns how much time passed.
 	/// </summary>
 	public async Task<TimeOffset> UpdatePlayerStepsAsync()
 	{
@@ -592,7 +715,12 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		var start = Time;
 		if (!IsAutomatic(player))
 		{
-			foreach (var sequence in player.Sequences.Where(x => x != player.Current).ToList())
+			// The other of an appointment where the player is can ask them to start it, even before they set off for it.
+			foreach (var appointment in m_appointments.Where(x => !x.IsStarted && (x.Worker == player || x.Client == player) && x.Place == player.Location).ToList())
+				m_scheduler.TryStartAppointment(appointment, Time, player);
+
+			// Steps put on hold for an appointment (without a place) wait for it to be done, as they do for everyone.
+			foreach (var sequence in player.Sequences.Where(x => x != player.Current && x.Place is not null).ToList())
 			{
 				for (var count = 0; count < MaxPlayerStepsAdvanced && player.Sequences.Contains(sequence) && m_scheduler.AdvanceStep(player, sequence, Time, isPassive: true); count++)
 				{
@@ -603,6 +731,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 				await RunPlayerStepsAsync(current).ConfigureAwait(true);
 		}
 
+		UpdatePlayerDestination();
 		return Time - start;
 	}
 
@@ -672,6 +801,61 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	private Task<TimeOffset> ContinuePlayerStepsAsync(StepSequence sequence) => sequence.Takeover == StepTakeover.All ? RunPlayerStepsAsync(sequence) : UpdatePlayerStepsAsync();
 
 	/// <summary>
+	/// Gets what the player can do instead of just stopping a sequence of steps they're in the middle of: finish up, if any
+	/// of its "finally" steps would still need doing, and keep the bundle its steps made, to finish them later, if they
+	/// carry one a later step puts down (which is given).
+	/// </summary>
+	public PlayerStopOptions GetPlayerStopOptions(StepSequence sequence)
+	{
+		ArgumentNullException.ThrowIfNull(sequence);
+		var player = Player;
+		var canFinishUp = player.Sequences.Contains(sequence) && m_scheduler.HasStepsToFinishUp(player, sequence, Time);
+		var kept = player.Sequences.Contains(sequence) && !sequence.IsUnwinding && Scheduler.FindKeptStep(sequence) is { } keptStep && sequence.Need.Steps.Skip(keptStep)
+			.FirstOrDefault(x => x is { Kind: StepKind.Put, ItemKind: null, Bundle: { } bundle } && sequence.Bundles.ContainsKey(bundle.Id))?.Bundle is { } keptBundle
+			? sequence.Bundles[keptBundle.Id] : null;
+		return new PlayerStopOptions(canFinishUp, kept);
+	}
+
+	/// <summary>
+	/// Has the player give up a sequence of steps they're in the middle of, finishing up first: carrying out the "finally"
+	/// steps of the lists of steps they're in, which become the next steps they take.
+	/// </summary>
+	public void FinishUpPlayerSteps(StepSequence sequence)
+	{
+		ArgumentNullException.ThrowIfNull(sequence);
+		var player = Player;
+		if (player.Sequences.Contains(sequence))
+		{
+			if (player.Current == sequence)
+				ClearPlayerTasks();
+			m_scheduler.GiveUp(player, sequence, Time);
+		}
+	}
+
+	/// <summary>
+	/// Has the player keep the bundle a sequence of their steps made, rather than give the steps up, to finish them later:
+	/// they go on from the step that takes it home (see <see cref="GetPlayerStopOptions"/>).
+	/// </summary>
+	public void KeepPlayerSteps(StepSequence sequence)
+	{
+		ArgumentNullException.ThrowIfNull(sequence);
+		var player = Player;
+		if (player.Sequences.Contains(sequence))
+		{
+			if (player.Current == sequence)
+				ClearPlayerTasks();
+			m_scheduler.Keep(player, sequence, Time);
+		}
+	}
+
+	/// <summary>
+	/// Whether the player has kept the bundle a sequence of their steps made, to finish them later, for so long that
+	/// they're reminded of it (see <see cref="ScheduleSettings.CarryWarningDelay"/>).
+	/// </summary>
+	public bool IsPlayerCarryingTooLong(StepSequence sequence) =>
+		sequence?.KeptSince is { } since && Time - since >= GameData.Calendar.CreateTimeOffset(0, 0, GameData.Schedules.CarryWarningDelay.Minutes);
+
+	/// <summary>
 	/// Has the player give up a sequence of steps they're in the middle of. What they carry for it stays with them, and is
 	/// put away when they get home. Giving up an appointment they set off for calls it off, and once it's started, lets
 	/// go of the one they met, as it does anyone else following them.
@@ -685,6 +869,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 			if (player.Current == sequence)
 				ClearPlayerTasks();
 			m_scheduler.EndSequence(player, sequence, Time);
+			UpdatePlayerDestination();
 		}
 	}
 
@@ -737,11 +922,34 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 
 		var seen = new HashSet<int>();
 		var isAfterChoose = false;
+		var currentIndex = sequence.Step;
+
+		// Leaving the steps, the "finally" steps being carried out are followed by the others still to carry out, and then
+		// where it's going.
+		var running = sequence.UnwindRunning;
+		var queue = new Queue<int>(sequence.UnwindQueue);
+		int GetNext(int index)
+		{
+			var next = need.GetNextStep(index);
+			if (running is { } start && need.GetBlockFinallyAt(start) is { } block && block.IsInFinally(index) && !block.IsInFinally(next))
+			{
+				running = queue.Count != 0 ? queue.Dequeue() : null;
+				next = running ?? sequence.UnwindTo ?? need.Steps.Count;
+			}
+
+			return next;
+		}
+
 		for (var index = sequence.Step; sequence.Role == SequenceRole.Steps && index < need.Steps.Count && seen.Add(index);)
 		{
 			var step = need.Steps[index];
-			var next = need.GetNextStep(index);
-			var isCurrent = index == sequence.Step && steps.Count == 0;
+			var next = GetNext(index);
+			var isCurrent = index == currentIndex && steps.Count == 0;
+
+			// A "meet" step whose appointment has started is done, though the sequence hasn't moved on from it yet, so the step
+			// after it is the one they're on.
+			if (step.Kind == StepKind.Meet && isCurrent && sequence.Appointment is { IsStarted: true })
+				currentIndex = next;
 			if (step.Kind == StepKind.Stop && m_scheduler.IsConditionMet(player, need, sequence, step.When, Time))
 				break;
 			if (step is { Kind: StepKind.Choose, First: false })
@@ -794,6 +1002,81 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		(sequence.Role == SequenceRole.Steps || sequence is { CurrentStep.Kind: StepKind.Meet, Appointment.IsStarted: false });
 
 	/// <summary>
+	/// Gets the place the player's current steps need them to go next, such as home to put the water away, or an
+	/// appointment's place once they've set off for it, or null if the steps don't need them anywhere they aren't.
+	/// </summary>
+	public Location? GetPlayerStepsDestination()
+	{
+		var player = Player;
+		return player.Current is { } sequence && GetPlayerSteps(sequence).FirstOrDefault(x => x.IsCurrent) is { Place: { } place } step && place != player.Location &&
+			(step.Kind == PlayerStepKind.GoToAppointment || (step.Kind == PlayerStepKind.Step && step.Step.Kind == StepKind.GoTo))
+			? place
+			: null;
+	}
+
+	/// <summary>
+	/// Whether the player's destination is the one their current steps chose, so choosing another gives up those steps.
+	/// </summary>
+	public bool IsPlayerDestinationFromSteps => Player.Destination is { } destination && destination == m_stepsDestination && Player.Current is not null;
+
+	/// <summary>
+	/// Whether choosing the given place as the player's destination would give up the steps they're in the middle of,
+	/// since the destination they have now is the one those steps chose.
+	/// </summary>
+	public bool WouldDestinationStopPlayerSteps(Location place) => place != Player.Destination && IsPlayerDestinationFromSteps;
+
+	/// <summary>
+	/// Chooses the place the player is heading for, replacing any other, or clears it with null. Choosing a place while the
+	/// destination is the one their current steps chose gives up those steps (as <see cref="StopPlayerSteps"/> does), and
+	/// returns true, in which case the steps should be brought up to date with <see cref="UpdatePlayerStepsAsync"/>.
+	/// Clearing it leaves the steps alone. The place the player is in can't be a destination.
+	/// </summary>
+	public bool SetPlayerDestination(Location? place)
+	{
+		var player = Player;
+		var isStopping = place is not null && WouldDestinationStopPlayerSteps(place);
+		if (isStopping)
+			StopPlayerSteps(player.Current!);
+		player.Destination = place == player.Location ? null : place;
+		m_stepsDestination = GetPlayerStepsDestination();
+		return isStopping;
+	}
+
+	/// <summary>
+	/// Gets the place next to the player's that the quickest way to their destination goes through first, or null if they
+	/// have no destination or there's no way there.
+	/// </summary>
+	public Location? GetPlayerWayToDestination() => Player.Destination is { } destination ? m_scheduler.GetNextOnRoute(Player.Location, destination) : null;
+
+	/// <summary>
+	/// Gets how long the quickest way from where the player is to a place takes, or null if there's no way there.
+	/// </summary>
+	public TimeOffset? GetPlayerTravelTimeTo(Location place)
+	{
+		ArgumentNullException.ThrowIfNull(place);
+		var minutes = m_scheduler.GetRouteMinutes(Player.Location, place);
+		return minutes == int.MaxValue ? null : GameData.Calendar.CreateTimeOffset(0, 0, minutes);
+	}
+
+	/// <summary>
+	/// Keeps the player's destination up to date with their steps: when the place the steps need them to go changes, it
+	/// becomes their destination, and the place the steps chose before stops being it, if it still is.
+	/// </summary>
+	private void UpdatePlayerDestination()
+	{
+		var player = Player;
+		var steps = GetPlayerStepsDestination();
+		if (steps != m_stepsDestination)
+		{
+			if (m_stepsDestination is not null && player.Destination == m_stepsDestination)
+				player.Destination = null;
+			m_stepsDestination = steps;
+			if (steps is not null)
+				player.Destination = steps;
+		}
+	}
+
+	/// <summary>
 	/// Gets the player's sequence for an appointment it's time for them to set off for, while they're being asked whether
 	/// to, or null if there's none.
 	/// </summary>
@@ -826,9 +1109,47 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 
 	/// <summary>
 	/// Whether the player is being asked something, so time stops until they answer: someone asking to chat, whether to set
-	/// off for an appointment, or someone asking them the question of an "ask" step.
+	/// off for an appointment, someone asking them the question of an "ask" step, or whether to start an appointment.
 	/// </summary>
-	private bool IsPlayerAsked => Player.TalkRequest is not null || GetPlayerSetOffSequence() is not null || Player.AskRequest is not null;
+	/// <summary>
+	/// Whether the player is being asked something they need to answer before time can pass: someone asking them to chat,
+	/// whether to set off for an appointment, a question someone asked them, or whether to start an appointment.
+	/// </summary>
+	public bool IsPlayerAsked => Player.TalkRequest is not null || GetPlayerSetOffSequence() is not null || Player.AskRequest is not null || Player.StartRequest is not null;
+
+	/// <summary>
+	/// Has the player answer whether to start the appointment the other asked them about, or told them they're ready for
+	/// (see <see cref="Person.StartRequest"/>), as anyone else would answer, except that the player decides. A yes starts it,
+	/// and the player carries on with their steps. Answering takes no time.
+	/// </summary>
+	/// <exception cref="InvalidOperationException">No one is asking the player to start an appointment.</exception>
+	public async Task AnswerStartAsync(bool isYes)
+	{
+		m_scheduler.AnswerPlayerStart(Player, isYes, Time);
+		await UpdatePlayerStepsAsync().ConfigureAwait(true);
+	}
+
+	/// <summary>
+	/// Gets the appointment of the player's with someone that the player can ask them to start now, from conversation, as
+	/// its worker, or tell them they're ready for, as its client, after someone said no to starting it. Returns null if
+	/// there's none.
+	/// </summary>
+	public Appointment? GetPlayerStartAppointment(Person person) =>
+		m_appointments.FirstOrDefault(x => x.GetOther(Player) == person && (x.Worker == Player || x.Client == Player) && m_scheduler.CanPlayerAskToStart(Player, x));
+
+	/// <summary>
+	/// Has the player ask someone to start their appointment, or tell them they're ready for it (see
+	/// <see cref="GetPlayerStartAppointment"/>). They answer as anyone else would. A yes starts it, and the player carries on
+	/// with their steps. Asking takes no time. Returns whether it started.
+	/// </summary>
+	/// <exception cref="InvalidOperationException">The player can't ask the person to start an appointment now.</exception>
+	public async Task<bool> AskToStartAsync(Person person)
+	{
+		var appointment = GetPlayerStartAppointment(person) ?? throw new InvalidOperationException($"The player can't ask person {person?.Id} to start an appointment now.");
+		var isStarted = m_scheduler.PlayerAskToStart(Player, appointment, Time);
+		await UpdatePlayerStepsAsync().ConfigureAwait(true);
+		return isStarted;
+	}
 
 	/// <summary>
 	/// Has the player answer the question someone asked them (see <see cref="Person.AskRequest"/>), as anyone else would
@@ -849,6 +1170,12 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// time, as anyone else's yes is checked, though the player can still say yes.
 	/// </summary>
 	public IReadOnlyList<Need> GetPlayerAskConflicts(Person asker) => m_scheduler.GetPlayerAskConflicts(asker, Player, Time);
+
+	/// <summary>
+	/// Whether the player would be too shy to say yes to the question someone is asking them, since it would make an
+	/// appointment where they'd have to undress more than they'd be comfortable with. They can only say no.
+	/// </summary>
+	public bool IsPlayerTooShyToAccept(Person asker) => m_scheduler.IsPlayerTooShyToAccept(asker, Player, Time);
 
 	/// <summary>
 	/// Has the player follow someone as part of their steps, until they're let go or the player stops: it's the player's
@@ -967,12 +1294,40 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// </summary>
 	public event EventHandler<StepFailedEventArgs>? StepFailed;
 
-	internal void OnStepFailed(Person person, StepSequence sequence, int step, FailCause cause, TimePoint time)
+	internal void OnStepFailed(Person person, StepSequence sequence, int step, FailCause cause, TimePoint time, Person? who = null, bool isEnding = true)
 	{
+		// Who said no, or didn't come, is the other one, unless the step says.
+		who ??= cause switch
+		{
+			FailCause.No => sequence.Partner,
+			FailCause.NoShow => sequence.Appointment?.GetOther(person),
+			_ => null,
+		};
+
 		// The player missing an appointment is logged as such (see OnAppointmentMissed).
 		if (person.Location == Player.Location && !(person == Player && cause == FailCause.NoShow))
-			EventLog.Add(new LogEntry(time, LogEntryKind.Failed, person, person.Location, Need: sequence.Need, Step: step, Cause: cause));
-		StepFailed?.Invoke(this, new StepFailedEventArgs(person, sequence, step, cause));
+			EventLog.Add(new LogEntry(time, LogEntryKind.Failed, person, person.Location, Other: who, Need: sequence.Need, Step: step, Cause: cause));
+		StepFailed?.Invoke(this, new StepFailedEventArgs(person, sequence, step, cause, time, who, isEnding));
+	}
+
+	/// <summary>
+	/// Logs the player finding themselves less covered than they're comfortable with, unless that's the last thing logged for
+	/// them.
+	/// </summary>
+	internal void OnPlayerExposed(TimePoint time)
+	{
+		if (EventLog.GetLatest(Player) is not { Kind: LogEntryKind.Exposed })
+			EventLog.Add(new LogEntry(time, LogEntryKind.Exposed, Player, Player.Location));
+	}
+
+	/// <summary>
+	/// Logs how someone in the player's location reacted to being less covered than they're comfortable with, such as
+	/// heading home to cover up.
+	/// </summary>
+	internal void OnCoverUpReaction(Person person, LogEntryKind kind, TimePoint time)
+	{
+		if (person.Location == Player.Location && !(EventLog.GetLatest(person) is { } latest && latest.Kind == kind && latest.Time == time))
+			EventLog.Add(new LogEntry(time, kind, person, person.Location));
 	}
 
 	/// <summary>
@@ -1085,11 +1440,14 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// <summary>
 	/// Finishes the player's changing of clothes, such as when they close their wardrobe: if they're wearing something
 	/// different from what they were wearing before, however many things they tried, it takes the time to change clothes,
-	/// while time passes for everyone. Returns how much time passed, or null if nothing changed.
+	/// while time passes for everyone. It counts as changing into and out of outfits, as for a step (see
+	/// <see cref="ClothingRules.NoteChangedByHand"/>). Returns how much time passed, or null if nothing changed.
 	/// </summary>
 	public async Task<TimeOffset?> FinishPlayerChangingAsync(IReadOnlyCollection<ClothingPiece> wornBefore)
 	{
-		var spent = Player.Clothing.Pieces.ToHashSet().SetEquals(wornBefore) ? (TimeOffset?) null : await PassPlayerChangingTimeAsync().ConfigureAwait(true);
+		ArgumentNullException.ThrowIfNull(wornBefore);
+		ClothingRules.NoteChangedByHand(Player, wornBefore);
+		var spent =Player.Clothing.Pieces.ToHashSet().SetEquals(wornBefore) ? (TimeOffset?) null : await PassPlayerChangingTimeAsync().ConfigureAwait(true);
 		await UpdatePlayerStepsAsync().ConfigureAwait(true);
 		return spent;
 	}
@@ -1135,49 +1493,106 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	}
 
 	/// <summary>
-	/// Gets the clothing slots in which the player isn't covered enough for where they are: at home, or out of the house,
-	/// and for their work while they're working.
+	/// The integer character property that makes people bolder or shyer about how covered they are, or null if there's none
+	/// (see <see cref="ModestySettings.Boldness"/>).
 	/// </summary>
-	public IReadOnlyList<ClothingSlot> GetPlayerUncoveredSlots() =>
-		GetPlayerUncoveredSlots(Player.Clothing.Pieces.Select(x => x.Clothing), Player.Location == Player.Home ? ModestyLevel.Home : ModestyLevel.Outside, IsPlayerWorking);
+	public CharacterProperty? BoldnessProperty => GameData.ModestySettings.Boldness is { } boldness ? GameData.CharacterProperties.Find(boldness.Property) : null;
+
+	/// <summary>
+	/// Gets someone's boldness, or null if they have none.
+	/// </summary>
+	public int? GetBoldness(Person person) => BoldnessProperty is { } property && person.Traits.Values.GetValueOrDefault(property.Id) is int value ? value : null;
+
+	/// <summary>
+	/// Changes someone's boldness, kept within the range of the property for them, for developers.
+	/// </summary>
+	public void SetBoldness(Person person, int value)
+	{
+		ArgumentNullException.ThrowIfNull(person);
+		if (BoldnessProperty is { } property)
+		{
+			var range = GameData.GetRange(property, person.IsPlayer ? CharacterRole.Player : CharacterRole.Npc);
+			person.SetInteger(property.Id, Math.Clamp(value, range.Minimum, range.Maximum));
+		}
+	}
+
+	/// <summary>
+	/// Gets how comfortable the player is with how covered they are where they are now (see <see cref="ModestyComfort"/>).
+	/// </summary>
+	public double GetPlayerComfort() => ModestyComfort.Get(GameData, Player, Time);
+
+	/// <summary>
+	/// Gets the clothing slots in which the player isn't covered enough for where they are, with the people there and the
+	/// step they're on.
+	/// </summary>
+	public IReadOnlyList<ClothingSlot> GetPlayerUncoveredSlots() => ClothingRules.GetUncoveredSlots(GameData, Player, PlayerWorn, GetPlayerComfort());
 
 	/// <summary>
 	/// Gets how modest the player is in each clothing slot their modesty rule checks, and the least it calls for where they
 	/// are, such as for developers to see.
 	/// </summary>
-	public IReadOnlyList<(ClothingSlot Slot, int Modesty, int Minimum)> GetPlayerModesty() =>
-		ClothingRules.GetModesty(GameData, Player, Player.Clothing.Pieces.Select(x => x.Clothing), Player.Location == Player.Home ? ModestyLevel.Home : ModestyLevel.Outside, IsPlayerWorking);
+	public IReadOnlyList<(ClothingSlot Slot, int Modesty, int Minimum)> GetPlayerModesty() => ClothingRules.GetModesty(GameData, Player, PlayerWorn, GetPlayerComfort());
 
 	/// <summary>
-	/// Gets the clothing slots in which the player isn't covered enough to go out of the house.
+	/// Gets the clothing slots in which the player wouldn't be covered enough at a location they're going to, with the
+	/// people there now and the step they're on.
 	/// </summary>
-	public IReadOnlyList<ClothingSlot> GetPlayerUncoveredSlotsOutside() => GetPlayerUncoveredSlots(Player.Clothing.Pieces.Select(x => x.Clothing), ModestyLevel.Outside, IsPlayerWorking);
+	public IReadOnlyList<ClothingSlot> GetPlayerUncoveredSlotsAt(Location location)
+	{
+		ArgumentNullException.ThrowIfNull(location);
+		var comfort = ModestyComfort.Get(GameData, Player, location, location.People.Where(x => x != Player).Select(x => (x, x.IsAsleep)), ModestyComfort.GetCurrentStep(Player), Time);
+		return ClothingRules.GetUncoveredSlots(GameData, Player, PlayerWorn, comfort);
+	}
 
 	/// <summary>
-	/// Gets the clothing slots in which the player wouldn't be covered enough for a step, where they are, in what they're
-	/// wearing, such as for working. The player changes clothes themselves, so taking a step doesn't.
+	/// Whether the player is heading home to cover up by going to a location: they aren't covered enough where they are, and
+	/// it's on the way home, so they can go there however little they have on.
+	/// </summary>
+	public bool IsPlayerRetreatingTo(Location location) =>
+		GetPlayerUncoveredSlots().Count != 0 && m_scheduler.GetRouteMinutes(location, Player.Home) < m_scheduler.GetRouteMinutes(Player.Location, Player.Home);
+
+	/// <summary>
+	/// Gets the clothing slots in which the player wouldn't be covered enough for a step, where they are: in what they're
+	/// wearing, for a "dress" step, in the outfit it would change them into, and for an "undress" step, in what they'd have
+	/// on after it, though that's always allowed when it leaves them no less covered than now.
 	/// </summary>
 	public IReadOnlyList<ClothingSlot> GetPlayerStepUncoveredSlots(Step step)
 	{
 		ArgumentNullException.ThrowIfNull(step);
 		var player = Player;
-		return GetPlayerUncoveredSlots(player.Clothing.Pieces.Select(x => x.Clothing), player.Location == player.Home ? ModestyLevel.Home : ModestyLevel.Outside, step.AtWork || IsPlayerWorking);
+		var comfort = ModestyComfort.Get(GameData, player, player.Location, player.Location.People.Where(x => x != player).Select(x => (x, x.IsAsleep)), step, Time);
+		var worn = step switch
+		{
+			{ Kind: StepKind.Dress, Outfit: { } kind } when ClothingRules.FindAtHand(player, kind, Time) is { } outfit => ClothingRules.GetClothesIn(player, outfit),
+			{ Kind: StepKind.Undress, Outfit: { } kind } when player.GetOutfits(kind).FirstOrDefault(x => ClothingRules.IsChangedInto(player, x)) is { } outfit => ClothingRules.GetClothesOutOf(player, outfit, Time),
+			_ => PlayerWorn,
+		};
+		var uncovered = ClothingRules.GetUncoveredSlots(GameData, player, worn, comfort);
+		var isNoLessCovered = step.Kind == StepKind.Undress && ClothingRules.GetModesty(GameData, player, worn, 0).Zip(ClothingRules.GetModesty(GameData, player, PlayerWorn, 0)).All(x => x.First.Modesty >= x.Second.Modesty);
+		return isNoLessCovered ? [] : uncovered;
 	}
 
-	private IReadOnlyList<ClothingSlot> GetPlayerUncoveredSlots(IEnumerable<ClothingItem> worn, ModestyLevel level, bool isAtWork) =>
-		ClothingRules.GetUncoveredSlots(GameData, Player, worn, level, isAtWork);
+	/// <summary>
+	/// Whether the player is covered at least as much in every slot their modesty rule checks as they were in the given
+	/// clothes, so changing hasn't left them any less covered.
+	/// </summary>
+	public bool IsPlayerNoLessCovered(IEnumerable<ClothingPiece> before)
+	{
+		var then = ClothingRules.GetModesty(GameData, Player, before.Select(x => x.Clothing), 0);
+		var now = ClothingRules.GetModesty(GameData, Player, PlayerWorn, 0);
+		return now.Zip(then).All(x => x.First.Modesty >= x.Second.Modesty);
+	}
+
+	/// <summary>
+	/// The clothing the player is wearing.
+	/// </summary>
+	private IReadOnlyList<ClothingItem> PlayerWorn => Player.Clothing.Pieces.Select(x => x.Clothing).ToList();
 
 	/// <summary>
 	/// Where the player's clothes go when they take them off: their home, if they're there (in their wardrobe), or else, or
 	/// when they're to be carried (as in their inventory), what they're carrying.
 	/// </summary>
 	private ItemContainer GetPlayerClothesContainer(bool isCarried) => !isCarried && Player.Location == Player.Home ? Player.Home.Items : Player.Inventory;
-
-	/// <summary>
-	/// Whether the player is working, for how covered they must be: while at work, and from when they start work's steps
-	/// until they're done with them, so they can change into work clothes and go to work in them.
-	/// </summary>
-	private bool IsPlayerWorking => Player.IsAtWork || Player.Sequences.Any(x => x.Need.IsWork && x.HasSetOff);
 
 	/// <summary>
 	/// Passes the time it takes the player to change clothes, while time passes for everyone.
@@ -1242,9 +1657,10 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	}
 
 	/// <summary>
-	/// Whether someone refuses to stop and talk right now, because their goal is too urgent.
+	/// Whether someone refuses to stop and talk with the player right now, because they're following someone, or their goal
+	/// is too urgent. Someone waiting to meet someone isn't too busy.
 	/// </summary>
-	public bool IsTooBusyToTalk(Person person) => m_scheduler.IsTooBusyToTalk(person, Time);
+	public bool IsTooBusyToTalk(Person person) => m_scheduler.IsTooBusyToTalk(person, Time, isPlayerAsking: true);
 
 	/// <summary>
 	/// Has the player talk with someone for the given number of minutes, while time passes for everyone. Talking pauses
@@ -1401,7 +1817,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		var profession = person.Business?.Profession.Id;
 		var step = person.Tasks.OfType<BusyTask>().FirstOrDefault()?.Step ??
 			(person.Current is { } current && current.Need == goal ? Enumerable.Range(current.Step, Math.Max(goal.Steps.Count - current.Step, 0)).Cast<int?>().FirstOrDefault(x => goal.Steps[x!.Value].Kind == StepKind.Do) : null);
-		return goal.GetActivity(step, profession);
+		return ActivityText.Fill(goal.GetActivity(step, profession), person.Current);
 	}
 
 	/// <summary>
@@ -1488,6 +1904,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	{
 		MovePerson(Player, location, Time);
 		SeeEachOther(Player, Time);
+		m_scheduler.ReactToCompany(Time);
 		await UpdatePlayerStepsAsync().ConfigureAwait(true);
 	}
 
@@ -1498,8 +1915,18 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	internal void MovePerson(Person person, Location location, TimePoint time)
 	{
 		var from = person.Location;
-		var playerLocation = Player.Location;
+		var playerLocation = PlayerSeenLocation;
 		person.Location = location;
+
+		// Reaching their destination clears it.
+		if (location == person.Destination)
+			person.Destination = null;
+		m_scheduler.OnCompanyChanged(from);
+
+		// Someone who leaves an appointment's place can be asked to start it again once they're back.
+		foreach (var appointment in m_appointments.Where(x => x.Place == from && from != location && (x.Worker == person || x.Client == person)))
+			appointment.ClearDeclined();
+		m_scheduler.OnCompanyChanged(location);
 
 		// The player sees themselves arrive, and anyone else come or go where they are.
 		var seen = from == location ? null :
@@ -1537,7 +1964,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 
 	internal void OnTaskStarted(Person person, PersonTask task, TimePoint time)
 	{
-		if (person.Location == Player.Location)
+		if (person.Location == PlayerSeenLocation || person == Player)
 			LogTaskStarted(person, task, time);
 		SeeEachOther(person, time);
 		TaskStarted?.Invoke(this, new PersonTaskEventArgs(person, task, time));
@@ -1545,8 +1972,38 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	}
 
 	/// <summary>
+	/// Where the player sees what happens, for the event log: where they are, or nowhere while they're walking away from it.
+	/// </summary>
+	private Location? PlayerSeenLocation => m_isPlayerWalking || Player.CurrentTask is TravelTask ? null : Player.Location;
+
+	/// <summary>
+	/// Has the player walk to a location next to theirs, which takes the travel time between them, and can't be stopped
+	/// partway, while time passes for everyone. Someone asking them to chat on the way stops them where they are. Returns
+	/// whether they got there.
+	/// </summary>
+	public async Task<bool> WalkPlayerToAsync(Location location)
+	{
+		ArgumentNullException.ThrowIfNull(location);
+		m_isPlayerWalking = true;
+		try
+		{
+			await AdvanceTimeAsync(GetTravelTime(Player.Location, location), canStop: false, isPaced: false).ConfigureAwait(true);
+		}
+		finally
+		{
+			m_isPlayerWalking = false;
+		}
+
+		var isThere = Player.TalkRequest is null;
+		if (isThere)
+			await MovePlayerAsync(location).ConfigureAwait(true);
+		return isThere;
+	}
+
+	/// <summary>
 	/// Logs someone in the player's location starting a task, unless it only carries on with what was last logged for
-	/// them, such as resting again, or it's the other half of a talk just logged. Walking isn't logged, since leaving is.
+	/// them (other than changing clothes in between), such as resting again, or following someone again after changing with
+	/// them, or it's the other half of a talk just logged. Walking isn't logged, since leaving is.
 	/// </summary>
 	private void LogTaskStarted(Person person, PersonTask task, TimePoint time)
 	{
@@ -1555,9 +2012,12 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		{
 			BusyTask { IsAside: true } => new LogEntry(time, LogEntryKind.ChangingClothes, person, location),
 			BusyTask busy => person.Goal is { } goal
-				? new LogEntry(time, LogEntryKind.Busy, person, location, Need: goal, Step: busy.Step is { } step && step < goal.Steps.Count ? step : null)
+				? new LogEntry(time, LogEntryKind.Busy, person, location, Need: goal, Step: busy.Step is { } step && step < goal.Steps.Count ? step : null,
+					Other: ActivityText.HasPartner(goal.GetActivity(busy.Step, person.Business?.Profession.Id)) ? person.Current?.Partner : null)
 				: new LogEntry(time, LogEntryKind.Idle, person, location),
+			ChangeClothesTask { IsCoverUp: true } => new LogEntry(time, LogEntryKind.CoveringUp, person, location),
 			ChangeClothesTask => new LogEntry(time, LogEntryKind.ChangingClothes, person, location),
+			PrivacyTask => new LogEntry(time, LogEntryKind.WaitingForPrivacy, person, location),
 			TalkTask talk => new LogEntry(time, LogEntryKind.Talking, person, location, Other: talk.With),
 			WaitTask wait => new LogEntry(time, LogEntryKind.Waiting, person, location, Other: wait.For),
 			MeetTask meet => new LogEntry(time, LogEntryKind.Meeting, person, location, Other: meet.Appointment.GetOther(person)),
@@ -1565,12 +2025,18 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 			_ => null,
 		};
 
-		var isRepeat = entry is not null && EventLog.GetLatest(person) is { } latest && latest with { Time = time } == entry;
+		var latest = entry is null ? null : IsChangingClothes(entry) ? EventLog.GetLatest(person) : EventLog.GetLatest(person, x => !IsChangingClothes(x));
+		var isRepeat = entry is not null && latest is not null && latest with { Time = time } == entry;
 		var isOtherHalf = entry is { Kind: LogEntryKind.Talking } && EventLog.Entries.Count != 0 && EventLog.Entries[^1] is { Kind: LogEntryKind.Talking } last &&
 			last.Time == time && last.Person == entry.Other && last.Other == person;
 		if (entry is not null && !isRepeat && !isOtherHalf)
 			EventLog.Add(entry);
 	}
+
+	/// <summary>
+	/// Whether an entry in the event log is someone changing clothes, which can come in the middle of what they're doing.
+	/// </summary>
+	private static bool IsChangingClothes(LogEntry entry) => entry.Kind is LogEntryKind.ChangingClothes or LogEntryKind.CoveringUp or LogEntryKind.WaitingForPrivacy;
 
 	/// <summary>
 	/// Has someone and everyone else where they are see each other doing what they're doing now. Anyone asleep sees no
@@ -1593,10 +2059,10 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	internal static Sighting Observe(Person person, TimePoint time) => person.CurrentTask switch
 	{
 		TravelTask travel => new Sighting(person.Location, time, SightingActivity.Walking, Destination: travel.Destination),
-		TalkTask => new Sighting(person.Location, time, SightingActivity.Talking),
-		WaitTask => new Sighting(person.Location, time, SightingActivity.Idle),
+		TalkTask talk => new Sighting(person.Location, time, SightingActivity.Talking, With: talk.With),
+		WaitTask or PrivacyTask => new Sighting(person.Location, time, SightingActivity.Idle),
 		BusyTask busy => person.Goal is { } goal
-			? new Sighting(person.Location, time, SightingActivity.Busy, goal, Doing: goal.GetActivity(busy.Step, person.Business?.Profession.Id))
+			? new Sighting(person.Location, time, SightingActivity.Busy, goal, Doing: ActivityText.Fill(goal.GetActivity(busy.Step, person.Business?.Profession.Id), person.Current))
 			: new Sighting(person.Location, time, SightingActivity.Idle),
 		_ => new Sighting(person.Location, time, SightingActivity.None),
 	};
@@ -1647,6 +2113,9 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	private const int MaxPlayerRuns = 7;
 
 	private readonly Scheduler m_scheduler;
+
+	// The place the player's steps needed them to go when it was last checked, which became their destination.
+	private Location? m_stepsDestination;
 	private readonly System.Collections.ObjectModel.Collection<Appointment> m_appointments;
 	private readonly System.Collections.ObjectModel.Collection<Job> m_jobs;
 	private bool m_isHeadless;
@@ -1654,14 +2123,68 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	// Who left where at the moment of the last departure, so people who leave together see each other go. It's only
 	// needed until time moves on, so it isn't saved.
 	private readonly Collection<(Person Person, Location From, Location To)> m_departures = [];
+
+	// Whether the player is walking to the next location themselves (see WalkPlayerToAsync), which is only while time passes.
+	private bool m_isPlayerWalking;
 	private TimePoint? m_departureTime;
 	private TimePoint m_time;
+}
+
+/// <summary>
+/// How far along the player (or their family, for a need it shares) is with a quota need this day or week: how much is
+/// done of how much it takes, in minutes, or in runs for a quota measured in runs, and whether it can be worked on today.
+/// </summary>
+public sealed record PlayerQuotaProgress(Need Need, long Done, long Total, bool IsOpenToday)
+{
+	/// <summary>
+	/// How much of it is done, from 0 to 1. A quota of nothing is done.
+	/// </summary>
+	public double Fraction => Total <= 0 ? 1 : (double) Done / Total;
 }
 
 /// <summary>
 /// Something the player can start: a need, whether they can start it now (and if not, why), and whether they're already
 /// in the middle of its steps, which starting it carries on with.
 /// </summary>
+/// <summary>
+/// A time the player can wait until (see <see cref="GameWorld.GetPlayerWaitChoices"/>) and why, with the part of the day
+/// it starts, for the next part of the day, the appointment, for setting off, and the step's title, for a step that opens.
+/// </summary>
+public sealed record PlayerWaitChoice(TimePoint Until, PlayerWaitReason Reason, CalendarDayPart? DayPart = null, Appointment? Appointment = null, string? Title = null);
+
+/// <summary>
+/// Why the player might wait until a time.
+/// </summary>
+public enum PlayerWaitReason
+{
+	/// <summary>
+	/// For so many minutes, offered by the schedules.
+	/// </summary>
+	Minutes,
+
+	/// <summary>
+	/// Until the next part of the day, offered by the schedules.
+	/// </summary>
+	DayPart,
+
+	/// <summary>
+	/// Until it's time to set off for the next appointment.
+	/// </summary>
+	SetOff,
+
+	/// <summary>
+	/// Until the step they're on opens.
+	/// </summary>
+	Opens,
+}
+
+/// <summary>
+/// A shorter shift the player can choose for a quota need (see <see cref="GameWorld.GetPlayerShiftChoices"/>): how many
+/// minutes they'd spend on it, when that would end, walking there included, and for one that ends with the next part of
+/// the day, which part it is.
+/// </summary>
+public sealed record PlayerShiftChoice(int Minutes, TimePoint Until, CalendarDayPart? DayPart);
+
 public sealed record PlayerStartChoice(Need Need, PlayerStartBlock Block, bool IsInProgress)
 {
 	public bool CanStart => Block == PlayerStartBlock.None;
@@ -1757,7 +2280,7 @@ public sealed record PlayerAsk(StepSequence Sequence, int StepIndex)
 /// <summary>
 /// Tells that a step of someone's failed, and why.
 /// </summary>
-public sealed class StepFailedEventArgs(Person person, StepSequence sequence, int step, FailCause cause) : EventArgs
+public sealed class StepFailedEventArgs(Person person, StepSequence sequence, int step, FailCause cause, TimePoint time, Person? who = null, bool isEnding = true) : EventArgs
 {
 	public Person Person { get; } = person;
 
@@ -1769,6 +2292,22 @@ public sealed class StepFailedEventArgs(Person person, StepSequence sequence, in
 	public int Step { get; } = step;
 
 	public FailCause Cause { get; } = cause;
+
+	/// <summary>
+	/// When it failed, which can be before the world's time while time is passing.
+	/// </summary>
+	public TimePoint Time { get; } = time;
+
+	/// <summary>
+	/// Who the failure was down to, if anyone in particular: who said no, didn't come, or was too shy.
+	/// </summary>
+	public Person? Who { get; } = who;
+
+	/// <summary>
+	/// Whether it gives up the steps (finishing up first, if they have "finally" steps), rather than carrying on with them
+	/// some other way.
+	/// </summary>
+	public bool IsEnding { get; } = isEnding;
 }
 
 /// <summary>
@@ -1788,4 +2327,16 @@ public sealed class AppointmentMissedEventArgs(Appointment appointment, bool isO
 	/// Whether the one they were to meet was waiting there and gave up, rather than never coming.
 	/// </summary>
 	public bool IsOtherWaiting { get; } = isOtherWaiting;
+}
+
+/// <summary>
+/// What the player can do instead of just stopping a sequence of steps: finish up, carrying out the "finally" steps still
+/// to do, and keep the bundle its steps made, to finish them later, if they carry one (or null).
+/// </summary>
+public sealed record PlayerStopOptions(bool CanFinishUp, Bundle? Kept)
+{
+	/// <summary>
+	/// Whether there's anything to do other than just stopping, so the player should be asked.
+	/// </summary>
+	public bool HasChoice => CanFinishUp || Kept is not null;
 }

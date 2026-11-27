@@ -502,6 +502,80 @@ public sealed class PlaceFieldViewModel : FieldViewModel
 }
 
 /// <summary>
+/// An entry in an outfit's clothing: a clothing id, or a choice among options, whose options are edited below it.
+/// </summary>
+public sealed class OutfitClothingFieldViewModel : FieldViewModel
+{
+	public OutfitClothingFieldViewModel(FormViewModel form, string label, ValueSlot slot, bool isRequired, string? propertyId, FieldPlace? place = null)
+		: base(form, label, slot, isRequired, place)
+	{
+		m_propertyId = propertyId;
+		m_selected = slot.Get() switch
+		{
+			JsonValue value when value.GetValueKind() == JsonValueKind.String => value.GetValue<string>(),
+			JsonObject => OptionsChoice,
+			_ => "",
+		};
+		var clothing = form.Catalog.GetIds("clothing");
+		var all = (isRequired ? clothing : clothing.Prepend("")).Append(OptionsChoice);
+		Choices = (m_selected.Length != 0 && !all.Contains(m_selected, StringComparer.Ordinal) ? all.Append(m_selected) : all).ToList();
+		m_details = CreateDetails();
+	}
+
+	/// <summary>
+	/// The clothing ids, then the choice for options.
+	/// </summary>
+	public IReadOnlyList<string> Choices { get; }
+
+	public string Selected
+	{
+		get => VerifyAccess(m_selected);
+		set
+		{
+			if (!SetPropertyField(value ?? "", ref m_selected))
+				return;
+
+			// Choosing options starts with none.
+			if (m_selected == OptionsChoice)
+			{
+				Slot.Set(new JsonObject { ["options"] = new JsonArray() });
+				Changed();
+			}
+			else
+			{
+				SetOrRemove(JsonValue.Create(m_selected), m_selected.Length == 0);
+			}
+
+			Details = CreateDetails();
+		}
+	}
+
+	/// <summary>
+	/// The options, or null for a clothing id.
+	/// </summary>
+	public ObjectFieldViewModel? Details
+	{
+		get => VerifyAccess(m_details);
+		private set => SetPropertyField(value, ref m_details);
+	}
+
+	public override void Refresh() => m_details?.Refresh();
+
+	private ObjectFieldViewModel? CreateDetails() => Slot.Get() is JsonObject
+		? new ObjectFieldViewModel(Form, Label, new DataType(DataKind.Object, typeof(OutfitClothingChoice)), Slot, isRequired: true, isRoot: false, m_propertyId, Place)
+		: null;
+
+	/// <summary>
+	/// The choice for an entry that's a choice among options.
+	/// </summary>
+	public const string OptionsChoice = "(options)";
+
+	private readonly string? m_propertyId;
+	private string m_selected;
+	private ObjectFieldViewModel? m_details;
+}
+
+/// <summary>
 /// Any value, edited as JSON, for values the form doesn't know the shape of.
 /// </summary>
 public sealed class JsonFieldViewModel : FieldViewModel
@@ -1186,6 +1260,10 @@ public static class FieldFactory
 		// Places are named or written as an object, which the game reads with a converter of its own.
 		if (type.ClrType == typeof(SchedulePlace))
 			return new PlaceFieldViewModel(form, label, slot, isRequired, propertyId, place);
+
+		// Outfit clothing is a clothing id or written as an object of options, which the game reads with a converter of its own.
+		if (type.ClrType == typeof(OutfitClothing))
+			return new OutfitClothingFieldViewModel(form, label, slot, isRequired, propertyId, place);
 
 		return type.Kind switch
 		{

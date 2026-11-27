@@ -8,9 +8,9 @@
 	Height="800"
 	MinWidth="500"
 	MinHeight="300"
-	Background="{DynamicResource WindowBackgroundBrush}"
+	Background="{DynamicResource SurfaceBrush}"
 	FontSize="{DynamicResource DefaultFontSize}"
-	Foreground="{DynamicResource FontBrush}"
+	Foreground="{DynamicResource TextBrush}"
 	Icon="pack://application:,,,/ModEditor;component/Icon.ico"
 	ShowInTaskbar="False"
 	WindowStartupLocation="CenterOwner">
@@ -48,7 +48,7 @@
 										</DataTrigger>
 										<DataTrigger Binding="{Binding Level}" Value="5">
 											<Setter Property="Margin" Value="24,0,0,0" />
-											<Setter Property="Foreground" Value="{DynamicResource FontLightBrush}" />
+											<Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
 										</DataTrigger>
 									</Style.Triggers>
 								</Style>
@@ -83,7 +83,7 @@
 				x:Name="FindStatus"
 				Margin="0,0,0,4"
 				DockPanel.Dock="Bottom"
-				Foreground="{DynamicResource FontLightBrush}" />
+				Foreground="{DynamicResource TextMutedBrush}" />
 			<FlowDocumentScrollViewer
 				x:Name="Reader"
 				Background="White"

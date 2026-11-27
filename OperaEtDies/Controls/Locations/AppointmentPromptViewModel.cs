@@ -7,7 +7,7 @@ namespace OperaEtDies.Controls.Locations;
 /// Asks the player, once it's time to set off for an appointment their sequence is for, whether to set off or call it
 /// off, shown on top of everything else until they answer.
 /// </summary>
-public sealed class AppointmentPromptViewModel : ViewModelBase
+public sealed class AppointmentPromptViewModel : ViewModelBase, INumberedChoices
 {
 	public AppointmentPromptViewModel(GameWorld world, StepSequence sequence)
 	{
@@ -55,5 +55,21 @@ public sealed class AppointmentPromptViewModel : ViewModelBase
 	{
 		VerifyAccess();
 		CalledOff.Raise(this);
+	}
+
+	/// <summary>
+	/// Presses the numbered button: 1 to set off, 2 to call it off.
+	/// </summary>
+	public bool ChooseNumber(int number)
+	{
+		VerifyAccess();
+		var choice = number switch
+		{
+			1 => (Action) SetOffNow,
+			2 => CallOff,
+			_ => null,
+		};
+		choice?.Invoke();
+		return choice is not null;
 	}
 }

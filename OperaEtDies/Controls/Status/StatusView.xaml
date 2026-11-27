@@ -8,144 +8,121 @@
 	<!--  Someone's needs (usually the player's), each with how they're doing, whether it's done, and any note beside it. For
 		developers, each also has a slider that changes it.  -->
 	<DataTemplate DataType="{x:Type local:StatusViewModel}">
-		<Grid Margin="24">
-			<Grid.RowDefinitions>
-				<RowDefinition Height="Auto" />
-				<RowDefinition Height="*" />
-			</Grid.RowDefinitions>
-
-			<DockPanel Grid.Row="0" LastChildFill="True">
-				<Button
-					Width="120"
-					Height="32"
-					VerticalAlignment="Center"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Close}"
-					Content="{x:Static operaEtDies:OurResources.CloseView}"
-					DockPanel.Dock="Right" />
+		<ScrollViewer
+			HorizontalScrollBarVisibility="Disabled"
+			VerticalScrollBarVisibility="Auto">
+			<StackPanel>
 				<TextBlock
-					FontSize="{DynamicResource TitleFontSize}"
-					Text="{Binding Title}"
-					TextWrapping="Wrap" />
-			</DockPanel>
+					Margin="0,12,0,8"
+					FontSize="{DynamicResource LargeFontSize}"
+					FontWeight="Bold"
+					Text="{x:Static operaEtDies:OurResources.NeedsHeader}" />
+				<ItemsControl ItemsSource="{Binding Needs}">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate DataType="{x:Type local:NeedStatusViewModel}">
+							<Grid Margin="0,0,0,8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="Auto" />
+									<ColumnDefinition Width="Auto" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<TextBlock Grid.Column="0" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+								<TextBlock Grid.Column="1" Margin="12,0,0,0" Text="{Binding Value}" />
+								<!--  A need that's done for the day or week is marked, so it stands out from the ones still to do.  -->
+								<Border
+									Grid.Column="2"
+									Margin="12,0,0,0"
+									Padding="6,0"
+									VerticalAlignment="Center"
+									Background="{DynamicResource AccentBrush}"
+									Visibility="{Binding IsDone, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+									<TextBlock
+										FontWeight="Bold"
+										Foreground="{DynamicResource TextOnAccentBrush}"
+										Text="{x:Static operaEtDies:OurResources.NeedStatusDone}" />
+								</Border>
+								<TextBlock
+									Grid.Column="3"
+									Margin="12,0,0,0"
+									Foreground="{DynamicResource TextMutedBrush}"
+									Text="{Binding Note}"
+									TextWrapping="Wrap" />
 
-			<ScrollViewer
-				Grid.Row="1"
-				Margin="0,12,0,0"
-				HorizontalScrollBarVisibility="Disabled"
-				VerticalScrollBarVisibility="Auto">
-				<StackPanel>
+								<!--  For developers, a slider that changes how far along the need is, with the amount beside it.  -->
+								<Border
+									Grid.Row="1"
+									Grid.Column="1"
+									Grid.ColumnSpan="3"
+									Margin="12,4,0,0"
+									HorizontalAlignment="Left"
+									Style="{DynamicResource DeveloperBorderStyle}"
+									Visibility="{Binding IsDeveloper, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+									<StackPanel Orientation="Horizontal">
+										<Slider
+											Width="240"
+											VerticalAlignment="Center"
+											IsSnapToTickEnabled="True"
+											Maximum="{Binding Maximum}"
+											Minimum="0"
+											TickFrequency="1"
+											Value="{Binding Amount}" />
+										<TextBlock
+											MinWidth="40"
+											Margin="8,0,0,0"
+											VerticalAlignment="Center"
+											Text="{Binding Amount}"
+											TextAlignment="Right" />
+									</StackPanel>
+								</Border>
+							</Grid>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+
+				<!--  The player's appointments.  -->
+				<StackPanel Visibility="{Binding Appointments, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
 					<TextBlock
 						Margin="0,12,0,8"
 						FontSize="{DynamicResource LargeFontSize}"
 						FontWeight="Bold"
-						Text="{x:Static operaEtDies:OurResources.NeedsHeader}" />
-					<ItemsControl ItemsSource="{Binding Needs}">
+						Text="{x:Static operaEtDies:OurResources.StatusAppointmentsHeader}" />
+					<ItemsControl ItemsSource="{Binding Appointments}">
 						<ItemsControl.ItemTemplate>
-							<DataTemplate DataType="{x:Type local:NeedStatusViewModel}">
-								<Grid Margin="0,0,0,8">
-									<Grid.ColumnDefinitions>
-										<ColumnDefinition Width="160" />
-										<ColumnDefinition Width="Auto" />
-										<ColumnDefinition Width="Auto" />
-										<ColumnDefinition Width="*" />
-									</Grid.ColumnDefinitions>
-									<Grid.RowDefinitions>
-										<RowDefinition Height="Auto" />
-										<RowDefinition Height="Auto" />
-									</Grid.RowDefinitions>
-									<TextBlock Grid.Column="0" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-									<TextBlock Grid.Column="1" Margin="12,0,0,0" Text="{Binding Value}" />
-									<!--  A need that's done for the day or week is marked, so it stands out from the ones still to do.  -->
-									<Border
-										Grid.Column="2"
-										Margin="12,0,0,0"
-										Padding="6,0"
-										VerticalAlignment="Center"
-										Background="{DynamicResource MapCurrentBrush}"
-										Visibility="{Binding IsDone, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
-										<TextBlock
-											FontWeight="Bold"
-											Foreground="{DynamicResource MapVillageBrush}"
-											Text="{x:Static operaEtDies:OurResources.NeedStatusDone}" />
-									</Border>
-									<TextBlock
-										Grid.Column="3"
-										Margin="12,0,0,0"
-										Foreground="{DynamicResource FontLightBrush}"
-										Text="{Binding Note}"
-										TextWrapping="Wrap" />
-
-									<!--  For developers, a slider that changes how far along the need is, with the amount beside it.  -->
-									<Border
-										Grid.Row="1"
-										Grid.Column="1"
-										Grid.ColumnSpan="3"
-										Margin="12,4,0,0"
-										HorizontalAlignment="Left"
-										Style="{DynamicResource DeveloperBorderStyle}"
-										Visibility="{Binding IsDeveloper, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
-										<StackPanel Orientation="Horizontal">
-											<Slider
-												Width="240"
-												VerticalAlignment="Center"
-												IsSnapToTickEnabled="True"
-												Maximum="{Binding Maximum}"
-												Minimum="0"
-												TickFrequency="1"
-												Value="{Binding Amount}" />
-											<TextBlock
-												MinWidth="40"
-												Margin="8,0,0,0"
-												VerticalAlignment="Center"
-												Text="{Binding Amount}"
-												TextAlignment="Right" />
-										</StackPanel>
-									</Border>
-								</Grid>
+							<DataTemplate>
+								<TextBlock
+									Margin="0,0,0,8"
+									Text="{Binding}"
+									TextWrapping="Wrap" />
 							</DataTemplate>
 						</ItemsControl.ItemTemplate>
 					</ItemsControl>
-
-					<!--  The player's appointments.  -->
-					<StackPanel Visibility="{Binding Appointments, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
-						<TextBlock
-							Margin="0,12,0,8"
-							FontSize="{DynamicResource LargeFontSize}"
-							FontWeight="Bold"
-							Text="{x:Static operaEtDies:OurResources.StatusAppointmentsHeader}" />
-						<ItemsControl ItemsSource="{Binding Appointments}">
-							<ItemsControl.ItemTemplate>
-								<DataTemplate>
-									<TextBlock
-										Margin="0,0,0,8"
-										Text="{Binding}"
-										TextWrapping="Wrap" />
-								</DataTemplate>
-							</ItemsControl.ItemTemplate>
-						</ItemsControl>
-					</StackPanel>
-
-					<!--  The player's jobs, last, so showing them doesn't move anything.  -->
-					<StackPanel Visibility="{Binding HasJobs, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
-						<TextBlock
-							Margin="0,12,0,8"
-							FontSize="{DynamicResource LargeFontSize}"
-							FontWeight="Bold"
-							Text="{x:Static operaEtDies:OurResources.StatusJobsHeader}" />
-						<ItemsControl ItemsSource="{Binding Jobs}">
-							<ItemsControl.ItemTemplate>
-								<DataTemplate>
-									<TextBlock
-										Margin="0,0,0,8"
-										Text="{Binding}"
-										TextWrapping="Wrap" />
-								</DataTemplate>
-							</ItemsControl.ItemTemplate>
-						</ItemsControl>
-					</StackPanel>
 				</StackPanel>
-			</ScrollViewer>
-		</Grid>
+
+				<!--  The player's jobs, last, so showing them doesn't move anything.  -->
+				<StackPanel Visibility="{Binding HasJobs, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+					<TextBlock
+						Margin="0,12,0,8"
+						FontSize="{DynamicResource LargeFontSize}"
+						FontWeight="Bold"
+						Text="{x:Static operaEtDies:OurResources.StatusJobsHeader}" />
+					<ItemsControl ItemsSource="{Binding Jobs}">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate>
+								<TextBlock
+									Margin="0,0,0,8"
+									Text="{Binding}"
+									TextWrapping="Wrap" />
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+				</StackPanel>
+			</StackPanel>
+		</ScrollViewer>
 	</DataTemplate>
 
 </ResourceDictionary>

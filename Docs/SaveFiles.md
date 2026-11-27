@@ -1,6 +1,6 @@
 # Save Files
 
-Saved games are kept in `%LocalAppData%\Golden Anvil\<game title>\Saves`, where any characters in the title that can't be used in a folder name are replaced with `_`. Each save is a separate file, named after the player and the time it was saved, with the extension `.json`. Every `.json` file in the folder is listed when loading a game.
+Saved games are kept in `%LocalAppData%\Golden Anvil\<game title>\Saves`, where any characters in the title that can't be used in a folder name are replaced with `_`. Each save is a separate file, named after the player and the time it was saved, with the extension `.json`. The quick save (F5) is the one exception: it's always `Quick save.json`, replaced by each quick save, and the list of saved games marks it as the quick save. Every `.json` file in the folder is listed when loading a game.
 
 ## General Rules
 
@@ -91,11 +91,13 @@ A quarter, house, or business's place.
 | `needs` | object | The level of each level need, keyed by need id, as of `time`. Each key must be the id of a level need in `needs`, and each level must be from 0 to 100. A level need that isn't listed is at 0. |
 | `progress` | object | What's been done of quota needs this day or week (as each need's period says), keyed by need id, as of `time`: the minutes spent on a quota measured in time, or the runs finished of one measured in runs. Each key must be the id of a quota need in `needs`, and each value must be a whole number of at least 0. A quota need that isn't listed has had nothing done of it. |
 | `sequences` | list of Sequence | Optional. The sequences of steps the person is in the middle of, in the order they were last current, so the last that has set off is the one they're carrying out (whose need is their goal), and the others are on hold, or for appointments, waiting for them to set off. Missing or `null` if there are none. |
-| `replacedClothes` | list of Replaced Clothes | Optional. For each outfit the person changed into that replaced clothes they were wearing, the pieces it replaced, which they change back into when they change out of it. |
+| `replacedClothes` | list of Replaced Clothes | Optional. For each outfit the person changed into that replaced clothes they were wearing, the pieces it replaced, which they change back into when they change out of it, and each outfit of nothing at all they changed into, with what it replaced, even if that was nothing. |
 | `goalChoice` | Goal Choice | Optional. How the person last chose their goal from their needs. Missing or `null` if their plan was last set some other way, as for the player. |
 | `sightings` | list of Sighting | Optional. The last time the person saw each other person, or heard about them, in the last `sightingHours` hours (from `schedules`). Missing or `null` if there are none. At most one for each other person, and none of the person themselves. |
 | `talkRequest` | world id | Optional. For the player, someone who asked them to chat and is waiting for an answer, or `null` if no one is. Must be a person. |
 | `askRequest` | world id | Optional. For the player, someone who asked them the question of the `ask` step they're on, while they're waiting for an answer, or `null` if no one is. Must be a person. |
+| `startRequest` | world id | Optional. For the player, an appointment of theirs whose other one asked whether they're ready to start it, or told them they're ready now, while waiting for an answer, or `null` if there's none. Must be an appointment. |
+| `destination` | world id | Optional. For the player, the place they're heading for, chosen by them or by their steps, or `null` if they aren't heading anywhere in particular. Reaching it clears it. Must be a location. |
 | `hasNapped` | boolean | Optional (defaults to false). Whether the person has napped since they last slept until rested. |
 | `inventory` | list of world id | Optional. The items the person is carrying. Missing or `null` if there are none. Each must be an item. |
 | `clothing` | list of world id | Optional. The clothing the person is wearing. Missing or `null` if there is none. Each must be clothing, and no two can take the same clothing slot in the same layer. |
@@ -142,7 +144,9 @@ A time and place two people agreed to meet, made by an `ask` step with an `appoi
 | `step` | number | The index of that `ask` step in the need's steps. It must make appointments. |
 | `place` | world id | Where they meet. Must be a location. |
 | `time` | string | When they meet, written the same way as `time`. |
-| `isStarted` | boolean | Optional (false). Whether both arrived, and the worker is carrying out its steps. |
+| `isStarted` | boolean | Optional (false). Whether it started, and the worker is carrying out its steps. |
+| `declinedBy` | world id | Optional. Who last said no to starting it, if neither has left its place since, or `null` if no one has. Must be `worker` or `client`. |
+| `declinedAt` | string | Required with `declinedBy`. When they said no, written the same way as `time`. |
 
 **Job** (`job`)
 
@@ -205,7 +209,7 @@ Something the player saw happen. Its text is built from these and the game data 
 | Property | Type | Notes |
 |---|---|---|
 | `time` | string | When it happened, written the same way as `time`. |
-| `kind` | string | What happened: `arrived` (from `place`, or for the player, at `location`), `left` (for `place`), `busy` (started spending time on `need`), `idle`, `changingClothes`, `talking` (with `other`), `waiting` (for `other`, who they called out to or asked something), `meeting` (waiting to meet `other` for an appointment), `following` (`other`), `failed` (a step of `need` failed), `gaveUpWaiting` (`person`, who the player was to meet, gave up waiting for them), or `neverCame` (`person`, who the player was to meet, never came). |
+| `kind` | string | What happened: `arrived` (from `place`, or for the player, at `location`), `left` (for `place`), `busy` (started spending time on `need`, with `other` being the partner its activity names, if it names one), `idle`, `changingClothes`, `talking` (with `other`), `waiting` (for `other`, who they called out to or asked something), `meeting` (waiting to meet `other` for an appointment), `following` (`other`), `failed` (a step of `need` failed, with `other` being who it was down to, if anyone in particular: who said no, never came, or was too shy), `gaveUpWaiting` (`person`, who the player was to meet, gave up waiting for them), `neverCame` (`person`, who the player was to meet, never came), `coveringUp` (started changing into more clothes), `retreating` (started heading home to cover up), `embarrassed` (looked embarrassed at being less covered than they were comfortable with), `waitingForPrivacy` (started waiting for others to leave before changing), or `exposed` (the player found themselves less covered than they were comfortable with). |
 | `person` | world id | Who it happened to. Must be a person. |
 | `location` | world id | Where it happened. Must be a location. |
 | `other` | world id | Optional. Anyone else it involved, or `null`. Must be a person. |
@@ -250,7 +254,8 @@ Something the player saw happen. Its text is built from these and the game data 
 | `destination` | world id | The next place on their way for `walking` and `left`, and `null` otherwise. Must be a location. |
 | `source` | world id | Optional. Who told the person about the sighting, or `null` if they saw it themselves. Must be a person. |
 | `plan` | Sighting Plan | Optional. What the person seen said they were doing, if they were asked, or `null` if they weren't. |
-| `doing` | string | Optional. For `busy`, what they were shown doing, such as "Washing clothes" (the activity of the step they were on), or `null`. |
+| `doing` | string | Optional. For `busy`, what they were shown doing, such as "Washing clothes" (the activity of the step they were on, with the partner it names filled in), or `null`. |
+| `with` | world id | Optional. For `talking`, who they were talking with, or `null`. Must be a person. |
 
 **Sighting Plan**
 
@@ -272,41 +277,55 @@ One run through a need's steps by a person.
 | `isCarriedOut` | boolean | Optional (false). Whether the step it's on has been carried out by the game, with the tasks it gave, so it's only checked once they're done. |
 | `isCut` | boolean | Optional (false). Whether carrying out the step it's on was cut short by the end of the step's hours. |
 | `until` | string | Optional. When the `wait` or `wander` step it's on is over, written the same way as `time`, once it's been reached, or for following someone who leads them, when their following is over. |
-| `place` | world id | Optional. Where the person was once they got to where the steps it's on are done, or `null` on the way somewhere. Must be a location. |
+| `place` | world id | Optional. Where the person was once they got to where the steps it's on are done, or `null` while it's waiting to set off for an appointment, or on hold for an appointment for the same need. Must be a location. |
 | `takeover` | string | Optional (`none`). For the player, how much of it the game carries out for them: `none`, `step` (the step it's on), or `all`. |
 | `appointment` | world id | Optional. The appointment it's for: its steps, for its worker, or the client's part in them. Must be an appointment. |
 | `setOff` | string | Optional (`gone`). For an appointment's sequence, whether the person has set off for it: `gone` (they have, as for any other sequence), `waiting` (it isn't time yet), or `due` (it's time for the player to set off, and they're being asked whether to). Only `gone` without an `appointment`. |
 | `partner` | world id | Optional. The person its steps last talked with or asked. Must be a person. |
 | `seeking` | Seek Choice | Optional. Which friend its `seek` step chose to look for (or that it's looking for anyone who meets a condition), where, and why. |
 | `answers` | object | Optional. The answers to the questions its steps asked, keyed by name, as booleans (true for yes). |
+| `shyAnswers` | map of string to world id | Optional. The questions in `answers` that were answered no because someone would have been too shy for what they asked, by name, with the person who would have been. |
 | `rememberedPlaces` | object | Optional. The places its steps remembered, keyed by name, as world ids. Each must be a location. |
 | `bundles` | object | Optional. The bundles its steps took or made, keyed by the step's bundle id, as world ids. Each must be a bundle. |
 | `role` | string | Optional (`steps`). `steps` for a run through the need's steps, or for taking part in someone else's: `client` (keeping an appointment as its client, whose `need` is the worker's) or `follower` (following someone who leads them, as part of the leader's `need`). |
 | `leader` | world id | Optional. For taking part in someone else's steps, who the person follows, once they're following. Must be a person. |
+| `unwind` | Step Unwind | Optional. While it's leaving its steps, carrying out their `finally` steps on the way somewhere, where it's going, or `null`. |
+| `keptSince` | string | Optional. For the player, when they started keeping a bundle its steps made to finish later, rather than the steps being given up, written the same way as `time`, or `null`. |
+
+**Step Unwind**
+
+The indexes are of the need's steps as the engine lays them out, as for `step`.
+
+| Property | Type | Notes |
+|---|---|---|
+| `running` | integer | The index of the first `finally` step of the list of steps whose `finally` steps it's carrying out. Must be one. |
+| `queue` | list of integer | Optional. The first `finally` steps of the other lists of steps it's leaving, to carry out after those, innermost first. Each must be one. |
+| `to` | integer | The step it goes on to once they're done, or the number of steps, to end it. From 0 to the number of steps. |
 
 **Replaced Clothes**
 
 | Property | Type | Notes |
 |---|---|---|
 | `outfit` | world id | The outfit changed into. Must be an outfit. |
-| `pieces` | list of world id | The pieces it replaced. Each must be a piece of clothing. |
+| `pieces` | list of world id | The pieces it replaced, which can be empty for an outfit of nothing at all. Each must be a piece of clothing. |
 
 **Task**
 
-One step toward a person's goal. Each task's `kind` property says which kind it is, and must come first. A talk or wait task can come before the person's other tasks, since it interrupts them.
+One step toward a person's goal. Each task's `kind` property says which kind it is, and must come first. A talk or wait task, or a `changeClothes` task covering up, can come before the person's other tasks, since it interrupts them.
 
 | Kind | Other properties | Notes |
 |---|---|---|
-| `travel` | `destination` (world id) | Walks to a location next to the person's. Must be a location. |
+| `travel` | `destination` (world id), `isRetreat` (boolean, optional) | Walks to a location next to the person's. Must be a location. With `isRetreat` true, it's part of heading home to cover up. |
 | `busy` | `minutes` (number, optional), `step` (number, optional), `isAside` (boolean, optional) | Spends time where the person is, for the step of the goal's steps with the index `step`, if any. Without `minutes` (or with `null`), it lasts until the goal's level need reaches 0. With `isAside` true, it's time aside from the goal, such as the player changing clothes, which meets no need. |
 | `atWork` | `isAtWork` (boolean) | Starts or stops work, which takes no time. |
 | `talk` | `with` (world id), `minutes` (number), `need` (string, optional) | Talks with someone for that many minutes, interrupting what the person was doing. `with` must be a person. `need`, if given, is the id of a need in `needs` met while they talk, such as socializing with a friend, or the quota of a `talk` step that meets it. |
 | `wait` | `for` (world id), `minutes` (number) | Waits where the person is for someone who called out to them, for that many minutes, interrupting what the person was doing. `for` must be a person. |
 | `follow` | `leader` (world id), `minutes` (number) | Follows someone wherever they go, for at most that many minutes, interrupting what the person was doing, until they're let go. `leader` must be a person. |
 | `meet` | `appointment` (world id), `minutes` (number) | Waits where the person is for an appointment, for that many minutes: until its time, or a while longer for the other to arrive. `appointment` must be an appointment. |
-| `changeClothes` | `outfit` (world id), `isTakingOff` (boolean) | Changes into the outfit, or out of it, such as out of work clothes after work, which takes the `changeMinutes` in the `schedules` settings. Must be an outfit. |
+| `changeClothes` | `outfit` (world id), `isTakingOff` (boolean), `isCoverUp` (boolean, optional) | Changes into the outfit, or out of it, such as out of work clothes after work, which takes the `changeMinutes` in the `schedules` settings. Must be an outfit. With `isCoverUp` true, it's covering up, interrupting what the person was doing, and it's called off if they become comfortable before it ends. |
+| `privacy` | `minutes` (number) | Waits where the person is for that many minutes, without spending the time on anything, for others to leave so they can change clothes. |
 
-A `travel`, `busy`, `talk`, `wait`, `follow`, `meet`, or `changeClothes` task that was interrupted has `resumeMinutes` (number), the minutes it had left, which it takes when it starts again. It's missing or `null` for a task that wasn't interrupted.
+A `travel`, `busy`, `talk`, `wait`, `follow`, `meet`, `changeClothes`, or `privacy` task that was interrupted has `resumeMinutes` (number), the minutes it had left, which it takes when it starts again. It's missing or `null` for a task that wasn't interrupted.
 **Rect**
 
 | Property | Type | Notes |

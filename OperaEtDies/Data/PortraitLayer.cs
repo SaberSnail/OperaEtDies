@@ -42,6 +42,18 @@ public sealed class PortraitLayer : IIdentified
 	public PortraitHiddenBy? HiddenBy { get; init; }
 
 	/// <summary>
+	/// What the layer cuts away from the layers under it while it's drawn, such as the hair under a hat's crown, or null if
+	/// it cuts nothing.
+	/// </summary>
+	public PortraitCut? Cut { get; init; }
+
+	/// <summary>
+	/// Whether the layer is only drawn over the character: over the filled shapes of the layers under it that are drawn
+	/// anywhere (without <see cref="At"/>), so it never spills onto the background, such as dust on the clothes and hair.
+	/// </summary>
+	public bool OnCharacter { get; init; }
+
+	/// <summary>
 	/// Colors only the layer uses, worked out in order after the portrait colors and the colors of the clothing it
 	/// draws, which they can use. In the layer, a layer color takes the place of a clothing or portrait color with the
 	/// same id, and a clothing color takes the place of a portrait color.
@@ -181,6 +193,28 @@ public enum PortraitGradient
 	/// From the center of the shape out to its edges.
 	/// </summary>
 	Radial,
+}
+
+/// <summary>
+/// What a portrait layer cuts away from the layers under it: the parts inside its path of the layers that clothing over
+/// any of its regions can hide (whose <see cref="PortraitLayer.HiddenBy"/> names one of them).
+/// </summary>
+public sealed class PortraitCut
+{
+	/// <summary>
+	/// The area cut away, in WPF path markup, placed with the layer's scale and offset.
+	/// </summary>
+	public required string Path { get; init; }
+
+	/// <summary>
+	/// The ids of the clothing slots (regions of the body) whose layers are cut.
+	/// </summary>
+	public required IReadOnlyList<string> Regions { get; init; }
+
+	/// <summary>
+	/// Whether the cut applies to a layer, by the regions clothing over which can hide it.
+	/// </summary>
+	public bool AppliesTo(PortraitLayer layer) => layer.HiddenBy?.Regions?.Any(x => Regions.Contains(x, StringComparer.Ordinal)) == true;
 }
 
 /// <summary>

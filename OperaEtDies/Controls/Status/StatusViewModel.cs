@@ -9,7 +9,7 @@ namespace OperaEtDies.Controls.Status;
 /// Shows how someone is doing: each of their needs, and for the player, their appointments and jobs. It's usually the player's, but
 /// developers can see anyone's, and change their needs.
 /// </summary>
-public sealed class StatusViewModel : ViewModelBase
+public sealed class StatusViewModel : ViewModelBase, ISheet
 {
 	public StatusViewModel(GameWorld world, bool isDeveloper = false)
 		: this(world, world.Player, isDeveloper)
@@ -30,14 +30,14 @@ public sealed class StatusViewModel : ViewModelBase
 			need.Changed += OnNeedChanged;
 	}
 
-	public event EventHandler? CloseRequested;
-
 	/// <summary>
 	/// The person whose needs are shown.
 	/// </summary>
 	public Person Person { get; }
 
 	public string Title { get; }
+
+	public bool IsFullWidth => false;
 
 	public IReadOnlyList<NeedStatusViewModel> Needs { get; }
 
@@ -62,12 +62,6 @@ public sealed class StatusViewModel : ViewModelBase
 	/// Whether a developer changed any of the needs.
 	/// </summary>
 	public bool IsChanged { get; private set; }
-
-	public void Close()
-	{
-		VerifyAccess();
-		CloseRequested.Raise(this);
-	}
 
 	private static IReadOnlyList<string> GetAppointments(GameWorld world) =>
 		world.GetPlayerAppointments() is { Count: > 0 } appointments ?

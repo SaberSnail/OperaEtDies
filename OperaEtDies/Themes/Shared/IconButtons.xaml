@@ -1,0 +1,145 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:local="clr-namespace:OperaEtDies">
+
+	<!--  A button showing only an icon: its content is one of the geometries in Icons.xaml, stroked in the text color, and
+		sized with the text. It has no border until it's hovered. Like every icon-only button, it needs a tooltip.  -->
+	<Style x:Key="IconButtonStyle" TargetType="{x:Type Button}">
+		<Setter Property="OverridesDefaultStyle" Value="true" />
+		<Setter Property="Focusable" Value="False" />
+		<Setter Property="FocusVisualStyle" Value="{DynamicResource KeyboardFocusVisualStyle}" />
+		<Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Padding" Value="5" />
+		<Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+		<Setter Property="local:TemplateHelper.CornerRadius" Value="{DynamicResource ControlBorderRadius}" />
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="Button">
+					<Border
+						Padding="{TemplateBinding Padding}"
+						Background="{TemplateBinding Background}"
+						CornerRadius="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=(local:TemplateHelper.CornerRadius)}">
+						<Viewbox
+							Width="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static local:EmConverter.Instance}, ConverterParameter=1.25}"
+							Height="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static local:EmConverter.Instance}, ConverterParameter=1.25}">
+							<Canvas Width="24" Height="24">
+								<Path
+									Data="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}"
+									Stroke="{TemplateBinding Foreground}"
+									StrokeEndLineCap="Round"
+									StrokeLineJoin="Round"
+									StrokeStartLineCap="Round"
+									StrokeThickness="1.6" />
+							</Canvas>
+						</Viewbox>
+					</Border>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+
+		<!--  States are style triggers, not template triggers, so styles based on this one can change them.  -->
+		<Style.Triggers>
+			<Trigger Property="IsMouseOver" Value="true">
+				<Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+				<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+			</Trigger>
+			<Trigger Property="IsPressed" Value="true">
+				<Setter Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+			</Trigger>
+			<Trigger Property="IsEnabled" Value="false">
+				<Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+			</Trigger>
+		</Style.Triggers>
+	</Style>
+
+	<!--  A toolbar button in the title bar, clickable through the window chrome. One that stands for something open now,
+		such as a sheet, looks pressed.  -->
+	<Style
+		x:Key="ToolbarButtonStyle"
+		BasedOn="{StaticResource IconButtonStyle}"
+		TargetType="{x:Type Button}">
+		<Setter Property="Margin" Value="2,0" />
+		<Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+		<Style.Triggers>
+			<Trigger Property="local:TemplateHelper.IsActive" Value="true">
+				<Setter Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+			</Trigger>
+		</Style.Triggers>
+	</Style>
+
+	<!--  The title bar's minimize, maximize, and close buttons: as tall as the title bar, square-cornered, and clickable
+		through the window chrome.  -->
+	<Style
+		x:Key="CaptionButtonStyle"
+		BasedOn="{StaticResource IconButtonStyle}"
+		TargetType="{x:Type Button}">
+		<Setter Property="Width" Value="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static local:EmConverter.Instance}, ConverterParameter=2.75}" />
+		<Setter Property="Padding" Value="0" />
+		<Setter Property="local:TemplateHelper.CornerRadius" Value="0" />
+		<Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+	</Style>
+
+	<!--  An icon button that's switched on or off, such as showing all of the player's steps, drawn like an icon button, and
+		pressed while it's on. Unlike the toolbar's, it takes keyboard focus, since it's in the center.  -->
+	<Style x:Key="IconToggleButtonStyle" TargetType="{x:Type ToggleButton}">
+		<Setter Property="OverridesDefaultStyle" Value="true" />
+		<Setter Property="FocusVisualStyle" Value="{DynamicResource KeyboardFocusVisualStyle}" />
+		<Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Padding" Value="5" />
+		<Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+		<Setter Property="local:TemplateHelper.CornerRadius" Value="{DynamicResource ControlBorderRadius}" />
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="ToggleButton">
+					<Border
+						Padding="{TemplateBinding Padding}"
+						Background="{TemplateBinding Background}"
+						CornerRadius="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=(local:TemplateHelper.CornerRadius)}">
+						<Viewbox
+							Width="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static local:EmConverter.Instance}, ConverterParameter=1.25}"
+							Height="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static local:EmConverter.Instance}, ConverterParameter=1.25}">
+							<Canvas Width="24" Height="24">
+								<Path
+									Data="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}"
+									Stroke="{TemplateBinding Foreground}"
+									StrokeEndLineCap="Round"
+									StrokeLineJoin="Round"
+									StrokeStartLineCap="Round"
+									StrokeThickness="1.6" />
+							</Canvas>
+						</Viewbox>
+					</Border>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+		<Style.Triggers>
+			<Trigger Property="IsChecked" Value="true">
+				<Setter Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+			</Trigger>
+			<Trigger Property="IsMouseOver" Value="true">
+				<Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+				<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+			</Trigger>
+			<Trigger Property="IsEnabled" Value="false">
+				<Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+			</Trigger>
+		</Style.Triggers>
+	</Style>
+
+	<!--  The close button turns the accent color on hover.  -->
+	<Style
+		x:Key="CloseCaptionButtonStyle"
+		BasedOn="{StaticResource CaptionButtonStyle}"
+		TargetType="{x:Type Button}">
+		<Style.Triggers>
+			<Trigger Property="IsMouseOver" Value="true">
+				<Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+				<Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
+			</Trigger>
+		</Style.Triggers>
+	</Style>
+
+</ResourceDictionary>

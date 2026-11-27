@@ -9,12 +9,16 @@
 * Random events
 * Tune how fast the knight converts villagers: uncontested, about 4 picks a week takes close to 4 years to convert everyone, which seems long. Converts helping him will speed it up.
 * A curfew set by the knight, making it risky to be out after dark.
+* Concerns entries for the knight, once the game has them: the tribute due and how much is saved (as a bar), who the knight has taken to the keep this week, and villagers who are wavering. Concerns only shows today's appointments so far.
+* Factions as data, each with an id, a name, a main color, a second color, a tint, and an emblem. The crown: crimson `#8E1B22` and black `#1A1416`, tint `#E9CFC9`, a crown emblem. The resistance: woad blue `#2F4F7A` and linen `#E2D6BA`, tint `#CFD9E6`, with an emblem still to choose (the mockups use a pitchfork). Unaligned villagers get no color or emblem. Minor side factions will come later with their own colors (candidates were teal and pewter, and forest green and bronze; avoid purple and anything near red). Color can carry meaning here, but each faction's emblem goes with its color anyway.
+* Degrees of alignment: show how firmly a villager is aligned, such as the faction emblem going from an outline (leaning) to filled (committed), or a small tilt marker between the two emblems. Decide which.
 
 ### Village Life
 
 * When the washing is dry, a need for the household to bring it in (with its own time), which goes away once someone has done it, rather than the washing unpacking itself. Needs that are turned on for a group of people would make this possible.
 * Clothing that gets dirty, and is only clean again once laundry has been through drying.
-* Formal occasions, such as church, where the `formal` modesty minimums apply.
+* Formal occasions, such as church, whose places or steps have a negative `modestyComfort`, calling for more covering.
+* Seasonal clothing: outfits that depend on the season (or the weather), so no one works bare-chested in winter, and warmer clothes such as cloaks are worn when it's cold.
 * Character needs: flesh them out beyond the basic needs added with schedules.
 * More needs and things to do, so every hour is accounted for by a goal. Idle time in the report means there isn't enough to do, so resting should be its own goal. Ideally the day isn't long enough to do everything.
 * Leisure at home: time with the family at home, the household's version of meeting at the well, and a daily chance for the player to spend time with their family.
@@ -38,7 +42,6 @@
 
 * Personality traits.
 * Personality traits that change how urgent each need is for a person (such as loving the market), so villagers fall out of step with each other.
-* Personality traits that lower the modesty minimums (see the modesty rules in Clothing.json).
 * Relations to the player only cover their own household. Relatives in other households (such as married children) will need relationships between characters.
 * Steps that meet a need for both people at once, such as socializing, or two people of the same trade working together.
 * Gossip: trust secondhand sightings less than firsthand ones, and let gossip be wrong.
@@ -49,8 +52,10 @@
 
 * Inventory beyond clothing: other kinds of items, using the item containers and screens added with clothing.
 * Money and trade: buying, selling, wages, and what the knight takes.
+* The purse in the left column during play, once there's money.
 * The player's own trade: working, earning, and helpers.
 * What the player knows about when businesses are usually open, and a screen showing it.
+* Clothing by wealth: a condition on the household's wealth, so finer clothing (the sideless surcoat, the ring brooch) goes to wealthier people rather than just being rare.
 
 ### The Village and Its Surroundings
 
@@ -66,6 +71,7 @@
 * Customize the family and villagers at the start of the game.
 * Customize some game configuration parameters when starting a game.
 * Choose the starting date when starting a game, since some seasons may be harder to start in.
+* More new game steps, such as family and village, once those can be chosen. New game has one step (the character) so far, set up for more.
 
 ### Telling the Player What's Going On
 
@@ -76,13 +82,14 @@
 
 ### Interface and Saves
 
-* Settings screen: text size, a dark theme, and similar options.
-* A setting for how fast time passes (including instant), once there's a settings screen.
-* Keyboard navigation for choosing exits and actions.
-* Hotkeys for common commands, including quick save and quick load.
+* Overhaul the look of the map and the mini-map.
+* Compact side columns by height too: a short window with large text keeps the full left column and scrolls.
+* Icons for each profession's work, so the Work line in Concerns shows the player's trade (the data's icons can be reused for this).
 * Pictures and simple animation, such as a clearer map style, or small illustrations for places.
 * Naming saves, so the player can tell them apart.
+* Alternate themes, such as a dark one: turn the `theme` data section into a list of themes for the settings screen to choose from. The theme resources are already named by role and filled from the data, so a new palette needs no new XAML or art.
 * Save titles: show the village name and the in-game date and time in each save's title, alongside the main character's name. The in-game date and time need the passage of time first.
+* Choose a destination from the status sheet's appointments too (they're only text so far), and from places in the log.
 
 ### Tuning
 
@@ -100,7 +107,7 @@
 ### Data and Mods
 
 * Look for things that need to move to data
-* Add `any` and `not` to Condition, so conditions can express things like "not (barmaid and at work)" directly instead of needing copies of shapes or extra colors. Conditions are used throughout the data, and the combination checks and dependency ordering assume a simple AND of property values, so this is a large change.
+* Add `any` and `not` to Condition, so conditions can express things like "not (barmaid and at work)" or "married or old" (for the wimple, which only married women wear for now) directly instead of needing copies of shapes or extra colors. Conditions are used throughout the data, and the combination checks and dependency ordering assume a simple AND of property values, so this is a large change.
 * Mod support beyond the basics: validating a mod on its own, showing which mod changed what, and example mods.
 * Mods that copy a value from the data go stale: a mod that writes in a value it read from the base data (such as a portrait shape's stroke color, used as a new color's default) keeps the old value if the base data changes, silently undoing the change. One fix is a `from` path on `insert`, `replace`, and `set`, used in place of `value`, that copies the data at that path when the operation runs.
 * Mods have to find list items without ids (such as portrait shapes) by index, which points at the wrong item if the base data adds, removes, or reorders items in the list. One fix is optional ids on those items (such as portrait shapes), ignored by the game, so mods can find them by id.
@@ -109,5 +116,9 @@
 
 * GameWorld's lists (locations, families, people, and so on) are built once when the world is created, so they'll need updating once objects can be added or removed during play (births, deaths, new businesses).
 * Automatic checks on generation: turn the statistics checked by hand in the village report into tests with limits.
+
+### Key Bindings
+
+* Let the player change the hotkeys in settings. The keys are one map in code (`Hotkeys`) for now, which the tooltips and badges are built from.
 
 ## Current Work

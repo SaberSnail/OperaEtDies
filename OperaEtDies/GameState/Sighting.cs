@@ -17,8 +17,9 @@ namespace OperaEtDies.GameState;
 /// <param name="Plan">What the person said they were doing, if they were asked, or null if they weren't.</param>
 /// <param name="Doing">For <see cref="SightingActivity.Busy"/>, what the person was shown to be doing, such as "Washing
 /// clothes": the activity of the step they were on.</param>
+/// <param name="With">For <see cref="SightingActivity.Talking"/>, who the person was talking with.</param>
 public sealed record Sighting(Location Location, TimePoint Time, SightingActivity Activity, Need? Need = null, Location? Destination = null, Person? Source = null, SightingPlan? Plan = null,
-	string? Doing = null)
+	string? Doing = null, Person? With = null)
 {
 	/// <summary>
 	/// Whether the sighting was learned from someone else, rather than seen.
@@ -26,7 +27,7 @@ public sealed record Sighting(Location Location, TimePoint Time, SightingActivit
 	public bool IsSecondhand => Source is not null;
 
 	internal SightingRecord CreateRecord(Person person) =>
-		new(person.Id, Location.Id, Time.SaveToString(), Activity, Need?.Id, Destination?.Id, Source?.Id, Plan is { } plan ? new SightingPlanRecord(plan.Goal?.Id, plan.Destination?.Id, plan.Doing) : null, Doing);
+		new(person.Id, Location.Id, Time.SaveToString(), Activity, Need?.Id, Destination?.Id, Source?.Id, Plan is { } plan ? new SightingPlanRecord(plan.Goal?.Id, plan.Destination?.Id, plan.Doing) : null, Doing, With?.Id);
 }
 
 /// <summary>
@@ -79,7 +80,7 @@ public enum SightingActivity
 /// The saved form of a sighting, with the person seen.
 /// </summary>
 public sealed record SightingRecord(WorldId Person, WorldId Location, string Time, SightingActivity Activity, string? Need, WorldId? Destination, WorldId? Source, SightingPlanRecord? Plan = null,
-	string? Doing = null);
+	string? Doing = null, WorldId? With = null);
 
 /// <summary>
 /// The saved form of what someone said they were doing.

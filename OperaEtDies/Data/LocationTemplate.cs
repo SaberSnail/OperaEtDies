@@ -46,6 +46,18 @@ public abstract class LocationTemplate : IIdentified, IHasFrequency
 	public FrequencyLevel Frequency { get; init; } = new(Utility.Random.Frequency.Common);
 
 	/// <summary>
+	/// How likely someone is to come by, which decides how comfortable someone there alone is with how covered they are,
+	/// or null to use the quarter kind's, or the modesty settings' for its kind of location.
+	/// </summary>
+	public FrequencyLevel? Traffic { get; init; }
+
+	/// <summary>
+	/// How much more (or, when negative, less) comfortable people there are with how covered they are, or null to use the
+	/// quarter kind's.
+	/// </summary>
+	public int? ModestyComfort { get; init; }
+
+	/// <summary>
 	/// Checks that every description is filled in.
 	/// </summary>
 	internal IEnumerable<string> ValidateDescriptions()

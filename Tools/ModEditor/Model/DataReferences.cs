@@ -88,6 +88,7 @@ public static class DataReferences
 		var professions = new SectionIds("professions");
 		var needs = new SectionIds("needs");
 		var stepLists = new SectionIds("stepLists");
+		var icons = new SectionIds(GameIcon.SectionName);
 		var whoKeys = new CombinedIds([properties, new FixedIds([StepWho.FamilyKey])]);
 		var whoValues = new PropertyValueIds(FromMapKey: true, Others: new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
 		{
@@ -111,11 +112,10 @@ public static class DataReferences
 			[(typeof(ClothingItem), nameof(ClothingItem.Bulk))] = new(new SectionIds("clothingBulks")),
 			[(typeof(CharacterProperty), nameof(CharacterProperty.Regions))] = new(new SectionIds("clothingSlots")),
 			[(typeof(PortraitHiddenBy), nameof(PortraitHiddenBy.Regions))] = new(new SectionIds("clothingSlots")),
-			[(typeof(ModestyRule), nameof(ModestyRule.Home))] = new(null, new SectionIds("clothingSlots")),
-			[(typeof(ModestyRule), nameof(ModestyRule.Outside))] = new(null, new SectionIds("clothingSlots")),
-			[(typeof(ModestyRule), nameof(ModestyRule.Formal))] = new(null, new SectionIds("clothingSlots")),
-			[(typeof(Profession), nameof(Profession.Modesty))] = new(null, new SectionIds("modestyRules"), new FieldReference(null, new SectionIds("clothingSlots"))),
+			[(typeof(ModestyRule), nameof(ModestyRule.Slots))] = new(null, new SectionIds("clothingSlots")),
+			[(typeof(ModestyBoldness), nameof(ModestyBoldness.Property))] = new(properties),
 			[(typeof(Outfit), nameof(Outfit.Clothing))] = new(new SectionIds("clothing")),
+			[(typeof(OutfitClothingOption), nameof(OutfitClothingOption.Clothing))] = new(new SectionIds("clothing")),
 			[(typeof(StringDefaults), nameof(StringDefaults.KeyedBy))] = new(properties),
 			[(typeof(StringDefaults), nameof(StringDefaults.ValuesByKey))] = new(null, new PropertyValueIds(SiblingField: "keyedBy")),
 			[(typeof(Profession), nameof(Profession.Role))] = new(new FixedIds(["homemaker", "infirm"])),
@@ -135,6 +135,7 @@ public static class DataReferences
 			[(typeof(CalendarSpecialDay), nameof(CalendarSpecialDay.Day))] = new(new SectionIds("days")),
 			[(typeof(Hours), nameof(Hours.Days))] = new(new SectionIds("days")),
 			[(typeof(QuarterChoice), nameof(QuarterChoice.QuarterKind))] = new(quarterKinds),
+			[(typeof(Need), nameof(Need.Icon))] = new(icons),
 			[(typeof(Need), nameof(Need.Role))] = new(new FixedIds([ScheduleSettings.SleepRole, ScheduleSettings.SocializingRole])),
 			[(typeof(LevelNeedSettings), nameof(LevelNeedSettings.PausedBy))] = new(needs),
 			[(typeof(UrgencyFactor), nameof(UrgencyFactor.Needs))] = new(needs),

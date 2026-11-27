@@ -32,9 +32,10 @@ public sealed class StepFailure
 }
 
 /// <summary>
-/// What happens after a step fails.
+/// What happens after a step fails, with the id of the step to skip to, or for going on with or leaving a loop, the id of
+/// the "repeat" step it means (or null for the nearest one around it).
 /// </summary>
-public sealed record StepFailureResult(StepFailureKind Kind, string? SkipTo = null);
+public sealed record StepFailureResult(StepFailureKind Kind, string? Target = null);
 
 /// <summary>
 /// What happens after a step fails.
@@ -55,6 +56,16 @@ public enum StepFailureKind
 	/// Carry on from the step with an id.
 	/// </summary>
 	SkipTo,
+
+	/// <summary>
+	/// End this pass of a loop: its "repeat" step decides whether to go round again.
+	/// </summary>
+	LoopContinue,
+
+	/// <summary>
+	/// Leave a loop, carrying on with the steps after its "repeat" step.
+	/// </summary>
+	LoopBreak,
 }
 
 /// <summary>
@@ -106,11 +117,18 @@ public enum FailCause
 	/// None of a "choose" step's options can be chosen.
 	/// </summary>
 	NoOption,
+
+	/// <summary>
+	/// Someone wouldn't be comfortable with how covered they'd be: the person on a "dress" step, or the partner changing with
+	/// them, or for an "ask" step that makes an appointment, either of them.
+	/// </summary>
+	Shy,
 }
 
 /// <summary>
-/// Reads what happens when a step fails: "next" or "stop", an object with "skipTo" and a step's id, or an object with a
-/// result for each cause (and, like any object in the data, comments).
+/// Reads what happens when a step fails: "next", "stop", "loopContinue", or "loopBreak", an object with "skipTo" and a
+/// step's id, or with "loopContinue" or "loopBreak" and a "repeat" step's id, or an object with a result for each cause
+/// (and, like any object in the data, comments).
 /// </summary>
 public sealed class StepFailureConverter : JsonConverter<StepFailure>
 {
@@ -125,8 +143,8 @@ public sealed class StepFailureConverter : JsonConverter<StepFailure>
 		{
 			var name = reader.GetString();
 			reader.Read();
-			if (string.Equals(name, SkipToName, StringComparison.OrdinalIgnoreCase) && reader.TokenType == JsonTokenType.String)
-				any = new StepFailureResult(StepFailureKind.SkipTo, reader.GetString());
+			if (GetTargetKind(name) is { } targetKind && reader.TokenType == JsonTokenType.String && any is null)
+				any = new StepFailureResult(targetKind, reader.GetString());
 			else if (string.Equals(name, DataFileParts.CommentsName, StringComparison.OrdinalIgnoreCase) && reader.TokenType == JsonTokenType.String)
 				continue;
 			else if (Enum.TryParse<FailCause>(name, ignoreCase: true, out var cause) && !int.TryParse(name, out _))
@@ -148,28 +166,51 @@ public sealed class StepFailureConverter : JsonConverter<StepFailure>
 			var text = reader.GetString();
 			return string.Equals(text, "next", StringComparison.OrdinalIgnoreCase) ? new StepFailureResult(StepFailureKind.Next) :
 				string.Equals(text, "stop", StringComparison.OrdinalIgnoreCase) ? new StepFailureResult(StepFailureKind.Stop) :
+				string.Equals(text, LoopContinueName, StringComparison.OrdinalIgnoreCase) ? new StepFailureResult(StepFailureKind.LoopContinue) :
+				string.Equals(text, LoopBreakName, StringComparison.OrdinalIgnoreCase) ? new StepFailureResult(StepFailureKind.LoopBreak) :
 				throw new JsonException(OurResources.StepFailureInvalid);
 		}
 
 		if (reader.TokenType != JsonTokenType.StartObject)
 			throw new JsonException(OurResources.StepFailureInvalid);
-		string? skipTo = null;
+		StepFailureResult? result = null;
 		while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
 		{
 			var name = reader.GetString();
 			reader.Read();
-			if (string.Equals(name, SkipToName, StringComparison.OrdinalIgnoreCase) && reader.TokenType == JsonTokenType.String)
-				skipTo = reader.GetString();
+			if (GetTargetKind(name) is { } kind && reader.TokenType == JsonTokenType.String && result is null)
+				result = new StepFailureResult(kind, reader.GetString());
 			else if (!string.Equals(name, DataFileParts.CommentsName, StringComparison.OrdinalIgnoreCase) || reader.TokenType != JsonTokenType.String)
 				throw new JsonException(OurResources.StepFailureInvalid);
 		}
 
-		return new StepFailureResult(StepFailureKind.SkipTo, skipTo ?? throw new JsonException(OurResources.StepFailureInvalid));
+		return result ?? throw new JsonException(OurResources.StepFailureInvalid);
 	}
+
+	/// <summary>
+	/// Gets the kind of result a property that names a step stands for, or null if it isn't one.
+	/// </summary>
+	private static StepFailureKind? GetTargetKind(string? name) =>
+		string.Equals(name, SkipToName, StringComparison.OrdinalIgnoreCase) ? StepFailureKind.SkipTo :
+		string.Equals(name, LoopContinueName, StringComparison.OrdinalIgnoreCase) ? StepFailureKind.LoopContinue :
+		string.Equals(name, LoopBreakName, StringComparison.OrdinalIgnoreCase) ? StepFailureKind.LoopBreak :
+		null;
+
+	/// <summary>
+	/// Gets the name a kind of result is written by.
+	/// </summary>
+	private static string GetName(StepFailureKind kind) => kind switch
+	{
+		StepFailureKind.Next => "next",
+		StepFailureKind.Stop => "stop",
+		StepFailureKind.SkipTo => SkipToName,
+		StepFailureKind.LoopContinue => LoopContinueName,
+		_ => LoopBreakName,
+	};
 
 	public override void Write(Utf8JsonWriter writer, StepFailure value, JsonSerializerOptions options)
 	{
-		if (value.ByCause.Count == 0 && value.Any is { Kind: not StepFailureKind.SkipTo } simple)
+		if (value.ByCause.Count == 0 && value.Any is { Target: null } simple)
 		{
 			WriteResult(writer, simple);
 			return;
@@ -177,7 +218,7 @@ public sealed class StepFailureConverter : JsonConverter<StepFailure>
 
 		writer.WriteStartObject();
 		if (value.Any is { } any)
-			writer.WriteString(SkipToName, any.SkipTo);
+			writer.WriteString(GetName(any.Kind), any.Target);
 		foreach (var (cause, result) in value.ByCause)
 		{
 			writer.WritePropertyName(JsonNamingPolicy.CamelCase.ConvertName(cause.ToString()));
@@ -189,19 +230,21 @@ public sealed class StepFailureConverter : JsonConverter<StepFailure>
 
 	private static void WriteResult(Utf8JsonWriter writer, StepFailureResult result)
 	{
-		if (result.Kind == StepFailureKind.SkipTo)
+		if (result.Target is not null)
 		{
 			writer.WriteStartObject();
-			writer.WriteString(SkipToName, result.SkipTo);
+			writer.WriteString(GetName(result.Kind), result.Target);
 			writer.WriteEndObject();
 		}
 		else
 		{
-			writer.WriteStringValue(result.Kind == StepFailureKind.Next ? "next" : "stop");
+			writer.WriteStringValue(GetName(result.Kind));
 		}
 	}
 
 	private const string SkipToName = "skipTo";
+	private const string LoopContinueName = "loopContinue";
+	private const string LoopBreakName = "loopBreak";
 }
 
 /// <summary>

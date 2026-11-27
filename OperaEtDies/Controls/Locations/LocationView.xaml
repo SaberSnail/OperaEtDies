@@ -1,6 +1,7 @@
 <ResourceDictionary
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:controls="clr-namespace:OperaEtDies.Controls"
 	xmlns:local="clr-namespace:OperaEtDies.Controls.Locations"
 	xmlns:operaEtDies="clr-namespace:OperaEtDies"
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
@@ -75,7 +76,7 @@
 				<TextBlock
 					Margin="12,0,0,4"
 					VerticalAlignment="Center"
-					Foreground="{DynamicResource FontLightBrush}"
+					Foreground="{DynamicResource TextMutedBrush}"
 					Text="{Binding Activity}"
 					TextWrapping="Wrap" />
 			</WrapPanel>
@@ -91,7 +92,7 @@
 				<StackPanel>
 					<TextBlock Text="{Binding DeveloperGoal}" TextWrapping="Wrap" />
 					<TextBlock
-						Foreground="{DynamicResource FontLightBrush}"
+						Foreground="{DynamicResource TextMutedBrush}"
 						Text="{Binding DeveloperGoalReason}"
 						TextWrapping="Wrap" />
 				</StackPanel>
@@ -99,37 +100,70 @@
 		</Grid>
 	</DataTemplate>
 
-	<!--  A place the player can go to, marked if it's the player's home or workplace. A path to another quarter shows which way it goes above the description.  -->
+	<!--  A place the player can go to, as a split button with the number key that goes there. Icons at its left mark the
+		player's home, workplace, or next appointment's place, and the way to their destination (in the accent color), with
+		what they mean in the button's tooltip. The way to the destination has walking all the way there in its menu. A path
+		to another quarter shows which way it goes above the description.  -->
 	<DataTemplate x:Key="LocationConnectionTemplate" DataType="{x:Type local:LocationConnectionViewModel}">
 		<Grid Margin="0,0,0,8">
 			<Grid.ColumnDefinitions>
-				<ColumnDefinition Width="160" />
+				<ColumnDefinition Width="200" />
 				<ColumnDefinition Width="*" />
 			</Grid.ColumnDefinitions>
 
-			<Button
+			<controls:SplitButton
 				Grid.Column="0"
-				Height="32"
+				MinHeight="32"
 				VerticalAlignment="Top"
-				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Travel}">
-				<!--  The player's home and workplace are marked, like on the map.  -->
-				<DockPanel>
-					<Border
-						DockPanel.Dock="Left"
-						Margin="0,0,6,0"
-						Padding="3,0"
-						VerticalAlignment="Center"
-						Background="{DynamicResource MapCurrentBrush}"
-						Visibility="{Binding Marker, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
-						<TextBlock
-							FontSize="{DynamicResource SmallFontSize}"
-							FontWeight="Bold"
-							Foreground="{DynamicResource MapVillageBrush}"
-							Text="{Binding Marker}" />
-					</Border>
-					<TextBlock VerticalAlignment="Center" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-				</DockPanel>
-			</Button>
+				HorizontalContentAlignment="Stretch"
+				Action="{Binding Action}">
+				<controls:SplitButton.Leading>
+					<ItemsControl Focusable="False" ItemsSource="{Binding Markers}">
+						<ItemsControl.ItemsPanel>
+							<ItemsPanelTemplate>
+								<StackPanel Orientation="Horizontal" />
+							</ItemsPanelTemplate>
+						</ItemsControl.ItemsPanel>
+						<ItemsControl.ItemTemplate>
+							<DataTemplate DataType="{x:Type local:ExitMarker}">
+								<Viewbox
+									Width="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=1}"
+									Height="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=1}"
+									Margin="0,0,2,0">
+									<Canvas Width="24" Height="24">
+										<Path
+											x:Name="Icon"
+											Stroke="{Binding Path=(TextElement.Foreground), RelativeSource={RelativeSource Self}}"
+											StrokeEndLineCap="Round"
+											StrokeLineJoin="Round"
+											StrokeStartLineCap="Round"
+											StrokeThickness="1.8" />
+									</Canvas>
+								</Viewbox>
+								<DataTemplate.Triggers>
+									<DataTrigger Binding="{Binding}" Value="{x:Static local:ExitMarker.Home}">
+										<Setter TargetName="Icon" Property="Data" Value="{DynamicResource HomeIcon}" />
+									</DataTrigger>
+									<DataTrigger Binding="{Binding}" Value="{x:Static local:ExitMarker.Work}">
+										<Setter TargetName="Icon" Property="Data" Value="{DynamicResource WorkIcon}" />
+									</DataTrigger>
+									<DataTrigger Binding="{Binding}" Value="{x:Static local:ExitMarker.Appointment}">
+										<Setter TargetName="Icon" Property="Data" Value="{DynamicResource AppointmentIcon}" />
+									</DataTrigger>
+									<DataTrigger Binding="{Binding}" Value="{x:Static local:ExitMarker.TowardDestination}">
+										<Setter TargetName="Icon" Property="Data" Value="{DynamicResource ThisWayIcon}" />
+										<Setter TargetName="Icon" Property="Stroke" Value="{DynamicResource AccentBrush}" />
+									</DataTrigger>
+									<DataTrigger Binding="{Binding}" Value="{x:Static local:ExitMarker.Destination}">
+										<Setter TargetName="Icon" Property="Data" Value="{DynamicResource DestinationIcon}" />
+										<Setter TargetName="Icon" Property="Stroke" Value="{DynamicResource AccentBrush}" />
+									</DataTrigger>
+								</DataTemplate.Triggers>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+				</controls:SplitButton.Leading>
+			</controls:SplitButton>
 			<StackPanel
 				Grid.Column="1"
 				Margin="12,0,0,0"
@@ -140,10 +174,10 @@
 						Margin="0,0,8,0"
 						Text="{Binding Route}"
 						Visibility="{Binding HasRoute, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
-					<TextBlock Foreground="{DynamicResource FontLightBrush}" Text="{Binding TravelTimeText}" />
+					<TextBlock Foreground="{DynamicResource TextMutedBrush}" Text="{Binding TravelTimeText}" />
 				</WrapPanel>
 				<TextBlock
-					Foreground="{DynamicResource FontLightBrush}"
+					Foreground="{DynamicResource TextMutedBrush}"
 					Text="{Binding Description}"
 					TextWrapping="Wrap" />
 			</StackPanel>
@@ -154,18 +188,34 @@
 		<ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
 			<StackPanel Margin="24">
 				<TextBlock
-					FontSize="{DynamicResource TitleFontSize}"
+					Style="{DynamicResource TitleTextStyle}"
 					Text="{Binding Title}"
 					TextWrapping="Wrap" />
-				<TextBlock
+				<!--  The description opens with a drop cap.  -->
+				<controls:DropCapText
 					Margin="0,12,0,0"
+					CapBrush="{DynamicResource AccentBrush}"
+					FontFamily="{DynamicResource NarrativeFontFamily}"
 					FontSize="{DynamicResource LargeFontSize}"
-					Text="{Binding Description}"
-					TextWrapping="Wrap" />
+					Text="{Binding Description}">
+					<!--  Examining the location, shown once, right after the description, until it's been examined.  -->
+					<TextBlock
+						FontFamily="{DynamicResource InterfaceFontFamily}"
+						FontSize="{DynamicResource DefaultFontSize}"
+						Visibility="{Binding IsExamined, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}">
+						<Hyperlink
+							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
+							Style="{StaticResource MoreLinkStyle}"
+							ToolTip="{x:Static operaEtDies:OurResources.ExamineLocationToolTip}">
+							<Run Text="{x:Static operaEtDies:OurResources.ExamineLocationMore}" />
+						</Hyperlink>
+					</TextBlock>
+				</controls:DropCapText>
 
 				<!--  The detailed description, shown once the location has been examined.  -->
 				<ItemsControl
 					Margin="0,12,0,0"
+					FontFamily="{DynamicResource NarrativeFontFamily}"
 					ItemsSource="{Binding LongDescription}"
 					Visibility="{Binding IsExamined, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 					<ItemsControl.ItemTemplate>
@@ -173,41 +223,53 @@
 							<TextBlock
 								Margin="0,0,0,8"
 								FontSize="{DynamicResource LargeFontSize}"
-								Foreground="{DynamicResource FontLightBrush}"
+								Foreground="{DynamicResource TextMutedBrush}"
 								Text="{Binding}"
 								TextWrapping="Wrap" />
 						</DataTemplate>
 					</ItemsControl.ItemTemplate>
 				</ItemsControl>
 
-				<!--  Examining the location, and waiting here. How the last wait went is beside the buttons, wrapping in the space left, so it doesn't move anything.  -->
-				<DockPanel Margin="0,12,0,0">
-					<Button
-						DockPanel.Dock="Left"
+				<!--  A tailpiece ending the description.  -->
+				<Viewbox
+					Width="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=1.1}"
+					Height="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=1.1}"
+					Margin="0,4,0,0"
+					HorizontalAlignment="Center">
+					<Canvas Width="24" Height="24">
+						<Path Data="{StaticResource TailpieceOrnament}" Fill="{DynamicResource AccentBrush}" />
+					</Canvas>
+				</Viewbox>
+
+				<!--  Waiting here (with other times to wait until in its menu), and choosing something to start, such as work or a
+					chore. (Walking all the way to the destination is in the menu of the exit that's the way there.) How the last
+					wait or action went is on the line below the buttons, which is always there, so a message of a line doesn't
+					move anything.  -->
+				<WrapPanel Margin="0,12,0,0">
+					<controls:SplitButton
 						Width="120"
-						Height="32"
-						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Examine}"
-						Content="{x:Static operaEtDies:OurResources.ExamineLocation}" />
+						MinHeight="32"
+						Action="{Binding WaitAction}" />
 					<Button
-						DockPanel.Dock="Left"
 						Width="120"
 						Height="32"
 						Margin="8,0,0,0"
-						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Wait}"
-						Content="{x:Static operaEtDies:OurResources.Wait}"
-						ToolTip="{x:Static operaEtDies:OurResources.WaitToolTip}" />
-					<TextBlock
-						Margin="12,0,0,0"
-						VerticalAlignment="Center"
-						Foreground="{DynamicResource FontLightBrush}"
-						Text="{Binding WaitResult}"
-						TextWrapping="Wrap" />
-				</DockPanel>
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ChooseStart}"
+						Content="{x:Static operaEtDies:OurResources.ViewStart}"
+						ToolTip="{operaEtDies:HotkeyToolTip Start, Text={x:Static operaEtDies:OurResources.StartToolTip}}" />
+				</WrapPanel>
+				<TextBlock
+					MinHeight="{Binding Path=FontSize, RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=1.35}"
+					Margin="0,8,0,0"
+					Foreground="{DynamicResource TextMutedBrush}"
+					Text="{Binding WaitResult}"
+					TextWrapping="Wrap" />
 
-				<!--  What the player is in the middle of: the step they're on, and buttons to have it or all of it done for them,
-					to stop, to show the steps after it (listed below the buttons, so the buttons don't move), and at the end of
-					the row, so they don't move the others, the step's own button or the options to choose from. Anything else
-					they're in the middle of is listed last, to switch to.  -->
+				<!--  What the player is in the middle of: the step they're on, with icon buttons to show the steps after it (listed
+					below the buttons, so the buttons don't move) and to stop, then a split button that presses the step's own
+					button, or has the step done for them, with having it or all of it done for them in its menu, and at the end
+					of the row, so they don't move the others, the options to choose from. Anything else they're in the middle of
+					is listed last, to switch to.  -->
 				<StackPanel DataContext="{Binding Steps}" Visibility="{Binding Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
 					<TextBlock Margin="0,24,0,8" Text="{Binding Title}" />
 					<TextBlock
@@ -216,45 +278,30 @@
 						TextWrapping="Wrap"
 						Visibility="{Binding Next, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 					<WrapPanel Margin="0,8,0,0">
-						<Button
-							Width="160"
-							Height="32"
+						<ToggleButton
 							Margin="0,0,0,4"
-							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=DoStep}"
-							Content="{x:Static operaEtDies:OurResources.PlayerStepsAutomatic}"
-							ToolTip="{x:Static operaEtDies:OurResources.PlayerStepsAutomaticToolTip}" />
+							VerticalAlignment="Center"
+							Content="{StaticResource StepsIcon}"
+							IsChecked="{Binding IsExpanded}"
+							Style="{StaticResource IconToggleButtonStyle}"
+							ToolTip="{Binding ExpandText}" />
 						<Button
-							Width="160"
-							Height="32"
-							Margin="8,0,0,4"
-							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=DoAll}"
-							Content="{x:Static operaEtDies:OurResources.PlayerStepsDoAll}"
-							ToolTip="{x:Static operaEtDies:OurResources.PlayerStepsDoAllToolTip}" />
-						<Button
-							Width="120"
-							Height="32"
-							Margin="8,0,0,4"
+							Margin="4,0,0,4"
+							VerticalAlignment="Center"
 							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Stop}"
-							Content="{x:Static operaEtDies:OurResources.PlayerStepsStop}"
+							Content="{StaticResource StopIcon}"
+							Focusable="True"
+							Style="{StaticResource IconButtonStyle}"
 							ToolTip="{x:Static operaEtDies:OurResources.PlayerStepsStopToolTip}" />
-						<Button
-							Width="160"
-							Height="32"
+						<controls:SplitButton
+							MinWidth="200"
+							MinHeight="32"
 							Margin="8,0,0,4"
-							Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleExpanded}"
-							Content="{Binding ExpandText}" />
-						<Button
-							MinWidth="160"
-							Height="32"
-							Margin="8,0,0,4"
-							Padding="8,0"
-							Command="{Binding Action, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Do}"
-							Content="{Binding Action.Text}"
-							Visibility="{Binding Action, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+							Action="{Binding Primary}" />
 						<TextBlock
 							Margin="12,0,0,4"
 							VerticalAlignment="Center"
-							Foreground="{DynamicResource FontLightBrush}"
+							Foreground="{DynamicResource TextMutedBrush}"
 							Text="{Binding Action.Note}" />
 						<ItemsControl ItemsSource="{Binding Choices}">
 							<ItemsControl.ItemsPanel>
@@ -269,6 +316,7 @@
 										Height="32"
 										Margin="8,0,0,4"
 										Padding="8,0"
+										operaEtDies:Hotkeys.Badge="{Binding Badge}"
 										Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Do}"
 										Content="{Binding Text}" />
 								</DataTemplate>
@@ -285,10 +333,10 @@
 								<TextBlock Margin="0,0,0,4" Text="{Binding Text}" TextWrapping="Wrap">
 									<TextBlock.Style>
 										<Style TargetType="TextBlock">
-											<Setter Property="Foreground" Value="{DynamicResource FontLightBrush}" />
+											<Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
 											<Style.Triggers>
 												<DataTrigger Binding="{Binding IsNext}" Value="True">
-													<Setter Property="Foreground" Value="{DynamicResource FontBrush}" />
+													<Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
 													<Setter Property="FontWeight" Value="Bold" />
 												</DataTrigger>
 												<DataTrigger Binding="{Binding IsReached}" Value="True">
@@ -319,6 +367,14 @@
 							</ItemsControl.ItemTemplate>
 						</ItemsControl>
 					</StackPanel>
+
+					<!--  A reminder of bundles kept to finish these steps later, last, so it doesn't move the controls above.  -->
+					<TextBlock
+						Margin="0,8,0,0"
+						Foreground="{DynamicResource TextMutedBrush}"
+						Text="{Binding CarryWarning}"
+						TextWrapping="Wrap"
+						Visibility="{Binding CarryWarning, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 				</StackPanel>
 
 				<StackPanel Visibility="{Binding HasPeople, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
@@ -353,6 +409,7 @@
 					MinWidth="120"
 					Height="32"
 					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="1"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Continue}"
 					Content="{Binding ContinueText}" />
 				<Button
@@ -360,9 +417,57 @@
 					Height="32"
 					Margin="8,0,0,0"
 					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="2"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Stop}"
 					Content="{x:Static operaEtDies:OurResources.RepeatPromptStop}" />
 			</StackPanel>
+		</StackPanel>
+	</DataTemplate>
+
+	<!--  The player being asked how to stop steps with something left to take care of: finish up first, keep what they
+		carry to finish later, just stop, or keep going.  -->
+	<DataTemplate DataType="{x:Type local:StopPromptViewModel}">
+		<StackPanel Margin="24">
+			<TextBlock
+				FontSize="{DynamicResource LargeFontSize}"
+				Text="{Binding Text}"
+				TextWrapping="Wrap" />
+			<WrapPanel Margin="0,12,0,0">
+				<Button
+					MinWidth="120"
+					Height="32"
+					Margin="0,0,8,4"
+					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="1"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=FinishUp}"
+					Content="{x:Static operaEtDies:OurResources.StopPromptFinishUp}"
+					Visibility="{Binding CanFinishUp, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+				<Button
+					MinWidth="120"
+					Height="32"
+					Margin="0,0,8,4"
+					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="2"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Keep}"
+					Content="{x:Static operaEtDies:OurResources.StopPromptKeep}"
+					Visibility="{Binding CanKeep, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+				<Button
+					MinWidth="120"
+					Height="32"
+					Margin="0,0,8,4"
+					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="3"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=JustStop}"
+					Content="{x:Static operaEtDies:OurResources.StopPromptJustStop}" />
+				<Button
+					MinWidth="120"
+					Height="32"
+					Margin="0,0,8,4"
+					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="4"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Cancel}"
+					Content="{x:Static operaEtDies:OurResources.StopPromptCancel}" />
+			</WrapPanel>
 		</StackPanel>
 	</DataTemplate>
 
@@ -379,6 +484,7 @@
 				Margin="0,12,0,0"
 				Padding="12,0"
 				HorizontalAlignment="Left"
+				operaEtDies:Hotkeys.Badge="1"
 				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Dismiss}"
 				Content="{x:Static operaEtDies:OurResources.NoticeDismiss}" />
 		</StackPanel>
@@ -400,7 +506,7 @@
 				TextWrapping="Wrap" />
 			<TextBlock
 				Margin="0,8,0,0"
-				Foreground="{DynamicResource FontLightBrush}"
+				Foreground="{DynamicResource TextMutedBrush}"
 				Text="{Binding Warning}"
 				TextWrapping="Wrap"
 				Visibility="{Binding Warning, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
@@ -409,6 +515,7 @@
 					MinWidth="120"
 					Height="32"
 					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="1"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Yes}"
 					Content="{x:Static operaEtDies:OurResources.AskRequestYes}" />
 				<Button
@@ -416,8 +523,47 @@
 					Height="32"
 					Margin="8,0,0,0"
 					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="2"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=No}"
 					Content="{x:Static operaEtDies:OurResources.AskRequestNo}" />
+			</StackPanel>
+		</StackPanel>
+	</DataTemplate>
+
+	<!--  The other of an appointment asking whether to start it, with their portrait and name, and buttons to answer.  -->
+	<DataTemplate DataType="{x:Type local:StartPromptViewModel}">
+		<StackPanel Margin="24">
+			<Image
+				Width="96"
+				HorizontalAlignment="Left"
+				Source="{Binding Asker.Portrait}"
+				Stretch="Uniform"
+				Visibility="{Binding Asker.Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+			<TextBlock
+				Margin="0,12,0,0"
+				FontWeight="Bold"
+				Text="{Binding Asker.Name}" />
+			<TextBlock
+				Margin="0,4,0,0"
+				FontSize="{DynamicResource LargeFontSize}"
+				Text="{Binding Text}"
+				TextWrapping="Wrap" />
+			<StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+				<Button
+					MinWidth="120"
+					Height="32"
+					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="1"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Yes}"
+					Content="{x:Static operaEtDies:OurResources.StartRequestYes}" />
+				<Button
+					MinWidth="120"
+					Height="32"
+					Margin="8,0,0,0"
+					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="2"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=No}"
+					Content="{x:Static operaEtDies:OurResources.StartRequestNo}" />
 			</StackPanel>
 		</StackPanel>
 	</DataTemplate>
@@ -442,6 +588,7 @@
 					MinWidth="120"
 					Height="32"
 					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="1"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=SetOffNow}"
 					Content="{x:Static operaEtDies:OurResources.AppointmentSetOff}" />
 				<Button
@@ -449,6 +596,7 @@
 					Height="32"
 					Margin="8,0,0,0"
 					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="2"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CallOff}"
 					Content="{x:Static operaEtDies:OurResources.AppointmentCallOff}" />
 			</StackPanel>

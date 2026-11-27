@@ -9,7 +9,7 @@ namespace OperaEtDies.Controls.Locations;
 /// Asks the player to answer a question someone asked them as one of their steps, such as whether they'd like a
 /// midwife to look in on them, shown on top of everything else until they answer.
 /// </summary>
-public sealed class AskPromptViewModel : ViewModelBase
+public sealed class AskPromptViewModel : ViewModelBase, INumberedChoices
 {
 	public AskPromptViewModel(Person asker, GameWorld world)
 	{
@@ -18,10 +18,11 @@ public sealed class AskPromptViewModel : ViewModelBase
 		var gameData = world.GameData;
 		Asker = new LocationPersonViewModel(asker, gameData.PortraitRenderer, gameData.Schedules, gameData.Relationships);
 		var player = asker.Current?.CurrentStep?.Player;
-		Text = player?.Asked is { } asked ? OurResources.AskRequestText.FormatCurrentCulture(asker.FullName, asked.Text) :
+		Text = player?.Asked is { } asked ? OurResources.AskRequestText.FormatCurrentCulture(asker.FullName, ActivityText.FillOther(asked.Text, asker)) :
 			OurResources.AskRequestTextGeneric.FormatCurrentCulture(asker.FullName, player?.Title ?? "");
+		IsTooShy = world.IsPlayerTooShyToAccept(asker);
 		var conflicts = world.GetPlayerAskConflicts(asker);
-		Warning = conflicts.Count == 0 ? null : OurResources.AskRequestWarning.FormatCurrentCulture(TextList.Join(conflicts.Select(x => x.Title.ToLower(CultureInfo.CurrentCulture)).ToList()));
+		Warning = IsTooShy ? OurResources.AskRequestShy : conflicts.Count == 0 ? null : OurResources.AskRequestWarning.FormatCurrentCulture(TextList.Join(conflicts.Select(x => x.Title.ToLower(CultureInfo.CurrentCulture)).ToList()));
 	}
 
 	/// <summary>
@@ -40,19 +41,44 @@ public sealed class AskPromptViewModel : ViewModelBase
 	public string Text { get; }
 
 	/// <summary>
-	/// Which of the player's needs saying yes would keep them from seeing to in time, or null if none would.
+	/// That the player would be too shy to say yes, or which of their needs saying yes would keep them from seeing to in
+	/// time, or null if neither.
 	/// </summary>
 	public string? Warning { get; }
+
+	/// <summary>
+	/// Whether the player would be too shy to say yes, so they can only say no.
+	/// </summary>
+	public bool IsTooShy { get; }
+
+	public bool CanYes() => !IsTooShy;
 
 	public void Yes()
 	{
 		VerifyAccess();
-		Answered.Raise(this, new GenericEventArgs<bool>(true));
+		if (CanYes())
+			Answered.Raise(this, new GenericEventArgs<bool>(true));
 	}
 
 	public void No()
 	{
 		VerifyAccess();
 		Answered.Raise(this, new GenericEventArgs<bool>(false));
+	}
+
+	/// <summary>
+	/// Presses the numbered button: 1 for yes, 2 for no.
+	/// </summary>
+	public bool ChooseNumber(int number)
+	{
+		VerifyAccess();
+		var choice = number switch
+		{
+			1 when CanYes() => (Action) Yes,
+			2 => No,
+			_ => null,
+		};
+		choice?.Invoke();
+		return choice is not null;
 	}
 }

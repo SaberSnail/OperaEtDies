@@ -10,10 +10,10 @@
 	Title="{Binding Title}"
 	Width="1800"
 	Height="960"
-	Background="{DynamicResource WindowBackgroundBrush}"
+	Background="{DynamicResource SurfaceBrush}"
 	FontSize="{DynamicResource DefaultFontSize}"
 	Icon="/Icon.ico"
-	Foreground="{DynamicResource FontBrush}"
+	Foreground="{DynamicResource TextBrush}"
 	WindowStartupLocation="CenterScreen">
 
 	<!--  F1 is the help command's key.  -->
@@ -58,7 +58,7 @@
 				<TextBlock
 					Margin="12,0,0,0"
 					VerticalAlignment="Center"
-					Foreground="{DynamicResource FontLightBrush}"
+					Foreground="{DynamicResource TextMutedBrush}"
 					Text="{Binding DataDescription}" />
 			</StackPanel>
 			<Button
@@ -72,7 +72,7 @@
 			<TextBlock
 				HorizontalAlignment="Right"
 				VerticalAlignment="Center"
-				Foreground="{DynamicResource FontLightBrush}"
+				Foreground="{DynamicResource TextMutedBrush}"
 				Text="{Binding StatusText}" />
 		</DockPanel>
 
@@ -310,7 +310,7 @@
 							<TextBlock
 								VerticalAlignment="Center"
 								FontFamily="{StaticResource CodeFontFamily}"
-								Foreground="{DynamicResource FontLightBrush}"
+								Foreground="{DynamicResource TextMutedBrush}"
 								Text="{Binding CursorText}" />
 						</StackPanel>
 						<!--  Always shown (greyed out without a shape or point), so selecting a shape doesn't move the canvas.  -->
@@ -383,7 +383,7 @@
 						<TextBlock
 							HorizontalAlignment="Center"
 							VerticalAlignment="Center"
-							Foreground="{DynamicResource FontLightBrush}"
+							Foreground="{DynamicResource TextMutedBrush}"
 							Text="Select an item in the tree, or click a shape in the portrait."
 							TextWrapping="Wrap"
 							Visibility="{Binding ItemEditor, Converter={x:Static utility:CommonConverters.IsNotNullToVisibility}}" />
@@ -416,7 +416,7 @@
 				<TextBlock
 					Margin="0,0,0,4"
 					DockPanel.Dock="Top"
-					Foreground="{DynamicResource FontLightBrush}"
+					Foreground="{DynamicResource TextMutedBrush}"
 					Text="The selected character is shown on the canvas."
 					TextWrapping="Wrap" />
 				<ListBox

@@ -24,11 +24,12 @@ internal static class ModestyWarning
 		slots.Count == 0 ? null : OurResources.ModestyNotCoveredHere.FormatCurrentCulture(JoinSlots(slots));
 
 	/// <summary>
-	/// For developers, describes how modest someone is in each slot their modesty rule checks, and the least it calls for.
+	/// For developers, describes how comfortable someone is with how covered they are, and how modest they are in each slot
+	/// their modesty rule checks, and the least it calls for.
 	/// </summary>
-	public static string FormatDeveloper(IReadOnlyList<(ClothingSlot Slot, int Modesty, int Minimum)> modesty) =>
+	public static string FormatDeveloper(IReadOnlyList<(ClothingSlot Slot, int Modesty, int Minimum)> modesty, double comfort) =>
 		OurResources.DeveloperModesty.FormatCurrentCulture(modesty.Count == 0 ? OurResources.DeveloperModestyNoRule :
-			string.Join(OurResources.ListJoinSeparator, modesty.Select(x => OurResources.DeveloperModestySlot.FormatCurrentCulture(x.Slot.Title, x.Modesty, x.Minimum))));
+			string.Join(OurResources.ListJoinSeparator, modesty.Select(x => OurResources.DeveloperModestySlot.FormatCurrentCulture(x.Slot.Title, x.Modesty, x.Minimum))), comfort);
 
 	/// <summary>
 	/// For developers, describes how much of each region an article of clothing covers, and its bulk.

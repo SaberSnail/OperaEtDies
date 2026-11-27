@@ -53,6 +53,14 @@ public sealed class LocationList : IValidatedData
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("village.buildingTravelTime", Village.BuildingTravelTime, 0));
 		foreach (var kind in quarterKinds.Where(x => x.TravelTime < 0))
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"quarterKinds[{kind.Id}].travelTime", kind.TravelTime, 0));
+		foreach (var kind in quarterKinds)
+			errors.AddRange(ModestySettings.ValidateRange($"quarterKinds[{kind.Id}].modestyComfort", kind.ModestyComfort, -ModestySettings.MaxComfort));
+		var templates = new (string Section, IEnumerable<LocationTemplate?> Items)[] { ("quarters", Quarters), ("houses", Houses), ("businesses", Businesses) };
+		foreach (var (section, items) in templates)
+		{
+			foreach (var template in items.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id) && x.ModestyComfort is not null))
+				errors.AddRange(ModestySettings.ValidateRange($"{section}[{template!.Id}].modestyComfort", template.ModestyComfort!.Value, -ModestySettings.MaxComfort));
+		}
 		foreach (var kind in quarterKinds.Where(x => x.Count is not null))
 		{
 			var path = $"quarterKinds[{kind.Id}].count";

@@ -8,11 +8,11 @@ namespace OperaEtDies.Controls.Characters;
 
 /// <summary>
 /// A view focused on one person: their portrait, their description, and everything else shown about them, such as what
-/// they're doing and how they're related to the player. The player sees their own relationships, and developers see
-/// everyone's, with their scores, where the person is going and why, and who they've seen lately. It's shown on top of the view it was opened from,
-/// which is shown again when it closes.
+/// they're doing and how they're related to the player. The player sees their own relationships and boldness, and
+/// developers see everyone's, with their scores (and can change the player's boldness), where the person is going and
+/// why, and who they've seen lately. It's shown in a sheet.
 /// </summary>
-public sealed class CharacterViewModel : ViewModelBase
+public sealed class CharacterViewModel : ViewModelBase, ISheet
 {
 	public CharacterViewModel(Person person, GameWorld world, bool isDeveloper)
 	{
@@ -32,6 +32,19 @@ public sealed class CharacterViewModel : ViewModelBase
 			IsRelationshipsDeveloperOnly = !person.IsPlayer;
 		}
 
+		// The player sees their own boldness, and developers see anyone's, and can change the player's.
+		m_world = world;
+		m_person = person;
+		if (world.BoldnessProperty is { } boldness && world.GetBoldness(person) is not null)
+		{
+			BoldnessTitle = boldness.Title;
+			var range = gameData.GetRange(boldness, person.IsPlayer ? CharacterRole.Player : CharacterRole.Npc);
+			(BoldnessMinimum, BoldnessMaximum) = (range.Minimum, range.Maximum);
+			IsBoldnessShown = person.IsPlayer;
+			IsBoldnessDeveloperOnly = !person.IsPlayer && isDeveloper;
+			CanChangeBoldness = person.IsPlayer && isDeveloper;
+		}
+
 		// Developers see the last time the person saw each other person, from the most recent.
 		if (isDeveloper)
 		{
@@ -43,8 +56,6 @@ public sealed class CharacterViewModel : ViewModelBase
 		}
 	}
 
-	public event EventHandler? CloseRequested;
-
 	/// <summary>
 	/// Raised when a developer asks to see the person's needs.
 	/// </summary>
@@ -54,6 +65,10 @@ public sealed class CharacterViewModel : ViewModelBase
 	/// The person, with their name, portrait, what they're doing, and the rest of what's shown about them.
 	/// </summary>
 	public LocationPersonViewModel Person { get; }
+
+	public string Title => Person.Name;
+
+	public bool IsFullWidth => false;
 
 	/// <summary>
 	/// The person's relationships with everyone else, from the closest down, or null if they aren't shown: the player's are
@@ -70,6 +85,53 @@ public sealed class CharacterViewModel : ViewModelBase
 	/// Whether the relationships are shown to everyone.
 	/// </summary>
 	public bool IsRelationshipsShown => Relationships is not null && !IsRelationshipsDeveloperOnly;
+
+	/// <summary>
+	/// The name of the property for how bold or shy someone is about how covered they are, such as "Boldness", or null if
+	/// there's none.
+	/// </summary>
+	public string? BoldnessTitle { get; }
+
+	/// <summary>
+	/// The person's boldness, such as "Boldness: 62", or null if they have none.
+	/// </summary>
+	public string? BoldnessText => BoldnessTitle is { } title && m_world.GetBoldness(m_person) is { } value ? OurResources.CharacterBoldness.FormatCurrentCulture(title, value) : null;
+
+	/// <summary>
+	/// Whether the boldness is shown to everyone: it's the player's.
+	/// </summary>
+	public bool IsBoldnessShown { get; }
+
+	/// <summary>
+	/// Whether the boldness is only shown because the player is a developer.
+	/// </summary>
+	public bool IsBoldnessDeveloperOnly { get; }
+
+	/// <summary>
+	/// Whether developers can change the boldness: it's the player's.
+	/// </summary>
+	public bool CanChangeBoldness { get; }
+
+	public int BoldnessMinimum { get; }
+
+	public int BoldnessMaximum { get; }
+
+	/// <summary>
+	/// The person's boldness as a number, which developers can change for the player.
+	/// </summary>
+	public int Boldness
+	{
+		get => VerifyAccess(m_world.GetBoldness(m_person) ?? 0);
+		set
+		{
+			VerifyAccess();
+			if (CanChangeBoldness && value != m_world.GetBoldness(m_person))
+			{
+				m_world.SetBoldness(m_person, value);
+				RaisePropertyChanged(nameof(Boldness), nameof(BoldnessText));
+			}
+		}
+	}
 
 	/// <summary>
 	/// For developers, the last time the person saw each other person, from the most recent, such as "Anna Smith: Washing
@@ -97,12 +159,6 @@ public sealed class CharacterViewModel : ViewModelBase
 			StatusRequested.Raise(this, new GenericEventArgs<Person>(Person.Person));
 	}
 
-	public void Close()
-	{
-		VerifyAccess();
-		CloseRequested.Raise(this);
-	}
-
 	/// <summary>
 	/// Describes a sighting: who, what they were doing and where, and when, and who told the person about it if they didn't
 	/// see it themselves.
@@ -122,6 +178,9 @@ public sealed class CharacterViewModel : ViewModelBase
 		};
 		return sighting.Source is { } source ? OurResources.SightingToldBy.FormatCurrentCulture(text, source.FullName) : text;
 	}
+
+	private readonly GameWorld m_world;
+	private readonly Person m_person;
 }
 
 /// <summary>

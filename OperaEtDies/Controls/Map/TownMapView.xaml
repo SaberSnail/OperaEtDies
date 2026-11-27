@@ -70,10 +70,21 @@
 								<StackPanel MaxWidth="280">
 									<TextBlock FontWeight="Bold" Text="{Binding Title}" />
 									<TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+									<TextBlock
+										Margin="0,4,0,0"
+										FontStyle="Italic"
+										Text="{x:Static operaEtDies:OurResources.MapChooseDestinationToolTip}"
+										Visibility="{Binding CanChooseDestination, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+									<TextBlock
+										FontStyle="Italic"
+										Text="{x:Static operaEtDies:OurResources.MapTravelToolTip}"
+										Visibility="{Binding CanTravel, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
 								</StackPanel>
 							</Border.ToolTip>
+							<!--  Clicking a quarter makes it the player's destination, and for developers, right-clicking goes straight there.  -->
 							<Border.InputBindings>
-								<MouseBinding Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Visit}" Gesture="LeftClick" />
+								<MouseBinding Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ChooseDestination}" Gesture="LeftClick" />
+								<MouseBinding Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Visit}" Gesture="RightClick" />
 							</Border.InputBindings>
 							<Grid>
 							<TextBlock
@@ -85,7 +96,8 @@
 								TextAlignment="Center"
 								TextTrimming="CharacterEllipsis"
 								TextWrapping="Wrap" />
-								<!--  Markers for the player's home, the place they work, and their next appointment, in the corner.  -->
+								<!--  Markers for the player's home, the place they work, their next appointment, and their destination, in the
+									corner.  -->
 								<StackPanel
 									HorizontalAlignment="Left"
 									VerticalAlignment="Top"
@@ -123,6 +135,17 @@
 											FontWeight="Bold"
 											Foreground="{DynamicResource MapVillageBrush}"
 											Text="{x:Static operaEtDies:OurResources.MapAppointmentMarker}" />
+									</Border>
+									<Border
+										Margin="1"
+										Padding="2,0"
+										Background="{DynamicResource AccentBrush}"
+										Visibility="{Binding HasDestination, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
+										<TextBlock
+											FontSize="{DynamicResource SmallFontSize}"
+											FontWeight="Bold"
+											Foreground="{DynamicResource TextOnAccentBrush}"
+											Text="{x:Static operaEtDies:OurResources.MapDestinationMarker}" />
 									</Border>
 								</StackPanel>
 							</Grid>
@@ -172,48 +195,25 @@
 				VerticalAlignment="Top"
 				FontSize="{DynamicResource SmallFontSize}"
 				FontWeight="Bold"
-				Foreground="{DynamicResource FontLightBrush}"
+				Foreground="{DynamicResource TextMutedBrush}"
 				IsHitTestVisible="False"
 				Text="{x:Static operaEtDies:OurResources.MapNorth}" />
 		</Grid>
 	</DataTemplate>
 
-	<!--  The full map of the town, shown in place of the player's location.  -->
+	<!--  The map sheet: the full map of the town, using the whole width of the center.  -->
 	<DataTemplate DataType="{x:Type local:TownMapViewModel}">
-		<Grid Margin="24">
-			<Grid.RowDefinitions>
-				<RowDefinition Height="Auto" />
-				<RowDefinition Height="*" />
-			</Grid.RowDefinitions>
-
-			<DockPanel Grid.Row="0" LastChildFill="True">
-				<Button
-					Width="120"
-					Height="32"
-					VerticalAlignment="Center"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Close}"
-					Content="{x:Static operaEtDies:OurResources.CloseView}"
-					DockPanel.Dock="Right" />
-				<TextBlock
-					FontSize="{DynamicResource TitleFontSize}"
-					Text="{x:Static operaEtDies:OurResources.MapHeader}"
-					TextWrapping="Wrap" />
-			</DockPanel>
-
-			<Border
-				Grid.Row="1"
-				Margin="0,12,0,0"
-				BorderBrush="{DynamicResource ControlBorderBaseBrush}"
-				BorderThickness="1">
-				<ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-					<ContentControl
-						Margin="12"
-						Content="{Binding}"
-						ContentTemplate="{StaticResource TownMapCanvasTemplate}"
-						Focusable="False" />
-				</ScrollViewer>
-			</Border>
-		</Grid>
+		<Border
+			BorderBrush="{DynamicResource RuleBrush}"
+			BorderThickness="1">
+			<ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+				<ContentControl
+					Margin="12"
+					Content="{Binding}"
+					ContentTemplate="{StaticResource TownMapCanvasTemplate}"
+					Focusable="False" />
+			</ScrollViewer>
+		</Border>
 	</DataTemplate>
 
 </ResourceDictionary>

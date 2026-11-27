@@ -2,7 +2,8 @@
 
 	<Style BasedOn="{StaticResource {x:Type Window}}" TargetType="{x:Type Window}">
 		<Setter Property="OverridesDefaultStyle" Value="true" />
-		<Setter Property="Foreground" Value="{DynamicResource FontBrush}" />
+		<Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+		<Setter Property="FontFamily" Value="{DynamicResource InterfaceFontFamily}" />
 		<Setter Property="FontSize" Value="{DynamicResource DefaultFontSize}" />
 		<Setter Property="SnapsToDevicePixels" Value="true" />
 	</Style>

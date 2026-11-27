@@ -1,4 +1,3 @@
-using System.Globalization;
 using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Calendar;
 using OperaEtDies.Controls.Locations;
@@ -9,17 +8,20 @@ using OperaEtDies.GameState;
 namespace OperaEtDies.Controls.Start;
 
 /// <summary>
-/// What the player can start, as anyone else choosing a goal would: each need they have, with how it's going, and its
-/// choices of how long to spend on it (or just a button to start it), or why it can't be started now. The player can
-/// choose to have it all done for them.
+/// What the player can start, as anyone else choosing a goal would: each need they have, with how it's going, and a split
+/// button that starts it (or carries on with it), with shorter shifts and having it all done for them in its menu, or why
+/// it can't be started now.
 /// </summary>
-public sealed class StartScreenViewModel : ViewModelBase
+public sealed class StartScreenViewModel : ViewModelBase, INumberedChoices
 {
 	public StartScreenViewModel(GameWorld world)
 	{
 		var player = world.Player;
 		InProgress = player.Current is { } current ? OurResources.StartInProgress.FormatCurrentCulture(current.Need.Title) : null;
 		Choices = world.GetPlayerStartChoices().Select(x => new StartChoiceViewModel(x, world, Start)).ToList();
+		m_actions = Choices.Select(x => x.Action).OfType<SplitActionViewModel>().ToList();
+		for (var index = 0; index < m_actions.Count; index++)
+			m_actions[index].Badge = Hotkeys.GetChoiceKeyText(index + 1);
 	}
 
 	/// <summary>
@@ -28,7 +30,7 @@ public sealed class StartScreenViewModel : ViewModelBase
 	public event EventHandler? CloseRequested;
 
 	/// <summary>
-	/// Raised when the player chooses something to start, or carry on with, and whether it's done for them.
+	/// Raised when the player chooses something to start, or carry on with, with how.
 	/// </summary>
 	public event EventHandler<GenericEventArgs<StartRequest>>? StartRequested;
 
@@ -41,15 +43,6 @@ public sealed class StartScreenViewModel : ViewModelBase
 
 	public IReadOnlyList<StartChoiceViewModel> Choices { get; }
 
-	/// <summary>
-	/// Whether what's started is done for the player, walking included, as anyone else would.
-	/// </summary>
-	public bool IsAutomatic
-	{
-		get => VerifyAccess(m_isAutomatic);
-		set => SetPropertyField(value, ref m_isAutomatic);
-	}
-
 	public void Close()
 	{
 		VerifyAccess();
@@ -57,40 +50,66 @@ public sealed class StartScreenViewModel : ViewModelBase
 	}
 
 	/// <summary>
+	/// Presses the numbered button: the buttons that start something are numbered in the order they're listed.
+	/// </summary>
+	public bool ChooseNumber(int number)
+	{
+		VerifyAccess();
+		var isChosen = number >= 1 && number <= m_actions.Count;
+		if (isChosen)
+			m_actions[number - 1].Do();
+		return isChosen;
+	}
+
+	/// <summary>
+	/// Opens the menu of the numbered button.
+	/// </summary>
+	public bool OpenChoiceMenu(int number)
+	{
+		VerifyAccess();
+		return number >= 1 && number <= m_actions.Count && m_actions[number - 1].OpenMenu();
+	}
+
+	/// <summary>
 	/// Asks for something to be started, or carried on with.
 	/// </summary>
-	private void Start(PlayerStartChoice choice) => StartRequested.Raise(this, new GenericEventArgs<StartRequest>(new StartRequest(choice.Need, IsAutomatic)));
+	private void Start(StartRequest request) => StartRequested.Raise(this, new GenericEventArgs<StartRequest>(request));
 
-	private bool m_isAutomatic;
+	private readonly IReadOnlyList<SplitActionViewModel> m_actions;
 }
 
 /// <summary>
-/// Something the player chose to start, or carry on with, and whether it's done for them.
+/// Something the player chose to start, or carry on with, whether it's done for them, and for a need measured in time,
+/// how many minutes they chose to spend on it, if fewer than anyone else would, or null.
 /// </summary>
-public sealed record StartRequest(Need Need, bool IsAutomatic);
+public sealed record StartRequest(Need Need, bool IsAutomatic, int? Minutes = null);
 
 /// <summary>
-/// Something the player can start: the need, how it's going, and a button to start it (or carry on with it), or why it
-/// can't be started now.
+/// Something the player can start: the need, how it's going, and a split button to start it (or carry on with it), or why
+/// it can't be started now.
 /// </summary>
 public sealed class StartChoiceViewModel : ViewModelBase
 {
-	internal StartChoiceViewModel(PlayerStartChoice choice, GameWorld world, Action<PlayerStartChoice> start)
+	internal StartChoiceViewModel(PlayerStartChoice choice, GameWorld world, Action<StartRequest> start)
 	{
 		Choice = choice;
 		var need = choice.Need;
 		Title = need.Title;
 		Status = new NeedStatusViewModel(world, world.Player, need, isDeveloper: false).Value;
-		Note = choice.Block switch
-		{
-			PlayerStartBlock.Closed => PlayerActionText.FormatOpeningHours(need, world.GameData.Calendar),
-			PlayerStartBlock.Done => need.Period == NeedPeriod.Week ? OurResources.StartDoneWeek : OurResources.StartDoneDay,
-			PlayerStartBlock.NoPlace => OurResources.StartNoPlace,
-			_ => null,
-		};
-
-		Options = choice.CanStart ? [new StartOptionViewModel(choice.IsInProgress ? OurResources.StartCarryOn : OurResources.StartButton, () => start(choice))] : [];
+		Note = GetNote(choice, world);
+		Action = choice.CanStart ? CreateAction(choice, world, start) : null;
 	}
+
+	/// <summary>
+	/// Gets why something can't be started now, such as when it can be done, or null if it can.
+	/// </summary>
+	internal static string? GetNote(PlayerStartChoice choice, GameWorld world) => choice.Block switch
+	{
+		PlayerStartBlock.Closed => PlayerActionText.FormatOpeningHours(choice.Need, world.GameData.Calendar),
+		PlayerStartBlock.Done => choice.Need.Period == NeedPeriod.Week ? OurResources.StartDoneWeek : OurResources.StartDoneDay,
+		PlayerStartBlock.NoPlace => OurResources.StartNoPlace,
+		_ => null,
+	};
 
 	public PlayerStartChoice Choice { get; }
 
@@ -107,21 +126,38 @@ public sealed class StartChoiceViewModel : ViewModelBase
 	public string? Note { get; }
 
 	/// <summary>
-	/// The button that starts it, or carries on with it, or none if it can't be started now.
+	/// The split button that starts it, or carries on with it, or null if it can't be started now.
 	/// </summary>
-	public IReadOnlyList<StartOptionViewModel> Options { get; }
-}
+	public SplitActionViewModel? Action { get; }
 
-/// <summary>
-/// A button that starts something, such as "Until done for the day (8 hours)".
-/// </summary>
-public sealed class StartOptionViewModel(string text, Action start) : ViewModelBase
-{
-	public string Text { get; } = text;
-
-	public void Start()
+	/// <summary>
+	/// Creates the split button that starts something: carrying on with it, if the player is in the middle of it, for a need
+	/// measured in time, the shift anyone else would choose, with when it would end, or otherwise just starting it. Its
+	/// menu has the shorter shifts, then having it all done for them.
+	/// </summary>
+	private static SplitActionViewModel CreateAction(PlayerStartChoice choice, GameWorld world, Action<StartRequest> start)
 	{
-		VerifyAccess();
-		start();
+		var need = choice.Need;
+		var shift = choice.IsInProgress ? null : world.GetPlayerShiftMinutes(need);
+		var text = choice.IsInProgress ? OurResources.StartCarryOn :
+			shift is { } minutes ? FormatShift(world, minutes, world.GetPlayerShiftEnd(need, minutes), dayPart: null, isDone: minutes >= world.GetPlayerRemainingMinutes(need)) :
+			OurResources.StartButton;
+		var shorter = world.GetPlayerShiftChoices(need)
+			.Select(x => new MenuActionViewModel(FormatShift(world, x.Minutes, x.Until, x.DayPart, isDone: false), () => start(new StartRequest(need, IsAutomatic: false, x.Minutes))));
+		var automatic = new MenuActionViewModel(choice.IsInProgress ? OurResources.StartCarryOnAutomatic : OurResources.StartAutomatic, () => start(new StartRequest(need, IsAutomatic: true)),
+			toolTip: OurResources.StartAutomaticToolTip);
+		return new SplitActionViewModel(text, () => start(new StartRequest(need, IsAutomatic: false)), alternatives: [.. shorter, automatic], isTextStable: false);
+	}
+
+	/// <summary>
+	/// Describes a shift by when it ends and how long it is, such as "Until done (8 hours)", "Until afternoon (2 hours)", or
+	/// "Until 15:00 (1 hour)".
+	/// </summary>
+	private static string FormatShift(GameWorld world, int minutes, TimePoint end, CalendarDayPart? dayPart, bool isDone)
+	{
+		var duration = PlayerActionText.FormatMinutes(world, minutes);
+		return isDone ? OurResources.StartUntilDone.FormatCurrentCulture(duration) :
+			dayPart is not null ? OurResources.StartUntilDayPart.FormatCurrentCulture(PlayerStepsViewModel.LowerFirst(dayPart.Title), duration) :
+			OurResources.StartUntilTime.FormatCurrentCulture(world.GameData.Calendar.FormatClock(end), duration);
 	}
 }

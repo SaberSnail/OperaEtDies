@@ -67,6 +67,17 @@ public sealed class QuarterKind : IIdentified
 	/// longer of their kinds' times.
 	/// </summary>
 	public required int TravelTime { get; init; }
+
+	/// <summary>
+	/// How likely someone is to come by a quarter of this kind, which decides how comfortable someone there alone is with
+	/// how covered they are, or null to use the modesty settings' traffic for quarters.
+	/// </summary>
+	public FrequencyLevel? Traffic { get; init; }
+
+	/// <summary>
+	/// How much more (or, when negative, less) comfortable people in a quarter of this kind are with how covered they are.
+	/// </summary>
+	public int ModestyComfort { get; init; }
 }
 
 /// <summary>

@@ -57,6 +57,21 @@ public sealed class CharacterTraits
 		return templates.Format(templateId, x => GetText(GetVisibleValue(x.Id), x.Field), GetVisibleValue);
 	}
 
+	/// <summary>
+	/// Creates the text a single placeholder would have for this character, such as "gender.pronoun" for a property's
+	/// text, or the id of a template in the set, such as "subject". Values hidden by the obscuring are treated as if the
+	/// character didn't have them, so a property's text is empty, and a template uses its variant for them being hidden.
+	/// Returns empty text if it isn't a valid placeholder.
+	/// </summary>
+	public string FormatPlaceholder(TextTemplateSet templates, string placeholder, CharacterObscuring? obscuring = null)
+	{
+		ArgumentNullException.ThrowIfNull(templates);
+		object? GetVisibleValue(string propertyId) => m_values.GetValueOrDefault(propertyId) is { } value && !(obscuring?.Hides(propertyId, value) ?? false) ? value : null;
+		return TextTemplate.TryParse($"{{{placeholder}}}", out var template)
+			? template.Format(x => templates.Contains(x.Id) ? Format(templates, x.Id, obscuring) : GetText(GetVisibleValue(x.Id), x.Field))
+			: "";
+	}
+
 	public string GetFullName(TextTemplateSet templates, CharacterObscuring? obscuring = null) => Format(templates, CharacterData.FullNameTemplateId, obscuring);
 
 	public string GetDescription(TextTemplateSet templates, CharacterObscuring? obscuring = null, string? clothing = null) => Format(templates, CharacterData.DescriptionTemplateId, obscuring, clothing);

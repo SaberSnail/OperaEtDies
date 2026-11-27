@@ -2,9 +2,15 @@
 
 	<ResourceDictionary.MergedDictionaries>
 		<ResourceDictionary Source="Text.xaml" />
+		<ResourceDictionary Source="Focus.xaml" />
+		<ResourceDictionary Source="ToolTips.xaml" />
+		<ResourceDictionary Source="Icons.xaml" />
 		<ResourceDictionary Source="Buttons.xaml" />
+		<ResourceDictionary Source="IconButtons.xaml" />
 		<ResourceDictionary Source="ToggleButtons.xaml" />
+		<ResourceDictionary Source="SplitButtons.xaml" />
 		<ResourceDictionary Source="Splitters.xaml" />
+		<ResourceDictionary Source="Meters.xaml" />
 		<ResourceDictionary Source="Windows.xaml" />
 		<ResourceDictionary Source="TextBox.xaml" />
 		<ResourceDictionary Source="ComboBox.xaml" />

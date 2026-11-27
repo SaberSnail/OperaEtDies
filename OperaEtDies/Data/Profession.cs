@@ -60,12 +60,6 @@ public sealed class Profession : IIdentified
 	public ProfessionBusiness? Business { get; init; }
 
 	/// <summary>
-	/// How much more (or, when negative, less) modesty the profession calls for while working, keyed by the id of the
-	/// modesty rule someone follows, then by slot id, such as the extra covering of someone whose work calls for it.
-	/// </summary>
-	public IReadOnlyDictionary<string, IReadOnlyDictionary<string, int>> Modesty { get; init; } = new Dictionary<string, IReadOnlyDictionary<string, int>>(StringComparer.Ordinal);
-
-	/// <summary>
 	/// Whether the profession is a business.
 	/// </summary>
 	[JsonIgnore]

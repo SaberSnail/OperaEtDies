@@ -6,7 +6,7 @@ namespace OperaEtDies.Controls.Locations;
 /// Tells the player something that happened while time passed, such as that they missed an appointment, shown on top of
 /// everything else until they close it.
 /// </summary>
-public sealed class NoticePromptViewModel(string text) : ViewModelBase
+public sealed class NoticePromptViewModel(string text) : ViewModelBase, INumberedChoices
 {
 	/// <summary>
 	/// Raised when the player closes it.
@@ -22,5 +22,20 @@ public sealed class NoticePromptViewModel(string text) : ViewModelBase
 	{
 		VerifyAccess();
 		Dismissed.Raise(this);
+	}
+
+	/// <summary>
+	/// Presses the numbered button: 1 to close it.
+	/// </summary>
+	public bool ChooseNumber(int number)
+	{
+		VerifyAccess();
+		var choice = number switch
+		{
+			1 => (Action) Dismiss,
+			_ => null,
+		};
+		choice?.Invoke();
+		return choice is not null;
 	}
 }

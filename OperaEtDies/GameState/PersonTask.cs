@@ -20,11 +20,11 @@ public abstract record PersonTask
 }
 
 /// <summary>
-/// Walks to a location next to the person's.
+/// Walks to a location next to the person's. A retreat is part of heading home to cover up.
 /// </summary>
-public sealed record TravelTask(Location Destination) : PersonTask
+public sealed record TravelTask(Location Destination, bool IsRetreat = false) : PersonTask
 {
-	internal override PersonTaskRecord CreateRecord() => new TravelTaskRecord(Destination.Id) { ResumeMinutes = ResumeMinutes };
+	internal override PersonTaskRecord CreateRecord() => new TravelTaskRecord(Destination.Id, IsRetreat ? true : null) { ResumeMinutes = ResumeMinutes };
 }
 
 /// <summary>
@@ -47,11 +47,20 @@ public sealed record AtWorkTask(bool IsAtWork) : PersonTask
 
 /// <summary>
 /// Changes into an outfit, or out of it, back into the rest of what the person was wearing, such as out of work clothes
-/// still worn after work. The change is made when the task ends.
+/// still worn after work. The change is made when the task ends. Covering up, when someone finds themselves less covered
+/// than they're comfortable with, is called off if they become comfortable before it ends.
 /// </summary>
-public sealed record ChangeClothesTask(OwnedOutfit Outfit, bool IsTakingOff) : PersonTask
+public sealed record ChangeClothesTask(OwnedOutfit Outfit, bool IsTakingOff, bool IsCoverUp = false) : PersonTask
 {
-	internal override PersonTaskRecord CreateRecord() => new ChangeClothesTaskRecord(Outfit.Id, IsTakingOff) { ResumeMinutes = ResumeMinutes };
+	internal override PersonTaskRecord CreateRecord() => new ChangeClothesTaskRecord(Outfit.Id, IsTakingOff, IsCoverUp ? true : null) { ResumeMinutes = ResumeMinutes };
+}
+
+/// <summary>
+/// Waits where the person is, without spending the time on anything, until others leave so they can change clothes.
+/// </summary>
+public sealed record PrivacyTask(int Minutes) : PersonTask
+{
+	internal override PersonTaskRecord CreateRecord() => new PrivacyTaskRecord(Minutes) { ResumeMinutes = ResumeMinutes };
 }
 
 /// <summary>
@@ -103,6 +112,7 @@ public sealed record WaitTask(Person For, int Minutes) : PersonTask
 [JsonDerivedType(typeof(ChangeClothesTaskRecord), "changeClothes")]
 [JsonDerivedType(typeof(FollowTaskRecord), "follow")]
 [JsonDerivedType(typeof(MeetTaskRecord), "meet")]
+[JsonDerivedType(typeof(PrivacyTaskRecord), "privacy")]
 public abstract record PersonTaskRecord
 {
 	/// <summary>
@@ -113,9 +123,9 @@ public abstract record PersonTaskRecord
 	internal abstract PersonTask Create(WorldLoader loader);
 }
 
-public sealed record TravelTaskRecord(WorldId Destination) : PersonTaskRecord
+public sealed record TravelTaskRecord(WorldId Destination, bool? IsRetreat = null) : PersonTaskRecord
 {
-	internal override PersonTask Create(WorldLoader loader) => new TravelTask(loader.Get<Location>(Destination)) { ResumeMinutes = ResumeMinutes };
+	internal override PersonTask Create(WorldLoader loader) => new TravelTask(loader.Get<Location>(Destination), IsRetreat ?? false) { ResumeMinutes = ResumeMinutes };
 }
 
 public sealed record BusyTaskRecord(int? Minutes, int? Step = null, bool? IsAside = null) : PersonTaskRecord
@@ -150,9 +160,14 @@ public sealed record WaitTaskRecord(WorldId For, int Minutes) : PersonTaskRecord
 	internal override PersonTask Create(WorldLoader loader) => new WaitTask(loader.Get<Person>(For), Minutes) { ResumeMinutes = ResumeMinutes };
 }
 
-public sealed record ChangeClothesTaskRecord(WorldId Outfit, bool IsTakingOff) : PersonTaskRecord
+public sealed record ChangeClothesTaskRecord(WorldId Outfit, bool IsTakingOff, bool? IsCoverUp = null) : PersonTaskRecord
 {
-	internal override PersonTask Create(WorldLoader loader) => new ChangeClothesTask(loader.Get<OwnedOutfit>(Outfit), IsTakingOff) { ResumeMinutes = ResumeMinutes };
+	internal override PersonTask Create(WorldLoader loader) => new ChangeClothesTask(loader.Get<OwnedOutfit>(Outfit), IsTakingOff, IsCoverUp ?? false) { ResumeMinutes = ResumeMinutes };
+}
+
+public sealed record PrivacyTaskRecord(int Minutes) : PersonTaskRecord
+{
+	internal override PersonTask Create(WorldLoader loader) => new PrivacyTask(Minutes) { ResumeMinutes = ResumeMinutes };
 }
 
 /// <summary>

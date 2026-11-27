@@ -50,6 +50,57 @@ public sealed class PortraitClothingTests
 	}
 
 	[Test]
+	public void LayersCutAwayTheLayersUnderThemThatClothingOverTheirRegionsCanHide()
+	{
+		// A band that covers too little of the scalp to hide the hair cuts the hair away above its line instead, but not the
+		// body, which clothing can't hide.
+		var (renderer, traits) = CreateRenderer([new PortraitLayer { Ai = true, Id = "bandLayer", Clothing = ["band"], Cut = new PortraitCut { Path = "M0,0 H100 V5 H0 Z", Regions = ["scalp"] }, Shapes = [new PortraitShape { Path = "M0,4 H100 V6 H0 Z", Fill = "#806040" }] }]);
+
+		var bare = GetDrawings(renderer.Render(traits, null, new PortraitClothing([])));
+		Assert.That(bare.OfType<DrawingGroup>(), Is.Empty);
+
+		var drawings = GetDrawings(renderer.Render(traits, null, Wearing(s_band)));
+		var hair = drawings.OfType<DrawingGroup>().Single();
+		Assert.That(GetFill(hair.Children[0]), Is.EqualTo(Color.FromRgb(0x11, 0x11, 0x11)));
+		Assert.That((hair.ClipGeometry.FillContains(new Point(50, 2)), hair.ClipGeometry.FillContains(new Point(50, 8))), Is.EqualTo((false, true)));
+		Assert.That(drawings.OfType<GeometryDrawing>().Any(x => x.Brush is SolidColorBrush { Color: { R: 0, G: 0, B: 0 } }), Is.True);
+	}
+
+	[Test]
+	public void LayersOnTheCharacterAreOnlyDrawnOverTheLayersUnderThemDrawnAnywhere()
+	{
+		// Dust is only drawn over the body and hair, not the background, which is only drawn in some places.
+		var (renderer, traits) = CreateRenderer(
+		[
+			new PortraitLayer { Ai = true, Id = "background", At = new PortraitPlaceCondition { Home = true }, Shapes = [new PortraitShape { Path = "M0,0 H100 V100 H0 Z", Fill = "#336699" }] },
+			new PortraitLayer { Ai = true, Id = "dust", OnCharacter = true, Shapes = [new PortraitShape { Path = "M0,0 H100 V100 H0 Z", Fill = "#FFFFFF" }] },
+		],
+		body: "M0,0 H50 V100 H0 Z");
+
+		var dust = GetDrawings(renderer.Render(traits, PortraitPlace.Home, new PortraitClothing([]))).OfType<DrawingGroup>().Single();
+		Assert.That((dust.ClipGeometry.FillContains(new Point(25, 50)), dust.ClipGeometry.FillContains(new Point(75, 50))), Is.EqualTo((true, false)));
+	}
+
+	[Test]
+	public void CutsMustBeValid()
+	{
+		var portraits = new PortraitData
+		{
+			Width = 100,
+			Height = 100,
+			Layers =
+			[
+				new PortraitLayer { Ai = true, Id = "badPath", Cut = new PortraitCut { Path = "Q", Regions = ["scalp"] }, Shapes = [new PortraitShape { Path = "M0,0 H1 V1 Z", Fill = "#000000" }] },
+				new PortraitLayer { Ai = true, Id = "noRegions", Cut = new PortraitCut { Path = "M0,0 H1 V1 Z", Regions = [] }, Shapes = [new PortraitShape { Path = "M0,0 H1 V1 Z", Fill = "#000000" }] },
+			],
+		};
+
+		var errors = portraits.Validate().ToList();
+		Assert.That(errors.Where(x => x.Contains("portraitLayers[badPath].cut.path", StringComparison.Ordinal)), Is.Not.Empty);
+		Assert.That(errors, Does.Contain(OurResources.DataListEmpty.FormatCurrentCulture("portraitLayers[noRegions].cut.regions")));
+	}
+
+	[Test]
 	public void PortraitClothingIsEqualForTheSameClothingInTheSameColors()
 	{
 		var red = Wearing(s_tunic, "#FF0000");
@@ -132,7 +183,12 @@ public sealed class PortraitClothingTests
 
 	private static Color GetFill(Drawing drawing) => ((SolidColorBrush) ((GeometryDrawing) drawing).Brush).Color;
 
-	private static (PortraitRenderer Renderer, CharacterTraits Traits) CreateRenderer()
+	private static (PortraitRenderer Renderer, CharacterTraits Traits) CreateRenderer() => CreateRenderer([]);
+
+	/// <summary>
+	/// Creates a renderer with a body (filling the given path), hair, a tunic, and a hat, then the given layers.
+	/// </summary>
+	private static (PortraitRenderer Renderer, CharacterTraits Traits) CreateRenderer(IReadOnlyList<PortraitLayer> extra, string body = "M0,0 H100 V100 H0 Z")
 	{
 		var portraits = new PortraitData
 		{
@@ -141,7 +197,7 @@ public sealed class PortraitClothingTests
 			ShapeSets = [new PortraitShapeSet { Ai = true, Id = "belt", Shapes = [new PortraitShape { Path = "M0,50 H100 V60 H0 Z", Fill = "shade" }] }],
 			Layers =
 			[
-				new PortraitLayer { Ai = true, Id = "body", Shapes = [new PortraitShape { Path = "M0,0 H100 V100 H0 Z", Fill = "#000000" }] },
+				new PortraitLayer { Ai = true, Id = "body", Shapes = [new PortraitShape { Path = body, Fill = "#000000" }] },
 				new PortraitLayer { Ai = true, Id = "hair", HiddenBy = new PortraitHiddenBy { Regions = ["scalp"], Coverage = 5 }, Shapes = [new PortraitShape { Path = "M0,0 H100 V10 H0 Z", Fill = "#111111" }] },
 				new PortraitLayer
 				{
@@ -157,6 +213,7 @@ public sealed class PortraitClothingTests
 					],
 				},
 				new PortraitLayer { Ai = true, Id = "hat", Clothing = ["hat"], Shapes = [new PortraitShape { Path = "M20,0 H80 V10 H20 Z", Fill = "#806040" }] },
+				.. extra,
 			],
 		};
 

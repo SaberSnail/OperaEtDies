@@ -86,7 +86,48 @@ public static class AppointmentText
 		ArgumentNullException.ThrowIfNull(appointment);
 		var (_, meet, _) = appointment.Need.GetAppointmentSteps(appointment.Step)!.Value;
 		return appointment.Client == world.Player ? OurResources.AppointmentActivityClient.FormatCurrentCulture(appointment.Worker.FullName) :
-			appointment.Need.GetActivity(meet + 1, world.Player.Business?.Profession.Id);
+			ActivityText.Fill(appointment.Need.GetActivity(meet + 1, world.Player.Business?.Profession.Id), appointment.GetOther(world.Player));
+	}
+
+	/// <summary>
+	/// Gets what the player can say to the other of an appointment about starting it, from conversation: as its worker,
+	/// asking whether they're ready to start it, or as its client, telling them they're ready now. That's the title to
+	/// choose, and what the player says, which is the title without a text of its own.
+	/// </summary>
+	public static (string Title, string Text) GetStartLine(GameWorld world, Appointment appointment)
+	{
+		ArgumentNullException.ThrowIfNull(world);
+		ArgumentNullException.ThrowIfNull(appointment);
+		var player = world.Player;
+		var isWorker = player == appointment.Worker;
+		var line = GetLine(appointment, isWorker);
+		var title = line?.Title ?? (isWorker ? OurResources.AppointmentStartTitle : OurResources.AppointmentReadyTitle);
+		return (title, line?.Text is { } text ? ActivityText.FillOther(text.Text, appointment.GetOther(player)) : title);
+	}
+
+	/// <summary>
+	/// Gets what the player is told when the other of an appointment says something to them about starting it: as its
+	/// worker asking whether they're ready to start it, or as its client telling them they're ready now.
+	/// </summary>
+	public static string GetStartAsked(GameWorld world, Appointment appointment)
+	{
+		ArgumentNullException.ThrowIfNull(world);
+		ArgumentNullException.ThrowIfNull(appointment);
+		var player = world.Player;
+		var isWorkerAsking = player == appointment.Client;
+		var other = appointment.GetOther(player);
+		return GetLine(appointment, isWorkerAsking)?.Asked is { } asked ? ActivityText.FillOther(asked.Text, other) :
+			(isWorkerAsking ? OurResources.AppointmentStartAsked : OurResources.AppointmentReadyAsked).FormatCurrentCulture(other.FullName);
+	}
+
+	/// <summary>
+	/// Gets what the data says the worker of an appointment says to ask whether to start it, or the client says to tell them
+	/// they're ready, or null if it doesn't say.
+	/// </summary>
+	private static AppointmentLine? GetLine(Appointment appointment, bool isWorker)
+	{
+		var settings = appointment.Need.Steps[appointment.Step].Appointment;
+		return isWorker ? settings?.Start : settings?.Ready;
 	}
 
 	/// <summary>

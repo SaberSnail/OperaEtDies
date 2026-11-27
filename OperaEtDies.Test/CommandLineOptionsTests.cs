@@ -12,14 +12,16 @@ public sealed class CommandLineOptionsTests
 		Assert.That(options.AreModsEnabled, Is.True);
 		Assert.That(options.IsDeveloper, Is.False);
 		Assert.That(options.IsVillageReport, Is.False);
+		Assert.That(options.ResetSettings, Is.False);
 	}
 
 	[Test]
 	public void ArgumentsTurnOnTheirOptions()
 	{
-		var options = CommandLineOptions.Parse(["--NO-MODS", "--developer", "--help", "--generate-villages", "5", "--unknown"]);
+		var options = CommandLineOptions.Parse(["--NO-MODS", "--developer", "--help", "--generate-villages", "5", "--Reset-Settings", "--unknown"]);
 
 		Assert.That(options.ShowHelp, Is.True);
+		Assert.That(options.ResetSettings, Is.True);
 		Assert.That(options.AreModsEnabled, Is.False);
 		Assert.That(options.IsDeveloper, Is.True);
 		Assert.That(options.IsVillageReport, Is.True);

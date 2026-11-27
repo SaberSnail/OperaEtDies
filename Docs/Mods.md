@@ -7,6 +7,7 @@ A mod is a folder of JSON files that change the data described in [DataFiles.md]
 * The result is then read and checked as described in DataFiles.md. Problems found in it are reported as coming from the mods.
 * A mod folder that doesn't exist, or any problem in a mod file, stops the data from loading, and every problem is reported.
 * Mods can't change `game.title` or `game.icon`.
+* Mods can't add files other than JSON, such as font files. A theme's fonts are found in the data folder or among the installed fonts (see Theme in DataFiles.md).
 
 **Operation**
 

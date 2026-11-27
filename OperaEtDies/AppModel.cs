@@ -3,12 +3,11 @@ using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Logging;
 using GoldenAnvil.Utility.Windows.Async;
 using Microsoft.VisualStudio.Threading;
-using OperaEtDies.Controls.NewGame;
 using OperaEtDies.Data;
 using OperaEtDies.GameState;
 using OperaEtDies.Mods;
+using OperaEtDies.Settings;
 using OperaEtDies.Windows.Main;
-using OperaEtDies.Windows.StartUp;
 
 namespace OperaEtDies;
 
@@ -23,7 +22,6 @@ public sealed class AppModel : ViewModelBase
 	{
 		m_taskGroup = new TaskGroup();
 		LogManager.Initialize(new DebugLogDestination());
-		m_currentTheme = new Uri(@"/Themes/Default/Default.xaml", UriKind.Relative);
 		Random = new CryptoRandom();
 		m_gameInfoResult = DataLoadResult<GameInfo>.Failure([]);
 		m_gameDataResult = DataLoadResult<GameData>.Failure([]);
@@ -34,12 +32,9 @@ public sealed class AppModel : ViewModelBase
 	/// </summary>
 	public event EventHandler? ExitRequested;
 
-	public StartUpWindowViewModel? StartUpWindow
-	{
-		get => VerifyAccess(m_startUpWindow);
-		private set => SetPropertyField(value, ref m_startUpWindow);
-	}
-
+	/// <summary>
+	/// The game's one window, from start up until it shuts down.
+	/// </summary>
 	public MainWindowViewModel? MainWindow
 	{
 		get => VerifyAccess(m_mainWindow);
@@ -59,25 +54,31 @@ public sealed class AppModel : ViewModelBase
 
 	public Random Random { get; }
 
-	public Uri CurrentTheme
+	/// <summary>
+	/// The theme the window is drawn in, or null for the built-in theme. It comes from the game data, or from the data
+	/// without mods until the game data loads, or when it fails to load.
+	/// </summary>
+	public ThemeSettings? Theme
 	{
-		get
-		{
-			VerifyAccess();
-			return m_currentTheme;
-		}
-		set
-		{
-			if (SetPropertyField(value, ref m_currentTheme))
-				Log.Info($"Changing theme to \"{m_currentTheme.OriginalString}\"");
-		}
+		get => VerifyAccess(m_theme);
+		private set => SetPropertyField(value, ref m_theme);
 	}
 
 	/// <summary>
-	/// Loads the game data and opens the start up window. Mods aren't loaded if they're turned off, the given mod folders
-	/// are loaded instead of the mod list if there are any, and developer UI is only shown if it's turned on.
+	/// The player's settings, such as the text size, or null until the game starts up.
 	/// </summary>
-	public async Task StartupAsync(TaskStateController state, bool areModsEnabled, IReadOnlyList<string>? modDirectories, bool isDeveloper)
+	public AppSettings? Settings
+	{
+		get => VerifyAccess(m_settings);
+		private set => SetPropertyField(value, ref m_settings);
+	}
+
+	/// <summary>
+	/// Opens the window, showing the main menu, and loads the game data. Mods aren't loaded if they're turned off, the
+	/// given mod folders are loaded instead of the mod list if there are any, and developer UI is only shown if it's
+	/// turned on. The kept settings are forgotten first if they're to be reset.
+	/// </summary>
+	public async Task StartupAsync(TaskStateController state, bool areModsEnabled, IReadOnlyList<string>? modDirectories, bool isDeveloper, bool resetSettings = false)
 	{
 		m_areModsEnabled = areModsEnabled;
 		m_modDirectoriesOverride = modDirectories;
@@ -89,51 +90,33 @@ public sealed class AppModel : ViewModelBase
 		else if (modDirectories is not null)
 			Log.Info("Mods were chosen on the command line, instead of the mod list");
 
-		await LoadDataAsync(state);
-		OpenStartUpWindow();
-	}
+		// The window opens where it was last, which is kept under the game's title, so the game info is read first, along
+		// with the theme the window is drawn in. The rest of the data loads while the window shows that it's loading.
+		await state.ToThreadPool();
+		var (baseGameInfoResult, baseTheme) = LoadBase(JsonDataLoader.DefaultDataDirectory);
+		await state.ToSyncContext();
+		Theme = baseTheme;
+		var baseGameInfo = baseGameInfoResult.Value;
+		WindowPlacementKeyPath = baseGameInfo is null ? null : GameRegistry.GetKeyPath(baseGameInfo.Title);
 
-	/// <summary>
-	/// Replaces the start up window with the main window.
-	/// </summary>
-	public void StartNewGame(NewGameSettings settings)
-	{
-		VerifyAccess();
-
-		var gameInfo = m_gameInfoResult.Value;
-		var gameData = m_gameDataResult.Value;
-		if (gameInfo is null || gameData is null)
+		// The settings are kept under the game's title too. Without it, they still work, but aren't kept.
+		var settingsStore = baseGameInfo is null ? null : new RegistryAppSettingsStore(baseGameInfo.Title);
+		if (resetSettings)
 		{
-			Log.Error("Can't start a new game because the game data failed to load");
-			return;
+			Log.Info("Resetting the settings");
+			settingsStore?.Reset();
 		}
+		Settings = new AppSettings(settingsStore);
+		OpenMainWindow();
 
-		Log.Info($"Starting new game as {settings.Player.GetFullName(gameData.CharacterTemplates)}");
-
-		OpenGame(GameWorld.CreateNewGame(gameData, settings.Player, Random));
+		await LoadDataAsync(state);
+		ShowData();
 	}
 
 	/// <summary>
-	/// Replaces the start up window with the main window, showing a loaded game.
+	/// The registry key under HKEY_CURRENT_USER where the window keeps where it was, or null if there's nowhere to keep it.
 	/// </summary>
-	public void OpenLoadedGame(GameWorld world)
-	{
-		VerifyAccess();
-
-		Log.Info($"Opening loaded game as {world.Player.FullName}");
-		OpenGame(world);
-	}
-
-	/// <summary>
-	/// Replaces the main window with the start up window.
-	/// </summary>
-	public void EndGame()
-	{
-		VerifyAccess();
-
-		OpenStartUpWindow();
-		CloseMainWindow();
-	}
+	public string? WindowPlacementKeyPath { get; private set; }
 
 	public void ExitGame()
 	{
@@ -145,7 +128,6 @@ public sealed class AppModel : ViewModelBase
 	public async Task ShutdownAsync()
 #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
 	{
-		CloseStartUpWindow();
 		CloseMainWindow();
 		DisposableUtility.Dispose(ref m_taskGroup);
 	}
@@ -154,28 +136,40 @@ public sealed class AppModel : ViewModelBase
 	/// Loads the game content from the default data folder, with the files from each mod folder in the mod list applied
 	/// in order if mods are turned on. The given mod folders are loaded instead of the mod list if there are any. The mod
 	/// list is kept under the game's title, so it's found using the game info without mods (mods can't change the title).
-	/// The mod list is null if the game info without mods didn't load.
+	/// The mod list is null if the game info without mods didn't load. The theme without mods is loaded too.
 	/// </summary>
-	internal static (GameContent Content, DataLoadResult<GameInfo> BaseGameInfoResult, IModListStore? ModListStore) LoadContent(bool areModsEnabled, IReadOnlyList<string>? modDirectoriesOverride = null)
+	internal static (GameContent Content, DataLoadResult<GameInfo> BaseGameInfoResult, ThemeSettings? BaseTheme, IModListStore? ModListStore) LoadContent(bool areModsEnabled, IReadOnlyList<string>? modDirectoriesOverride = null)
 	{
 		var dataDirectory = JsonDataLoader.DefaultDataDirectory;
-		var baseGameInfoResult = GameInfo.Load(dataDirectory);
+		var (baseGameInfoResult, baseTheme) = LoadBase(dataDirectory);
 		var modListStore = baseGameInfoResult.Value is { } baseGameInfo ? new RegistryModListStore(baseGameInfo.Title) : null;
 		IReadOnlyList<string> modDirectories = !areModsEnabled ? [] : modDirectoriesOverride ?? modListStore?.Load() ?? [];
 		if (modDirectories.Count != 0)
 			Log.Info($"Loading mods from {string.Join(", ", modDirectories.Select(x => $"\"{x}\""))}");
 
-		return (GameContent.Load(dataDirectory, modDirectories, baseGameInfoResult), baseGameInfoResult, modListStore);
+		return (GameContent.Load(dataDirectory, modDirectories, baseGameInfoResult), baseGameInfoResult, baseTheme, modListStore);
 	}
 
 	/// <summary>
-	/// Loads the game data, and the icon from the game info without mods.
+	/// Loads the game info and the theme from the data folder without mods. The theme is null if there isn't one or it
+	/// didn't load; its problems are reported when the game data loads.
+	/// </summary>
+	private static (DataLoadResult<GameInfo> GameInfoResult, ThemeSettings? Theme) LoadBase(string dataDirectory)
+	{
+		var document = DataDocument.Read(dataDirectory, []);
+		return document.Value is { } value
+			? (GameInfo.Read(value), ThemeSettings.Read(value))
+			: (DataLoadResult<GameInfo>.Failure(document.Errors), null);
+	}
+
+	/// <summary>
+	/// Loads the game data and its theme, and the icon from the game info without mods.
 	/// </summary>
 	private async Task LoadDataAsync(TaskStateController state)
 	{
 		await state.ToThreadPool();
 
-		var (content, baseGameInfoResult, modListStore) = LoadContent(m_areModsEnabled, m_modDirectoriesOverride);
+		var (content, baseGameInfoResult, baseTheme, modListStore) = LoadContent(m_areModsEnabled, m_modDirectoriesOverride);
 		var gameInfoResult = content.GameInfoResult;
 		var gameDataResult = content.GameDataResult;
 
@@ -195,6 +189,9 @@ public sealed class AppModel : ViewModelBase
 			m_iconErrors = iconResult?.Errors ?? iconReadResult?.Errors ?? [];
 		}
 
+		// When the game data doesn't load, the theme without mods is used, so the errors are drawn in the usual theme.
+		Theme = gameDataResult.Value is { } gameData ? gameData.Theme : baseTheme;
+
 		m_modListStore = modListStore;
 		m_saveSettings = gameInfoResult.Value is { } gameInfo ? SaveSettings.Create(gameInfo.Title, content.DataHash, content.ModsHash, content.ModDirectories) : null;
 	}
@@ -204,41 +201,17 @@ public sealed class AppModel : ViewModelBase
 	private async Task ReloadDataAsync(TaskStateController state)
 	{
 		await LoadDataAsync(state);
-		m_startUpWindow?.SetData(m_gameInfoResult.Value, m_gameDataResult.Value, GetLoadErrors(), m_modListStore, m_saveSettings);
+		ShowData();
 	}
 
-	private void OpenStartUpWindow()
+	private void ShowData() => m_mainWindow?.SetData(m_gameInfoResult.Value, m_gameDataResult.Value, GetLoadErrors(), m_modListStore, m_saveSettings);
+
+	private void OpenMainWindow()
 	{
-		if (m_startUpWindow is not null)
-			return;
-
-		var startUpWindow = new StartUpWindowViewModel(m_gameInfoResult.Value, m_gameDataResult.Value, Random, GetLoadErrors(), m_modListStore, new FolderPicker(), m_areModsEnabled, m_isDeveloper, m_saveSettings, m_modDirectoriesOverride is not null);
-		startUpWindow.StartNewGameRequested += OnStartNewGameRequested;
-		startUpWindow.GameLoaded += OnGameLoaded;
-		startUpWindow.ExitGameRequested += OnExitGameRequested;
-		startUpWindow.ReloadDataRequested += OnReloadDataRequested;
-		StartUpWindow = startUpWindow;
-	}
-
-	private void CloseStartUpWindow()
-	{
-		var startUpWindow = m_startUpWindow;
-		if (startUpWindow is null)
-			return;
-
-		StartUpWindow = null;
-		startUpWindow.StartNewGameRequested -= OnStartNewGameRequested;
-		startUpWindow.GameLoaded -= OnGameLoaded;
-		startUpWindow.ExitGameRequested -= OnExitGameRequested;
-		startUpWindow.ReloadDataRequested -= OnReloadDataRequested;
-		startUpWindow.Dispose();
-	}
-
-	private void OpenGame(GameWorld world)
-	{
-		// Open the main window before closing the start up window, so there's always a window showing.
-		MainWindow = new MainWindowViewModel(m_gameInfoResult.Value?.Title ?? OurResources.EngineName, world, m_isDeveloper, m_saveSettings, isTimePaced: true);
-		CloseStartUpWindow();
+		var mainWindow = new MainWindowViewModel(Random, new FolderPicker(), m_areModsEnabled, m_isDeveloper, m_modDirectoriesOverride is not null, m_settings);
+		mainWindow.ExitRequested += OnExitGameRequested;
+		mainWindow.ReloadDataRequested += OnReloadDataRequested;
+		MainWindow = mainWindow;
 	}
 
 	private void CloseMainWindow()
@@ -248,12 +221,10 @@ public sealed class AppModel : ViewModelBase
 			return;
 
 		MainWindow = null;
+		mainWindow.ExitRequested -= OnExitGameRequested;
+		mainWindow.ReloadDataRequested -= OnReloadDataRequested;
 		mainWindow.Dispose();
 	}
-
-	private void OnStartNewGameRequested(object? sender, GenericEventArgs<NewGameSettings> e) => StartNewGame(e.Value);
-
-	private void OnGameLoaded(object? sender, GenericEventArgs<GameWorld> e) => OpenLoadedGame(e.Value);
 
 	private void OnExitGameRequested(object? sender, EventArgs e) => ExitGame();
 
@@ -262,7 +233,6 @@ public sealed class AppModel : ViewModelBase
 	private static ILogSource Log { get; } = LogManager.CreateLogSource(nameof(AppModel));
 	private static readonly Lazy<AppModel> s_appModel = new(() => new AppModel());
 
-	private StartUpWindowViewModel? m_startUpWindow;
 	private MainWindowViewModel? m_mainWindow;
 	private DataLoadResult<GameInfo> m_gameInfoResult;
 	private DataLoadResult<GameData> m_gameDataResult;
@@ -273,6 +243,7 @@ public sealed class AppModel : ViewModelBase
 	private bool m_areModsEnabled = true;
 	private IReadOnlyList<string>? m_modDirectoriesOverride;
 	private bool m_isDeveloper;
-	private Uri m_currentTheme;
+	private ThemeSettings? m_theme;
+	private AppSettings? m_settings;
 	private TaskGroup m_taskGroup;
 }

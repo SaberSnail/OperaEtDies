@@ -108,6 +108,30 @@ public sealed class ModEditorFormTests
 	}
 
 	[Test]
+	public void OutfitClothingIsChosenByIdOrAsOptions()
+	{
+		var gameData = (JsonObject) JsonNode.Parse("""{ "clothing": [ { "id": "tunic" }, { "id": "hood" } ] }""")!;
+		var piece = ModPiece.Item("outfits", JsonNode.Parse("""{ "id": "o", "kind": "everyday", "clothing": [ "tunic" ] }"""));
+		JsonNode? changed = null;
+
+		var form = FormViewModel.Create(piece, new IdCatalog(gameData, []), isReadOnly: false, x => changed = x.Value)!;
+		var clothing = (ListFieldViewModel) ((ObjectFieldViewModel) form.Root).Fields.Single(x => x.Label == "clothing");
+		var entry = (OutfitClothingFieldViewModel) clothing.Items[0].Field;
+
+		// The clothing ids are offered, along with options.
+		Assert.That(entry.Choices, Is.EqualTo(new[] { "tunic", "hood", OutfitClothingFieldViewModel.OptionsChoice }));
+		Assert.That((entry.Selected, entry.Details), Is.EqualTo(("tunic", (ObjectFieldViewModel?) null)));
+
+		// Options are an object, whose options suggest the clothing ids.
+		entry.Selected = OutfitClothingFieldViewModel.OptionsChoice;
+		Assert.That(changed?["clothing"]?[0]?["options"], Is.InstanceOf<JsonArray>());
+		var options = (ListFieldViewModel) entry.Details!.Fields.Single(x => x.Label == "options");
+		options.Add();
+		var option = (TextFieldViewModel) ((ObjectFieldViewModel) options.Items[0].Field).Fields.Single(x => x.Label == "clothing");
+		Assert.That(option.Suggestions, Is.EqualTo(new[] { "tunic", "hood" }));
+	}
+
+	[Test]
 	public void ListItemsCanHaveAnItemAddedAfterThem()
 	{
 		var piece = ModPiece.Item("needs", JsonNode.Parse("""{ "id": "n", "steps": [ { "step": "goTo", "place": "home" }, { "step": "do", "minutes": 5 } ] }"""));

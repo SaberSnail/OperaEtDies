@@ -11,13 +11,16 @@ namespace OperaEtDies.Data;
 /// </summary>
 public sealed class GameData
 {
-	public GameData(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, RelationshipSettings relationships, CalendarSettings calendar, FrequencyChances? frequencyChances = null, PortraitData? portraits = null, ScheduleSettings? schedules = null, ClothingData? clothing = null)
+	public GameData(CharacterData characters, LocationList locations, ProfessionList professions, FamilySettings families, RelationshipSettings relationships, CalendarSettings calendar, FrequencyChances? frequencyChances = null, PortraitData? portraits = null, ScheduleSettings? schedules = null, ClothingData? clothing = null, ThemeSettings? theme = null, IReadOnlyList<GameIcon>? icons = null)
 	{
+		Icons = new DataCatalog<GameIcon>(icons ?? []);
+		Theme = theme;
 		Schedules = schedules ?? ScheduleSettings.None;
 		var clothingData = clothing ?? ClothingData.None;
 		ClothingSlots = new DataCatalog<ClothingSlot>(clothingData.Slots);
 		ClothingLayers = new DataCatalog<ClothingLayer>(clothingData.Layers);
 		ModestyRules = clothingData.ModestyRules;
+		ModestySettings = clothingData.Modesty ?? ModestySettings.None;
 		ClothingColors = new DataCatalog<ClothingColor>(clothingData.Colors);
 		ClothingBulks = new DataCatalog<ClothingBulk>(clothingData.Bulks);
 		ClothingSettings = clothingData.Settings ?? ClothingSettings.None;
@@ -118,6 +121,7 @@ public sealed class GameData
 			Items = List<ClothingItem>("clothing"),
 			Outfits = List<Outfit>("outfits"),
 			ModestyRules = List<ModestyRule>("modestyRules"),
+			Modesty = Section<ModestySettings>(ModestySettings.SectionName, isRequired: false) ?? ModestySettings.None,
 			Settings = Section<ClothingSettings>(ClothingSettings.SectionName, isRequired: false) ?? ClothingSettings.None,
 		};
 		var properties = List<CharacterProperty>("properties");
@@ -151,6 +155,8 @@ public sealed class GameData
 		var travelTimeFactors = List<TravelTimeFactor>("travelTimeFactors");
 		var urgencyFactors = List<UrgencyFactor>("urgencyFactors");
 		var stepLists = List<StepList>("stepLists");
+		var icons = List<GameIcon>(GameIcon.SectionName);
+		var theme = Section<ThemeSettings>(ThemeSettings.SectionName, isRequired: false);
 
 		// Without portraits, characters have no portraits.
 		var portraitSection = includePortraits ? Section<PortraitSection>("portraits", isRequired: false) : null;
@@ -192,6 +198,10 @@ public sealed class GameData
 		messages.AddRange(calendar.Validate());
 		messages.AddRange(schedules.Validate());
 		messages.AddRange(clothing.Validate());
+		if (theme is not null)
+			messages.AddRange(theme.Validate());
+		messages.AddRange(GameIcon.Validate(icons));
+		messages.AddRange(ValidateIconReferences(icons, schedules));
 		if (portraits is not null)
 			messages.AddRange(portraits.Validate());
 
@@ -201,11 +211,24 @@ public sealed class GameData
 		if (messages.Count != 0)
 			return Fail(messages.Distinct(StringComparer.Ordinal).Select(document.CreateError).ToList());
 
-		var gameData = new GameData(characters, locations, professions, families, relationships, calendar, game.FrequencyChances, portraits, schedules, clothing);
+		var gameData = new GameData(characters, locations, professions, families, relationships, calendar, game.FrequencyChances, portraits, schedules, clothing, theme, icons);
 		foreach (var warning in gameData.GetLowChanceWarnings().Concat(schedules.GetWarnings()))
 			Log.Warn(warning);
 
 		return DataLoadResult<GameData>.Success(gameData);
+	}
+
+	/// <summary>
+	/// Checks that every icon the data refers to is in the icons section.
+	/// </summary>
+	private static IEnumerable<string> ValidateIconReferences(IReadOnlyList<GameIcon> icons, ScheduleSettings schedules)
+	{
+		var ids = icons.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+		foreach (var need in schedules.Needs.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)))
+		{
+			if (!ids.Contains(need.Icon ?? ""))
+				yield return OurResources.DataIdUnknown.FormatCurrentCulture($"needs[{need.Id}].icon", need.Icon, GameIcon.SectionName);
+		}
 	}
 
 	private static DataLoadResult<GameData> Fail(IReadOnlyList<DataLoadError> errors)
@@ -247,6 +270,21 @@ public sealed class GameData
 		var quarterKinds = QuarterKinds.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
 		return GameDataValidation.ValidatePortraits(portraits, properties, quarterKinds, CharacterProperties.Find(Families.Roles.Properties.Profession), new ClothingData { Slots = ClothingSlots, Items = Clothing }).ToList();
 	}
+
+	/// <summary>
+	/// How the game looks, or null if the data has no theme, in which case the built-in theme is used.
+	/// </summary>
+	public ThemeSettings? Theme { get; }
+
+	/// <summary>
+	/// The icons that stand for things in the data, such as needs.
+	/// </summary>
+	public DataCatalog<GameIcon> Icons { get; }
+
+	/// <summary>
+	/// Gets the lines of the icon with an id, or nothing if there's no icon with that id (loaded data always has it).
+	/// </summary>
+	public System.Windows.Media.Geometry GetIcon(string id) => Icons.Find(id)?.Geometry ?? System.Windows.Media.Geometry.Empty;
 
 	/// <summary>
 	/// The chances that items chosen at random are uncommon or rare.
@@ -292,6 +330,11 @@ public sealed class GameData
 	/// How well covered people must be. Each person follows the first rule whose condition they meet.
 	/// </summary>
 	public IReadOnlyList<ModestyRule> ModestyRules { get; }
+
+	/// <summary>
+	/// How comfortable people are with how covered they are, which decides what their modesty rule calls for.
+	/// </summary>
+	public ModestySettings ModestySettings { get; }
 
 	/// <summary>
 	/// The colors clothing can be.

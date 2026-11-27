@@ -5,49 +5,96 @@
 	xmlns:operaEtDies="clr-namespace:OperaEtDies"
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
 
-	<!--  The event log, oldest first, staying scrolled to the newest entry unless the player scrolled back. Each entry has the
-		date above it when the day changes, and the time beside it when the time changes.  -->
+	<!--  One entry in the log, with the date above it when the day changes, and the time beside it when the time changes.  -->
+	<DataTemplate x:Key="LogEntryTemplate" DataType="{x:Type local:LogEntryViewModel}">
+		<StackPanel>
+			<TextBlock
+				Margin="0,8,0,4"
+				FontWeight="Bold"
+				Text="{Binding Day}"
+				TextWrapping="Wrap"
+				Visibility="{Binding Day, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
+			<Grid Margin="0,0,0,4">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="Auto" />
+					<ColumnDefinition Width="*" />
+				</Grid.ColumnDefinitions>
+				<TextBlock
+					Grid.Column="0"
+					MinWidth="{Binding FontSize, RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=3}"
+					Foreground="{DynamicResource TextMutedBrush}"
+					Text="{Binding Clock}" />
+				<TextBlock
+					Grid.Column="1"
+					local:LogViewBehaviors.Parts="{Binding Parts}"
+					TextWrapping="Wrap" />
+			</Grid>
+		</StackPanel>
+	</DataTemplate>
+
+	<!--  The event log, oldest first, staying scrolled to the newest entry unless the player scrolled back. Its heading sits
+		right under the splitter above it, with buttons that open the log in a sheet and collapse it down to the heading, left
+		of the splitter's ribbon.  -->
 	<DataTemplate DataType="{x:Type local:EventLogViewModel}">
 		<DockPanel>
-			<TextBlock
-				Margin="12,12,12,8"
-				DockPanel.Dock="Top"
-				Foreground="{DynamicResource FontLightBrush}"
-				Text="{x:Static operaEtDies:OurResources.EventLogHeader}" />
+			<DockPanel Margin="12,0,48,4" DockPanel.Dock="Top">
+				<Button
+					Padding="2"
+					VerticalAlignment="Center"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ToggleCollapsed}"
+					DockPanel.Dock="Right"
+					ToolTip="{Binding CollapseToolTip}">
+					<Button.Style>
+						<Style BasedOn="{StaticResource IconButtonStyle}" TargetType="Button">
+							<Setter Property="Content" Value="{StaticResource ChevronDownIcon}" />
+							<Style.Triggers>
+								<DataTrigger Binding="{Binding IsCollapsed}" Value="True">
+									<Setter Property="Content" Value="{StaticResource ChevronUpIcon}" />
+								</DataTrigger>
+							</Style.Triggers>
+						</Style>
+					</Button.Style>
+				</Button>
+				<Button
+					Padding="2"
+					VerticalAlignment="Center"
+					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=OpenSheet}"
+					Content="{StaticResource ExpandIcon}"
+					DockPanel.Dock="Right"
+					Style="{StaticResource IconButtonStyle}"
+					ToolTip="{x:Static operaEtDies:OurResources.LogOpenSheetToolTip}" />
+				<TextBlock
+					Margin="0"
+					VerticalAlignment="Center"
+					Style="{DynamicResource CaptionTextStyle}"
+					Text="{x:Static operaEtDies:OurResources.EventLogHeader}" />
+			</DockPanel>
 			<ScrollViewer
+				Visibility="{Binding IsCollapsed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}"
 				local:LogViewBehaviors.IsScrolledToEnd="True"
 				HorizontalScrollBarVisibility="Disabled"
 				VerticalScrollBarVisibility="Auto">
-				<ItemsControl Margin="12,0,12,12" ItemsSource="{Binding Entries}">
-					<ItemsControl.ItemTemplate>
-						<DataTemplate DataType="{x:Type local:LogEntryViewModel}">
-							<StackPanel>
-								<TextBlock
-									Margin="0,8,0,4"
-									FontWeight="Bold"
-									Text="{Binding Day}"
-									TextWrapping="Wrap"
-									Visibility="{Binding Day, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
-								<Grid Margin="0,0,0,4">
-									<Grid.ColumnDefinitions>
-										<ColumnDefinition Width="40" />
-										<ColumnDefinition Width="*" />
-									</Grid.ColumnDefinitions>
-									<TextBlock
-										Grid.Column="0"
-										Foreground="{DynamicResource FontLightBrush}"
-										Text="{Binding Clock}" />
-									<TextBlock
-										Grid.Column="1"
-										local:LogViewBehaviors.Parts="{Binding Parts}"
-										TextWrapping="Wrap" />
-								</Grid>
-							</StackPanel>
-						</DataTemplate>
-					</ItemsControl.ItemTemplate>
-				</ItemsControl>
+				<ItemsControl
+					Margin="12,0,12,12"
+					FontFamily="{DynamicResource NarrativeFontFamily}"
+					ItemTemplate="{StaticResource LogEntryTemplate}"
+					ItemsSource="{Binding Entries}" />
 			</ScrollViewer>
 		</DockPanel>
+	</DataTemplate>
+
+	<!--  The log sheet: the same entries as the log in the right column, at a larger size.  -->
+	<DataTemplate DataType="{x:Type local:LogSheetViewModel}">
+		<ScrollViewer
+			local:LogViewBehaviors.IsScrolledToEnd="True"
+			HorizontalScrollBarVisibility="Disabled"
+			VerticalScrollBarVisibility="Auto">
+			<ItemsControl
+				FontFamily="{DynamicResource NarrativeFontFamily}"
+				FontSize="{DynamicResource LargeFontSize}"
+				ItemTemplate="{StaticResource LogEntryTemplate}"
+				ItemsSource="{Binding Log.Entries}" />
+		</ScrollViewer>
 	</DataTemplate>
 
 </ResourceDictionary>

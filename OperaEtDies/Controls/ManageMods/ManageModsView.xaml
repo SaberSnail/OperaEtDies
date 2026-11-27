@@ -17,20 +17,20 @@
 			<TextBlock
 				Grid.Row="0"
 				HorizontalAlignment="Center"
-				FontSize="{DynamicResource TitleFontSize}"
+				Style="{DynamicResource TitleTextStyle}"
 				Text="{x:Static operaEtDies:OurResources.ManageModsHeader}" />
 
 			<StackPanel Grid.Row="1" Margin="0,16,0,0">
 				<TextBlock Text="{x:Static operaEtDies:OurResources.ManageModsDescription}" TextWrapping="Wrap" />
 				<TextBlock
 					Margin="0,4,0,0"
-					Foreground="{DynamicResource FontLightBrush}"
+					Foreground="{DynamicResource TextMutedBrush}"
 					Text="{x:Static operaEtDies:OurResources.ModsDisabled}"
 					TextWrapping="Wrap"
 					Visibility="{Binding AreModsEnabled, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
 				<TextBlock
 					Margin="0,4,0,0"
-					Foreground="{DynamicResource FontLightBrush}"
+					Foreground="{DynamicResource TextMutedBrush}"
 					Text="{x:Static operaEtDies:OurResources.ModsOverridden}"
 					TextWrapping="Wrap"
 					Visibility="{Binding AreModsOverridden, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
@@ -45,9 +45,9 @@
 				<!--  The folders, in the order their mod files are applied.  -->
 				<ListBox
 					Grid.Column="0"
-					Background="{DynamicResource ContentBackgroundBrush}"
-					BorderBrush="{DynamicResource ControlBorderBaseBrush}"
-					Foreground="{DynamicResource FontBrush}"
+					Background="{DynamicResource PanelBrush}"
+					BorderBrush="{DynamicResource RuleBrush}"
+					Foreground="{DynamicResource TextBrush}"
 					ItemsSource="{Binding Mods}"
 					ScrollViewer.HorizontalScrollBarVisibility="Disabled"
 					SelectedItem="{Binding SelectedMod}">
@@ -66,7 +66,7 @@
 					Margin="8"
 					HorizontalAlignment="Left"
 					VerticalAlignment="Top"
-					Foreground="{DynamicResource FontLightBrush}"
+					Foreground="{DynamicResource TextMutedBrush}"
 					IsHitTestVisible="False"
 					Text="{x:Static operaEtDies:OurResources.ManageModsEmpty}">
 					<TextBlock.Style>
@@ -101,8 +101,7 @@
 				Height="32"
 				HorizontalAlignment="Left"
 				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Back}"
-				Content="{x:Static operaEtDies:OurResources.Back}"
-				IsCancel="True" />
+				Content="{x:Static operaEtDies:OurResources.Back}" />
 		</Grid>
 	</DataTemplate>
 

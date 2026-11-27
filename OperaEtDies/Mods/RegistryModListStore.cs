@@ -12,8 +12,7 @@ public sealed class RegistryModListStore : IModListStore
 {
 	public RegistryModListStore(string gameTitle)
 	{
-		// Backslashes would split the title into several keys.
-		KeyPath = $@"Software\Golden Anvil\{gameTitle.Trim().Replace(Path.DirectorySeparatorChar, '_')}";
+		KeyPath = GameRegistry.GetKeyPath(gameTitle);
 	}
 
 	/// <summary>

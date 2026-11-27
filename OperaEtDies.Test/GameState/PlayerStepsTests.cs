@@ -122,7 +122,7 @@ public sealed class PlayerStepsTests
 		player.Location = player.Home;
 		var need = AddNeed(new Need
 		{
-			Id = "choosing", Title = "Choosing", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			Id = "choosing", Title = "Choosing", Icon = "icon", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings =
 			[
 				new Step
@@ -159,7 +159,7 @@ public sealed class PlayerStepsTests
 		player.Location = player.Home;
 		var need = AddNeed(new Need
 		{
-			Id = "chores", Title = "Chores", Hours = Hours(0, 24),
+			Id = "chores", Title = "Chores", Icon = "icon", Hours = Hours(0, 24),
 			Quota = new QuotaNeedSettings { Lead = 600, Time = new QuotaTime { Minutes = Amount(120), Shift = 120 } },
 			StepSettings = [new Step { Kind = StepKind.Repeat, Reconsider = true, Steps = [new Step { Kind = StepKind.Do, Minutes = Amount(30), MeetsQuota = true, Player = new StepPlayer { Title = "Work", Result = "You worked" } }] }],
 		});
@@ -174,6 +174,60 @@ public sealed class PlayerStepsTests
 		await world.DoPlayerStepAsync(sequence);
 		await world.AnswerKeepGoingAsync(sequence, keepGoing: false);
 		Assert.That((player.Sequences.Count, player.GetProgress(need)), Is.EqualTo((0, 60L)));
+	}
+
+	[Test]
+	public void ThePlayerCanChooseAShorterShift()
+	{
+		var (world, _) = CreateWorld();
+		var player = world.Player;
+		player.Location = player.Home;
+		var need = AddNeed(new Need
+		{
+			Id = "chores", Title = "Chores", Icon = "icon", Hours = Hours(0, 24),
+			Quota = new QuotaNeedSettings { Lead = 600, Time = new QuotaTime { Minutes = Amount(480), Shift = 480 } },
+			StepSettings = [new Step { Kind = StepKind.Repeat, Steps = [new Step { Kind = StepKind.Do, Minutes = Amount(30), MeetsQuota = true, Player = new StepPlayer { Title = "Work", Result = "You worked" } }] }],
+		});
+
+		// Besides the shift anyone would choose, the schedules offer an hour and until the next part of the day, when
+		// they're shorter, ending that long from now, since there's no walking.
+		var calendar = world.GameData.Calendar;
+		var shift = world.GetPlayerShiftMinutes(need)!.Value;
+		var nextDayPart = calendar.GetNextDayPartStart(world.Time);
+		var untilDayPart = (int) calendar.GetTotalMinutes(nextDayPart - world.Time);
+		var expected = new[] { (60, (CalendarDayPart?) null), (untilDayPart, calendar.GetDayPart(nextDayPart)) }.Where(x => x.Item1 < shift).DistinctBy(x => x.Item1).ToList();
+		var choices = world.GetPlayerShiftChoices(need);
+		Assert.That(choices.Select(x => (x.Minutes, x.DayPart)), Is.EqualTo(expected));
+		Assert.That(choices.Select(x => x.Until), Is.EqualTo(expected.Select(x => world.Time + calendar.CreateTimeOffset(0, 0, x.Item1))));
+		Assert.That(world.GetPlayerShiftEnd(need, shift), Is.EqualTo(world.Time + calendar.CreateTimeOffset(0, 0, shift)));
+
+		// Starting with one spends that long on it, and once it's started, there are no shifts to choose.
+		var sequence = world.StartPlayerSteps(need, 60);
+		Assert.That(sequence.MinutesLeft, Is.EqualTo(60));
+		Assert.That(world.GetPlayerShiftChoices(need), Is.Empty);
+	}
+
+	[Test]
+	public async Task ThePlayerCanWaitUntilATimeAsync()
+	{
+		var (world, _) = CreateWorld();
+		var player = world.Player;
+		player.Location = player.Home;
+		var calendar = world.GameData.Calendar;
+		var start = world.Time;
+
+		// The schedules offer an hour and until the next part of the day, soonest first.
+		var nextDayPart = calendar.GetNextDayPartStart(start);
+		var choices = world.GetPlayerWaitChoices();
+		Assert.That(choices.Single(x => x.Reason == PlayerWaitReason.Minutes).Until, Is.EqualTo(start + calendar.CreateTimeOffset(0, 0, 60)));
+		Assert.That(choices.Single(x => x.Reason == PlayerWaitReason.DayPart), Is.EqualTo(new PlayerWaitChoice(nextDayPart, PlayerWaitReason.DayPart, calendar.GetDayPart(nextDayPart))));
+		Assert.That(choices.Select(x => x.Until), Is.Ordered);
+
+		// Waiting an hour passes the hour, however people come and go, unless the player is asked something.
+		var until = start + calendar.CreateTimeOffset(0, 0, 60);
+		await world.WaitForPeopleAsync(player.Location, until: until);
+		Assert.That(world.Time == until || world.IsPlayerAsked, Is.True);
+		Assert.That(world.Time, Is.LessThanOrEqualTo(until));
 	}
 
 	[Test]

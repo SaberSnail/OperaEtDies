@@ -1,0 +1,80 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+	<!--
+		The plain theme the tools (the mod editor and the portrait editor) are drawn in, rather than the game's theme. It's
+		merged after Default.xaml, and replaces the theme resources the tools use. The tools don't load a theme from the data.
+	-->
+
+	<Color x:Key="SurfaceColor">#DDDDDD</Color>
+	<Color x:Key="PanelColor">#FFFFFF</Color>
+	<Color x:Key="ChromeColor">#DDDDDD</Color>
+	<Color x:Key="InsetColor">#EEEEEE</Color>
+	<Color x:Key="TrackColor">#E0E0E0</Color>
+	<Color x:Key="MeterColor">#555555</Color>
+	<Color x:Key="SunColor">#B07A1E</Color>
+
+	<SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+	<SolidColorBrush x:Key="PanelBrush" Color="{StaticResource PanelColor}" />
+	<SolidColorBrush x:Key="ChromeBrush" Color="{StaticResource ChromeColor}" />
+	<SolidColorBrush x:Key="InsetBrush" Color="{StaticResource InsetColor}" />
+	<SolidColorBrush x:Key="TrackBrush" Color="{StaticResource TrackColor}" />
+	<SolidColorBrush x:Key="MeterBrush" Color="{StaticResource MeterColor}" />
+	<SolidColorBrush x:Key="SunBrush" Color="{StaticResource SunColor}" />
+
+	<Color x:Key="TextColor">#111111</Color>
+	<Color x:Key="TextMutedColor">#555555</Color>
+	<Color x:Key="TextDisabledColor">#777777</Color>
+	<Color x:Key="TextOnDarkColor">#FFFFFF</Color>
+	<Color x:Key="TextOnAccentColor">#FFFFFF</Color>
+
+	<SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
+	<SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
+	<SolidColorBrush x:Key="TextDisabledBrush" Color="{StaticResource TextDisabledColor}" />
+	<SolidColorBrush x:Key="TextOnDarkBrush" Color="{StaticResource TextOnDarkColor}" />
+	<SolidColorBrush x:Key="TextOnAccentBrush" Color="{StaticResource TextOnAccentColor}" />
+
+	<Color x:Key="RuleColor">#C5C5C5</Color>
+	<Color x:Key="RuleStrongColor">#A8A8A8</Color>
+	<Color x:Key="AccentColor">#2F7CF6</Color>
+	<Color x:Key="ThreatColor">#B02020</Color>
+
+	<SolidColorBrush x:Key="RuleBrush" Color="{StaticResource RuleColor}" />
+	<SolidColorBrush x:Key="RuleStrongBrush" Color="{StaticResource RuleStrongColor}" />
+	<SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+	<SolidColorBrush x:Key="ThreatBrush" Color="{StaticResource ThreatColor}" />
+
+	<Color x:Key="ControlColor">#EEEEEE</Color>
+	<Color x:Key="ControlHoverColor">#E0E0E0</Color>
+	<Color x:Key="ControlPressedColor">#D0D0D0</Color>
+	<Color x:Key="ControlDisabledColor">#F7F7F7</Color>
+
+	<SolidColorBrush x:Key="ControlBrush" Color="{StaticResource ControlColor}" />
+	<SolidColorBrush x:Key="ControlHoverBrush" Color="{StaticResource ControlHoverColor}" />
+	<SolidColorBrush x:Key="ControlPressedBrush" Color="{StaticResource ControlPressedColor}" />
+	<SolidColorBrush x:Key="ControlDisabledBrush" Color="{StaticResource ControlDisabledColor}" />
+
+	<FontFamily x:Key="NarrativeFontFamily">Segoe UI</FontFamily>
+	<FontFamily x:Key="InterfaceFontFamily">Segoe UI</FontFamily>
+
+	<system:Double x:Key="DefaultFontSize">12</system:Double>
+	<system:Double x:Key="SmallFontSize">10</system:Double>
+	<system:Double x:Key="LargeFontSize">14</system:Double>
+	<system:Double x:Key="TitleFontSize">28</system:Double>
+	<system:Double x:Key="CaptionFontSize">10</system:Double>
+
+	<Thickness
+		x:Key="ControlBorderThickness"
+		Bottom="2"
+		Left="2"
+		Right="2"
+		Top="2" />
+	<Thickness
+		x:Key="ControlBorderLeftRightThickness"
+		Left="2"
+		Right="2" />
+	<Thickness x:Key="ControlBorderLeftThickness" Left="2" />
+
+</ResourceDictionary>

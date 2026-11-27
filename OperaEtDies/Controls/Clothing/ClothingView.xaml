@@ -11,14 +11,14 @@
 		<StackPanel>
 			<TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
 			<TextBlock
-				Foreground="{DynamicResource FontLightBrush}"
+				Foreground="{DynamicResource TextMutedBrush}"
 				Text="{Binding Note}"
 				TextWrapping="Wrap"
 				Visibility="{Binding Note, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 			<StackPanel Visibility="{Binding IsExamined, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 				<TextBlock
 					Margin="0,4,0,0"
-					Foreground="{DynamicResource FontLightBrush}"
+					Foreground="{DynamicResource TextMutedBrush}"
 					Text="{Binding LongDescription}"
 					TextWrapping="Wrap" />
 				<!--  For developers, how much of each region the piece covers, and its bulk.  -->
@@ -47,7 +47,7 @@
 	</Style>
 
 	<Style x:Key="ClothingNoneStyle" TargetType="TextBlock">
-		<Setter Property="Foreground" Value="{DynamicResource FontLightBrush}" />
+		<Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
 		<Setter Property="Text" Value="{x:Static operaEtDies:OurResources.ClothingNone}" />
 	</Style>
 
@@ -69,7 +69,7 @@
 					Content="{x:Static operaEtDies:OurResources.CloseView}"
 					DockPanel.Dock="Right" />
 				<TextBlock
-					FontSize="{DynamicResource TitleFontSize}"
+					Style="{DynamicResource TitleTextStyle}"
 					Text="{Binding Title}"
 					TextWrapping="Wrap" />
 			</DockPanel>
@@ -81,11 +81,11 @@
 				<Border
 					Padding="8,4"
 					HorizontalAlignment="Left"
-					Background="{DynamicResource MapCurrentBrush}"
+					Background="{DynamicResource AccentBrush}"
 					Visibility="{Binding HasWarning, Converter={x:Static utility:CommonConverters.BooleanToVisibilityWithHidden}}">
 					<TextBlock
 						FontWeight="Bold"
-						Foreground="{DynamicResource MapVillageBrush}"
+						Foreground="{DynamicResource TextOnAccentBrush}"
 						Text="{Binding Warning}"
 						TextWrapping="Wrap" />
 				</Border>
@@ -124,7 +124,7 @@
 										<StackPanel>
 											<TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
 											<TextBlock
-												Foreground="{DynamicResource FontLightBrush}"
+												Foreground="{DynamicResource TextMutedBrush}"
 												Text="{Binding Note}"
 												Visibility="{Binding Note, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 										</StackPanel>
@@ -167,7 +167,7 @@
 								<StackPanel Margin="0,0,0,8">
 									<TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
 									<TextBlock
-										Foreground="{DynamicResource FontLightBrush}"
+										Foreground="{DynamicResource TextMutedBrush}"
 										Text="{Binding Note}"
 										TextWrapping="Wrap"
 										Visibility="{Binding Note, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />

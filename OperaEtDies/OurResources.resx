@@ -129,10 +129,6 @@
 		<value>Back</value>
 		<comment>Button that leaves the new game screen and returns to the start up menu.</comment>
 	</data>
-	<data name="ExamineLocation" xml:space="preserve">
-		<value>Examine</value>
-		<comment>Button that shows a detailed description of the current location.</comment>
-	</data>
 	<data name="ConnectionsHeader" xml:space="preserve">
 		<value>From here you can go to:</value>
 		<comment>Header above the list of locations the player can travel to.</comment>
@@ -339,6 +335,22 @@
 	<data name="LowChanceWarningInvalid" xml:space="preserve">
 		<value>The "lowChanceWarning" setting is {0}, but it must be at least 0 and less than 100.</value>
 		<comment>{0} is the value found.</comment>
+	</data>
+	<data name="ThemeColorInvalid" xml:space="preserve">
+		<value>The theme's "{0}" color is "{1}", but it must be written as #RRGGBB or #AARRGGBB.</value>
+		<comment>{0} is the color's role, and {1} is the value found.</comment>
+	</data>
+	<data name="ThemeFontMissing" xml:space="preserve">
+		<value>The theme's "{0}" font needs a font family.</value>
+		<comment>{0} is the font's role.</comment>
+	</data>
+	<data name="ThemeFontSizeInvalid" xml:space="preserve">
+		<value>The theme's font size is {0}, but it must be from {1} to {2}.</value>
+		<comment>{0} is the value found, and {1} and {2} are the smallest and largest sizes allowed.</comment>
+	</data>
+	<data name="ThemeFontScaleInvalid" xml:space="preserve">
+		<value>The theme's "{0}" font scale is {1}, but it must be more than 0 and at most {2}.</value>
+		<comment>{0} is the scale's role, {1} is the value found, and {2} is the largest scale allowed.</comment>
 	</data>
 	<data name="LowChanceValue" xml:space="preserve">
 		<value>The value "{0}" of the property "{1}" has a {2}% chance for the "{3}" role{4}, which is at or below the {5}% warning threshold.</value>
@@ -1131,10 +1143,6 @@
 		<value>The person {0} has a value for the need &quot;{1}&quot; that it can&apos;t have.</value>
 		<comment>{0} is the person&apos;s world id. {1} is the need id.</comment>
 	</data>
-	<data name="PlayerNeed" xml:space="preserve">
-		<value>{0}: {1}</value>
-		<comment>Shown in the sidebar for each of the player&apos;s needs. {0} is the need&apos;s title, such as &quot;Fatigue&quot;. {1} is the word for its level, such as &quot;Tired&quot;.</comment>
-	</data>
 	<data name="CommandLineSimulateDays" xml:space="preserve">
 		<value>With --generate-villages, runs each village for this many days after it&apos;s created, writing an activity record each time someone starts a task.</value>
 		<comment>Help for the --simulate-days command line option.</comment>
@@ -1194,10 +1202,6 @@
 	<data name="WaitResultFollowed" xml:space="preserve">
 		<value>You followed {0} to {1}.</value>
 		<comment>Shown after waiting until the person the player was following left, and following them. {0} is the person&apos;s name. {1} is the title of where they went.</comment>
-	</data>
-	<data name="PlayerActionOptionText" xml:space="preserve">
-		<value>{0} ({1})</value>
-		<comment>{0} is the option title, such as Until rested, and {1} how long it takes.</comment>
 	</data>
 	<data name="PlayerActionResult" xml:space="preserve">
 		<value>{0} for {1}.</value>
@@ -1805,8 +1809,8 @@
 		<comment>Shown in the inventory or wardrobe while the player isn&apos;t dressed enough to leave it. {0} lists the clothing slots that aren&apos;t covered enough, such as &quot;torso and hips&quot;.</comment>
 	</data>
 	<data name="DeveloperModesty" xml:space="preserve">
-		<value>Modesty: {0}</value>
-		<comment>For developers, how modest the player is. {0} lists each clothing slot their modesty rule checks.</comment>
+		<value>Comfort {1:0}. Modesty: {0}</value>
+		<comment>For developers, how modest the player is. {0} lists each clothing slot their modesty rule checks. {1} is how comfortable they are with how covered they are, from 0 to 100.</comment>
 	</data>
 	<data name="DeveloperModestySlot" xml:space="preserve">
 		<value>{0} {1} (needs {2})</value>
@@ -1871,9 +1875,6 @@
 	</data>
 	<data name="ClothingCarriedBy" xml:space="preserve">
 		<value>Carried by {0}</value>
-	</data>
-	<data name="OutfitCarriedByOthers" xml:space="preserve">
-		<value>Some of it is carried by someone else</value>
 	</data>
 	<data name="SaveStepsInvalid" xml:space="preserve">
 		<value>The person {0} is partway through the steps of the need "{1}", at a step it doesn't have.</value>
@@ -1989,11 +1990,8 @@
 	<data name="PersonMeeting" xml:space="preserve">
 		<value>Waiting to meet {0}</value>
 	</data>
-	<data name="PlayerStepsStop" xml:space="preserve">
-		<value>Stop</value>
-	</data>
 	<data name="PlayerStepsStopToolTip" xml:space="preserve">
-		<value>Give up what you've started. Anything you're carrying for it stays with you until you get home.</value>
+		<value>Stop: give up what you've started. Anything you're carrying for it stays with you until you get home.</value>
 	</data>
 	<data name="PlayerStepsGaveUp" xml:space="preserve">
 		<value>You stopped {0}.</value>
@@ -2183,6 +2181,9 @@
 	<data name="DurationInvalid" xml:space="preserve">
 		<value>A length of time must be a whole number of minutes, or text with hours and minutes ("1:30") or days, hours, and minutes ("2:15:35").</value>
 	</data>
+	<data name="OutfitClothingInvalid" xml:space="preserve">
+		<value>An outfit's clothing must be a clothing id, or an object with its "options".</value>
+	</data>
 	<data name="StepBundleInvalid" xml:space="preserve">
 		<value>A bundle must be its id, or an object with its "id" and "title".</value>
 	</data>
@@ -2367,7 +2368,7 @@
 		<comment>{0} is the world id of the event log, and {1} is the saved time of the entry.</comment>
 	</data>
 	<data name="EventLogHeader" xml:space="preserve">
-		<value>What&apos;s happening</value>
+		<value>What you saw</value>
 		<comment>The heading of the log of what the player has seen happen, in the sidebar.</comment>
 	</data>
 	<data name="LogYou" xml:space="preserve">
@@ -2432,5 +2433,576 @@
 	</data>
 	<data name="StopTimeToolTip" xml:space="preserve">
 		<value>Stop time passing. Whatever you were doing stops, though you finish walking to the next place first.</value>
+	</data>
+	<data name="ModestyComfortOutOfOrder" xml:space="preserve">
+		<value>"{0}" has comfort {1} after {2}, but each comfort must be more than the one before it.</value>
+		<comment>{0} is the location of the list in the data file. {1} is the comfort found. {2} is the comfort before it.</comment>
+	</data>
+	<data name="PropertyNotInteger" xml:space="preserve">
+		<value>"{0}" names the property "{1}", but it must be an integer property.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the property id.</comment>
+	</data>
+	<data name="FailCauseShy" xml:space="preserve">
+		<value>someone wasn't comfortable undressing</value>
+		<comment>Why a step failed, to go in a sentence: someone, the player or another, wouldn't be comfortable with how covered they'd be.</comment>
+	</data>
+	<data name="AskRequestShy" xml:space="preserve">
+		<value>You wouldn't be comfortable undressing for that, so you can only say no.</value>
+		<comment>Shown when the player is asked something that would make an appointment where they'd have to undress more than they'd be comfortable with.</comment>
+	</data>
+	<data name="CharacterBoldness" xml:space="preserve">
+		<value>{0}: {1}</value>
+		<comment>On a character sheet, how bold or shy someone is about how covered they are. {0} is the property's name, such as Boldness, and {1} its value.</comment>
+	</data>
+	<data name="LogExposed" xml:space="preserve">
+		<value>You feel too exposed with so little on.</value>
+		<comment>In the event log, the player found themselves less covered than they're comfortable with, when the data gives nothing to say.</comment>
+	</data>
+	<data name="PlayerActionResultTook" xml:space="preserve">
+		<value>{0}, which took {1}.</value>
+		<comment>{0} is the sentence from the data for a step other than spending time on something, such as You dressed after the lesson, and {1} how long it took, such as 5 minutes.</comment>
+	</data>
+	<data name="ActivityPartnerUnknown" xml:space="preserve">
+		<value>someone</value>
+		<comment>Stands for {partner} in an activity from the data when who the partner is isn&apos;t known.</comment>
+	</data>
+	<data name="FailCauseNoNamed" xml:space="preserve">
+		<value>{0} said no</value>
+		<comment>Why a step failed: the one asked said no. {0} is their name.</comment>
+	</data>
+	<data name="FailCauseNoYou" xml:space="preserve">
+		<value>you said no</value>
+		<comment>Why someone&apos;s step failed: the player, who they asked, said no.</comment>
+	</data>
+	<data name="FailCauseNoShowNamed" xml:space="preserve">
+		<value>{0} never came</value>
+		<comment>Why a step failed: the other at an appointment never came. {0} is their name.</comment>
+	</data>
+	<data name="FailCauseNoShowYou" xml:space="preserve">
+		<value>you never came</value>
+		<comment>Why someone&apos;s step failed: the player never came to an appointment with them.</comment>
+	</data>
+	<data name="FailCauseShyNamed" xml:space="preserve">
+		<value>{0} wasn&apos;t comfortable undressing</value>
+		<comment>Why a step failed: someone would have been too shy. {0} is their name.</comment>
+	</data>
+	<data name="FailCauseShyYou" xml:space="preserve">
+		<value>you weren&apos;t comfortable undressing</value>
+		<comment>Why a step failed: the player would have been too shy.</comment>
+	</data>
+	<data name="TalkSeenTalkingWith" xml:space="preserve">
+		<value>at {0}, talking with {1}</value>
+		<comment>Where someone was seen talking, and who with. {0} is the place, and {1} who they talked with (you, for the player).</comment>
+	</data>
+	<data name="OutfitCarriedBy" xml:space="preserve">
+		<value>Some of it is carried by {0}</value>
+		<comment>Why the player can&apos;t change into an outfit: someone else in the household is carrying some of it. {0} is who, such as Mary Smith and John Smith.</comment>
+	</data>
+	<data name="NeedFinallyWithoutSteps" xml:space="preserve">
+		<value>The need "{0}" has "finally", but only a need with "steps" can.</value>
+		<comment>{0} is the need&apos;s id.</comment>
+	</data>
+	<data name="StepLoopResultWithoutLoop" xml:space="preserve">
+		<value>"{0}" is "{1}", but it isn&apos;t inside a "repeat" step.</value>
+		<comment>{0} is where it is in the data, and {1} the result, such as loopContinue.</comment>
+	</data>
+	<data name="StepLoopResultUnknown" xml:space="preserve">
+		<value>"{0}" names the "repeat" step "{1}", but it isn&apos;t inside it.</value>
+		<comment>{0} is where it is in the data, and {1} the id it names.</comment>
+	</data>
+	<data name="StepSkipToEnclosingLoop" xml:space="preserve">
+		<value>"{0}" skips to "{1}", a "repeat" step it&apos;s inside, which is unclear. Use "loopContinue" to go on to its next pass, or "loopBreak" to leave it.</value>
+		<comment>{0} is where it is in the data, and {1} the repeat step&apos;s id.</comment>
+	</data>
+	<data name="StepOnFailInFinally" xml:space="preserve">
+		<value>"{0}" is in a "finally", whose steps go on to the next one when they fail, so it can&apos;t have "onFail".</value>
+		<comment>{0} is where it is in the data.</comment>
+	</data>
+	<data name="SaveUnwindInvalid" xml:space="preserve">
+		<value>The steps of the need "{0}" were finishing up with steps that aren&apos;t "finally" steps of it.</value>
+		<comment>{0} is the need&apos;s id.</comment>
+	</data>
+	<data name="StopPromptQuestion" xml:space="preserve">
+		<value>Stop {0}?</value>
+		<comment>Asked when the player stops steps that have something left to take care of. {0} is the activity, such as washing clothes.</comment>
+	</data>
+	<data name="StopPromptFinishUpNote" xml:space="preserve">
+		<value>You still have a few things to take care of first.</value>
+		<comment>Added to the stop prompt when the steps have finally steps left to do.</comment>
+	</data>
+	<data name="StopPromptKeepNote" xml:space="preserve">
+		<value>You could keep the {0} and finish later.</value>
+		<comment>Added to the stop prompt when the player carries a bundle they could finish later. {0} is the bundle, such as bucket of water.</comment>
+	</data>
+	<data name="StopPromptFinishUp" xml:space="preserve">
+		<value>Finish up</value>
+		<comment>Button: give up the steps after taking care of what&apos;s left.</comment>
+	</data>
+	<data name="StopPromptKeep" xml:space="preserve">
+		<value>Keep it for later</value>
+		<comment>Button: keep the bundle and finish the steps later.</comment>
+	</data>
+	<data name="StopPromptJustStop" xml:space="preserve">
+		<value>Just stop</value>
+		<comment>Button: give up the steps at once.</comment>
+	</data>
+	<data name="StopPromptCancel" xml:space="preserve">
+		<value>Keep going</value>
+		<comment>Button: don&apos;t stop after all.</comment>
+	</data>
+	<data name="PlayerStepsFinishingUp" xml:space="preserve">
+		<value>You stopped {0}, once you&apos;ve taken care of what&apos;s left.</value>
+		<comment>Shown after the player chose to finish up. {0} is the activity, such as washing clothes.</comment>
+	</data>
+	<data name="PlayerStepsKept" xml:space="preserve">
+		<value>You&apos;ll finish {0} later.</value>
+		<comment>Shown after the player chose to keep a bundle to finish later. {0} is the activity, such as drawing water.</comment>
+	</data>
+	<data name="PlayerStepsHeaderFinishing" xml:space="preserve">
+		<value>Finishing up: {0}</value>
+		<comment>The header of steps being finished up after being given up. {0} is the need&apos;s title.</comment>
+	</data>
+	<data name="PlayerStepsCarryWarning" xml:space="preserve">
+		<value>You&apos;ve been carrying the {0} since {1}.</value>
+		<comment>A reminder of a bundle the player kept to finish their steps later. {0} is the bundle, such as bucket of water, and {1} when they started keeping it.</comment>
+	</data>
+	<data name="RepeatPromptWithReason" xml:space="preserve">
+		<value>{0}. {1}</value>
+		<comment>The keep-going prompt after a failure that ended the pass. {0} is why it failed, such as Nicholas Miller said no, and {1} the question.</comment>
+	</data>
+	<data name="AppointmentStartTitle" xml:space="preserve">
+		<value>Ask whether they're ready to start</value>
+		<comment>What the player can choose in conversation to ask the other of an appointment whether they're ready to start it, when the data doesn't say.</comment>
+	</data>
+	<data name="AppointmentReadyTitle" xml:space="preserve">
+		<value>Say you're ready to start</value>
+		<comment>What the player can choose in conversation to tell the other of an appointment they're ready to start it now, when the data doesn't say.</comment>
+	</data>
+	<data name="AppointmentStartAsked" xml:space="preserve">
+		<value>{0} asks whether you're ready to start.</value>
+		<comment>{0} is the name of the one asking, when the data doesn't say what they say.</comment>
+	</data>
+	<data name="AppointmentReadyAsked" xml:space="preserve">
+		<value>{0} says they're ready to start now.</value>
+		<comment>{0} is the name of the one saying it, when the data doesn't say what they say.</comment>
+	</data>
+	<data name="StartRequestYes" xml:space="preserve">
+		<value>Start now</value>
+		<comment>Button that starts an appointment when the other asks.</comment>
+	</data>
+	<data name="StartRequestNo" xml:space="preserve">
+		<value>Not yet</value>
+		<comment>Button that says no to starting an appointment yet.</comment>
+	</data>
+	<data name="OtherTextPlaceholderUnknown" xml:space="preserve">
+		<value>The "{0}" text uses "{1}", but the only placeholder it can use is "other", for the other person.</value>
+		<comment>{0} is where the text is. {1} is the id used in the text.</comment>
+	</data>
+	<data name="ResumeGame" xml:space="preserve">
+		<value>Resume</value>
+	</data>
+	<data name="ContinueNewGame" xml:space="preserve">
+		<value>Continue New Game</value>
+	</data>
+	<data name="QuitAndManageMods" xml:space="preserve">
+		<value>Quit Game and Manage Mods</value>
+	</data>
+	<data name="QuitToMainMenu" xml:space="preserve">
+		<value>Quit to Main Menu</value>
+	</data>
+	<data name="SavePromptQuestion" xml:space="preserve">
+		<value>Save the game first?</value>
+	</data>
+	<data name="SavePromptDetails" xml:space="preserve">
+		<value>Anything that has happened since the game was last saved will be lost if it isn't saved now.</value>
+	</data>
+	<data name="DontSave" xml:space="preserve">
+		<value>Don't Save</value>
+	</data>
+	<data name="NewGameCharacterStep" xml:space="preserve">
+		<value>Character</value>
+	</data>
+	<data name="NewGameStepsHeader" xml:space="preserve">
+		<value>Steps</value>
+	</data>
+	<data name="WorkHeader" xml:space="preserve">
+		<value>Work</value>
+		<comment>The heading of the player&apos;s own work quotas in the left column, such as their trade.</comment>
+	</data>
+	<data name="HouseholdHeader" xml:space="preserve">
+		<value>Household</value>
+		<comment>The heading of the chores the player&apos;s household shares in the left column, such as cooking.</comment>
+	</data>
+	<data name="QuotaProgressToolTip" xml:space="preserve">
+		<value>{0}: {1} of {2} done {3}</value>
+		<comment>The first part of the tooltip of a household chore&apos;s icon in Concerns. {0} is the chore&apos;s title, {1} how much is done, {2} how much it takes, and {3} the period, such as &quot;today&quot;.</comment>
+	</data>
+	<data name="QuotaClosedToolTip" xml:space="preserve">
+		<value>{0}: not today</value>
+		<comment>The first part of the tooltip of a household chore&apos;s icon in Concerns when it can&apos;t be worked on today. {0} is the chore&apos;s title.</comment>
+	</data>
+	<data name="ConcernsChoreToolTip" xml:space="preserve">
+		<value>{0}. {1}</value>
+		<comment>The tooltip of a household chore&apos;s icon in Concerns. {0} is how much is done, such as &quot;Cooking: 1h of 2h done today&quot;, and {1} what clicking it does, or why it can&apos;t be started now.</comment>
+	</data>
+	<data name="ConcernsStartToolTip" xml:space="preserve">
+		<value>Click to start.</value>
+		<comment>In the tooltip of a household chore&apos;s icon in Concerns, when clicking it starts the chore.</comment>
+	</data>
+	<data name="ConcernsCarryOnToolTip" xml:space="preserve">
+		<value>Click to carry on.</value>
+		<comment>In the tooltip of a household chore&apos;s icon in Concerns, when the player is in the middle of the chore, and clicking it carries on with it.</comment>
+	</data>
+	<data name="QuotaToday" xml:space="preserve">
+		<value>today</value>
+		<comment>The period of a daily quota, in the tooltip of its bar.</comment>
+	</data>
+	<data name="QuotaThisWeek" xml:space="preserve">
+		<value>this week</value>
+		<comment>The period of a weekly quota, in the tooltip of its bar.</comment>
+	</data>
+	<data name="QuotaHours" xml:space="preserve">
+		<value>{0}h</value>
+		<comment>An amount of a quota in whole hours, such as &quot;8h&quot;.</comment>
+	</data>
+	<data name="QuotaHoursMinutes" xml:space="preserve">
+		<value>{0}h {1}m</value>
+		<comment>An amount of a quota in hours and minutes, such as &quot;1h 30m&quot;.</comment>
+	</data>
+	<data name="QuotaMinutes" xml:space="preserve">
+		<value>{0}m</value>
+		<comment>An amount of a quota in minutes under an hour, such as &quot;45m&quot;.</comment>
+	</data>
+	<data name="QuotaRuns" xml:space="preserve">
+		<value>{0}</value>
+		<comment>An amount of a quota counted in times done, such as &quot;2&quot;.</comment>
+	</data>
+	<data name="NeedToolTip" xml:space="preserve">
+		<value>{0}: {1}</value>
+		<comment>The tooltip of a need&apos;s bar in the left column. {0} is the need&apos;s title, such as &quot;Fatigue&quot;, and {1} the word for its level, such as &quot;Tired&quot;.</comment>
+	</data>
+	<data name="ConcernsHeader" xml:space="preserve">
+		<value>Concerns</value>
+		<comment>The heading of the panel at the top of the right column listing what the player should keep in mind.</comment>
+	</data>
+	<data name="ConcernsAppointmentsHeader" xml:space="preserve">
+		<value>Today&apos;s appointments</value>
+		<comment>The heading of the player&apos;s appointments for today in the Concerns panel.</comment>
+	</data>
+	<data name="ConcernsNoAppointments" xml:space="preserve">
+		<value>None today</value>
+		<comment>Shown in the Concerns panel when the player has no appointments left today.</comment>
+	</data>
+	<data name="ConcernsAppointment" xml:space="preserve">
+		<value>{0}, {1}</value>
+		<comment>One of today&apos;s appointments in the Concerns panel, beside its time. {0} is who it&apos;s with and {1} where, such as &quot;her home&quot;.</comment>
+	</data>
+	<data name="LogCollapseToolTip" xml:space="preserve">
+		<value>Hide the log</value>
+		<comment>The tooltip of the button on the log&apos;s heading that collapses it down to its heading.</comment>
+	</data>
+	<data name="LogExpandToolTip" xml:space="preserve">
+		<value>Show the log</value>
+		<comment>The tooltip of the button on the log&apos;s heading that opens it again after it was collapsed.</comment>
+	</data>
+	<data name="LogSplitterToolTip" xml:space="preserve">
+		<value>Drag to resize</value>
+		<comment>The tooltip of the splitter between Concerns and the log.</comment>
+	</data>
+	<data name="MainMenuToolTip" xml:space="preserve">
+		<value>Main menu</value>
+		<comment>The tooltip of the toolbar button that opens the main menu.</comment>
+	</data>
+	<data name="WardrobeAtHomeToolTip" xml:space="preserve">
+		<value>Wardrobe, only at home</value>
+		<comment>The tooltip of the toolbar&apos;s wardrobe button, which can only be used at home.</comment>
+	</data>
+	<data name="MinimizeWindow" xml:space="preserve">
+		<value>Minimize</value>
+		<comment>The tooltip of the title bar&apos;s minimize button.</comment>
+	</data>
+	<data name="MaximizeWindow" xml:space="preserve">
+		<value>Maximize</value>
+		<comment>The tooltip of the title bar&apos;s maximize button.</comment>
+	</data>
+	<data name="RestoreWindow" xml:space="preserve">
+		<value>Restore</value>
+		<comment>The tooltip of the title bar&apos;s button that restores a maximized window.</comment>
+	</data>
+	<data name="CloseWindow" xml:space="preserve">
+		<value>Close</value>
+		<comment>The tooltip of the title bar&apos;s close button.</comment>
+	</data>
+	<data name="StartToolTip" xml:space="preserve">
+		<value>Choose something to do, such as work or a chore</value>
+		<comment>The tooltip of the button beside the location&apos;s actions that lists what the player can start.</comment>
+	</data>
+	<data name="CloseSheetToolTip" xml:space="preserve">
+		<value>Close</value>
+		<comment>The tooltip of the button on a sheet that closes it, showing the sheet under it or the player&apos;s location.</comment>
+	</data>
+	<data name="CloseSheetsToolTip" xml:space="preserve">
+		<value>Return to the game (Esc twice)</value>
+		<comment>The tooltip of the toolbar button that closes every open sheet, returning to the player&apos;s location.</comment>
+	</data>
+	<data name="LogOpenSheetToolTip" xml:space="preserve">
+		<value>Read the log in a larger sheet</value>
+		<comment>The tooltip of the button on the log&apos;s heading that opens the log in a sheet.</comment>
+	</data>
+	<data name="MapDestinationMarker" xml:space="preserve">
+		<value>Going</value>
+		<comment>The marker on the quarter of the player&apos;s destination on the map and mini-map, beside Home, Work, and Meet. Keep it short.</comment>
+	</data>
+	<data name="ConcernsDestinationHeader" xml:space="preserve">
+		<value>Heading for</value>
+		<comment>Heading in the Concerns panel above the player&apos;s destination.</comment>
+	</data>
+	<data name="ConcernsDestination" xml:space="preserve">
+		<value>{0} ({1})</value>
+		<comment>The player&apos;s destination in the Concerns panel. {0} is the place, and {1} how long it takes to walk there, such as 12 minutes.</comment>
+	</data>
+	<data name="ConcernsNoDestination" xml:space="preserve">
+		<value>Nowhere in particular</value>
+		<comment>Shown in the Concerns panel when the player has no destination.</comment>
+	</data>
+	<data name="ConcernsClearDestinationToolTip" xml:space="preserve">
+		<value>Clear the destination</value>
+		<comment>The tooltip of the button beside the destination in the Concerns panel that clears it.</comment>
+	</data>
+	<data name="ConcernsDestinationQuestion" xml:space="preserve">
+		<value>Heading for {0} instead gives up {1}.</value>
+		<comment>Asked in the Concerns panel before choosing a destination replaces the one the player&apos;s steps chose. {0} is the new place, and {1} what the player is doing, such as fetching water.</comment>
+	</data>
+	<data name="ConcernsDestinationConfirm" xml:space="preserve">
+		<value>Head there</value>
+		<comment>Button that confirms choosing the new destination, giving up the player&apos;s steps.</comment>
+	</data>
+	<data name="ConcernsDestinationCancel" xml:space="preserve">
+		<value>Keep going</value>
+		<comment>Button that keeps the destination the player&apos;s steps chose.</comment>
+	</data>
+	<data name="ConcernsAppointmentDestinationToolTip" xml:space="preserve">
+		<value>Head for this appointment&apos;s place</value>
+		<comment>The tooltip of the button beside an appointment in the Concerns panel that makes its place the player&apos;s destination.</comment>
+	</data>
+	<data name="VillagerHeadHome" xml:space="preserve">
+		<value>Head there</value>
+		<comment>Button beside a family in the villagers sheet that makes their home the player&apos;s destination.</comment>
+	</data>
+	<data name="VillagerHeadHomeToolTip" xml:space="preserve">
+		<value>Make {0} your destination</value>
+		<comment>The tooltip of the button that makes a family&apos;s home the player&apos;s destination. {0} is the home.</comment>
+	</data>
+	<data name="MapChooseDestinationToolTip" xml:space="preserve">
+		<value>Click to make it your destination.</value>
+		<comment>Line in the tooltip of a quarter on the map.</comment>
+	</data>
+	<data name="MapTravelToolTip" xml:space="preserve">
+		<value>Right-click to go straight there.</value>
+		<comment>For developers, a line in the tooltip of a quarter on the map.</comment>
+	</data>
+	<data name="CommandLineResetSettings" xml:space="preserve">
+		<value>Forget the settings chosen on the settings screen (such as the text size and full screen), and use the defaults.</value>
+		<comment>Explains the --reset-settings command line option.</comment>
+	</data>
+	<data name="Settings" xml:space="preserve">
+		<value>Settings</value>
+		<comment>Main menu choice that opens the settings screen.</comment>
+	</data>
+	<data name="SettingsHeader" xml:space="preserve">
+		<value>Settings</value>
+		<comment>Title of the settings screen.</comment>
+	</data>
+	<data name="SettingsTextSize" xml:space="preserve">
+		<value>Text size</value>
+		<comment>Label of the text size setting.</comment>
+	</data>
+	<data name="TextSizeChoice" xml:space="preserve">
+		<value>{0}%</value>
+		<comment>A choice of text size. {0} is the size as a percentage of the usual size.</comment>
+	</data>
+	<data name="SettingsTextSizeSample" xml:space="preserve">
+		<value>The smith banks the forge as the bells ring for evening, and the lane fills with neighbors on their way home.</value>
+		<comment>A sample of the story's text on the settings screen, for judging the text size.</comment>
+	</data>
+	<data name="SettingsDisplay" xml:space="preserve">
+		<value>Display</value>
+		<comment>Label of the setting for full screen or a window.</comment>
+	</data>
+	<data name="DisplayWindowed" xml:space="preserve">
+		<value>Window</value>
+		<comment>Choice of showing the game in a window.</comment>
+	</data>
+	<data name="DisplayFullScreen" xml:space="preserve">
+		<value>Full screen</value>
+		<comment>Choice of showing the game full screen.</comment>
+	</data>
+	<data name="SettingsDisplayDescription" xml:space="preserve">
+		<value>F11 or Alt+Enter switches between them at any time.</value>
+		<comment>Explains the display setting.</comment>
+	</data>
+	<data name="SettingsReduceMotion" xml:space="preserve">
+		<value>Reduce motion</value>
+		<comment>Label of the reduce motion setting.</comment>
+	</data>
+	<data name="ReduceMotionFollowWindows" xml:space="preserve">
+		<value>Follow Windows</value>
+		<comment>Choice of following Windows' own setting for showing animations.</comment>
+	</data>
+	<data name="ReduceMotionOn" xml:space="preserve">
+		<value>On</value>
+		<comment>Choice of reducing motion.</comment>
+	</data>
+	<data name="ReduceMotionOff" xml:space="preserve">
+		<value>Off</value>
+		<comment>Choice of not reducing motion.</comment>
+	</data>
+	<data name="SettingsReduceMotionDescription" xml:space="preserve">
+		<value>With motion reduced, sheets appear at once instead of sliding in. Following Windows uses its own setting for showing animations.</value>
+		<comment>Explains the reduce motion setting.</comment>
+	</data>
+	<data name="SettingsTimeSpeed" xml:space="preserve">
+		<value>How fast time passes</value>
+		<comment>Label of the time speed setting.</comment>
+	</data>
+	<data name="TimeSpeedSlow" xml:space="preserve">
+		<value>Slow</value>
+		<comment>Choice of time speed.</comment>
+	</data>
+	<data name="TimeSpeedNormal" xml:space="preserve">
+		<value>Normal</value>
+		<comment>Choice of time speed.</comment>
+	</data>
+	<data name="TimeSpeedFast" xml:space="preserve">
+		<value>Fast</value>
+		<comment>Choice of time speed.</comment>
+	</data>
+	<data name="TimeSpeedVeryFast" xml:space="preserve">
+		<value>Very fast</value>
+		<comment>Choice of time speed.</comment>
+	</data>
+	<data name="TimeSpeedInstant" xml:space="preserve">
+		<value>Instant</value>
+		<comment>Choice of time speed, where time passes at once.</comment>
+	</data>
+	<data name="SettingsTimeSpeedDescription" xml:space="preserve">
+		<value>How long you watch the time go by when you do something that takes time. At Instant it passes at once, so there's nothing to stop.</value>
+		<comment>Explains the time speed setting.</comment>
+	</data>
+	<data name="LeaveFullScreen" xml:space="preserve">
+		<value>Leave full screen</value>
+		<comment>Tooltip of the title bar button that leaves full screen.</comment>
+	</data>
+	<data name="ToolTipWithHotkey" xml:space="preserve">
+		<value>{0} ({1})</value>
+		<comment>A tooltip with its hotkey, such as "Villagers (V)". {0} is the tooltip, {1} the key.</comment>
+	</data>
+	<data name="HotkeyEscape" xml:space="preserve">
+		<value>Esc</value>
+		<comment>The name of the Esc key, as shown in tooltips.</comment>
+	</data>
+	<data name="QuickSaved" xml:space="preserve">
+		<value>Quick saved.</value>
+		<comment>Shown in the center for a moment after a quick save (F5).</comment>
+	</data>
+	<data name="QuickSaveFailed" xml:space="preserve">
+		<value>Couldn't quick save: {0}</value>
+		<comment>Shown in the center when a quick save fails. {0} is the reason.</comment>
+	</data>
+	<data name="QuickLoadNone" xml:space="preserve">
+		<value>There's no quick save to load yet.</value>
+		<comment>Shown in the center when quick load (F9) is pressed with no quick save.</comment>
+	</data>
+	<data name="QuickLoadFailed" xml:space="preserve">
+		<value>Couldn't quick load: {0}</value>
+		<comment>Shown in the center when the quick save can't be loaded. {0} is the reason.</comment>
+	</data>
+	<data name="QuickSaveTitle" xml:space="preserve">
+		<value>Quick save: {0}</value>
+		<comment>The title of the quick save in the list of saved games. {0} is the player's name.</comment>
+	</data>
+	<data name="PlayerTimeChoiceInvalid" xml:space="preserve">
+		<value>"{0}" must have exactly one of "minutes" and "until".</value>
+		<comment>{0} is the location of the setting in the data file.</comment>
+	</data>
+	<data name="SplitButtonMenuToolTip" xml:space="preserve">
+		<value>Other ways</value>
+		<comment>The tooltip of a split button's chevron, which opens a menu of other ways of doing its action.</comment>
+	</data>
+	<data name="SplitButtonMenuToolTipWithKey" xml:space="preserve">
+		<value>Other ways ({0})</value>
+		<comment>The tooltip of a split button's chevron, which opens a menu of other ways of doing its action. {0} is the keys that open it, such as "Shift+1".</comment>
+	</data>
+	<data name="HotkeyShiftChoice" xml:space="preserve">
+		<value>Shift+{0}</value>
+		<comment>The keys that open the menu of a numbered split button. {0} is its number key, such as "1".</comment>
+	</data>
+	<data name="PlayerActionUntilText" xml:space="preserve">
+		<value>{0} until {1} ({2})</value>
+		<comment>The button for a step that takes time. {0} is the step's title, such as "Work", {1} is the time it would end, such as "15:00", and {2} is how long it takes, such as "1 hour".</comment>
+	</data>
+	<data name="WaitUntilTime" xml:space="preserve">
+		<value>Wait until {0} ({1})</value>
+		<comment>A way to wait in a menu. {0} is the time to wait until, such as "15:00", and {1} is how long that is, such as "1 hour".</comment>
+	</data>
+	<data name="WaitUntilDayPart" xml:space="preserve">
+		<value>Wait until {0} ({1})</value>
+		<comment>A way to wait in a menu. {0} is the next part of the day, such as "afternoon", and {1} is how long until it starts, such as "2 hours, 15 minutes".</comment>
+	</data>
+	<data name="WaitUntilSetOff" xml:space="preserve">
+		<value>Wait until it's time to set off to meet {0} ({1})</value>
+		<comment>A way to wait in a menu. {0} is who the player's next appointment is with, and {1} is how long until it's time to set off, such as "1 hour".</comment>
+	</data>
+	<data name="WaitUntilOpens" xml:space="preserve">
+		<value>Wait until {0} to {1} ({2})</value>
+		<comment>A way to wait in a menu. {0} is the time the step the player is on opens, such as "7:00", {1} is the step's title, such as "shop at the market", and {2} is how long until then.</comment>
+	</data>
+	<data name="StartCarryOnAutomatic" xml:space="preserve">
+		<value>Do the rest for me</value>
+		<comment>In the menu of carrying on with something, has the rest of it done for the player, as anyone else would.</comment>
+	</data>
+	<data name="StartUntilDone" xml:space="preserve">
+		<value>Until done ({0})</value>
+		<comment>The button that starts a need measured in time, spending as long as it takes to finish it for the day or week. {0} is how long that is, such as "8 hours".</comment>
+	</data>
+	<data name="StartUntilDayPart" xml:space="preserve">
+		<value>Until {0} ({1})</value>
+		<comment>A shorter shift, in the menu of starting a need measured in time. {0} is the next part of the day, such as "afternoon", and {1} is how long the player would spend on it, such as "2 hours".</comment>
+	</data>
+	<data name="StartUntilTime" xml:space="preserve">
+		<value>Until {0} ({1})</value>
+		<comment>A shift, in the menu of starting a need measured in time. {0} is when it would end, such as "15:00", and {1} is how long the player would spend on it, such as "1 hour".</comment>
+	</data>
+	<data name="ExamineLocationMore" xml:space="preserve">
+		<value>More</value>
+		<comment>A link right after the location's description that shows its longer description.</comment>
+	</data>
+	<data name="ExamineLocationToolTip" xml:space="preserve">
+		<value>Look around more closely</value>
+		<comment>The tooltip of the link that shows the location's longer description.</comment>
+	</data>
+	<data name="ExitMarkerHome" xml:space="preserve">
+		<value>Your home</value>
+		<comment>Explains the icon on an exit's button that marks the player's home.</comment>
+	</data>
+	<data name="ExitMarkerWork" xml:space="preserve">
+		<value>Where you work</value>
+		<comment>Explains the icon on an exit's button that marks where the player works.</comment>
+	</data>
+	<data name="ExitMarkerAppointment" xml:space="preserve">
+		<value>Where your next appointment is</value>
+		<comment>Explains the icon on an exit's button that marks the place of the player's next appointment.</comment>
+	</data>
+	<data name="ExitMarkerDestination" xml:space="preserve">
+		<value>Your destination</value>
+		<comment>Explains the icon on an exit's button that marks the player's destination.</comment>
+	</data>
+	<data name="ExitMarkerTowardDestination" xml:space="preserve">
+		<value>The quickest way to {0}, your destination</value>
+		<comment>Explains the icon on an exit's button that marks the way to the player's destination. {0} is the destination, such as "the smithy".</comment>
+	</data>
+	<data name="WalkAllTheWay" xml:space="preserve">
+		<value>Walk all the way to {0} ({1})</value>
+		<comment>In the menu of the exit that's the way to the player's destination. {0} is the destination, and {1} is how long it takes to walk there, such as "12 minutes".</comment>
 	</data>
 </root>

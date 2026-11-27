@@ -61,7 +61,10 @@ internal sealed partial class Scheduler
 			// What the people following someone have met depends on what that person was doing, which is about to change.
 			foreach (var follower in GetFollowers(next, time))
 				follower.UpdateNeeds(time);
+			var wasAsleep = next.IsAsleep;
 			var task = next.FinishTask();
+			if (wasAsleep)
+				OnCompanyChanged(next.Location);
 			if (task is TravelTask travel)
 			{
 				// Anyone following comes along.
@@ -82,6 +85,9 @@ internal sealed partial class Scheduler
 			}
 
 			Continue(next, time);
+
+			// Everyone reacts to who came, went, woke, or fell asleep.
+			ReactToCompany(time);
 
 			// The player has nothing to do until they choose, but still sees who's around, such as when they wake.
 			if (next.TaskEnd is null)
@@ -186,6 +192,11 @@ internal sealed partial class Scheduler
 	}
 
 	/// <summary>
+	/// Gets the fewest minutes someone could walk (and change) before reaching a need's first "do" step, from where they are.
+	/// </summary>
+	internal int GetMinutesBeforeFirstDo(Person person, Need need, TimePoint time) => EstimateTravel(person, need, time).BeforeFirstDo.Min;
+
+	/// <summary>
 	/// Gets the time to choose for a sequence of a need's steps as it starts: a shift (or a run's worth, for a quota
 	/// measured in runs) for a quota need, or null for a level need, which goes on until it's met.
 	/// </summary>
@@ -242,9 +253,14 @@ internal sealed partial class Scheduler
 		{
 			CompleteStep(person, sequence, handler);
 		}
+		else if (check is { State: StepState.Failed, Cause: FailCause.Left } && GetSeekStepFor(sequence.Need, index) is { } seek)
+		{
+			// Leaving before talking with someone the steps found goes back to looking for someone.
+			MoveOn(sequence, seek);
+		}
 		else if (check.State == StepState.Failed)
 		{
-			FailStep(person, sequence, check.Cause!.Value, time);
+			FailStep(person, sequence, check.Cause!.Value, time, check.Who);
 		}
 		else if (isTasksDone)
 		{
@@ -287,12 +303,28 @@ internal sealed partial class Scheduler
 			CompleteStep(person, sequence, GetHandler(sequence.CurrentStep!));
 			break;
 		case StepWork.Failed failed:
-			FailStep(person, sequence, failed.Cause, time);
+			FailStep(person, sequence, failed.Cause, time, failed.Who);
 			break;
 		case StepWork.GoTo goTo:
-			MoveOn(sequence, goTo.Step);
+			Leave(sequence, goTo.Step);
 			break;
 		}
+	}
+
+	/// <summary>
+	/// Gets the "seek" step a "talk" or "ask" step with the one sought goes back to when the person leaves before it's done:
+	/// the "seek" step before it that leads to it. Returns null for any other step, or if there's none.
+	/// </summary>
+	private static int? GetSeekStepFor(Need need, int step)
+	{
+		if (need.Steps[step] is not { Kind: StepKind.Talk or StepKind.Ask, With: StepTarget.Sought })
+			return null;
+
+		var seek = Enumerable.Range(0, step).LastOrDefault(x => need.Steps[x].Kind == StepKind.Seek, -1);
+		var next = seek;
+		while (next >= 0 && next < step)
+			next = need.GetNextStep(next);
+		return seek >= 0 && next == step ? seek : null;
 	}
 
 	/// <summary>
@@ -313,41 +345,149 @@ internal sealed partial class Scheduler
 	{
 		if (handler.IsMoving)
 			sequence.Place = person.Location;
-		MoveOn(sequence, sequence.Need.GetNextStep(sequence.Step));
+		MoveOn(sequence, GetNextStep(sequence, sequence.Step));
+	}
+
+	/// <summary>
+	/// Gets the step a sequence goes on to after one: the next, or while it's leaving its steps, once the "finally" steps
+	/// it's carrying out are done, the next ones to carry out, or else where it was going.
+	/// </summary>
+	internal static int GetNextStep(StepSequence sequence, int index)
+	{
+		var next = sequence.Need.GetNextStep(index);
+		return sequence.UnwindRunning is { } running && sequence.Need.GetBlockFinallyAt(running) is { } block && block.IsInFinally(index) && !block.IsInFinally(next)
+			? sequence.ContinueUnwinding()
+			: next;
+	}
+
+	/// <summary>
+	/// Goes on from the step a sequence is on to another (or its end), first carrying out the "finally" steps of each list
+	/// of steps that leaves, innermost first. One that's already carrying out "finally" steps on its way somewhere carries
+	/// on with them, but ends once they're done, for going to its end.
+	/// </summary>
+	private static void Leave(StepSequence sequence, int target)
+	{
+		var need = sequence.Need;
+		if (sequence.IsUnwinding)
+		{
+			if (target >= need.Steps.Count)
+				sequence.UnwindToEnd();
+			MoveOn(sequence, GetNextStep(sequence, sequence.Step));
+		}
+		else
+		{
+			var blocks = sequence.IsDone || sequence.Role != SequenceRole.Steps ? [] : need.GetBlocksLeft(sequence.Step, target);
+			MoveOn(sequence, blocks.Count == 0 ? target : sequence.StartUnwinding(blocks.Select(x => x.FinallyStart).ToList(), target));
+		}
+	}
+
+	/// <summary>
+	/// Gives up a sequence: it ends, unless it has "finally" steps to carry out first, when it finishes up, carrying them
+	/// out on its way to its end. Returns whether it's finishing up.
+	/// </summary>
+	internal bool GiveUp(Person person, StepSequence sequence, TimePoint time)
+	{
+		var need = sequence.Need;
+		var isFinishing = !sequence.IsUnwinding && sequence.HasSetOff && sequence.Role == SequenceRole.Steps && !sequence.IsDone && need.GetBlocksLeft(sequence.Step, need.Steps.Count).Count != 0;
+		if (isFinishing)
+			Leave(sequence, need.Steps.Count);
+		else
+			EndSequence(person, sequence, time);
+		return isFinishing;
+	}
+
+	/// <summary>
+	/// Whether giving up a sequence would leave any of its "finally" steps to carry out: one whose condition is met that
+	/// isn't done already, in the lists of steps it's in.
+	/// </summary>
+	internal bool HasStepsToFinishUp(Person person, StepSequence sequence, TimePoint time)
+	{
+		var need = sequence.Need;
+		return !sequence.IsUnwinding && sequence.HasSetOff && sequence.Role == SequenceRole.Steps && !sequence.IsDone &&
+			need.GetBlocksLeft(sequence.Step, need.Steps.Count)
+				.SelectMany(x => Enumerable.Range(x.FinallyStart, x.End - x.FinallyStart))
+				.Any(x => IsConditionMet(person, need, sequence, need.Steps[x].When, time) && !IsStepDone(person, sequence, x));
+	}
+
+	/// <summary>
+	/// For the player, finds the step to keep a sequence at, to finish it later, when its steps would be given up while
+	/// they carry a bundle it made that a later step puts down: the last "goTo" step before that step, or the step itself
+	/// if there's none. Returns null if there's no such step.
+	/// </summary>
+	internal static int? FindKeptStep(StepSequence sequence)
+	{
+		var need = sequence.Need;
+		int? lastGoTo = null;
+		var seen = new HashSet<int>();
+		for (var index = sequence.IsDone ? need.Steps.Count : need.GetNextStep(sequence.Step); index < need.Steps.Count && seen.Add(index); index = need.GetNextStep(index))
+		{
+			var step = need.Steps[index];
+			if (step.Kind == StepKind.GoTo)
+				lastGoTo = index;
+			else if (step is { Kind: StepKind.Put, ItemKind: null, Bundle: { } bundle } && sequence.Bundles.ContainsKey(bundle.Id))
+				return lastGoTo ?? index;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Has the player keep a sequence whose steps would be given up, holding it at the step that takes the bundle it made
+	/// home, to finish later (see <see cref="FindKeptStep"/>). Returns whether there was one to keep.
+	/// </summary>
+	internal bool Keep(Person person, StepSequence sequence, TimePoint time)
+	{
+		var kept = !m_world.IsAutomatic(person) && sequence.Role == SequenceRole.Steps && !sequence.IsUnwinding ? FindKeptStep(sequence) : null;
+		if (kept is { } step)
+		{
+			MoveOn(sequence, step);
+			sequence.Place = null;
+			sequence.KeptSince ??= time;
+		}
+
+		return kept is not null;
 	}
 
 	/// <summary>
 	/// Fails the step a sequence is on, for a cause: it goes on to the next step, gives up the sequence, or skips to a
 	/// step, as its "onFail" says (see <see cref="Need.GetFailure"/>). A "meet" step that fails always gives it up, which
-	/// calls off the appointment. The player is told.
+	/// calls off the appointment, at once. Giving up the steps carries out their "finally" steps first, and the player
+	/// keeps a bundle the steps made that a later step puts down, to finish them later. The player is told, with who it
+	/// was down to, if anyone in particular, and whether it gives up the steps.
 	/// </summary>
-	internal void FailStep(Person person, StepSequence sequence, FailCause cause, TimePoint time)
+	internal void FailStep(Person person, StepSequence sequence, FailCause cause, TimePoint time, Person? who = null)
 	{
 		var index = sequence.Step;
-		var (kind, target) = sequence.IsDone || sequence.CurrentStep?.Kind == StepKind.Meet ? (StepFailureKind.Stop, null) : sequence.Need.GetFailure(index, cause);
-		m_world.OnStepFailed(person, sequence, index, cause, time);
+		var isMeet = sequence.IsDone || sequence.CurrentStep?.Kind == StepKind.Meet;
+		var (kind, target) = isMeet ? (StepFailureKind.Stop, null) : sequence.Need.GetFailure(index, cause);
+		var isKept = kind == StepFailureKind.Stop && !isMeet && !m_world.IsAutomatic(person) && sequence.Role == SequenceRole.Steps && !sequence.IsUnwinding && FindKeptStep(sequence) is not null;
+		m_world.OnStepFailed(person, sequence, index, cause, time, who, isEnding: kind == StepFailureKind.Stop && !isKept);
 
 		// The player is told if they missed an appointment: the other gave up waiting for them, or never came.
 		if (cause == FailCause.NoShow && sequence.Appointment is { } missed && missed.GetOther(person) is var other && (!m_world.IsAutomatic(person) || !m_world.IsAutomatic(other)))
 			m_world.OnAppointmentMissed(missed, isOtherWaiting: !m_world.IsAutomatic(other), time);
 		if (kind == StepFailureKind.Next)
-			MoveOn(sequence, sequence.Need.GetNextStep(index));
-		else if (kind == StepFailureKind.SkipTo && target is { } skipTo)
-			MoveOn(sequence, skipTo);
-		else
+			MoveOn(sequence, GetNextStep(sequence, index));
+		else if (target is { } skipTo)
+			Leave(sequence, skipTo);
+		else if (isMeet)
 			EndSequence(person, sequence, time);
+		else if (!isKept || !Keep(person, sequence, time))
+			GiveUp(person, sequence, time);
 	}
 
 	/// <summary>
 	/// Ends a sequence once it's done or given up: bundles it left are unpacked (their items stay carried), anyone
 	/// following the person is let go, and an appointment whose steps it was is over. The one put on hold most recently,
-	/// if any, becomes current.
+	/// if any, becomes current. One put on hold for an appointment carries on from where the person is.
 	/// </summary>
 	internal void EndSequence(Person person, StepSequence sequence, TimePoint time)
 	{
 		// Before they set off, it's only something they agreed to, so ending it leaves what they're doing alone.
 		var hasSetOff = sequence.HasSetOff;
 		person.RemoveSequence(sequence);
+		if (hasSetOff && person.Current is { Place: null } resumed)
+			resumed.Place = person.Location;
 		foreach (var id in sequence.Bundles.Keys.ToList())
 			m_world.Unpack(sequence.RemoveBundle(id)!);
 		if (sequence.Appointment is { } appointment && m_world.Appointments.Contains(appointment))
@@ -439,41 +579,37 @@ internal sealed partial class Scheduler
 
 	/// <summary>
 	/// Whether someone is someone a "talk", "ask", or "seek" step could talk with or find, for the person taking it: they
-	/// fit its who (and are a friend, if it says), and unless it says whether they're family, aren't in the person's
-	/// household.
+	/// fit its who (and are a friend, if it says). Without a who that says whether they're family, anyone can be, the
+	/// person's own household included.
 	/// </summary>
 	internal bool IsSought(Person person, Person other, StepWho? who) =>
-		other != person && IsWho(person, other, who) && (who is { HasFamily: true } || other.Family != person.Family) &&
-		(who is not { Friends: true } || GetFriends(person).Contains(other));
+		other != person && IsWho(person, other, who) && (who is not { Friends: true } || GetFriends(person).Contains(other));
 
 	/// <summary>
 	/// Picks who a "talk" or "ask" step talks with: someone there who isn't asleep, talking, or too busy to talk (and for
 	/// the player, unless the world is headless, who can be asked now), who meets the step's condition, who's the one the
-	/// step talks with. Someone picked from anyone there isn't in the person's household, unless the step's condition says
-	/// whether they're family. Returns null if there's no one.
+	/// step talks with. Returns null if there's no one.
 	/// </summary>
 	private Person? ChooseWhoToTalkWith(Person person, StepSequence sequence, Step step, TimePoint time)
 	{
 		var friends = step.Who is { Friends: true } ? GetFriends(person).ToHashSet() : null;
 		var candidates = person.Location.People.Where(x => x != person && (m_world.IsAutomatic(x) || CanAskPlayer(person, x, time)) && !x.IsAsleep &&
 			x.CurrentTask is not TalkTask && !IsTooBusyToTalk(x, time) && IsWho(person, x, step.Who) && (friends is null || friends.Contains(x))).ToList();
-
-		// Someone chosen from those there isn't in the person's household, unless the step says whether they're family.
-		var others = candidates.Where(x => step.Who is { HasFamily: true } || x.Family != person.Family).ToList();
 		return step.With switch
 		{
-			StepTarget.Sought when sequence.Seeking is { Friend: null } => others.Count == 0 ? null : others[m_world.Random.Next(others.Count)],
+			StepTarget.Sought when sequence.Seeking is { Friend: null } => candidates.Count == 0 ? null : candidates[m_world.Random.Next(candidates.Count)],
 			StepTarget.Sought => candidates.FirstOrDefault(x => x == sequence.Seeking?.Friend),
 			StepTarget.Partner => candidates.FirstOrDefault(x => x == sequence.Partner),
-			_ => others.Count == 0 ? null : others[m_world.Random.Next(others.Count)],
+			_ => candidates.Count == 0 ? null : candidates[m_world.Random.Next(candidates.Count)],
 		};
 	}
 
 	/// <summary>
 	/// Talks with someone, or asks them a question, for a "talk" or "ask" step of a sequence. They become its partner. A
 	/// question is answered yes by chance, and remembered by the step's name. Saying yes to something that takes time is
-	/// only possible if the one asked can spare it, now, or at an appointment, which a yes makes. The player decides
-	/// whether to say yes themselves, which is given. Returns whether they said yes, and the appointment it made, if any.
+	/// only possible if the one asked can spare it, now, or at an appointment, which a yes makes if neither would be too shy
+	/// for it (a shy no is remembered too). The player decides whether to say yes themselves, which is given. Returns
+	/// whether they said yes, and the appointment it made, if any.
 	/// </summary>
 	internal (bool IsYes, Appointment? Appointment) TalkOrAskWith(Person person, StepSequence sequence, Step step, int index, Person other, TimePoint time, bool? playerAnswer = null)
 	{
@@ -481,6 +617,7 @@ internal sealed partial class Scheduler
 		sequence.Partner = other;
 		var minutes = GetTalkMinutes(person, sequence, step);
 		var isYes = false;
+		Person? shy = null;
 		Appointment? made = null;
 		if (step.Kind == StepKind.Ask)
 		{
@@ -488,7 +625,7 @@ internal sealed partial class Scheduler
 			isYes = playerAnswer ?? m_world.Random.NextDouble() * 100 < GetChance(other, person, step.Chance!, time);
 			if (isYes && step.Appointment is { } appointment)
 			{
-				made = MakeAppointment(person, sequence, other, goal, index, appointment, forMinutes, minutes, time);
+				made = MakeAppointment(person, sequence, other, goal, index, appointment, forMinutes, minutes, time, out shy);
 				isYes = made is not null;
 			}
 			else if (isYes && forMinutes > 0 && playerAnswer is null)
@@ -505,7 +642,7 @@ internal sealed partial class Scheduler
 				isYes = site is not null;
 			}
 
-			sequence.SetAnswer(step.Name!, isYes);
+			sequence.SetAnswer(step.Name!, isYes, shy);
 		}
 
 		// Talking that meets the goal's quota counts toward it rather than socializing, and the one talked with has the need
@@ -566,7 +703,7 @@ internal sealed partial class Scheduler
 		{
 			if (!isYes)
 				asker.GetRelationship(player).LastDeclined = time;
-			FailStep(asker, sequence, FailCause.No, time);
+			FailStep(asker, sequence, FailCause.No, time, player);
 		}
 
 		return isTalking;
@@ -643,6 +780,7 @@ internal sealed partial class Scheduler
 		((when.Not is not { } not || !IsConditionMet(person, goal, sequence, not, time)) &&
 			(when.Any is not { } any || any.Any(x => IsConditionMet(person, goal, sequence, x, time))) &&
 			(when.HasJob is not { } hasJob || (person.GetJob(goal) is { IsDone: false }) == hasJob) &&
+			(when.Carrying is not { } carrying || (sequence?.Bundles.ContainsKey(carrying) ?? false)) &&
 			(when.OutfitAtHome is not { } kind || ClothingRules.IsOutfitAtHome(person, kind, time)) &&
 			(when.DoneForToday is not { } isDone || IsDoneForToday(person, goal, time) == isDone) &&
 			(when.At is not { } at || IsPlaceFor(person, sequence, at, person.Location)) &&
@@ -830,10 +968,19 @@ internal sealed partial class Scheduler
 	private bool CanResume(Person person, Need need, TimePoint time) => IsQuotaOpen(person, need, time) && GetRemainingMinutes(person, need, time) > 0;
 
 	/// <summary>
-	/// Whether someone refuses to be interrupted, because their goal is too urgent right now.
+	/// Whether someone refuses to be interrupted, because they're following someone, on their way to an appointment, or
+	/// their goal is too urgent right now. Someone waiting to meet someone doesn't stop for anyone the game decides for, so
+	/// as not to miss them, but the player can talk with them, since they're only waiting.
 	/// </summary>
-	public bool IsTooBusyToTalk(Person person, TimePoint time) =>
-		person.CurrentTask is FollowTask or MeetTask || (person.Goal is { } goal && GetUrgency(person, goal, time) >= m_settings.Talking.RefuseUrgency);
+	public bool IsTooBusyToTalk(Person person, TimePoint time, bool isPlayerAsking = false) =>
+		person.CurrentTask is MeetTask ? !isPlayerAsking :
+		person.CurrentTask is FollowTask || IsOnTheWayToAppointment(person) || (person.Goal is { } goal && GetUrgency(person, goal, time) >= m_settings.Talking.RefuseUrgency);
+
+	/// <summary>
+	/// Whether someone has set off for an appointment that hasn't started, and is doing what it takes to get there, such as
+	/// walking there or changing clothes first.
+	/// </summary>
+	private static bool IsOnTheWayToAppointment(Person person) => person.Current is { HasSetOff: true, Appointment.IsStarted: false };
 
 	/// <summary>
 	/// Gets the people following someone: those the game has following them, and the player, while they're taking part in
@@ -960,7 +1107,7 @@ internal sealed partial class Scheduler
 		var isSleeping = goal is not null && goal == m_sleepNeed;
 		if (!isWorking && !isSleeping && person.GetOutfits(OutfitKind.Work).FirstOrDefault(x => x.Pieces.Any(y => y.Wearer == person)) is { } work)
 			tasks.Add(new ChangeClothesTask(work, IsTakingOff: true));
-		if (!isSleeping && person.GetOutfits(OutfitKind.Night).FirstOrDefault(x => x.Pieces.Any(y => y.Wearer == person)) is { } night)
+		if (!isSleeping && person.GetOutfits(OutfitKind.Night).FirstOrDefault(x => ClothingRules.IsChangedInto(person, x)) is { } night)
 			tasks.Add(new ChangeClothesTask(night, IsTakingOff: true));
 		return tasks;
 	}
@@ -973,6 +1120,10 @@ internal sealed partial class Scheduler
 	/// </summary>
 	internal void OnTaskStarted(Person person, PersonTask task, TimePoint time)
 	{
+		// Falling asleep changes who can see the people there, and so does someone passing through stopping on their way, such
+		// as to talk, since they're staying a while.
+		if (person.IsAsleep || (task is not TravelTask && person.Tasks.Count > 1 && person.Tasks[1] is TravelTask))
+			OnCompanyChanged(person.Location);
 		if (m_socializeNeed is not null && task is not (TalkTask or WaitTask) && !TryChatWithWaitingFriend(person, time) && !TryStartChat(person, time) &&
 			task is BusyTask { Step: { } step, ResumeMinutes: null } && person.Goal is { } goal && step < goal.Steps.Count && goal.Steps[step].Kind == StepKind.Seek && person.Seeking?.Friend is not null)
 		{
@@ -1048,14 +1199,15 @@ internal sealed partial class Scheduler
 	/// <summary>
 	/// Gets how willing someone is to stop and chat with a friend: how urgent socializing is for them, times how close
 	/// they are, less how urgent whatever else they're doing is. It's negative infinity if they can't: either of them is
-	/// already talking, the one starting it is the player (unless headless) or is asleep, the friend is asleep and
+	/// already talking, the one starting it is the player (unless headless), is asleep, or is on their way to an
+	/// appointment, the friend is asleep and
 	/// socializing isn't urgent enough to wake them, or the friend is the player (unless headless) and can't be asked right
 	/// now. Whether the friend agrees is theirs to decide (see <see cref="WillChat"/>).
 	/// </summary>
 	private double GetChatWillingness(Person initiator, Person other, TimePoint time)
 	{
 		var urgency = GetUrgency(initiator, m_socializeNeed!, time);
-		var canChat = m_world.IsAutomatic(initiator) && (m_world.IsAutomatic(other) || CanAskPlayer(initiator, other, time)) && initiator.CurrentTask is not (null or TalkTask or FollowTask or MeetTask) && !initiator.IsAsleep &&
+		var canChat = m_world.IsAutomatic(initiator) && (m_world.IsAutomatic(other) || CanAskPlayer(initiator, other, time)) && initiator.CurrentTask is not (null or TalkTask or FollowTask or MeetTask) && !IsOnTheWayToAppointment(initiator) && !initiator.IsAsleep &&
 			other.CurrentTask is not TalkTask && (!other.IsAsleep || urgency >= m_settings.Socializing.WakeUrgency);
 		var goalUrgency = initiator.Goal is { } goal && goal != m_socializeNeed ? GetUrgency(initiator, goal, time) : 0;
 		return canChat && urgency > 0
@@ -1068,8 +1220,16 @@ internal sealed partial class Scheduler
 	/// answer, they aren't doing anything (other than following), and they haven't turned them down lately.
 	/// </summary>
 	private bool CanAskPlayer(Person initiator, Person player, TimePoint time) =>
-		player.IsPlayer && player.TalkRequest is null && player.AskRequest is null && !player.Sequences.Any(x => x.SetOff == SetOffState.Due) && player.TaskEnd is null &&
+		IsPlayerFree(player) &&
 		(initiator.GetRelationship(player).LastDeclined is not { } declined || m_calendar.GetTotalMinutes(time - declined) >= m_settings.Socializing.AskPlayerAgainHours * 60);
+
+	/// <summary>
+	/// Whether the player is free to be asked something: no one is waiting for an answer from them, they aren't being asked
+	/// whether to set off for an appointment, and they aren't doing anything (other than following).
+	/// </summary>
+	private static bool IsPlayerFree(Person player) =>
+		player.IsPlayer && player.TalkRequest is null && player.AskRequest is null && player.StartRequest is null &&
+		!player.Sequences.Any(x => x.SetOff == SetOffState.Due) && player.TaskEnd is null;
 
 	/// <summary>
 	/// Has someone socialize with a friend who agreed, first asking what they're doing unless they already know, from
@@ -1119,13 +1279,12 @@ internal sealed partial class Scheduler
 	/// <summary>
 	/// Chooses where a "seek" step looks for anyone who meets its condition: a place like the step's (for a quarter, one of
 	/// its kinds, chosen by frequency; for another household's home, any of them), or without a place, any quarter. Among
-	/// quarters and homes, those where the person has lately seen people who meet it (other than their own household, unless
-	/// it says whether they're family) and nearer ones are more likely. Without a place, or for a home, the place they're in
-	/// now isn't chosen. Returns null if there's no such place.
+	/// quarters and homes, those where the person has lately seen people who meet it and nearer ones are more likely.
+	/// Without a place, or for a home, the place they're in now isn't chosen. Returns null if there's no such place.
 	/// </summary>
 	private SeekChoice? ChooseWhereToSeekPeople(Person person, Step step, IReadOnlyDictionary<Location, Route> distances, TimePoint time)
 	{
-		var seen = person.Sightings.Where(x => (step.Who is { HasFamily: true } || x.Key.Family != person.Family) && IsWho(person, x.Key, step.Who) &&
+		var seen = person.Sightings.Where(x => IsWho(person, x.Key, step.Who) &&
 				m_calendar.GetTotalMinutes(time - x.Value.Time) < m_settings.SightingHours * 60)
 			.GroupBy(x => x.Value.Location).ToDictionary(x => x.Key, x => x.Count());
 		Location? ChooseQuarter(IReadOnlyList<Location> quarters) => quarters.Count == 0 ? null :
@@ -1327,6 +1486,15 @@ internal sealed partial class Scheduler
 	}
 
 	/// <summary>
+	/// Whether the player would be too shy to say yes to the question someone is asking them: it would make an appointment
+	/// they'd be too shy for (see <see cref="IsTooShyFor"/>), at the place and time it would most likely have.
+	/// </summary>
+	internal bool IsPlayerTooShyToAccept(Person asker, Person player, TimePoint time) =>
+		asker.Current is { CurrentStep: { Kind: StepKind.Ask, Appointment: { } settings } step } sequence &&
+		FindAppointmentTime(asker, sequence, player, sequence.Need, sequence.Step, settings, 0, GetTalkMinutes(asker, sequence, step), time, isEstimate: true) is { } found &&
+		IsTooShyFor(player, asker, sequence.Need, sequence.Step, found.Place, found.Time, isWorker: false);
+
+	/// <summary>
 	/// Gets the needs of the player's that saying yes to the question someone is asking them would keep them from: those
 	/// that would be at least the agree urgency by the end of the time it takes them, now, or at the appointment it would
 	/// make, as anyone else's yes is checked. The player can still say yes.
@@ -1388,10 +1556,33 @@ internal sealed partial class Scheduler
 	/// later time on the hour or half hour. Either way, it must be within the appointment's hours (all of it) and how far
 	/// ahead it looks, neither can have another appointment within its gap, and the client must be able to spare the time
 	/// it takes them (the walk there, and the appointment's steps, or the "ask" step's minutes for, if it has them). The
-	/// worker can be the player. Returns null if there's no such time, or the client isn't someone the game decides for.
+	/// worker can be the player. Returns null if there's no such time, or either of them would be too shy for it (see
+	/// <see cref="IsTooShyFor"/>), when who would be is given.
 	/// </summary>
-	private Appointment? MakeAppointment(Person worker, StepSequence sequence, Person client, Need goal, int askStep, StepAppointment settings, int forMinutes, int askMinutes, TimePoint time) =>
-		FindAppointmentTime(worker, sequence, client, goal, askStep, settings, forMinutes, askMinutes, time) is { } found ? m_world.AddAppointment(worker, client, goal, askStep, found.Place, found.Time) : null;
+	private Appointment? MakeAppointment(Person worker, StepSequence sequence, Person client, Need goal, int askStep, StepAppointment settings, int forMinutes, int askMinutes, TimePoint time, out Person? shy)
+	{
+		var found = FindAppointmentTime(worker, sequence, client, goal, askStep, settings, forMinutes, askMinutes, time);
+		shy = found is not { } at ? null :
+			IsTooShyFor(worker, client, goal, askStep, at.Place, at.Time, isWorker: true) ? worker :
+			IsTooShyFor(client, worker, goal, askStep, at.Place, at.Time, isWorker: false) ? client :
+			null;
+		return found is { } place && shy is null ? m_world.AddAppointment(worker, client, goal, askStep, place.Place, place.Time) : null;
+	}
+
+	/// <summary>
+	/// Whether someone would be too shy for the appointment an "ask" step would make: at its place and time, with only the
+	/// other there, they wouldn't be comfortable in the outfit of a "dress" step of its steps that they change for (every one
+	/// for the worker, and those with the partner changing too for the client), on that step.
+	/// </summary>
+	internal bool IsTooShyFor(Person person, Person other, Need goal, int askStep, Location place, TimePoint time, bool isWorker)
+	{
+		var (start, _, end) = goal.GetAppointmentSteps(askStep)!.Value;
+		var gameData = m_world.GameData;
+		return Enumerable.Range(start, end - start).Select(x => goal.Steps[x])
+			.Where(x => x is { Kind: StepKind.Dress, Outfit: not null } && (isWorker || x.WithPartner))
+			.Any(x => person.GetOutfits(x.Outfit!.Value).FirstOrDefault() is { } outfit &&
+				!ClothingRules.IsComfortableIn(gameData, person, outfit, ModestyComfort.Get(gameData, person, place, [(other, false)], x, time)));
+	}
 
 	/// <summary>
 	/// Finds where and when the appointment an "ask" step would make would be (see <see cref="MakeAppointment"/>), with how
@@ -1457,13 +1648,28 @@ internal sealed partial class Scheduler
 	{
 		var (start, meet, _) = goal.GetAppointmentSteps(askStep)!.Value;
 		var changeMinutes = m_settings.Clothing.ChangeMinutes;
-		var changing = GetChangingOut(person, isWorker ? goal : null, time).Count * changeMinutes;
+		var changing = GetChangingOut(person, isWorker ? goal : null, time).Count * changeMinutes + EstimateFinishingUpMinutes(person, isWorker ? goal : null, time);
 
 		// The worker carries out the steps before its "meet" step first, which could go more than one way, so they set off in
 		// time for the longest.
 		int GetTravel(Location from) => GetDistances(from).TryGetValue(place, out var route) ? Math.Min(route.Minutes, MinutesPerDay) : MinutesPerDay;
 		var longest = isWorker ? WalkSteps(person, goal, start, meet, isCountingChanges: true, time).Max(x => x.Total + GetTravel(x.End)) : GetTravel(person.Location);
 		return changing + longest + (goal.Steps[meet].Early?.Minutes ?? 0);
+	}
+
+	/// <summary>
+	/// Estimates how long someone would take finishing up what they're doing when they set off for an appointment, if
+	/// setting off gives it up (it's for another need than the one given): the walking and changing of the "finally" steps
+	/// of the lists of steps they're in.
+	/// </summary>
+	private int EstimateFinishingUpMinutes(Person person, Need? goal, TimePoint time)
+	{
+		if (person.Current is not { Role: SequenceRole.Steps, IsDone: false, IsUnwinding: false } current || current.Need == goal)
+			return 0;
+
+		var need = current.Need;
+		return need.GetBlocksLeft(current.Step, need.Steps.Count)
+			.Sum(block => WalkSteps(person, need, block.FinallyStart, block.End, isCountingChanges: true, time).Select(x => x.Total).DefaultIfEmpty(0).Max());
 	}
 
 	/// <summary>
@@ -1520,17 +1726,31 @@ internal sealed partial class Scheduler
 		var isWorker = person == appointment.Worker;
 		person.IsAtWork = false;
 		person.SetTasks([]);
-		// Steps put on hold carry on from the step they were on, which counts as carried out if it was.
-		if (person.Current is { } current && (!isWorker || current.Need != appointment.Need))
+		// Steps put on hold carry on from the step they were on, which counts as carried out if it was. A worker's own steps
+		// put on hold for the appointment carry on from wherever they are once it's done (see EndSequence), so going to it
+		// isn't leaving them.
+		var interrupted = person.Current;
+		if (interrupted is not null)
 		{
-			current.IsCarriedOut = false;
-			FailStep(person, current, FailCause.Interrupted, time);
+			if (!isWorker || interrupted.Need != appointment.Need)
+			{
+				interrupted.IsCarriedOut = false;
+				FailStep(person, interrupted, FailCause.Interrupted, time);
+			}
+			else
+			{
+				interrupted.Place = null;
+			}
 		}
 
 		if (!isWorker)
 			Release(person, time);
 		person.SetOff(sequence);
 		sequence.Place = person.Location;
+
+		// Steps that were given up and are finishing up do that first, on the way.
+		if (interrupted is { IsFinishingUp: true } && person.Sequences.Contains(interrupted))
+			person.MakeCurrent(interrupted);
 	}
 
 	/// <summary>
@@ -1556,28 +1776,154 @@ internal sealed partial class Scheduler
 	}
 
 	/// <summary>
-	/// Starts an appointment once both are there: someone who's just come to it (or carried on its "meet" step there), and
-	/// the other waiting for it there, having set off for it (the player waits by being there). Returns whether it started.
+	/// Starts an appointment if one of them asks the other and they say yes. A client the game decides for who said no to
+	/// starting it, or was told no, tells the worker once they're ready, and a worker the game decides for asks the client
+	/// once they're ready themselves, even before its time. Neither asks someone who said no until they'd ask again (see
+	/// <see cref="GetAskAgainTime"/>), nor someone who can't be asked now (see <see cref="CanBeAskedToStart"/>). The player
+	/// asks from conversation instead. Anyone the game decides for answers as they are, and the player is asked. Someone
+	/// whose "meet" step is being checked carries on with their own steps. Returns whether it started.
 	/// </summary>
-	internal bool TryStartAppointment(Appointment appointment, TimePoint time, Person arriving)
+	internal bool TryStartAppointment(Appointment appointment, TimePoint time, Person? checking = null)
 	{
-		bool IsWaiting(Person person) => person.Location == appointment.Place && appointment.IsOnTheWay(person) &&
-			(person == arriving || !m_world.IsAutomatic(person) || (person.CurrentTask is MeetTask meet && meet.Appointment == appointment));
-		var isReady = !appointment.IsStarted && IsWaiting(appointment.Worker) && IsWaiting(appointment.Client);
-		if (isReady)
-			StartAppointment(appointment, time, arriving);
-		return isReady;
+		var (worker, client) = (appointment.Worker, appointment.Client);
+		var isStarted = appointment.IsStarted;
+		if (!isStarted && appointment.DeclinedBy is not null && IsReadyToAsk(client, worker, appointment, time))
+			isStarted = AskToStart(appointment, client, time, checking);
+		else if (!isStarted && IsReadyToAsk(worker, client, appointment, time))
+			isStarted = AskToStart(appointment, worker, time, checking);
+		return isStarted;
 	}
+
+	/// <summary>
+	/// Whether someone the game decides for would ask the other about starting an appointment now: they're ready to start
+	/// it, the other can be asked, and it's time to ask them.
+	/// </summary>
+	private bool IsReadyToAsk(Person asker, Person asked, Appointment appointment, TimePoint time) =>
+		IsDecidedByGame(asker, appointment) && IsReadyToMeet(asker, appointment) && CanBeAskedToStart(asked, appointment) &&
+		(appointment.DeclinedBy != asked || GetAskAgainTime(appointment) is not { } again || time >= again);
+
+	/// <summary>
+	/// Whether the game decides about starting an appointment for someone: anyone it decides for, and the player while
+	/// their steps for it are being done for them.
+	/// </summary>
+	private bool IsDecidedByGame(Person person, Appointment appointment) =>
+		m_world.IsAutomatic(person) || appointment.GetSequence(person) is { Takeover: not StepTakeover.None };
+
+	/// <summary>
+	/// Whether someone is ready to start an appointment: they're at its place, having set off for it, on its "meet" step,
+	/// which is what they're doing now, and aren't walking on, talking, or asleep.
+	/// </summary>
+	internal static bool IsReadyToMeet(Person person, Appointment appointment) =>
+		person.Location == appointment.Place && appointment.GetSequence(person) is { HasSetOff: true, CurrentStep.Kind: StepKind.Meet } sequence &&
+		person.Current == sequence && !person.IsAsleep && person.CurrentTask is not (TravelTask or TalkTask);
+
+	/// <summary>
+	/// Whether someone can be asked about starting an appointment now: they're at its place, and aren't walking on, talking,
+	/// or asleep, and for the player, they aren't doing anything, or being asked something else.
+	/// </summary>
+	internal bool CanBeAskedToStart(Person person, Appointment appointment) =>
+		person.Location == appointment.Place && !person.IsAsleep && person.CurrentTask is not (TravelTask or TalkTask) &&
+		(IsDecidedByGame(person, appointment) || IsPlayerFree(person));
+
+	/// <summary>
+	/// Gets when whoever said no to starting an appointment is asked again, while they stay: once the schedules'
+	/// "askToStartAgain" has passed, or at its time, if they said no before it and that comes first. Returns null if no one
+	/// has said no.
+	/// </summary>
+	internal TimePoint? GetAskAgainTime(Appointment appointment)
+	{
+		if (appointment.DeclinedAt is not { } at)
+			return null;
+		var again = m_calendar.AddMinutes(at, m_settings.AskToStartAgain.Minutes);
+		return at < appointment.Time && appointment.Time < again ? appointment.Time : again;
+	}
+
+	/// <summary>
+	/// Has one of an appointment's two ask the other whether they're ready to start it, or tell them they're ready now. Anyone
+	/// the game decides for says yes if they're ready to start it (see <see cref="IsReadyToMeet"/>). The player is asked,
+	/// and it waits for their answer (see <see cref="AnswerPlayerStart"/>). Returns whether it started.
+	/// </summary>
+	private bool AskToStart(Appointment appointment, Person asker, TimePoint time, Person? checking)
+	{
+		var asked = appointment.GetOther(asker);
+		var isDecided = IsDecidedByGame(asked, appointment);
+		if (!isDecided)
+			asked.StartRequest = appointment;
+		return isDecided && AnswerStart(appointment, asked, IsReadyToMeet(asked, appointment), time, checking);
+	}
+
+	/// <summary>
+	/// Has someone answer whether to start an appointment. A yes starts it (see <see cref="StartAppointment"/>).
+	/// A no is remembered, so they aren't asked again for a while, and the other, if the game has them waiting for it, waits
+	/// until they'd ask again. Returns whether it started.
+	/// </summary>
+	private bool AnswerStart(Appointment appointment, Person answering, bool isYes, TimePoint time, Person? checking)
+	{
+		if (isYes)
+		{
+			StartAppointment(appointment, time, checking);
+		}
+		else
+		{
+			appointment.Decline(answering, time);
+			var other = appointment.GetOther(answering);
+			if (other != checking && other.CurrentTask is MeetTask meet && meet.Appointment == appointment && IsDecidedByGame(other, appointment))
+			{
+				other.UpdateNeeds(time);
+				other.SetTasks([]);
+				Continue(other, time);
+			}
+		}
+
+		return isYes;
+	}
+
+	/// <summary>
+	/// Has the player answer whether to start the appointment the other asked them about, or told them they're ready for,
+	/// as anyone else would answer (see <see cref="AnswerStart"/>), except that the player decides.
+	/// </summary>
+	internal void AnswerPlayerStart(Person player, bool isYes, TimePoint time)
+	{
+		var appointment = player.StartRequest ?? throw new InvalidOperationException("No one is asking the player to start an appointment.");
+		player.StartRequest = null;
+		if (m_world.Appointments.Contains(appointment) && !appointment.IsStarted)
+			AnswerStart(appointment, player, isYes, time, checking: player);
+	}
+
+	/// <summary>
+	/// Whether the player can ask the other of an appointment about starting it now: it hasn't started, both are at its
+	/// place, and the other can be asked. As its client, the player can only tell the worker they're ready once someone has
+	/// said no to starting it.
+	/// </summary>
+	internal bool CanPlayerAskToStart(Person player, Appointment appointment) =>
+		!appointment.IsStarted && m_world.Appointments.Contains(appointment) && player.Location == appointment.Place && player.StartRequest is null &&
+		(player == appointment.Worker || appointment.DeclinedBy is not null) && CanBeAskedToStart(appointment.GetOther(player), appointment);
+
+	/// <summary>
+	/// Has the player ask the other of an appointment whether they're ready to start it, as its worker, or tell them they're
+	/// ready now, as its client, from conversation (see <see cref="CanPlayerAskToStart"/>). The other answers as anyone else
+	/// would (see <see cref="AskToStart"/>). Returns whether it started.
+	/// </summary>
+	internal bool PlayerAskToStart(Person player, Appointment appointment, TimePoint time) =>
+		CanPlayerAskToStart(player, appointment) && AskToStart(appointment, player, time, checking: player);
 
 	/// <summary>
 	/// Starts an appointment, once both are there: the client follows the worker (staying with them, wherever its steps
 	/// take them) until the worker is done with its steps, and the worker carries them out, with the client as their
-	/// partner. A worker the game decides for who was waiting carries on; the one arriving carries on with their own steps.
+	/// partner. Either of them who hadn't set off for it yet, such as the player starting it early, sets off first. A
+	/// worker the game decides for who was waiting carries on; the one whose "meet" step is being checked carries on with
+	/// their own steps.
 	/// </summary>
-	private void StartAppointment(Appointment appointment, TimePoint time, Person arriving)
+	private void StartAppointment(Appointment appointment, TimePoint time, Person? checking)
 	{
 		var worker = appointment.Worker;
 		var client = appointment.Client;
+		foreach (var person in new[] { worker, client })
+		{
+			if (appointment.GetSequence(person) is { HasSetOff: false } waiting)
+				TakeUpAppointment(waiting, person, time);
+		}
+
 		appointment.IsStarted = true;
 		foreach (var person in new[] { worker, client })
 		{
@@ -1608,8 +1954,12 @@ internal sealed partial class Scheduler
 				sequence.Takeover = StepTakeover.None;
 		}
 
-		if (m_world.IsAutomatic(worker) && worker != arriving)
+		if (m_world.IsAutomatic(worker) && worker != checking)
 			Continue(worker, time);
+
+		// The player's "meet" step is done, so as the worker, the step they take next is the one after it.
+		if (!m_world.IsAutomatic(worker) && worker != checking && appointment.GetSequence(worker) is { CurrentStep.Kind: StepKind.Meet } meeting)
+			AdvanceStep(worker, meeting, time, isPassive: true);
 	}
 
 	/// <summary>
@@ -1687,6 +2037,18 @@ internal sealed partial class Scheduler
 		GetDistances(person.Location).TryGetValue(location, out var route) ? route.Minutes : int.MaxValue;
 
 	/// <summary>
+	/// Gets how many minutes the quickest way between two locations takes, at the usual walking speed, or
+	/// <see cref="int.MaxValue"/> if there's no way.
+	/// </summary>
+	internal int GetRouteMinutes(Location from, Location to) => GetDistances(from).TryGetValue(to, out var route) ? route.Minutes : int.MaxValue;
+
+	/// <summary>
+	/// Gets the location next to the first that the quickest way to the second goes through first, or null if there's no
+	/// way, or they're the same.
+	/// </summary>
+	internal Location? GetNextOnRoute(Location from, Location to) => GetPath(from, to, GetDistances(from)) is [var next, ..] ? next : null;
+
+	/// <summary>
 	/// Gets how long it takes a person to walk a path between two locations next to each other. Some people walk more
 	/// slowly than others.
 	/// </summary>
@@ -1714,6 +2076,7 @@ internal sealed partial class Scheduler
 		FollowTask follow => Math.Max(follow.Minutes, 1),
 		MeetTask meet => Math.Max(meet.Minutes, 1),
 		WaitTask wait => Math.Max(wait.Minutes, 1),
+		PrivacyTask privacy => Math.Max(privacy.Minutes, 1),
 		TravelTask travel => GetTravelMinutes(person, person.Location, travel.Destination),
 		BusyTask { Minutes: { } minutes } => Math.Max(minutes, 1),
 		ChangeClothesTask => m_settings.Clothing.ChangeMinutes,
@@ -1740,6 +2103,16 @@ internal sealed partial class Scheduler
 			? !ClothingRules.IsWearingKind(person, kind) && ClothingRules.FindAtHand(person, kind, time) is { } outfit ? new ChangeClothesTask(outfit, IsTakingOff: false) : null
 			: person.GetOutfits(kind).FirstOrDefault(x => ClothingRules.IsChangedInto(person, x)) is { } worn ? new ChangeClothesTask(worn, IsTakingOff: true) : null;
 	}
+
+	/// <summary>
+	/// Whether someone would be too shy to make a change of clothes for a step: changing into an outfit they wouldn't be
+	/// comfortable in where they are, with the people there, on the step. Changing out of an outfit puts back what it
+	/// replaced, so it never is. With only the household, it's whether they'd be too shy with only their own household and
+	/// the partner changing with them there, which waiting for others to leave can't change.
+	/// </summary>
+	private static bool IsTooShyToChange(GameData gameData, Person person, ChangeClothesTask change, Step step, TimePoint time, bool isHouseholdOnly = false, Person? partner = null) =>
+		!change.IsTakingOff && !ClothingRules.IsComfortableIn(gameData, person, change.Outfit, ModestyComfort.Get(gameData, person, person.Location,
+			person.Location.People.Where(x => x != person && (!isHouseholdOnly || x.Family == person.Family || x == partner)).Select(x => (x, x.IsAsleep)), step, time));
 
 	/// <summary>
 	/// Gets how long to spend on a quota need this time: a shift, unless less is left to do or less time is left in today's

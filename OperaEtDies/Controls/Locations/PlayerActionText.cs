@@ -21,6 +21,16 @@ internal static class PlayerActionText
 	}
 
 	/// <summary>
+	/// Describes something that takes time with when it would end and how long it takes, such as "Work until 15:00 (1
+	/// hour)".
+	/// </summary>
+	public static string FormatUntil(GameWorld world, string title, int minutes)
+	{
+		var calendar = world.GameData.Calendar;
+		return OurResources.PlayerActionUntilText.FormatCurrentCulture(title, calendar.FormatClock(world.Time + calendar.CreateTimeOffset(0, 0, minutes)), FormatMinutes(world, minutes));
+	}
+
+	/// <summary>
 	/// Describes the days and hours a quota need can be met, in the calendar's order of the days, such as "Open on Moonday
 	/// from 7:00 to 14:00".
 	/// </summary>

@@ -1,16 +1,42 @@
 ﻿<ResourceDictionary
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-	xmlns:markupExtensions="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-	<markupExtensions:FontSize x:Key="SmallFontSize" Size="10" />
-	<markupExtensions:FontSize x:Key="DefaultFontSize" Size="12" />
-	<markupExtensions:FontSize x:Key="LargeFontSize" Size="14" />
-	<markupExtensions:FontSize x:Key="TitleFontSize" Size="28" />
+	<!--  The text sizes and font families are theme resources (see Themes/Default/Default.xaml).  -->
+
+	<!--  A small-caps label in the accent color heading a group, such as "Needs" in the left column.  -->
+	<Style x:Key="CaptionTextStyle" TargetType="TextBlock">
+		<Setter Property="Margin" Value="0,14,0,4" />
+		<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+		<Setter Property="FontSize" Value="{DynamicResource SmallFontSize}" />
+		<Setter Property="Typography.Capitals" Value="AllSmallCaps" />
+		<Setter Property="TextWrapping" Value="Wrap" />
+	</Style>
+
+	<!--  A screen's or sheet's title, such as the location's name: large small caps, slightly spaced, as in a manuscript.  -->
+	<Style x:Key="TitleTextStyle" TargetType="TextBlock">
+		<Setter Property="FontSize" Value="{DynamicResource TitleFontSize}" />
+		<Setter Property="FontWeight" Value="Medium" />
+		<Setter Property="Typography.Capitals" Value="SmallCaps" />
+		<Setter Property="TextWrapping" Value="Wrap" />
+	</Style>
+
+	<!--  A link that shows more, such as "More" after the location's description: in the accent color, and underlined on
+		hover.  -->
+	<Style x:Key="MoreLinkStyle" TargetType="Hyperlink">
+		<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+		<Setter Property="TextDecorations" Value="{x:Null}" />
+		<Setter Property="FocusVisualStyle" Value="{DynamicResource KeyboardFocusVisualStyle}" />
+		<Style.Triggers>
+			<Trigger Property="IsMouseOver" Value="True">
+				<Setter Property="TextDecorations" Value="Underline" />
+			</Trigger>
+		</Style.Triggers>
+	</Style>
 
 	<!--  A person or place named in the event log, which can be clicked. It reads as part of the text, and is underlined on hover.  -->
 	<Style x:Key="LogLinkStyle" TargetType="Hyperlink">
-		<Setter Property="Foreground" Value="{DynamicResource FontBrush}" />
+		<Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
 		<Setter Property="FontWeight" Value="SemiBold" />
 		<Setter Property="TextDecorations" Value="{x:Null}" />
 		<Style.Triggers>

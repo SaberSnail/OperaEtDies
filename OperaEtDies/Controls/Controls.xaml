@@ -1,14 +1,19 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-	<!--  Data templates for view models that are shown inside windows.  -->
+	<!--  The window's layout, and data templates for the view models shown in it.  -->
 	<ResourceDictionary.MergedDictionaries>
+		<ResourceDictionary Source="ColumnLayout.xaml" />
+		<ResourceDictionary Source="SplitColumn.xaml" />
 		<ResourceDictionary Source="Characters/CharacterView.xaml" />
 		<ResourceDictionary Source="Clothing/ClothingView.xaml" />
 		<ResourceDictionary Source="Conversation/ConversationView.xaml" />
+		<ResourceDictionary Source="Game/GameScreenView.xaml" />
 		<ResourceDictionary Source="LoadGame/LoadGameView.xaml" />
 		<ResourceDictionary Source="Log/LogView.xaml" />
+		<ResourceDictionary Source="MainMenu/MainMenuView.xaml" />
 		<ResourceDictionary Source="Locations/LocationView.xaml" />
 		<ResourceDictionary Source="ManageMods/ManageModsView.xaml" />
+		<ResourceDictionary Source="Settings/SettingsView.xaml" />
 		<ResourceDictionary Source="Map/TownMapView.xaml" />
 		<ResourceDictionary Source="Start/StartScreenView.xaml" />
 		<ResourceDictionary Source="NewGame/NewGameView.xaml" />

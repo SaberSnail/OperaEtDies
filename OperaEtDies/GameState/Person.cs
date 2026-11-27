@@ -48,6 +48,11 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	public WorldId Id { get; }
 
 	/// <summary>
+	/// The data the person was made from, such as for the text that describes what they do.
+	/// </summary>
+	internal GameData GameData => m_gameData;
+
+	/// <summary>
 	/// What the person is carrying.
 	/// </summary>
 	public ItemContainer Inventory { get; }
@@ -102,6 +107,13 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	public string FullName => m_fullName;
 
 	/// <summary>
+	/// Creates the text a character placeholder would have for the person, as far as can be seen through their clothing,
+	/// such as "gender.pronoun" for a property's text, or "subject" for a character template.
+	/// </summary>
+	public string FormatPlaceholder(string placeholder) =>
+		m_traits.FormatPlaceholder(m_gameData.CharacterTemplates, placeholder, m_gameData.GetObscuring(Clothing.Pieces.Select(x => x.Clothing)));
+
+	/// <summary>
 	/// Describes the person in a few sentences, with what can be seen through their clothing and what they're wearing.
 	/// </summary>
 	public string Description => m_description ??= m_traits.GetDescription(m_gameData.CharacterTemplates, m_gameData.GetObscuring(Clothing.Pieces.Select(x => x.Clothing)), Clothing.Describe(m_gameData.ClothingSlots, m_gameData.ClothingLayers, m_gameData.ClothingSettings.HidesClothingAt));
@@ -141,6 +153,18 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	/// Where the person works: their business's place, or their home if they have no business or it's run from home.
 	/// </summary>
 	public Location Workplace => Business?.Location ?? Home;
+
+	/// <summary>
+	/// Sets the value of an integer character property, such as a developer changing the player's boldness.
+	/// </summary>
+	internal void SetInteger(string propertyId, int value)
+	{
+		using (ScopedPropertyChange(nameof(Traits), nameof(Description)))
+		{
+			m_traits = m_traits.With(propertyId, value);
+			m_description = null;
+		}
+	}
 
 	/// <summary>
 	/// Whether the person is working right now, as given by the at work property in <see cref="Traits"/>. Tasks start and
@@ -295,16 +319,18 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 
 	/// <summary>
 	/// For each outfit the person changed into that replaced clothes they were wearing, the pieces it replaced, which they
-	/// change back into when they change out of it. Kept until then, however long that is.
+	/// change back into when they change out of it, and for each outfit of nothing at all they changed into, even one that
+	/// replaced nothing, what it replaced. Kept until then, however long that is.
 	/// </summary>
 	public IReadOnlyDictionary<OwnedOutfit, IReadOnlyList<ClothingPiece>> ReplacedClothes => m_replacedClothes;
 
 	/// <summary>
-	/// Remembers the pieces an outfit replaced when the person changed into it, or forgets them if it replaced none.
+	/// Remembers the pieces an outfit replaced when the person changed into it, or forgets them if it replaced none, unless
+	/// it's an outfit of nothing at all, since remembering what it replaced is how changing into it is remembered.
 	/// </summary>
 	internal void SetReplacedClothes(OwnedOutfit outfit, IReadOnlyList<ClothingPiece> pieces)
 	{
-		if (pieces.Count == 0)
+		if (pieces.Count == 0 && outfit.Pieces.Count != 0)
 			m_replacedClothes.Remove(outfit);
 		else
 			m_replacedClothes[outfit] = pieces;
@@ -370,6 +396,17 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	}
 
 	/// <summary>
+	/// The place the person is heading for, or null if they aren't heading anywhere in particular. Only the player has one:
+	/// they choose it, or their steps choose it for them (see <see cref="GameWorld.SetPlayerDestination"/>), and reaching
+	/// it clears it.
+	/// </summary>
+	public Location? Destination
+	{
+		get => m_destination;
+		internal set => SetPropertyField(value, ref m_destination);
+	}
+
+	/// <summary>
 	/// Someone who asked the player the question of an "ask" step they're on, and is waiting for an answer, or null if no one
 	/// is. Only the player is asked.
 	/// </summary>
@@ -377,6 +414,16 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	{
 		get => m_askRequest;
 		internal set => SetPropertyField(value, ref m_askRequest);
+	}
+
+	/// <summary>
+	/// An appointment of the player's whose other one asked whether they're ready to start it, or told them they're ready
+	/// now, and is waiting for an answer, or null if there's none. Only the player is asked.
+	/// </summary>
+	public Appointment? StartRequest
+	{
+		get => m_startRequest;
+		internal set => SetPropertyField(value, ref m_startRequest);
 	}
 
 	/// <summary>
@@ -494,7 +541,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 			m_goalChoice?.CreateRecord(), m_sightings.Count == 0 ? null : m_sightings.Select(x => x.Value.CreateRecord(x.Key)).ToList(), m_talkRequest?.Id, HasNapped,
 			Inventory.CreateRecord(), Clothing.CreateRecord(), m_sequences.Count == 0 ? null : m_sequences.Select(x => x.CreateRecord()).ToList(),
 			m_replacedClothes.Count == 0 ? null : m_replacedClothes.Select(x => new ReplacedClothesRecord(x.Key.Id, x.Value.Select(y => y.Id).ToList())).ToList(),
-			m_askRequest?.Id);
+			m_askRequest?.Id, m_startRequest?.Id, m_destination?.Id);
 
 	internal void SetFamily(Family family) => m_family = family;
 
@@ -721,6 +768,8 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	private Location m_location;
 	private GoalChoice? m_goalChoice;
 	private Person? m_askRequest;
+	private Location? m_destination;
+	private Appointment? m_startRequest;
 	private readonly Collection<StepSequence> m_sequences = [];
 	private readonly Collection<Job> m_jobs = [];
 	private readonly Dictionary<OwnedOutfit, IReadOnlyList<ClothingPiece>> m_replacedClothes = [];
@@ -743,7 +792,7 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 	IReadOnlyList<PersonTaskRecord> Tasks, string? TaskEnd, IReadOnlyDictionary<string, double> Needs, IReadOnlyDictionary<string, long> Progress,
 	GoalChoiceRecord? GoalChoice = null, IReadOnlyList<SightingRecord>? Sightings = null, WorldId? TalkRequest = null, bool HasNapped = false,
 	IReadOnlyList<WorldId>? Inventory = null, IReadOnlyList<WorldId>? Clothing = null, IReadOnlyList<StepSequenceRecord>? Sequences = null,
-	IReadOnlyList<ReplacedClothesRecord>? ReplacedClothes = null, WorldId? AskRequest = null)
+	IReadOnlyList<ReplacedClothesRecord>? ReplacedClothes = null, WorldId? AskRequest = null, WorldId? StartRequest = null, WorldId? Destination = null)
 	: WorldObjectRecord(Id)
 {
 	internal override IWorldObject Create(WorldLoader loader)
@@ -813,6 +862,10 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 			loader.Defer(() => person.TalkRequest = loader.Get<Person>(talkRequest));
 		if (AskRequest is { } asker)
 			loader.Defer(() => person.AskRequest = loader.Get<Person>(asker));
+		if (StartRequest is { } startRequest)
+			loader.Defer(() => person.StartRequest = loader.Get<Appointment>(startRequest));
+		if (Destination is { } destination)
+			loader.Defer(() => person.Destination = loader.Get<Location>(destination));
 
 		// Items refer to their owners, who may not exist yet.
 		if (Inventory is { } inventory)
@@ -846,7 +899,7 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 			var other = loader.Get<Person>(record.Person);
 			var need = record.Need is null ? null : GetNeed(loader.GameData, record.Need);
 			var hasDestination = record.Activity is SightingActivity.Walking or SightingActivity.Left;
-			if (other == person || person.Sightings.ContainsKey(other) || !Enum.IsDefined(record.Activity) || (need is not null) != (record.Activity == SightingActivity.Busy) || (record.Destination is not null) != hasDestination)
+			if (other == person || person.Sightings.ContainsKey(other) || !Enum.IsDefined(record.Activity) || (need is not null) != (record.Activity == SightingActivity.Busy) || (record.Destination is not null) != hasDestination || (record.With is not null && record.Activity != SightingActivity.Talking))
 				throw new SaveLoadException(OurResources.SaveSightingInvalid.FormatCurrentCulture(Id, record.Person));
 
 			var plan = record.Plan is { } planRecord
@@ -854,7 +907,7 @@ public sealed record PersonRecord(WorldId Id, bool IsPlayer, FamilyRole Role, Wo
 					planRecord.Doing)
 				: null;
 			person.LoadSighting(other, new Sighting(loader.Get<Location>(record.Location), loader.LoadTime(record.Time), record.Activity, need,
-				record.Destination is { } destination ? loader.Get<Location>(destination) : null, record.Source is { } source ? loader.Get<Person>(source) : null, plan, record.Doing));
+				record.Destination is { } destination ? loader.Get<Location>(destination) : null, record.Source is { } source ? loader.Get<Person>(source) : null, plan, record.Doing, record.With is { } with ? loader.Get<Person>(with) : null));
 		}
 	}
 

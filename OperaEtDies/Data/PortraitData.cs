@@ -289,6 +289,16 @@ public sealed class PortraitData : IValidatedData
 				yield return OurResources.DataNumberTooLarge.FormatCurrentCulture($"{path}.hiddenBy.coverage", hiddenBy.Coverage, ClothingItem.MaxCoverage);
 		}
 
+		if (layer.Cut is { } cut)
+		{
+			if (string.IsNullOrWhiteSpace(cut.Path))
+				yield return OurResources.DataValueMissing.FormatCurrentCulture($"{path}.cut.path");
+			else if (!PortraitShape.TryParsePath(cut.Path, out _, out var cutError))
+				yield return OurResources.PortraitPathInvalid.FormatCurrentCulture($"{path}.cut.path", cutError);
+			if (cut.Regions is not { Count: > 0 })
+				yield return OurResources.DataListEmpty.FormatCurrentCulture($"{path}.cut.regions");
+		}
+
 		// A layer's own colors can use the colors before them. The colors of the clothing it draws are checked against the
 		// clothing data, so they're taken to be known here.
 		var localIds = new HashSet<string>(StringComparer.Ordinal);

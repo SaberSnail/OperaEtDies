@@ -77,16 +77,41 @@ public sealed class AppointmentTests
 	}
 
 	[Test]
+	public void AppointmentLinesNeedTitlesAndText()
+	{
+		var empty = new LongText { Text = " ", Ai = true };
+		var appointment = new StepAppointment
+		{
+			Place = Home,
+			Gap = 0,
+			Patience = 0,
+			Steps = [Meet(), Do(Amount(5))],
+			Start = new AppointmentLine { Text = empty, Asked = empty },
+			Ready = new AppointmentLine { Title = "Say you're ready" },
+		};
+
+		Assert.That(appointment.Validate("appointment"), Is.EqualTo(new[]
+		{
+			OurResources.DataValueMissing.FormatCurrentCulture("appointment.start.title"),
+			OurResources.DataValueMissing.FormatCurrentCulture("appointment.start.text.text"),
+			OurResources.DataValueMissing.FormatCurrentCulture("appointment.start.asked.text"),
+		}));
+	}
+
+	[Test]
 	public void AppointmentsAreMadeKeptAndSaved()
 	{
 		var need = Errand([Asking(Do(Amount(30)))]);
 		var (world, worker, client) = CreateWorld(need);
 		var calendar = world.GameData.Calendar;
 		var attended = new List<(Location Place, Person? Leader)>();
+		TimePoint? started = null;
 		world.TaskStarted += (_, e) =>
 		{
 			if (e.Person == worker && e.Task is BusyTask { Minutes: 30, ResumeMinutes: null } && worker.Goal == need)
 				attended.Add((worker.Location, client.CurrentTask is FollowTask follow ? follow.Leader : null));
+			if (e.Person == client && e.Task is FollowTask)
+				started ??= e.Time;
 		};
 
 		// Asked, the client has the time to meet at their home right away, once they're done talking and have walked there.
@@ -103,15 +128,18 @@ public sealed class AppointmentTests
 		Assert.That(client.Current, Is.Null);
 		AssertSavesAndLoads(world);
 
-		// Waiting for it is saved too.
-		world.AdvanceTime(calendar.CreateTimeOffset(1, 0, 0), () => worker.CurrentTask is MeetTask || client.CurrentTask is MeetTask);
-		Assert.That(world.People.Any(x => x.CurrentTask is MeetTask), Is.True);
+		// Waiting for it, or having started it, is saved too.
+		world.AdvanceTime(calendar.CreateTimeOffset(1, 0, 0), () => appointment.IsStarted || world.People.Any(x => x.CurrentTask is MeetTask));
+		Assert.That(appointment.IsStarted || world.People.Any(x => x.CurrentTask is MeetTask), Is.True);
 		AssertSavesAndLoads(world);
 
-		// At the client's home, the worker carries out the steps while the client stays with them, and then it's over.
+		// At the client's home, the worker carries out the steps while the client stays with them, and then it's over. It
+		// started as soon as both were there and ready, which was no later than its time.
 		world.AdvanceTime(calendar.CreateTimeOffset(1, 0, 0), () => world.Appointments.Count == 0);
 		Assert.That(attended, Is.EqualTo(new[] { (client.Home, (Person?) worker) }));
 		Assert.That(client.CurrentTask, Is.Not.TypeOf<FollowTask>());
+		Assert.That(started, Is.Not.Null);
+		Assert.That(started! <= appointment.Time, Is.True);
 	}
 
 	[Test]
@@ -227,6 +255,27 @@ public sealed class AppointmentTests
 	}
 
 	[Test]
+	public async Task ThePlayerIsShownChangingClothesForAnAppointmentAsync()
+	{
+		var need = Errand([Asking(
+			new Step { Kind = StepKind.Dress, Outfit = OutfitKind.Nothing, WithPartner = true },
+			Do(Amount(30)),
+			new Step { Kind = StepKind.Undress, Outfit = OutfitKind.Nothing, WithPartner = true })]);
+		var (world, player, client) = CreateWorld(need, isPlayer: true);
+		Scheduler.StartSequence(player, need, 0, null, [], null);
+		var appointment = (await world.AskPlayerQuestionAsync(client)).Appointment!;
+		var keeping = appointment.GetSequence(player)!;
+		await world.AdvanceTimeAsync(world.GameData.Calendar.CreateTimeOffset(1, 0, 0));
+
+		// Setting off, they're shown going there, meeting the client, and every step after that, changes of clothes included.
+		await world.AnswerSetOffAsync(isSettingOff: true);
+		Assert.That(world.GetPlayerSteps(keeping).Select(x => (x.Kind, x.Step.Kind)), Is.EqualTo(new[]
+		{
+			(PlayerStepKind.GoToAppointment, StepKind.Meet), (PlayerStepKind.Meet, StepKind.Meet), (PlayerStepKind.Step, StepKind.Dress), (PlayerStepKind.Step, StepKind.Do), (PlayerStepKind.Step, StepKind.Undress),
+		}));
+	}
+
+	[Test]
 	public async Task ThePlayerCanCallOffAppointmentsAsync()
 	{
 		var need = Errand([Asking(Do(Amount(30)))]);
@@ -255,12 +304,32 @@ public sealed class AppointmentTests
 		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(1, 0, 0));
 		await world.AnswerSetOffAsync(isSettingOff: true);
 
-		// The player never goes, so the client waits there until a while after it was to start, and gives up.
+		// The player never goes, so the client waits there until its "meet" step's 30 minutes after it was to start, and gives
+		// up then, which is when the failure says it happened, though time went on passing after it.
+		var failures = new List<(Person Person, FailCause Cause, TimePoint Time)>();
+		world.StepFailed += (_, e) => failures.Add((e.Person, e.Cause, e.Time));
 		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(0, 3, 0));
 
 		Assert.That(missed, Is.EqualTo(new[] { (appointment, true) }));
 		Assert.That((player.Sequences.Count, world.Appointments.Count), Is.EqualTo((0, 0)));
-		Assert.That(calendar.GetTotalMinutes(world.Time - appointment.Time), Is.GreaterThanOrEqualTo(30));
+		Assert.That(failures.Where(x => x.Person == client).Select(x => (x.Cause, x.Time)), Is.EqualTo(new[] { (FailCause.NoShow, calendar.AddMinutes(appointment.Time, 30)) }));
+		Assert.That(world.Time > calendar.AddMinutes(appointment.Time, 30), Is.True);
+	}
+
+	[Test]
+	public void PeopleOnTheirWayToAnAppointmentDontStopToTalk()
+	{
+		var need = Errand([Asking(Do(Amount(30)))]);
+		var (world, worker, client) = CreateWorld(need);
+		var calendar = world.GameData.Calendar;
+		worker.SetPlan(need, [], startStep: 0);
+		world.AdvanceTime(calendar.CreateTimeOffset(0, 0, 5), () => world.Appointments.Count != 0);
+		var appointment = world.Appointments.Single();
+
+		// Walking to the client's home for it, the worker is too busy to stop and talk, even with the player.
+		world.AdvanceTime(calendar.CreateTimeOffset(1, 0, 0), () => appointment.IsOnTheWay(worker) && worker.CurrentTask is TravelTask);
+		Assume.That((appointment.IsOnTheWay(worker), appointment.IsStarted, worker.CurrentTask), Is.EqualTo((true, false, worker.CurrentTask as TravelTask)));
+		Assert.That(world.IsTooBusyToTalk(worker), Is.True);
 	}
 
 	[Test]
@@ -305,6 +374,212 @@ public sealed class AppointmentTests
 		Assert.That((player.Sequences.Count, player.Partner), Is.EqualTo((0, (Person?) null)));
 	}
 
+	[Test]
+	public async Task StepsOnHoldForAnAppointmentCarryOnFromThereAfterItAsync()
+	{
+		var need = Errand([Asking(Do(Amount(30))), Do(Amount(5))]);
+		var (world, player, client) = CreateWorld(need, isPlayer: true);
+		var failures = new List<FailCause>();
+		world.StepFailed += (_, e) => failures.Add(e.Cause);
+		var asking = Scheduler.StartSequence(player, need, 0, null, [], null);
+		var appointment = (await world.AskPlayerQuestionAsync(client)).Appointment!;
+		await world.AdvanceTimeAsync(world.GameData.Calendar.CreateTimeOffset(1, 0, 0));
+		await world.AnswerSetOffAsync(isSettingOff: true);
+		var keeping = appointment.GetSequence(player)!;
+
+		// Going to the appointment isn't leaving the steps it put on hold, which are saved that way.
+		await world.DoPlayerStepAsync(keeping);
+		Assert.That((player.Location, player.Sequences, failures), Is.EqualTo((appointment.Place, new[] { asking, keeping }, Array.Empty<FailCause>())));
+		AssertSavesAndLoads(world);
+		for (var count = 0; count < 3 && !appointment.IsStarted; count++)
+			await world.DoPlayerStepAsync(keeping);
+		await world.DoPlayerStepAsync(keeping);
+
+		// Once it's done, they carry on from where the appointment was.
+		Assert.That((failures, player.Sequences.Single(), asking.Place, asking.Step), Is.EqualTo((Array.Empty<FailCause>(), asking, (Location?) appointment.Place, 3)));
+	}
+
+	[Test]
+	public async Task WaitingForAnAppointmentStopsWhenItStartsAsync()
+	{
+		var need = Errand([Asking(Do(Amount(30)))]);
+		var (world, player, client) = CreateWorld(need, isPlayer: true);
+		client.SetLevel(world.GameData.Schedules.Needs.Single(x => x.Id == "hunger"), OperaEtDies.Data.Need.MaximumLevel);
+		Scheduler.StartSequence(player, need, 0, null, [], null);
+		var appointment = (await world.AskPlayerQuestionAsync(client)).Appointment!;
+		await world.AdvanceTimeAsync(world.GameData.Calendar.CreateTimeOffset(3, 0, 0));
+		await world.AnswerSetOffAsync(isSettingOff: true);
+
+		// Walking there themselves, the player waits there until the client is waiting for its time too. The player can talk
+		// with them while they wait.
+		await world.MovePlayerAsync(appointment.Place);
+		for (var count = 0; count < 10 && client.CurrentTask is not MeetTask && world.Appointments.Contains(appointment); count++)
+			await world.WaitForPeopleAsync(player.Location);
+		Assume.That(client.CurrentTask, Is.TypeOf<MeetTask>());
+		Assume.That(world.Time < appointment.Time, Is.True);
+		Assert.That(world.CanTalkTo(client), Is.True);
+
+		// It never starts by itself: waiting again, with no one coming or going, goes on past its time.
+		await world.WaitForPeopleAsync(player.Location);
+		Assert.That((appointment.IsStarted, world.Time > appointment.Time), Is.EqualTo((false, true)));
+	}
+
+	[Test]
+	public async Task ThePlayerStartsAnAppointmentByAskingAsync()
+	{
+		var need = Errand([Asking(Do(Amount(30)))]);
+		var (world, player, client) = CreateWorld(need, isPlayer: true);
+		client.SetLevel(world.GameData.Schedules.Needs.Single(x => x.Id == "hunger"), OperaEtDies.Data.Need.MaximumLevel);
+		Scheduler.StartSequence(player, need, 0, null, [], null);
+		var appointment = (await world.AskPlayerQuestionAsync(client)).Appointment!;
+		await world.AdvanceTimeAsync(world.GameData.Calendar.CreateTimeOffset(3, 0, 0));
+		await world.AnswerSetOffAsync(isSettingOff: true);
+		await world.MovePlayerAsync(appointment.Place);
+		for (var count = 0; count < 10 && client.CurrentTask is not MeetTask && world.Appointments.Contains(appointment); count++)
+			await world.WaitForPeopleAsync(player.Location);
+		Assume.That(client.CurrentTask, Is.TypeOf<MeetTask>());
+		Assume.That(world.Time < appointment.Time, Is.True);
+
+		// Asking in conversation, the client is ready, so it starts at once, before its time, without any time passing.
+		var time = world.Time;
+		Assert.That(world.GetPlayerStartAppointment(client), Is.SameAs(appointment));
+		Assert.That(await world.AskToStartAsync(client), Is.True);
+		Assert.That((appointment.IsStarted, world.Time), Is.EqualTo((true, time)));
+		Assert.That(client.CurrentTask, Is.TypeOf<FollowTask>());
+		Assert.That(world.GetPlayerStartAppointment(client), Is.Null);
+	}
+
+	[Test]
+	public async Task TheWorkerAsksThePlayerToStartAsync()
+	{
+		var need = Errand([Asking(Do(Amount(30)))]);
+		var (world, worker, player) = CreateWorld(need, isPlayerClient: true);
+		var calendar = world.GameData.Calendar;
+		var appointment = await MeetAsPlayerClientAsync(world, worker, need);
+
+		// Once both are there, the worker asks the player whether they're ready, which stops time until they answer.
+		Assert.That(player.StartRequest, Is.SameAs(appointment));
+		Assert.That(await world.AdvanceTimeAsync(calendar.CreateTimeOffset(0, 1, 0)), Is.EqualTo(calendar.CreateTimeOffset(0, 0, 0)));
+		AssertSavesAndLoads(world);
+
+		// Saying no, the player isn't asked again for a while, but can say they're ready.
+		await world.AnswerStartAsync(isYes: false);
+		var declined = world.Time;
+		Assert.That((player.StartRequest, appointment.IsStarted, appointment.DeclinedBy, appointment.DeclinedAt), Is.EqualTo(((Appointment?) null, false, player, (TimePoint?) declined)));
+		Assert.That(world.GetPlayerStartAppointment(worker), Is.SameAs(appointment));
+		AssertSavesAndLoads(world);
+
+		// Waiting there, they're asked again once it's been long enough, or at its time, if that comes first.
+		for (var count = 0; count < 10 && player.StartRequest is null && world.Appointments.Contains(appointment); count++)
+			await world.WaitForPeopleAsync(player.Location);
+		var again = calendar.AddMinutes(declined, world.GameData.Schedules.AskToStartAgain.Minutes);
+		Assert.That((player.StartRequest, world.Time), Is.EqualTo((appointment, declined < appointment.Time && appointment.Time < again ? appointment.Time : again)));
+
+		// Saying yes starts it.
+		await world.AnswerStartAsync(isYes: true);
+		Assert.That((appointment.IsStarted, player.Current?.Leader), Is.EqualTo((true, worker)));
+	}
+
+	[Test]
+	public async Task ThePlayerSaysTheyAreReadyAfterSayingNoAsync()
+	{
+		var need = Errand([Asking(Do(Amount(30)))]);
+		var (world, worker, player) = CreateWorld(need, isPlayerClient: true);
+		var appointment = await MeetAsPlayerClientAsync(world, worker, need);
+		Assume.That(player.StartRequest, Is.SameAs(appointment));
+		await world.AnswerStartAsync(isYes: false);
+
+		// Telling the worker they're ready, the worker, still waiting, says yes, and it starts.
+		Assert.That(await world.AskToStartAsync(worker), Is.True);
+		Assert.That(appointment.IsStarted, Is.True);
+	}
+
+	[Test]
+	public async Task LeavingAndComingBackMeansBeingAskedAgainAsync()
+	{
+		var need = Errand([Asking(Do(Amount(30)))]);
+		var (world, worker, player) = CreateWorld(need, isPlayerClient: true);
+		var away = player.Location;
+		var appointment = await MeetAsPlayerClientAsync(world, worker, need);
+		Assume.That(player.StartRequest, Is.SameAs(appointment));
+		await world.AnswerStartAsync(isYes: false);
+
+		// Leaving forgets the no, so coming back, they're asked again at once.
+		var time = world.Time;
+		await world.MovePlayerAsync(away);
+		Assert.That(appointment.DeclinedBy, Is.Null);
+		await world.MovePlayerAsync(appointment.Place);
+		Assert.That((player.StartRequest, world.Time), Is.EqualTo((appointment, time)));
+	}
+
+	/// <summary>
+	/// Has the worker ask the player (as the client) to meet, which they agree to, set off for, and walk to, and waits
+	/// there until the worker asks them whether they're ready to start it. Returns the appointment.
+	/// </summary>
+	private static async Task<Appointment> MeetAsPlayerClientAsync(GameWorld world, Person worker, Need need)
+	{
+		var calendar = world.GameData.Calendar;
+		var player = world.Player;
+		worker.SetPlan(need, [], startStep: 0);
+		await world.AdvanceTimeAsync(calendar.CreateTimeOffset(0, 5, 0));
+		Assume.That(player.AskRequest, Is.SameAs(worker));
+		var appointment = (await world.AnswerAskAsync(isYes: true))!;
+		Assume.That(appointment, Is.Not.Null);
+		for (var count = 0; count < 5 && world.GetPlayerSetOffSequence() is null; count++)
+			await world.AdvanceTimeAsync(calendar.CreateTimeOffset(1, 0, 0));
+		await world.AnswerSetOffAsync(isSettingOff: true);
+		await world.MovePlayerAsync(appointment.Place);
+		for (var count = 0; count < 10 && player.StartRequest is null && world.Appointments.Contains(appointment); count++)
+			await world.WaitForPeopleAsync(player.Location);
+		return appointment;
+	}
+
+	[Test]
+	public async Task LeavingBeforeAskingSomeoneFoundGoesBackToLookingAsync()
+	{
+		var need = Errand([
+			new Step { Kind = StepKind.Seek, Who = NotFamily, Minutes = Amount(15) },
+			new Step { Kind = StepKind.Ask, With = StepTarget.Sought, Name = "agreed", Player = new StepPlayer { Title = "Ask" }, Minutes = Amount(5), Chance = new StepChance { Base = 100 } },
+		]);
+		var (world, player, client) = CreateWorld(need, isPlayer: true);
+		var place = player.Location;
+		var failures = new List<FailCause>();
+		world.StepFailed += (_, e) => failures.Add(e.Cause);
+
+		// The client is there, so looking for someone is done, and asking them is next.
+		await world.StartPlayerStepsAsync(need, isAutomatic: false);
+		var sequence = player.Current!;
+		Assert.That(sequence.Step, Is.EqualTo(1));
+
+		// Leaving before asking goes back to looking, and coming back finds them again.
+		await world.MovePlayerAsync(player.Home);
+		Assert.That((failures, player.Sequences.Single(), sequence.Step), Is.EqualTo((Array.Empty<FailCause>(), sequence, 0)));
+		await world.MovePlayerAsync(place);
+		Assert.That((failures, sequence.Step, world.GetPlayerAsk(client)?.StepIndex), Is.EqualTo((Array.Empty<FailCause>(), 1, (int?) 1)));
+	}
+
+	[Test]
+	public void TheNextPlaceToGoIsOnlyFromStepsOnTheWay()
+	{
+		static Step GoingTo(string text) => new() { Kind = StepKind.GoTo, Place = Home, Player = new StepPlayer { Text = new LongText { Text = text, Ai = true } } };
+
+		// The steps are: 0 choose, 1 first, 2 and 3 do, 4 third, 5 after.
+		var choosing = Errand([
+			new Step { Kind = StepKind.Choose, Options = [new StepOption { Steps = [GoingTo("first")] }, new StepOption { Steps = [Do(Amount(5)), Do(Amount(5))] }, new StepOption { Steps = [GoingTo("third")] }] },
+			GoingTo("after"),
+		]);
+		Assert.That(new[] { 0, 2, 3, 5 }.Select(x => new StepSequence(choosing, x, null).NextText), Is.EqualTo(new[] { "first", "after", "after", "after" }));
+
+		// The steps are: 0 ask, 1 meet, 2 do, 3 after. The appointment's steps end its steps.
+		var asking = Errand([AskingExactly(Meet(), Do(Amount(5))), GoingTo("after")]);
+		Assert.That(new[] { 0, 2 }.Select(x => new StepSequence(asking, x, null).NextText), Is.EqualTo(new[] { "after", null }));
+	}
+
+	/// <summary>
+	/// Who a step looks for or asks when it leaves out the household of the one taking it.
+	/// </summary>
+	private static StepWho NotFamily => new() { NotValues = new Dictionary<string, IReadOnlyList<string>> { [StepWho.FamilyKey] = [StepWho.FamilyMember] } };
+
 	/// <summary>
 	/// Checks the world saves and loads as it is, with its appointments.
 	/// </summary>
@@ -315,8 +590,9 @@ public sealed class AppointmentTests
 		var loaded = SaveFile.Deserialize(json).Load(world.GameData, settings.GameTitle, new Random(0));
 
 		Assert.That(SaveFile.Create(loaded, settings, DateTimeOffset.UnixEpoch).Serialize(), Is.EqualTo(json));
-		Assert.That(loaded.Appointments.Select(x => (x.Id, x.Worker.Id, x.Client.Id, x.Need.Id, x.Step, x.Place.Id, x.Time, x.IsOnTheWay(x.Worker), x.IsOnTheWay(x.Client), x.IsStarted)),
-			Is.EqualTo(world.Appointments.Select(x => (x.Id, x.Worker.Id, x.Client.Id, x.Need.Id, x.Step, x.Place.Id, x.Time, x.IsOnTheWay(x.Worker), x.IsOnTheWay(x.Client), x.IsStarted))));
+		Assert.That(loaded.Appointments.Select(x => (x.Id, x.Worker.Id, x.Client.Id, x.Need.Id, x.Step, x.Place.Id, x.Time, x.IsOnTheWay(x.Worker), x.IsOnTheWay(x.Client), x.IsStarted, x.DeclinedBy?.Id, x.DeclinedAt)),
+			Is.EqualTo(world.Appointments.Select(x => (x.Id, x.Worker.Id, x.Client.Id, x.Need.Id, x.Step, x.Place.Id, x.Time, x.IsOnTheWay(x.Worker), x.IsOnTheWay(x.Client), x.IsStarted, x.DeclinedBy?.Id, x.DeclinedAt))));
+		Assert.That(loaded.Player.StartRequest?.Id, Is.EqualTo(world.Player.StartRequest?.Id));
 		Assert.That(loaded.People.SelectMany(x => x.Sequences).Select(x => (x.SetOff, x.Appointment?.Id)), Is.EqualTo(world.People.SelectMany(x => x.Sequences).Select(x => (x.SetOff, x.Appointment?.Id))));
 		Assert.That(loaded.Player.Current?.Appointment?.Id, Is.EqualTo(world.Player.Current?.Appointment?.Id));
 	}
@@ -347,26 +623,27 @@ public sealed class AppointmentTests
 	/// </summary>
 	private static Need Errand(IReadOnlyList<Step> steps)
 	{
-		var need = new Need { Id = "errand", Title = "Errand", StepSettings = steps, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 } };
+		var need = new Need { Id = "errand", Title = "Errand", Icon = "icon", StepSettings = steps, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 } };
 		need.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);
 		return need;
 	}
 
 	/// <summary>
-	/// Creates a world with a need, and a worker (the player, or someone else, with the game deciding for everyone) in a
-	/// quarter with a client from another family, who has every need met and nothing to do, and no one else.
+	/// Creates a world with a need, and a worker (the player, or someone else) in a quarter with a client from another
+	/// family (the player, or someone else), who has every need met and nothing to do, and no one else. Without the player
+	/// as either, the game decides for everyone.
 	/// </summary>
-	private static (GameWorld World, Person Worker, Person Client) CreateWorld(Need need, bool isPlayer = false)
+	private static (GameWorld World, Person Worker, Person Client) CreateWorld(Need need, bool isPlayer = false, bool isPlayerClient = false)
 	{
 		var gameData = CreateGameData(withSchedules: true);
 		gameData.Schedules.StepLists = [];
 		gameData.Schedules.Needs = [.. gameData.Schedules.Needs, need];
 		var random = new Random(0);
 		var world = GameWorld.CreateFromTown(gameData, TownGenerator.Generate(gameData, CreatePlayerTraits(gameData), random), random);
-		world.IsHeadless = !isPlayer;
+		world.IsHeadless = !isPlayer && !isPlayerClient;
 
-		var worker = isPlayer ? world.Player : world.Npcs[0];
-		var client = world.Npcs.First(x => x.Family != worker.Family && x.Profession != "infirm");
+		var worker = isPlayer ? world.Player : isPlayerClient ? world.Npcs.First(x => x.Family != world.Player.Family && x.Profession != "infirm") : world.Npcs[0];
+		var client = isPlayerClient ? world.Player : world.Npcs.First(x => x.Family != worker.Family && x.Profession != "infirm");
 		var place = world.Locations.First(x => x.Template is QuarterTemplate);
 		foreach (var someone in world.People.Where(x => x.Location == place))
 			someone.Location = someone.Home;
@@ -380,8 +657,12 @@ public sealed class AppointmentTests
 				client.SetProgress(each, 100_000);
 		}
 
-		client.SetPlan(null, [new BusyTask(600)]);
-		client.StartTask(world.GameData.Calendar.AddMinutes(world.Time, 600));
+		if (!client.IsPlayer)
+		{
+			client.SetPlan(null, [new BusyTask(600)]);
+			client.StartTask(world.GameData.Calendar.AddMinutes(world.Time, 600));
+		}
+
 		return (world, worker, client);
 	}
 }

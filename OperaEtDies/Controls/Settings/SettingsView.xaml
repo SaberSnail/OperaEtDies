@@ -1,0 +1,119 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:local="clr-namespace:OperaEtDies.Controls.Settings"
+	xmlns:operaEtDies="clr-namespace:OperaEtDies"
+	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
+
+	<!--  A setting's choices, side by side, as buttons that stay pressed while chosen. The group keeps each setting's choices
+		to themselves.  -->
+	<DataTemplate x:Key="SettingsChoicesTemplate">
+		<ItemsControl Margin="0,6,0,0" ItemsSource="{Binding}">
+			<ItemsControl.ItemsPanel>
+				<ItemsPanelTemplate>
+					<WrapPanel />
+				</ItemsPanelTemplate>
+			</ItemsControl.ItemsPanel>
+			<ItemsControl.ItemTemplate>
+				<DataTemplate DataType="{x:Type local:SettingsChoiceViewModel}">
+					<RadioButton
+						MinWidth="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=4.5}"
+						MinHeight="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=2}"
+						Margin="0,0,6,6"
+						GroupName="{Binding Group}"
+						IsChecked="{Binding IsSelected}"
+						Style="{StaticResource ToggleButtonStyleBase}">
+						<!--  The toggle style's template ignores padding, so the label keeps its own distance from the border.  -->
+						<TextBlock Margin="10,0" Text="{Binding Label}" />
+					</RadioButton>
+				</DataTemplate>
+			</ItemsControl.ItemTemplate>
+		</ItemsControl>
+	</DataTemplate>
+
+	<!--  The settings screen, in the center only. Each choice applies at once.  -->
+	<DataTemplate DataType="{x:Type local:SettingsViewModel}">
+		<Grid MaxWidth="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=44}" Margin="24">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="*" />
+				<RowDefinition Height="Auto" />
+			</Grid.RowDefinitions>
+
+			<TextBlock
+				Grid.Row="0"
+				HorizontalAlignment="Center"
+				Style="{DynamicResource TitleTextStyle}"
+				Text="{x:Static operaEtDies:OurResources.SettingsHeader}" />
+
+			<ScrollViewer
+				Grid.Row="1"
+				Margin="0,16,0,16"
+				HorizontalScrollBarVisibility="Disabled"
+				VerticalScrollBarVisibility="Auto">
+				<StackPanel>
+					<TextBlock Style="{StaticResource CaptionTextStyle}" Text="{x:Static operaEtDies:OurResources.SettingsTextSize}" />
+					<ContentControl
+						Content="{Binding TextSizes}"
+						ContentTemplate="{StaticResource SettingsChoicesTemplate}"
+						Focusable="False" />
+					<!--  A sample of the story's text, so the size can be judged here.  -->
+					<TextBlock
+						Margin="0,4,0,0"
+						FontFamily="{DynamicResource NarrativeFontFamily}"
+						Foreground="{DynamicResource TextMutedBrush}"
+						Text="{x:Static operaEtDies:OurResources.SettingsTextSizeSample}"
+						TextWrapping="Wrap" />
+
+					<TextBlock
+						Margin="0,20,0,0"
+						Style="{StaticResource CaptionTextStyle}"
+						Text="{x:Static operaEtDies:OurResources.SettingsDisplay}" />
+					<ContentControl
+						Content="{Binding DisplayModes}"
+						ContentTemplate="{StaticResource SettingsChoicesTemplate}"
+						Focusable="False" />
+					<TextBlock
+						Foreground="{DynamicResource TextMutedBrush}"
+						Text="{x:Static operaEtDies:OurResources.SettingsDisplayDescription}"
+						TextWrapping="Wrap" />
+
+					<TextBlock
+						Margin="0,20,0,0"
+						Style="{StaticResource CaptionTextStyle}"
+						Text="{x:Static operaEtDies:OurResources.SettingsReduceMotion}" />
+					<ContentControl
+						Content="{Binding ReduceMotionChoices}"
+						ContentTemplate="{StaticResource SettingsChoicesTemplate}"
+						Focusable="False" />
+					<TextBlock
+						Foreground="{DynamicResource TextMutedBrush}"
+						Text="{x:Static operaEtDies:OurResources.SettingsReduceMotionDescription}"
+						TextWrapping="Wrap" />
+
+					<TextBlock
+						Margin="0,20,0,0"
+						Style="{StaticResource CaptionTextStyle}"
+						Text="{x:Static operaEtDies:OurResources.SettingsTimeSpeed}" />
+					<ContentControl
+						Content="{Binding TimeSpeeds}"
+						ContentTemplate="{StaticResource SettingsChoicesTemplate}"
+						Focusable="False" />
+					<TextBlock
+						Foreground="{DynamicResource TextMutedBrush}"
+						Text="{x:Static operaEtDies:OurResources.SettingsTimeSpeedDescription}"
+						TextWrapping="Wrap" />
+				</StackPanel>
+			</ScrollViewer>
+
+			<Button
+				Grid.Row="2"
+				Width="120"
+				MinHeight="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=2}"
+				HorizontalAlignment="Left"
+				Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Back}"
+				Content="{x:Static operaEtDies:OurResources.Back}" />
+		</Grid>
+	</DataTemplate>
+
+</ResourceDictionary>

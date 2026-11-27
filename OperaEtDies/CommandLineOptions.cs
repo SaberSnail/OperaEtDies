@@ -28,12 +28,18 @@ public sealed class CommandLineOptions
 	/// </summary>
 	public const string DeveloperArgument = "--developer";
 
+	/// <summary>
+	/// The command line argument that forgets the player's settings, such as the text size, so the defaults are used.
+	/// </summary>
+	public const string ResetSettingsArgument = "--reset-settings";
+
 	public static CommandLineOptions Parse(IReadOnlyList<string> args) => new()
 	{
 		ShowHelp = HasArgument(args, HelpArgument),
 		AreModsEnabled = !HasArgument(args, NoModsArgument),
 		ModDirectories = GetModDirectories(args),
 		IsDeveloper = HasArgument(args, DeveloperArgument),
+		ResetSettings = HasArgument(args, ResetSettingsArgument),
 		IsVillageReport = VillageReport.IsRequested(args),
 	};
 
@@ -56,6 +62,11 @@ public sealed class CommandLineOptions
 	public bool IsDeveloper { get; init; }
 
 	/// <summary>
+	/// Whether to forget the player's settings before starting, so the defaults are used.
+	/// </summary>
+	public bool ResetSettings { get; init; }
+
+	/// <summary>
 	/// Whether to run the village report instead of starting the game.
 	/// </summary>
 	public bool IsVillageReport { get; init; }
@@ -71,6 +82,7 @@ public sealed class CommandLineOptions
 			(NoModsArgument, OurResources.CommandLineNoMods),
 			($"{ModArgument} <folder>", OurResources.CommandLineMod),
 			(DeveloperArgument, OurResources.CommandLineDeveloper),
+			(ResetSettingsArgument, OurResources.CommandLineResetSettings),
 			($"{VillageReport.Argument} <count>", OurResources.CommandLineGenerateVillages),
 			($"{VillageReport.SeedArgument} <number>", OurResources.CommandLineSeed),
 			($"{VillageReport.PortraitsArgument} <folder>", OurResources.CommandLinePortraits),

@@ -100,6 +100,7 @@ public static class DataSchema
 		["portraitOffsets"] = typeof(PortraitOffset),
 		["portraitShapeSets"] = typeof(PortraitShapeSet),
 		["portraitLayers"] = typeof(PortraitLayer),
+		[GameIcon.SectionName] = typeof(GameIcon),
 	};
 
 	/// <summary>
@@ -114,7 +115,9 @@ public static class DataSchema
 		["calendar"] = typeof(CalendarSection),
 		[ScheduleSettings.SectionName] = typeof(ScheduleSettings),
 		[ClothingSettings.SectionName] = typeof(ClothingSettings),
+		[ModestySettings.SectionName] = typeof(ModestySettings),
 		["portraits"] = typeof(PortraitSection),
+		[ThemeSettings.SectionName] = typeof(ThemeSettings),
 	};
 
 	/// <summary>

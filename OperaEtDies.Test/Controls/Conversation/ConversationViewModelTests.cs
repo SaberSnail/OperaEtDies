@@ -14,7 +14,7 @@ public sealed class ConversationViewModelTests
 	public void WhatIsSaidIsKept()
 	{
 		var (world, person) = TalkingTests.CreateWorldWithSomeoneHere();
-		using var timeRunner = new TimeRunner(world, isPaced: false);
+		using var timeRunner = new TimeRunner(world, settings: null);
 		var viewModel = new ConversationViewModel(person, world, timeRunner);
 
 		Assert.That(viewModel.Title, Is.EqualTo(OurResources.ConversationHeader.FormatCurrentCulture(person.FullName)));
@@ -38,14 +38,14 @@ public sealed class ConversationViewModelTests
 	public void TheNextAskStepCanBeAsked()
 	{
 		var (world, person) = TalkingTests.CreateWorldWithSomeoneHere();
-		using var timeRunner = new TimeRunner(world, isPaced: false);
+		using var timeRunner = new TimeRunner(world, settings: null);
 		var viewModel = new ConversationViewModel(person, world, timeRunner);
 		Assert.That((viewModel.AskStepText, viewModel.CanAskStep()), Is.EqualTo(((string?) null, false)));
 
 		// With an "ask" step next, its title is a button, and asking says its text and the answer.
 		var need = new Need
 		{
-			Id = "errand", Title = "Errand", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			Id = "errand", Title = "Errand", Icon = "icon", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings =
 			[
 				new Step
@@ -69,7 +69,7 @@ public sealed class ConversationViewModelTests
 	public void SomeoneWhoLeftCantBeTalkedWith()
 	{
 		var (world, person) = TalkingTests.CreateWorldWithSomeoneHere();
-		using var timeRunner = new TimeRunner(world, isPaced: false);
+		using var timeRunner = new TimeRunner(world, settings: null);
 		var viewModel = new ConversationViewModel(person, world, timeRunner);
 
 		person.Location = world.Locations.First(x => x != world.Player.Location);
@@ -84,7 +84,7 @@ public sealed class ConversationViewModelTests
 	public void SightingsAreDescribedInWords()
 	{
 		var (world, person) = TalkingTests.CreateWorldWithSomeoneHere();
-		using var timeRunner = new TimeRunner(world, isPaced: false);
+		using var timeRunner = new TimeRunner(world, settings: null);
 		var viewModel = new ConversationViewModel(person, world, timeRunner);
 		var subject = world.Npcs.First(x => x != person);
 		var laundry = world.GameData.Schedules.Needs.Single(x => x.Id == "laundry");

@@ -2,8 +2,7 @@ namespace OperaEtDies.Data;
 
 /// <summary>
 /// How well covered someone must be, from the modesty rules section of the data: for each slot, the least modesty the
-/// clothing worn in it must have, at home, out of the house, and at formal occasions. Each person follows the first rule
-/// whose condition they meet.
+/// clothing worn in it must have at each level of comfort. Each person follows the first rule whose condition they meet.
 /// </summary>
 public sealed class ModestyRule : IIdentified
 {
@@ -15,48 +14,34 @@ public sealed class ModestyRule : IIdentified
 	public CharacterCondition? When { get; init; }
 
 	/// <summary>
-	/// The least modesty in each slot at home, keyed by slot id.
+	/// The least modesty in each slot, keyed by slot id, as a list of minimums in order of comfort: each applies from its
+	/// comfort up to the next one's.
 	/// </summary>
-	public IReadOnlyDictionary<string, int> Home { get; init; } = new Dictionary<string, int>(StringComparer.Ordinal);
+	public IReadOnlyDictionary<string, IReadOnlyList<ModestyMinimum>> Slots { get; init; } = new Dictionary<string, IReadOnlyList<ModestyMinimum>>(StringComparer.Ordinal);
 
 	/// <summary>
-	/// The least modesty in each slot out of the house, keyed by slot id.
+	/// Gets the least modesty a slot needs at a level of comfort: the minimum of the last entry whose comfort it reaches, or
+	/// below the first entry, the first entry's minimum. A slot the rule doesn't list needs none.
 	/// </summary>
-	public IReadOnlyDictionary<string, int> Outside { get; init; } = new Dictionary<string, int>(StringComparer.Ordinal);
-
-	/// <summary>
-	/// The least modesty in each slot at formal occasions, such as church, keyed by slot id.
-	/// </summary>
-	public IReadOnlyDictionary<string, int> Formal { get; init; } = new Dictionary<string, int>(StringComparer.Ordinal);
-
-	/// <summary>
-	/// Gets the least modesty in each slot at a level of formality.
-	/// </summary>
-	public IReadOnlyDictionary<string, int> GetMinimums(ModestyLevel level) => level switch
+	public int GetMinimum(string slotId, double comfort)
 	{
-		ModestyLevel.Home => Home,
-		ModestyLevel.Outside => Outside,
-		_ => Formal,
-	};
+		var minimums = Slots.GetValueOrDefault(slotId) ?? [];
+		return minimums.Count == 0 ? 0 : (minimums.LastOrDefault(x => comfort >= x.Comfort) ?? minimums[0]).Minimum;
+	}
 }
 
 /// <summary>
-/// How formal a place or occasion is, which decides how well covered someone must be.
+/// The least modesty a slot needs from a level of comfort up.
 /// </summary>
-public enum ModestyLevel
+public sealed class ModestyMinimum
 {
 	/// <summary>
-	/// In someone's own home.
+	/// The comfort, from 0 to 100, from which the minimum applies.
 	/// </summary>
-	Home,
+	public required int Comfort { get; init; }
 
 	/// <summary>
-	/// Out of the house.
+	/// The least modesty the slot needs, from 0 to <see cref="ClothingItem.MaxCoverage"/>.
 	/// </summary>
-	Outside,
-
-	/// <summary>
-	/// At a formal occasion, such as church.
-	/// </summary>
-	Formal,
+	public required int Minimum { get; init; }
 }

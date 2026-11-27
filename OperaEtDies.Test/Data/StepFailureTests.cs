@@ -28,6 +28,101 @@ public sealed class StepFailureTests
 	}
 
 	[Test]
+	public void LoopResultsAreReadWithOrWithoutTheLoop()
+	{
+		Assert.That(Read<StepFailure>("\"loopContinue\"").Any, Is.EqualTo(new StepFailureResult(StepFailureKind.LoopContinue)));
+		Assert.That(Read<StepFailure>("\"loopBreak\"").Any, Is.EqualTo(new StepFailureResult(StepFailureKind.LoopBreak)));
+		Assert.That(Read<StepFailure>("""{ "loopBreak": "work" }""").Any, Is.EqualTo(new StepFailureResult(StepFailureKind.LoopBreak, "work")));
+		var byCause = Read<StepFailure>("""{ "no": "loopContinue", "nobody": { "loopContinue": "work" } }""");
+		Assert.That((byCause.Get(FailCause.No), byCause.Get(FailCause.Nobody)), Is.EqualTo((new StepFailureResult(StepFailureKind.LoopContinue), new StepFailureResult(StepFailureKind.LoopContinue, "work"))));
+
+		// They're written back the way they're read.
+		foreach (var json in new[] { "\"loopContinue\"", """{"loopBreak":"work"}""", """{"no":"loopContinue","nobody":{"loopContinue":"work"}}""" })
+			Assert.That(JsonSerializer.Serialize(Read<StepFailure>(json)), Is.EqualTo(json));
+		foreach (var json in new[] { """{ "skipTo": "home", "loopBreak": "work" }""", """{ "no": { "loopContinue": "a", "loopBreak": "b" } }""" })
+			Assert.That(() => Read<StepFailure>(json), Throws.InstanceOf<JsonException>(), json);
+	}
+
+	[Test]
+	public void LoopResultsGoToTheNearestLoopOrTheOneNamed()
+	{
+		StepFailure On(FailCause cause, StepFailureResult result) => new() { ByCause = new Dictionary<FailCause, StepFailureResult> { [cause] = result } };
+		var need = Need(
+			new Step
+			{
+				Kind = StepKind.Repeat,
+				Id = "outer",
+				Steps =
+				[
+					new Step
+					{
+						Kind = StepKind.Repeat,
+						Steps =
+						[
+							new Step { Kind = StepKind.Do, Minutes = Amount(5), OnFail = On(FailCause.No, new StepFailureResult(StepFailureKind.LoopContinue)) },
+							new Step { Kind = StepKind.Do, Minutes = Amount(5), OnFail = On(FailCause.No, new StepFailureResult(StepFailureKind.LoopBreak, "outer")) },
+						],
+						OnFail = On(FailCause.Nobody, new StepFailureResult(StepFailureKind.LoopBreak)),
+					},
+				],
+			},
+			Do(Amount(5)));
+
+		// Laid out: the two "do" steps, the inner "repeat" step, the outer one, and the last "do" step. Going on with a loop
+		// goes to its "repeat" step, and leaving it goes on after it. A "repeat" step's own result is for its own loop.
+		Assert.That(need.GetFailure(0, FailCause.No), Is.EqualTo((StepFailureKind.LoopContinue, (int?) 2)));
+		Assert.That(need.GetFailure(1, FailCause.No), Is.EqualTo((StepFailureKind.LoopBreak, (int?) 4)));
+		Assert.That(need.GetFailure(0, FailCause.Nobody), Is.EqualTo((StepFailureKind.LoopBreak, (int?) 3)));
+	}
+
+	[Test]
+	public void LoopsFinallyStepsAndCarryingAreChecked()
+	{
+		StepFailure Always(StepFailureResult result) => new() { Any = result };
+		var need = Need(
+			new Step { Kind = StepKind.Do, Minutes = Amount(5), OnFail = Always(new StepFailureResult(StepFailureKind.LoopContinue)) },
+			new Step
+			{
+				Kind = StepKind.Repeat,
+				Id = "loop",
+				Steps =
+				[
+					new Step { Kind = StepKind.Do, Minutes = Amount(5), MeetsQuota = true, OnFail = Always(new StepFailureResult(StepFailureKind.SkipTo, "loop")) },
+					new Step { Kind = StepKind.Do, Minutes = Amount(5), OnFail = Always(new StepFailureResult(StepFailureKind.LoopBreak, "other")) },
+				],
+				Finally = [new Step { Kind = StepKind.Do, Minutes = Amount(5), OnFail = Always(new StepFailureResult(StepFailureKind.Next)) }],
+			},
+			new Step { Kind = StepKind.Group, Steps = [] },
+			new Step { Kind = StepKind.Do, Minutes = Amount(5), When = new StepCondition { Carrying = "washing" } });
+
+		Assert.That(With(need).Validate(), Is.SupersetOf(new[]
+		{
+			OurResources.StepLoopResultWithoutLoop.FormatCurrentCulture("needs[n].steps[0].onFail", "loopContinue"),
+			OurResources.StepSkipToEnclosingLoop.FormatCurrentCulture("needs[n].steps[1].steps[0].onFail", "loop"),
+			OurResources.StepLoopResultUnknown.FormatCurrentCulture("needs[n].steps[1].steps[1].onFail", "other"),
+			OurResources.StepOnFailInFinally.FormatCurrentCulture("needs[n].steps[1].finally[0].onFail"),
+			OurResources.DataListEmpty.FormatCurrentCulture("needs[n].steps[2].steps"),
+			OurResources.StepBundleUnknown.FormatCurrentCulture("needs[n].steps[3].when.carrying", "washing"),
+		}));
+
+		// Skipping to a loop from outside it starts it again, and "finally" steps can name a bundle replaced since.
+		var fine = Need(
+			new Step { Kind = StepKind.Do, Minutes = Amount(5), Id = "before", OnFail = Always(new StepFailureResult(StepFailureKind.SkipTo, "loop")) },
+			new Step { Kind = StepKind.Repeat, Id = "loop", Steps = [new Step { Kind = StepKind.Do, Minutes = Amount(5), MeetsQuota = true, OnFail = Always(new StepFailureResult(StepFailureKind.LoopContinue)) }] },
+			new Step
+			{
+				Kind = StepKind.Group,
+				Steps =
+				[
+					new Step { Kind = StepKind.Make, Bundle = Bundle("empty", "Empty bucket") },
+					new Step { Kind = StepKind.Make, Bundle = Bundle("full", "Full bucket"), Replaces = "empty" },
+				],
+				Finally = [new Step { Kind = StepKind.Put, Bundle = Bundle("empty"), When = new StepCondition { Carrying = "empty" } }],
+			});
+		Assert.That(With(fine).Validate().Where(x => !x.Contains("repeat", StringComparison.Ordinal) && !x.Contains("meetsQuota", StringComparison.Ordinal)), Is.Empty);
+	}
+
+	[Test]
 	public void DurationsAreMinutesOrHoursAndDays()
 	{
 		Assert.That(Read<Duration>("60").Minutes, Is.EqualTo(60));
@@ -109,7 +204,7 @@ public sealed class StepFailureTests
 				OnFail = new StepFailure { ByCause = new Dictionary<FailCause, StepFailureResult> { [FailCause.Left] = next } },
 				Steps = [new Step { Kind = StepKind.Do, Minutes = Amount(5), MeetsQuota = true, OnFail = new StepFailure { ByCause = new Dictionary<FailCause, StepFailureResult> { [FailCause.No] = new(StepFailureKind.SkipTo, "start") } } }],
 			});
-		need = new Need { Id = need.Id, Title = need.Title, Hours = need.Hours, Quota = need.Quota, StepSettings = [new Step { Kind = StepKind.Do, Minutes = Amount(5), Id = "start" }, .. need.StepSettings!.Skip(1)], OnFail = new StepFailure { Any = next } };
+		need = new Need { Id = need.Id, Title = need.Title, Icon = "icon", Hours = need.Hours, Quota = need.Quota, StepSettings = [new Step { Kind = StepKind.Do, Minutes = Amount(5), Id = "start" }, .. need.StepSettings!.Skip(1)], OnFail = new StepFailure { Any = next } };
 
 		// The step's own result comes first, then the repeat's, then the need's, and without any, the steps are given up.
 		Assert.That(need.GetFailure(1, FailCause.No), Is.EqualTo((StepFailureKind.SkipTo, (int?) 0)));
@@ -188,12 +283,12 @@ public sealed class StepFailureTests
 		}));
 	}
 
-	private static Need Need(params Step[] steps) => new() { Id = "n", Title = "N", StepSettings = steps, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1 } };
+	private static Need Need(params Step[] steps) => new() { Id = "n", Title = "N", Icon = "icon", StepSettings = steps, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1 } };
 
 	private static ScheduleSettings With(params Need[] needs)
 	{
 		var settings = CreateScheduleSettings();
-		settings.Needs = [new Need { Id = "sleep", Title = "Sleep", Role = ScheduleSettings.SleepRole, PlaceSetting = Home, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1 } }, .. needs];
+		settings.Needs = [new Need { Id = "sleep", Title = "Sleep", Icon = "icon", Role = ScheduleSettings.SleepRole, PlaceSetting = Home, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1 } }, .. needs];
 		settings.UrgencyFactors = [];
 		foreach (var need in settings.Needs)
 			need.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);

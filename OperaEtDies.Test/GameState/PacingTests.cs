@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using GoldenAnvil.Utility.Calendar;
 using OperaEtDies.Controls;
 using OperaEtDies.GameState;
+using OperaEtDies.Settings;
 using OperaEtDies.Time;
 
 namespace OperaEtDies.Test.GameState;
@@ -103,6 +104,51 @@ public sealed class PacingTests
 		Assert.That(TimePacer.GetSeconds(minutes), Is.EqualTo(seconds).Within(0.001));
 		if (minutes is > 0 and <= 720)
 			Assert.That(TimePacer.GetMinutesFor(seconds), Is.EqualTo((double) minutes).Within(0.5));
+	}
+
+	[TestCase(1)]
+	[TestCase(60)]
+	[TestCase(720)]
+	public void TheScaleStretchesTheTimesTaken(long minutes)
+	{
+		Assert.That(TimePacer.GetSeconds(minutes, 2), Is.EqualTo(TimePacer.GetSeconds(minutes) * 2).Within(0.001));
+		Assert.That(TimePacer.GetSeconds(minutes, 0.25), Is.EqualTo(TimePacer.GetSeconds(minutes) * 0.25).Within(0.001));
+		Assert.That(TimePacer.GetMinutesFor(TimePacer.GetSeconds(minutes, 0.5), 0.5), Is.EqualTo((double) minutes).Within(0.5));
+	}
+
+	[TestCase(TimeSpeed.Slow, false)]
+	[TestCase(TimeSpeed.Normal, false)]
+	[TestCase(TimeSpeed.Instant, true)]
+	public void OnlyTheInstantSpeedPassesTimeAtOnce(TimeSpeed speed, bool isInstant)
+	{
+		var world = CreateRunnerWorld();
+		var settings = new AppSettings { TimeSpeed = speed };
+		using var runner = new TimeRunner(world, settings);
+
+		using var withoutSettings = new TimeRunner(world, settings: null);
+
+		Assert.That(runner.IsInstant, Is.EqualTo(isInstant));
+		Assert.That(withoutSettings.IsInstant, Is.True);
+	}
+
+	[Test]
+	public void ChangingTheSpeedChangesWhetherTimeIsInstant()
+	{
+		var settings = new AppSettings();
+		using var runner = new TimeRunner(CreateRunnerWorld(), settings);
+		var changes = new List<string?>();
+		runner.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+		settings.TimeSpeed = TimeSpeed.Instant;
+
+		Assert.That(runner.IsInstant, Is.True);
+		Assert.That(changes, Does.Contain(nameof(TimeRunner.IsInstant)));
+	}
+
+	private static GameWorld CreateRunnerWorld()
+	{
+		var gameData = TestData.CreateGameData();
+		return GameWorld.CreateNewGame(gameData, TestData.CreatePlayerTraits(gameData), new Random(0));
 	}
 
 	private static string Save(GameWorld world) => SaveFile.Create(world, new SaveSettings("Test", "hash", "", [], ""), DateTimeOffset.UnixEpoch).Serialize();

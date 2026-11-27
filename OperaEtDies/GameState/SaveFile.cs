@@ -52,6 +52,21 @@ public sealed record SaveFile(int Version, string GameTitle, string DataHash, IR
 	}
 
 	/// <summary>
+	/// The name of the quick save's file in the save folder. There's only one, replaced by each quick save.
+	/// </summary>
+	public const string QuickSaveFileName = "Quick save" + Extension;
+
+	/// <summary>
+	/// Gets the path of the quick save in a save folder.
+	/// </summary>
+	public static string GetQuickSavePath(string directory) => Path.Combine(directory, QuickSaveFileName);
+
+	/// <summary>
+	/// Whether a file is the quick save, going by its name.
+	/// </summary>
+	public static bool IsQuickSave(string filePath) => string.Equals(Path.GetFileName(filePath), QuickSaveFileName, StringComparison.OrdinalIgnoreCase);
+
+	/// <summary>
 	/// Gets a file name for a new save, from the player's name and the time it was saved.
 	/// </summary>
 	public string GetFileName()

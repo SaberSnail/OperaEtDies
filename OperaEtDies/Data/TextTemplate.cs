@@ -6,7 +6,8 @@ namespace OperaEtDies.Data;
 
 /// <summary>
 /// Text from the data files with placeholders that are filled in when the text is shown. A placeholder is
-/// "{id}" or "{id.field}", optionally followed by a format, as in "{id.field:first_upper}". The only format is
+/// "{id}" or "{id.field}" (where the field can itself have dots, for text that names someone, such as
+/// "{other.gender.pronoun}"), optionally followed by a format, as in "{id.field:first_upper}". The only format is
 /// "first_upper", which capitalizes the first character. Literal braces are written "{{" and "}}".
 /// </summary>
 public sealed class TextTemplate
@@ -97,8 +98,8 @@ public sealed class TextTemplate
 			return null;
 
 		var formatParts = content.Split(':');
-		var parts = formatParts[0].Split('.');
-		if (formatParts.Length > 2 || formatParts.Any(x => x.Length == 0) || parts.Length > 2 || parts.Any(x => x.Length == 0))
+		var parts = formatParts[0].Split('.', 2);
+		if (formatParts.Length > 2 || formatParts.Any(x => x.Length == 0) || parts.Any(x => x.Length == 0))
 			return null;
 
 		return new TextTemplatePlaceholder(parts[0], parts.Length == 2 ? parts[1] : null, formatParts.Length == 2 ? formatParts[1] : null);

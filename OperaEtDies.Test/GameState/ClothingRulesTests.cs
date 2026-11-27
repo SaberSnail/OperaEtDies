@@ -27,60 +27,50 @@ public sealed class ClothingRulesTests
 	}
 
 	[Test]
-	public async Task WorkModestyAppliesOnceWorkIsStartedAsync()
+	public void ComfortDependsOnCompanyPlaceAndStep()
 	{
-		// Every trade calls for nothing to be covered while working.
-		var directory = Path.Combine(Path.GetTempPath(), $"OperaEtDiesTest_{Guid.NewGuid():N}");
-		Directory.CreateDirectory(directory);
-		try
-		{
-			foreach (var path in Directory.GetFiles(JsonDataLoader.DefaultDataDirectory, "*.json"))
-				File.Copy(path, Path.Combine(directory, Path.GetFileName(path)));
-			var professionsPath = Path.Combine(directory, "Professions.json");
-			await File.WriteAllTextAsync(professionsPath, (await File.ReadAllTextAsync(professionsPath)).Replace("\"business\": {",
-				"\"modesty\": { \"modesty_men\": { \"torso\": -10, \"hips\": -10 }, \"modesty_women\": { \"torso\": -10, \"hips\": -10 } }, \"business\": {", StringComparison.Ordinal));
-			var gameData = GameData.Load(directory).Value!;
-			var random = new Random(0);
-			var world = GameWorld.CreateNewGame(gameData, CharacterRandomizer.CreateRandomPlayer(gameData, random), random);
-			var player = world.Player;
-			var work = world.GetPlayerStartChoices().FirstOrDefault(x => x.Need.IsWork);
-			Assume.That(player.Business is not null && work is not null, "The player has no trade.");
+		var world = CreateWorld(0);
+		var gameData = world.GameData;
+		var player = world.Player;
+		var home = player.Home;
+		var household = player.Family.Members.FirstOrDefault(x => x != player);
+		var stranger = world.People.First(x => x.Family != player.Family && !player.Relationships.Any(y => y.Key == x && gameData.Relationships.IsFriend(y.Value.Score)));
+		Assume.That(household, Is.Not.Null, "The player lives alone.");
+		double Comfort(Location location, Step? step = null, params (Person Person, bool IsAsleep)[] company) => ModestyComfort.Get(gameData, player, location, company, step, world.Time);
 
-			// With nothing on, the player can't go out, until they start work, which lets them go out in nothing.
-			await world.MovePlayerAsync(player.Home);
-			world.PlayerTakeOffAll();
-			Assert.That(world.GetPlayerUncoveredSlotsOutside(), Is.Not.Empty);
-			await world.StartPlayerStepsAsync(work!.Need, isAutomatic: false);
-			Assert.That(world.GetPlayerUncoveredSlotsOutside(), Is.Empty);
-			Assert.That(world.GetPlayerUncoveredSlots(), Is.Empty);
+		// No one there is the most comfortable, then a member of the household asleep, then awake, then anyone else.
+		var alone = Comfort(home);
+		var asleep = Comfort(home, null, (household!, true));
+		var awake = Comfort(home, null, (household!, false));
+		var withStranger = Comfort(home, null, (household!, false), (stranger, false));
+		Assert.That(alone, Is.GreaterThanOrEqualTo(asleep));
+		Assert.That(asleep, Is.GreaterThan(awake));
+		Assert.That(awake, Is.GreaterThan(withStranger));
 
-			// Giving up work, they have to cover up again.
-			world.StopPlayerSteps(player.GetSequence(work.Need)!);
-			Assert.That(world.GetPlayerUncoveredSlotsOutside(), Is.Not.Empty);
-		}
-		finally
-		{
-			Directory.Delete(directory, recursive: true);
-		}
+		// A step can make people more comfortable, and a busy quarter alone is less comfortable than being home alone.
+		var lesson = new Step { Kind = StepKind.Do, ModestyComfort = 20 };
+		Assert.That(Comfort(home, lesson, (stranger, false)), Is.EqualTo(Math.Min(Comfort(home, null, (stranger, false)) + 20, ModestySettings.MaxComfort)));
+		var square = world.Locations.First(x => x.QuarterKind == "square" && x.Template is QuarterTemplate);
+		Assert.That(ModestyComfort.GetAloneComfort(gameData, square, world.Time), Is.LessThan(ModestyComfort.GetAloneComfort(gameData, home, world.Time)));
 	}
 
 	[Test]
 	public void PartnersChangeClothesTogether()
 	{
 		// Like going swimming with a friend: both change into nothing, swim, and dress again. While swimming (until they start
-		// changing back), both have nothing on.
+		// changing back), both have nothing on. Swimming makes them comfortable enough to.
 		static Step Do(int minutes) => new() { Kind = StepKind.Do, Minutes = TestData.Amount(minutes) };
 		var swimming = new Need
 		{
 			Id = "swimming",
-			Title = "Swimming",
+			Title = "Swimming", Icon = "icon",
 			Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings =
 			[
 				new Step { Kind = StepKind.Talk, With = StepTarget.Anyone, Minutes = TestData.Amount(5) },
 				Do(1),
 				new Step { Kind = StepKind.Lead, Minutes = TestData.Amount(120) },
-				new Step { Kind = StepKind.Dress, Outfit = OutfitKind.Nothing, WithPartner = true },
+				new Step { Kind = StepKind.Dress, Outfit = OutfitKind.Nothing, WithPartner = true, ModestyComfort = ModestySettings.MaxComfort },
 				Do(30),
 				new Step { Kind = StepKind.Undress, Outfit = OutfitKind.Nothing, WithPartner = true },
 				new Step { Kind = StepKind.Release },
@@ -130,19 +120,22 @@ public sealed class ClothingRulesTests
 	[Test]
 	public async Task ThePlayersClothesAreChangedWithTheirPartnersAsync()
 	{
-		// Someone who talked with the player changes into nothing with them: the player's clothes are changed at once.
+		// Someone who talked with the player changes into nothing with them, comfortable enough to: the player's clothes are
+		// changed at once.
 		static Step Do(int minutes) => new() { Kind = StepKind.Do, Minutes = TestData.Amount(minutes) };
 		var swimming = new Need
 		{
 			Id = "swimming",
-			Title = "Swimming",
+			Title = "Swimming", Icon = "icon",
 			Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings =
 			[
 				new Step { Kind = StepKind.Talk, With = StepTarget.Anyone, Minutes = TestData.Amount(5) },
 				Do(1),
-				new Step { Kind = StepKind.Dress, Outfit = OutfitKind.Nothing, WithPartner = true },
-				Do(30),
+				new Step { Kind = StepKind.Dress, Outfit = OutfitKind.Nothing, WithPartner = true, ModestyComfort = ModestySettings.MaxComfort },
+
+				// Swimming keeps them comfortable, so no one coming by makes them cover up.
+				new Step { Kind = StepKind.Do, Minutes = TestData.Amount(30), ModestyComfort = ModestySettings.MaxComfort },
 			],
 		};
 		swimming.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);
@@ -166,6 +159,52 @@ public sealed class ClothingRulesTests
 		await world.AdvanceTimeAsync(gameData.Calendar.CreateTimeOffset(0, 0, 15));
 
 		Assert.That((person.Clothing.Pieces.Count, player.Clothing.Pieces.Count), Is.EqualTo((0, 0)));
+	}
+
+	[Test]
+	public void StrangersAreTooShyToUndressTogetherInTheVillage()
+	{
+		// Without anything to make them comfortable, two people from different households in a quarter won't undress
+		// together: the "dress" step fails as shy at once, without waiting for privacy, since the stranger is the partner who
+		// would undress with them.
+		var swimming = new Need
+		{
+			Id = "swimming",
+			Title = "Swimming", Icon = "icon",
+			Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			StepSettings =
+			[
+				new Step { Kind = StepKind.Talk, With = StepTarget.Anyone, Minutes = TestData.Amount(5) },
+				new Step { Kind = StepKind.Dress, Outfit = OutfitKind.Nothing, WithPartner = true },
+				new Step { Kind = StepKind.Do, Minutes = TestData.Amount(30) },
+			],
+		};
+		swimming.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);
+		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
+		gameData.Schedules.Needs = [.. gameData.Schedules.Needs, swimming];
+		var random = new Random(0);
+		var world = GameWorld.CreateNewGame(gameData, CharacterRandomizer.CreateRandomPlayer(gameData, random), random);
+		world.IsHeadless = true;
+		var person = world.Npcs[0];
+		var other = world.Npcs.First(x => x.Family != person.Family);
+		var place = world.Locations.First(x => x.Template is QuarterTemplate);
+		foreach (var someone in world.People.Where(x => x.Location == place))
+			someone.Location = someone.Home;
+		person.Location = place;
+		other.Location = place;
+		other.SetPlan(null, [new BusyTask(600)]);
+		other.StartTask(gameData.Calendar.AddMinutes(world.Time, 600));
+		var dressed = person.Clothing.Pieces.ToList();
+
+		FailCause? cause = null;
+		world.StepFailed += (_, e) => cause ??= e.Person == person ? e.Cause : null;
+		var isWaiting = false;
+		world.TaskStarted += (_, e) => isWaiting |= e.Person == person && e.Task is PrivacyTask;
+		person.SetPlan(swimming, [], startStep: 0);
+		world.AdvanceTime(gameData.Calendar.CreateTimeOffset(0, 2, 0), () => cause is not null);
+
+		Assert.That((isWaiting, cause), Is.EqualTo((false, (FailCause?) FailCause.Shy)));
+		Assert.That(person.Clothing.Pieces, Is.EquivalentTo(dressed));
 	}
 
 	[Test]
@@ -271,11 +310,11 @@ public sealed class ClothingRulesTests
 	public void WorkClothesTakenToBeWashedArentWorn()
 	{
 		var world = CreateWorld(0);
-		var person = world.Npcs.First(x => x.Workplace != x.Home && x.Family.Members.Count > 1 && x.GetOutfits(OutfitKind.Work).Any(y => y.Pieces.Any(z => !z.Clothing.Accessory)) && !x.IsAsleep);
+		var person = world.Npcs.First(x => x.Workplace != x.Home && x.Family.Members.Count > 1 && x.GetOutfits(OutfitKind.Work).Any(y => y.Pieces.Any(z => !z.Clothing.Accessory)) && !x.IsAsleep &&
+			ClothingRules.IsOutfitAtHome(x, OutfitKind.Work, world.Time));
 		var washer = person.Family.Members.First(x => x != person);
 		person.Location = person.Home;
 		washer.Location = washer.Home;
-		Assert.That(ClothingRules.IsOutfitAtHome(person, OutfitKind.Work, world.Time), Is.True);
 
 		var washing = ClothingRules.Take(washer, StepOwner.Household, outfit: null, accessories: false, world.Time);
 		Assert.That(washing, Is.Not.Empty);
@@ -615,24 +654,87 @@ public sealed class ClothingRulesTests
 	[Test]
 	public void EveryonesOutfitsAreModestEnough()
 	{
+		// Everyday clothes, and work clothes over each of them (in place of what they overlap), go out among anyone, and
+		// night clothes are worn at home with the household, at each person's own boldness.
 		for (var seed = 0; seed < 5; seed++)
 		{
 			var world = CreateWorld(seed);
 			var gameData = world.GameData;
 			foreach (var person in world.People)
 			{
-				IReadOnlyList<ClothingSlot> Check(IEnumerable<OwnedOutfit> outfits, ModestyLevel level, bool isAtWork) =>
-					ClothingRules.GetUncoveredSlots(gameData, person, outfits.SelectMany(x => x.Pieces).Select(x => x.Clothing), level, isAtWork);
+				var businessProfession = person.Business?.Profession.Id;
+				IReadOnlyList<ClothingSlot> Check(OutfitKind kind, IEnumerable<ClothingItem> clothing) =>
+					ClothingRules.GetUncoveredSlots(gameData, person, clothing, OutfitModesty.GetComfort(gameData, kind, person.Traits, businessProfession)!.Value);
 
-				foreach (var everyday in person.GetOutfits(OutfitKind.Everyday))
+				var everydays = person.GetOutfits(OutfitKind.Everyday).ToList();
+				foreach (var everyday in everydays)
+					Assert.That(Check(OutfitKind.Everyday, everyday.Pieces.Select(x => x.Clothing)), Is.Empty, $"Seed {seed}, {person.FullName}, {everyday.Template?.Id}");
+				foreach (var work in person.GetOutfits(OutfitKind.Work))
 				{
-					Assert.That(Check([everyday], ModestyLevel.Outside, isAtWork: false), Is.Empty, $"Seed {seed}, {person.FullName}, {everyday.Template?.Id}");
-					Assert.That(Check(person.GetOutfits(OutfitKind.Work).Any(x => x.IsComplete) ? person.GetOutfits(OutfitKind.Work) : [everyday, .. person.GetOutfits(OutfitKind.Work)], ModestyLevel.Outside, isAtWork: true), Is.Empty, $"Seed {seed}, {person.FullName} at work");
+					foreach (var everyday in everydays)
+					{
+						var clothing = OutfitModesty.GetClothesIn(work.Template!, work.Pieces.Select(x => x.Clothing).ToList(), everyday.Pieces.Select(x => x.Clothing));
+						Assert.That(Check(OutfitKind.Work, clothing), Is.Empty, $"Seed {seed}, {person.FullName}, {work.Template?.Id} over {everyday.Template?.Id}");
+					}
 				}
 
-				Assert.That(Check(person.GetOutfits(OutfitKind.Night), ModestyLevel.Home, isAtWork: false), Is.Empty, $"Seed {seed}, {person.FullName} at night");
+				foreach (var night in person.GetOutfits(OutfitKind.Night))
+					Assert.That(Check(OutfitKind.Night, night.Pieces.Select(x => x.Clothing)), Is.Empty, $"Seed {seed}, {person.FullName}, {night.Template?.Id}");
 			}
 		}
+	}
+
+	[Test]
+	public void EveryoneHasOutfitsModestEnoughEvenAtTheLeastBoldness()
+	{
+		// However shy someone is, there's an outfit of each kind they can have that they're comfortable in, with work clothes
+		// that do over a variety of everyday clothes they could have.
+		var boldness = s_gameData.ModestySettings.Boldness!.Property;
+		for (var seed = 0; seed < 5; seed++)
+		{
+			var world = CreateWorld(seed);
+			var gameData = world.GameData;
+			var random = new Random(seed);
+			foreach (var person in world.People)
+			{
+				var traits = person.Traits.With(boldness, 0);
+				var businessProfession = person.Business?.Profession.Id;
+				(Outfit Outfit, IReadOnlyList<ClothingItem> Clothing, bool IsModestEnough)? Choose(OutfitKind kind, IReadOnlyList<IReadOnlyList<ClothingItem>> wornUnder) =>
+					OutfitModesty.Choose(gameData, random, kind, traits, businessProfession, wornUnder);
+
+				var everydays = Enumerable.Range(0, 5).Select(_ => Choose(OutfitKind.Everyday, [])).ToList();
+				Assert.That(everydays, Has.All.Matches<(Outfit, IReadOnlyList<ClothingItem>, bool IsModestEnough)?>(x => x?.IsModestEnough == true), $"Seed {seed}, {person.FullName}'s everyday clothes");
+				if (Choose(OutfitKind.Work, everydays.Select(x => x!.Value.Clothing).ToList()) is { } work)
+					Assert.That(work.IsModestEnough, Is.True, $"Seed {seed}, {person.FullName}'s work clothes");
+				Assert.That(Choose(OutfitKind.Night, [])?.IsModestEnough, Is.True, $"Seed {seed}, {person.FullName}'s night clothes");
+			}
+		}
+	}
+
+	[Test]
+	public void WorkStepsThatTakeAwayComfortCallForMoreModestWorkClothes()
+	{
+		// The data is loaded just for this test, since its steps are changed.
+		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
+		var random = new Random(0);
+		var world = GameWorld.CreateNewGame(gameData, CharacterRandomizer.CreateRandomPlayer(gameData, random), random);
+		var person = world.People.First(x => x.Business is not null);
+		var profession = person.Business!.Profession.Id;
+		var everyday = OutfitModesty.GetComfort(gameData, OutfitKind.Everyday, person.Traits, profession)!.Value;
+		Assume.That(OutfitModesty.GetComfort(gameData, OutfitKind.Work, person.Traits, profession), Is.EqualTo(everyday), "The work steps already change comfort.");
+		var steps = gameData.Schedules.Needs.Where(x => x.IsWork && Scheduler.HasNeed(person, x)).SelectMany(x => x.GetSteps(profession)).Where(x => x.Kind == StepKind.Do).ToList();
+		Assume.That(steps, Is.Not.Empty);
+
+		// Steps that add comfort don't make work clothes less modest, since walking to work can't add any.
+		foreach (var step in steps)
+			SetModestyComfort(step, 20);
+		Assert.That(OutfitModesty.GetComfort(gameData, OutfitKind.Work, person.Traits, profession), Is.EqualTo(everyday));
+
+		SetModestyComfort(steps[0], -20);
+		Assert.That(OutfitModesty.GetComfort(gameData, OutfitKind.Work, person.Traits, profession), Is.EqualTo(Math.Max(0, everyday - 20)).Within(0.001));
+		Assert.That(OutfitModesty.GetComfort(gameData, OutfitKind.Everyday, person.Traits, profession), Is.EqualTo(everyday));
+
+		static void SetModestyComfort(Step step, int comfort) => typeof(Step).GetProperty(nameof(Step.ModestyComfort))!.SetValue(step, comfort);
 	}
 
 	[Test]
@@ -641,22 +743,58 @@ public sealed class ClothingRulesTests
 		var world = CreateWorld(0);
 		var player = world.Player;
 		await world.MovePlayerAsync(player.Home);
+		var quarter = player.Home.Quarter!;
 		var everyday = player.GetOutfits(OutfitKind.Everyday).First(x => ClothingRules.IsAtHand(x, world.Time));
 		if (world.CanPlayerChangeInto(everyday))
 			world.PlayerChangeInto(everyday);
 		Assert.That(world.GetPlayerUncoveredSlots(), Is.Empty);
-		Assert.That(world.GetPlayerUncoveredSlotsOutside(), Is.Empty);
+		Assert.That(world.GetPlayerUncoveredSlotsAt(quarter), Is.Empty);
 
+		// With nothing on, the player can't go out, though a step that makes them comfortable enough lets them do it as they are.
 		world.PlayerTakeOffAll();
-		Assert.That(world.GetPlayerUncoveredSlots().Select(x => x.Id), Does.Contain("hips"));
-		Assert.That(world.GetPlayerUncoveredSlotsOutside().Select(x => x.Id), Is.EquivalentTo(new[] { "torso", "hips" }));
+		Assert.That(world.GetPlayerUncoveredSlotsAt(quarter).Select(x => x.Id), Does.Contain("hips"));
+		Assert.That(world.GetPlayerStepUncoveredSlots(new Step { Kind = StepKind.Do, ModestyComfort = ModestySettings.MaxComfort }), Is.Empty);
+		Assert.That(world.GetPlayerStepUncoveredSlots(new Step { Kind = StepKind.Do, ModestyComfort = -ModestySettings.MaxComfort }).Select(x => x.Id), Is.EquivalentTo(new[] { "torso", "hips" }));
+	}
 
-		// Going to sleep doesn't put on night clothes, so the player has to, but they're fine at home.
-		var sleep = world.GameData.Schedules.Needs.Single(x => x.Id == world.GameData.Schedules.SleepNeed);
-		var sleeping = sleep.Steps.First(x => x.Kind == StepKind.Do);
-		Assert.That(world.GetPlayerStepUncoveredSlots(sleeping), Is.Not.Empty);
-		world.PlayerChangeInto(player.GetOutfits(OutfitKind.Night).First());
-		Assert.That(world.GetPlayerStepUncoveredSlots(sleeping), Is.Empty);
+	[Test]
+	public async Task ChangingByHandCountsAsChangingIntoAndOutOfOutfitsAsync()
+	{
+		// Undressing by hand changes into the outfit of nothing at all, as a "dress" step would, so an "undress" step that
+		// puts the clothes back on comes next. Dressing again by hand changes out of it, as that step would.
+		var world = CreateWorld(0);
+		var player = world.Player;
+		var nothing = player.GetOutfits(OutfitKind.Nothing).Single(x => x.Pieces.Count == 0);
+		var before = player.Clothing.Pieces.ToList();
+		Assume.That(before, Is.Not.Empty);
+
+		// The player is bold enough not to feel exposed with nothing on, which would be logged instead.
+		world.SetBoldness(player, 100);
+		world.PlayerTakeOffAll(isCarried: true);
+		await world.FinishPlayerChangingAsync(before);
+		Assert.That((ClothingRules.IsChangedInto(player, nothing), player.ReplacedClothes.GetValueOrDefault(nothing)), Is.EqualTo((true, before)));
+		Assert.That(world.EventLog.GetLatest(player)?.Kind, Is.EqualTo(LogEntryKind.ChangingClothes));
+
+		foreach (var piece in before)
+			world.PlayerWear(piece, isCarried: true);
+		await world.FinishPlayerChangingAsync([]);
+		Assert.That((ClothingRules.IsChangedInto(player, nothing), player.ReplacedClothes.ContainsKey(nothing)), Is.EqualTo((false, false)));
+	}
+
+	[Test]
+	public void ThePlayerCanAlwaysCoverUpMore()
+	{
+		var world = CreateWorld(0);
+		var player = world.Player;
+		var before = player.Clothing.Pieces.ToList();
+		Assume.That(before.Any(x => x.Clothing.GetCoverage("hips") > 0), Is.True, "Nothing the player has on covers their hips.");
+
+		world.PlayerTakeOffAll(isCarried: true);
+		Assert.That(world.IsPlayerNoLessCovered(before), Is.False);
+		Assert.That(world.IsPlayerNoLessCovered([]), Is.True);
+		foreach (var piece in before)
+			world.PlayerWear(piece, isCarried: true);
+		Assert.That(world.IsPlayerNoLessCovered(before), Is.True);
 	}
 
 	[Test]
@@ -675,7 +813,7 @@ public sealed class ClothingRulesTests
 			return piece;
 		}
 		var template = new Outfit { Id = "uniform", Kind = OutfitKind.Work, Complete = true, Clothing = ["shirt", "tunic", "breeches", "boots"] };
-		var pieces = template.Clothing.Select(Create).ToList();
+		var pieces = template.Clothing.Select(x => Create(x.Clothing!)).ToList();
 		var uniform = world.Objects.Create(id => new OwnedOutfit(id, person, OutfitKind.Work, template, pieces));
 		Assert.That(uniform.IsComplete, Is.True);
 

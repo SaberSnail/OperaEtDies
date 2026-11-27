@@ -28,6 +28,10 @@ internal static class GameDataValidation
 		// Schedules use the character properties, the kinds of quarter, and the days of the week.
 		errors.AddRange(ValidateSchedules(schedules, properties, locations, calendar, professions));
 
+		// What the player is shown can name the other person, with their character properties and templates.
+		var templateIds = characters.Templates.Where(x => !string.IsNullOrWhiteSpace(x?.Id)).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+		errors.AddRange(schedules.GetOtherTexts().SelectMany(x => OtherText.Validate(x.Path, x.Text, properties, templateIds)));
+
 		// Portrait conditions use the character properties, like other conditions outside of templates.
 		if (portraits is not null)
 		{
@@ -39,21 +43,19 @@ internal static class GameDataValidation
 		if (clothing is not null)
 			errors.AddRange(clothing.GetConditions().SelectMany(x => CharacterData.ValidateCondition(x.Path, x.Condition, properties, isTemplate: false)));
 
-		// Properties show on regions of the body, and professions change how well covered people must be in them while
-		// working. Without clothing, there are no regions, and clothing never hides anything.
+		// Properties show on regions of the body. Without clothing, there are no regions, and clothing never hides anything.
 		var slotIds = (clothing ?? ClothingData.None).Slots.Where(x => !string.IsNullOrWhiteSpace(x?.Id)).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
 		foreach (var property in properties.Values.Where(x => x.Regions is { Count: > 0 } && slotIds.Count != 0))
 			errors.AddRange(ValidateRegions($"properties[{property.Id}].regions", property.Regions, slotIds));
-		var ruleIds = (clothing ?? ClothingData.None).ModestyRules.Where(x => !string.IsNullOrWhiteSpace(x?.Id)).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
-		foreach (var profession in professions.Professions.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)))
+
+		// Boldness comes from an integer property.
+		if ((clothing ?? ClothingData.None).Modesty?.Boldness is { Property: { } boldness } && !string.IsNullOrWhiteSpace(boldness))
 		{
-			var path = $"professions[{profession.Id}].modesty";
-			foreach (var (ruleId, adjustments) in profession.Modesty ?? new Dictionary<string, IReadOnlyDictionary<string, int>>())
-			{
-				if (!ruleIds.Contains(ruleId))
-					errors.Add(OurResources.DataIdUnknown.FormatCurrentCulture(path, ruleId, "modestyRules"));
-				errors.AddRange(ClothingData.ValidateSlotValues($"{path}.{ruleId}", adjustments ?? new Dictionary<string, int>(), slotIds, -ClothingItem.MaxCoverage));
-			}
+			var path = $"{ModestySettings.SectionName}.boldness.property";
+			if (!properties.TryGetValue(boldness, out var property))
+				errors.Add(OurResources.DataIdUnknown.FormatCurrentCulture(path, boldness, "properties"));
+			else if (property.Type != CharacterPropertyType.Integer)
+				errors.Add(OurResources.PropertyNotInteger.FormatCurrentCulture(path, boldness));
 		}
 
 		return errors;
@@ -82,6 +84,8 @@ internal static class GameDataValidation
 		var clothingErrors = new List<string>();
 		foreach (var layer in portraits.Layers.Where(x => x?.HiddenBy is not null && slotIds.Count != 0))
 			clothingErrors.AddRange(ValidateRegions($"portraitLayers[{layer.Id}].hiddenBy.regions", layer.HiddenBy!.Regions ?? [], slotIds));
+		foreach (var layer in portraits.Layers.Where(x => x?.Cut is not null && slotIds.Count != 0))
+			clothingErrors.AddRange(ValidateRegions($"portraitLayers[{layer.Id}].cut.regions", layer.Cut!.Regions ?? [], slotIds));
 
 		foreach (var layer in portraits.Layers.Where(x => x?.Clothing is not null))
 		{

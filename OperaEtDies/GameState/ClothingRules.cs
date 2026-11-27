@@ -93,7 +93,7 @@ internal static class ClothingRules
 	/// Changes into an outfit's pieces that are at hand (taking off everything else first, for a complete outfit),
 	/// remembering the pieces it replaced, or out of the outfit, back into the pieces it replaced that are at hand, and
 	/// then into the rest of the day clothes the person is partly wearing (the outfit with the most pieces on), or after a
-	/// complete outfit, into the everyday outfit with the most pieces at hand, from the pieces of it at hand, wherever
+	/// complete outfit (unless they're back in night clothes), into the everyday outfit with the most pieces at hand, from the pieces of it at hand, wherever
 	/// there's room. What's taken off is carried, even at home.
 	/// </summary>
 	public static void Change(Person person, OwnedOutfit outfit, bool isTakingOff, TimePoint time)
@@ -114,8 +114,10 @@ internal static class ClothingRules
 				person.Clothing.Wear(piece);
 			}
 
+			// Someone back in their night clothes stays in them, rather than putting day clothes on over them.
 			var rest = person.Outfits.Where(x => x != outfit && x.Kind is not (OutfitKind.Night or OutfitKind.Nothing) && x.Pieces.Any(y => y.Wearer == person)).MaxBy(x => x.Pieces.Count(y => y.Wearer == person));
-			rest ??= person.GetOutfits(OutfitKind.Everyday).MaxBy(x => x.Pieces.Count(y => IsAtHand(person, y, time)));
+			if (!IsWearingAny(person, OutfitKind.Night))
+				rest ??= person.GetOutfits(OutfitKind.Everyday).MaxBy(x => x.Pieces.Count(y => IsAtHand(person, y, time)));
 			foreach (var piece in (rest?.Pieces ?? []).Where(x => x.Wearer != person && IsAtHand(person, x, time) && person.Clothing.AreSlotsFree(x)))
 			{
 				piece.Container?.Remove(piece);
@@ -155,40 +157,65 @@ internal static class ClothingRules
 	}
 
 	/// <summary>
-	/// Gets the clothing slots in which someone wearing the given clothing isn't covered enough for a level of formality,
-	/// by the first modesty rule whose condition they meet, in the order of the slots. A slot's modesty is the most any
-	/// worn clothing that covers it gives: its coverage, changed by its bulk. While working, their profession can call for
-	/// more or less.
+	/// Notes a change of clothes the player made themselves, so it counts as changing into and out of outfits, as changing
+	/// for a step does: an outfit they've changed out of (none of it is on, or for one of nothing at all, they're wearing
+	/// something) is no longer changed into, and one they weren't dressed in before and are now (other than everyday
+	/// clothes) is changed into, replacing what they had on before and took off. One they were already changed into keeps
+	/// what it replaced the first time.
 	/// </summary>
-	public static IReadOnlyList<ClothingSlot> GetUncoveredSlots(GameData gameData, Person person, IEnumerable<ClothingItem> worn, ModestyLevel level, bool isAtWork) =>
-		GetModesty(gameData, person, worn, level, isAtWork).Where(x => x.Modesty < x.Minimum).Select(x => x.Slot).ToList();
-
-	/// <summary>
-	/// Gets how modest someone wearing the given clothing is in each clothing slot their modesty rule checks, and the least
-	/// it calls for at a level of formality, in the order of the slots. While working, their profession can call for more
-	/// or less from people following that rule, though never less than 0 or more than full coverage.
-	/// </summary>
-	public static IReadOnlyList<(ClothingSlot Slot, int Modesty, int Minimum)> GetModesty(GameData gameData, Person person, IEnumerable<ClothingItem> worn, ModestyLevel level, bool isAtWork)
+	public static void NoteChangedByHand(Person person, IReadOnlyCollection<ClothingPiece> wornBefore)
 	{
-		var rule = gameData.ModestyRules.FirstOrDefault(x => CharacterCondition.IsMet(x.When, person.GetConditionValueId));
-		var adjustments = isAtWork && rule is not null ? person.Business?.Profession.Modesty.GetValueOrDefault(rule.Id) : null;
-		var clothing = worn.ToList();
-		var minimums = rule?.GetMinimums(level) ?? new Dictionary<string, int>();
-		return gameData.ClothingSlots
-			.Where(slot => minimums.ContainsKey(slot.Id))
-			.Select(slot => (slot, GetModesty(gameData, clothing, slot.Id), Math.Clamp(minimums[slot.Id] + (adjustments?.GetValueOrDefault(slot.Id) ?? 0), 0, ClothingItem.MaxCoverage)))
-			.ToList();
+		foreach (var outfit in person.ReplacedClothes.Keys.Where(x => x.Pieces.Count == 0 ? person.Clothing.Pieces.Count != 0 : x.Pieces.All(y => y.Wearer != person)).ToList())
+			person.RemoveReplacedClothes(outfit);
+
+		var takenOff = wornBefore.Where(x => x.Wearer != person).ToList();
+		bool IsOn(OwnedOutfit outfit, IReadOnlyCollection<ClothingPiece> worn) => outfit.Pieces.Count == 0 ? worn.Count == 0 : outfit.Pieces.All(worn.Contains);
+		var wornNow = person.Clothing.Pieces.ToList();
+		foreach (var outfit in person.Outfits.Where(x => x.Kind != OutfitKind.Everyday && takenOff.Count != 0 && !person.ReplacedClothes.ContainsKey(x) && IsOn(x, wornNow) && !IsOn(x, wornBefore)))
+			person.SetReplacedClothes(outfit, takenOff);
 	}
 
 	/// <summary>
-	/// Gets how modestly clothing worn together covers a region: the most any of it that covers the region gives, which is
-	/// its coverage changed by its bulk.
+	/// Gets the clothing slots in which someone wearing the given clothing isn't covered enough at a level of comfort, by
+	/// the first modesty rule whose condition they meet, in the order of the slots. A slot's modesty is the most any worn
+	/// clothing that covers it gives: its coverage, changed by its bulk.
 	/// </summary>
-	private static int GetModesty(GameData gameData, IEnumerable<ClothingItem> clothing, string region) =>
-		clothing.Where(x => x.GetCoverage(region) > 0)
-			.Select(x => Math.Clamp(x.GetCoverage(region) + (x.Bulk is { } bulk ? gameData.ClothingBulks.Find(bulk)?.Modesty ?? 0 : 0), 0, ClothingItem.MaxCoverage))
-			.DefaultIfEmpty(0)
-			.Max();
+	public static IReadOnlyList<ClothingSlot> GetUncoveredSlots(GameData gameData, Person person, IEnumerable<ClothingItem> worn, double comfort) =>
+		GetModesty(gameData, person, worn, comfort).Where(x => x.Modesty < x.Minimum).Select(x => x.Slot).ToList();
+
+	/// <summary>
+	/// Gets how modest someone wearing the given clothing is in each clothing slot their modesty rule checks, and the least
+	/// it calls for at a level of comfort, in the order of the slots.
+	/// </summary>
+	public static IReadOnlyList<(ClothingSlot Slot, int Modesty, int Minimum)> GetModesty(GameData gameData, Person person, IEnumerable<ClothingItem> worn, double comfort) =>
+		OutfitModesty.GetModesty(gameData, person.GetConditionValueId, worn, comfort);
+
+	/// <summary>
+	/// Whether someone would be comfortable in the clothes of an outfit (for an incomplete one, over what they're wearing,
+	/// in place of what it overlaps) at a level of comfort.
+	/// </summary>
+	public static bool IsComfortableIn(GameData gameData, Person person, OwnedOutfit outfit, double comfort) =>
+		GetUncoveredSlots(gameData, person, GetClothesIn(person, outfit), comfort).Count == 0;
+
+	/// <summary>
+	/// Gets the clothes someone would have on after changing into an outfit: just its pieces for a complete one, or else
+	/// its pieces over what they're wearing, in place of what they overlap.
+	/// </summary>
+	public static IReadOnlyList<ClothingItem> GetClothesIn(Person person, OwnedOutfit outfit)
+	{
+		var pieces = outfit.Pieces.Select(x => x.Clothing).ToList();
+		return outfit.IsComplete ? pieces : [.. person.Clothing.Pieces.Select(x => x.Clothing).Where(x => !pieces.Any(x.Overlaps)), .. pieces];
+	}
+
+	/// <summary>
+	/// Gets the clothes someone would have on after changing out of an outfit: what they're wearing other than its pieces,
+	/// with the pieces it replaced that are at hand back on.
+	/// </summary>
+	public static IReadOnlyList<ClothingItem> GetClothesOutOf(Person person, OwnedOutfit outfit, TimePoint time) =>
+	[
+		.. person.Clothing.Pieces.Where(x => !outfit.Pieces.Contains(x)).Select(x => x.Clothing),
+		.. (person.ReplacedClothes.GetValueOrDefault(outfit) ?? []).Where(x => x.Wearer != person && IsAtHand(person, x, time)).Select(x => x.Clothing),
+	];
 
 	/// <summary>
 	/// Picks up clothes kept at home that can be worn now, to carry them, if the person is at home: their own or their

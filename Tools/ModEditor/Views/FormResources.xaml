@@ -220,7 +220,7 @@
 	<Style x:Key="HeadingNoteStyle" TargetType="TextBlock">
 		<Setter Property="Margin" Value="0,3,0,0" />
 		<Setter Property="VerticalAlignment" Value="Top" />
-		<Setter Property="Foreground" Value="{DynamicResource FontLightBrush}" />
+		<Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
 	</Style>
 
 	<DataTemplate DataType="{x:Type form:TextFieldViewModel}">
@@ -351,6 +351,25 @@
 		</StackPanel>
 	</DataTemplate>
 
+	<!--  An entry in an outfit's clothing: a clothing id, or for a choice, its options below it, indented like an object's.  -->
+	<DataTemplate DataType="{x:Type form:OutfitClothingFieldViewModel}">
+		<StackPanel>
+			<DockPanel Style="{StaticResource FieldRowStyle}">
+				<ContentControl Style="{StaticResource FieldLabelStyle}" />
+				<ComboBox
+					MinWidth="160"
+					HorizontalAlignment="Left"
+					VerticalAlignment="Top"
+					IsEnabled="{Binding IsEditable}"
+					ItemsSource="{Binding Choices}"
+					SelectedItem="{Binding Selected}" />
+			</DockPanel>
+			<ContentControl Style="{StaticResource IndentStyle}" Visibility="{Binding Details, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}">
+				<ItemsControl Focusable="False" ItemsSource="{Binding Details.Fields}" />
+			</ContentControl>
+		</StackPanel>
+	</DataTemplate>
+
 	<DataTemplate DataType="{x:Type form:JsonFieldViewModel}">
 		<DockPanel Style="{StaticResource FieldRowStyle}">
 			<ContentControl Style="{StaticResource FieldLabelStyle}" />
@@ -429,7 +448,7 @@
 							VerticalAlignment="Top"
 							DockPanel.Dock="Left"
 							FontStyle="Italic"
-							Foreground="{DynamicResource FontLightBrush}"
+							Foreground="{DynamicResource TextMutedBrush}"
 							Text="comments"
 							ToolTip="What this is for, for the people editing the data. The game ignores it." />
 						<Button
@@ -478,7 +497,7 @@
 						<TextBlock
 							Margin="6,0,24,0"
 							VerticalAlignment="Center"
-							Foreground="{DynamicResource FontLightBrush}"
+							Foreground="{DynamicResource TextMutedBrush}"
 							IsHitTestVisible="False"
 							Text="+ Property" />
 					</Grid>

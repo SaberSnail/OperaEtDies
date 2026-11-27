@@ -58,6 +58,17 @@ public sealed class ScheduleSettings
 	public required int SightingHours { get; init; }
 
 	/// <summary>
+	/// How long the player can keep a bundle to finish their steps later (see <see cref="GameState.StepSequence.KeptSince"/>)
+	/// before they're reminded of it.
+	/// </summary>
+	public Duration CarryWarningDelay { get; init; } = new(240);
+
+	/// <summary>
+	/// How long after someone says no to starting an appointment they're asked again, while they stay where it is.
+	/// </summary>
+	public Duration AskToStartAgain { get; init; } = new(15);
+
+	/// <summary>
 	/// How naps work, and how people go to bed in time for work.
 	/// </summary>
 	public required SleepSettings Sleep { get; init; }
@@ -86,6 +97,11 @@ public sealed class ScheduleSettings
 	/// How everyone starts a new game.
 	/// </summary>
 	public required ScheduleStart Start { get; init; }
+
+	/// <summary>
+	/// The other ways the player is offered to wait, and to spend less time on a quota need than anyone else would.
+	/// </summary>
+	public PlayerTimeSettings Player { get; init; } = new();
 
 	/// <summary>
 	/// The needs, from the needs section of the data.
@@ -268,6 +284,7 @@ public sealed class ScheduleSettings
 		errors.AddRange(Socializing.Validate());
 		errors.AddRange(Sleep.Validate());
 		errors.AddRange(Clothing.Validate());
+		errors.AddRange(Player.Validate());
 
 		errors.AddRange(Idle.Place.Validate($"{path}.idle.place", allowRemembered: false));
 		if (Idle.Activity is not null && string.IsNullOrWhiteSpace(Idle.Activity))
@@ -328,13 +345,16 @@ public sealed class ScheduleSettings
 	private HashSet<string> GetCalledStepLists(IReadOnlyDictionary<string, StepList> stepListsById)
 	{
 		var called = new HashSet<string>(StringComparer.Ordinal);
-		var pending = new Queue<IReadOnlyList<Step?>>(Needs.OfType<Need>().Select(x => (IReadOnlyList<Step?>) (x.StepSettings ?? [])).Concat(ProfessionSteps.Values));
+		var pending = new Queue<IReadOnlyList<Step?>>(Needs.OfType<Need>().SelectMany(x => new[] { (IReadOnlyList<Step?>) (x.StepSettings ?? []), x.Finally ?? [] }).Concat(ProfessionSteps.Values));
 		while (pending.TryDequeue(out var steps))
 		{
 			foreach (var (_, step) in GetSteps("", steps))
 			{
 				if (step is { Kind: StepKind.Call, List: { } id } && called.Add(id) && stepListsById.TryGetValue(id, out var list))
+				{
 					pending.Enqueue(list.Steps ?? []);
+					pending.Enqueue(list.Finally ?? []);
+				}
 			}
 		}
 
@@ -345,30 +365,45 @@ public sealed class ScheduleSettings
 	/// Gets every step of the needs, step lists, and professions, with where each one is, and the steps they carry out.
 	/// </summary>
 	private IEnumerable<(string Path, Step Step)> GetAllSteps() =>
-		Needs.OfType<Need>().SelectMany(need => GetSteps($"needs[{need.Id}]", need.StepSettings ?? []))
-			.Concat(StepLists.OfType<StepList>().SelectMany(x => GetSteps($"stepLists[{x.Id}]", x.Steps ?? [])))
+		Needs.OfType<Need>().SelectMany(need => GetSteps($"needs[{need.Id}]", need.StepSettings ?? []).Concat(GetSteps($"needs[{need.Id}]", need.Finally ?? [], "finally")))
+			.Concat(StepLists.OfType<StepList>().SelectMany(x => GetSteps($"stepLists[{x.Id}]", x.Steps ?? []).Concat(GetSteps($"stepLists[{x.Id}]", x.Finally ?? [], "finally"))))
 			.Concat(ProfessionSteps.SelectMany(x => GetSteps($"professions[{x.Key}].business", x.Value)));
 
 	/// <summary>
-	/// Gets the steps of a list, with where each one is, and the steps they carry out (but not the steps of the step lists
-	/// they call).
+	/// Gets the steps of a list (by default, "steps"), with where each one is, and the steps they carry out (but not the
+	/// steps of the step lists they call).
 	/// </summary>
-	private static IEnumerable<(string Path, Step Step)> GetSteps(string path, IReadOnlyList<Step?> steps)
+	private static IEnumerable<(string Path, Step Step)> GetSteps(string path, IReadOnlyList<Step?> steps, string list = "steps")
 	{
 		for (var index = 0; index < steps.Count; index++)
 		{
-			var stepPath = $"{path}.steps[{index}]";
+			var stepPath = $"{path}.{list}[{index}]";
 			if (steps[index] is not { } step)
 				continue;
 			yield return (stepPath, step);
-			foreach (var nested in GetSteps(stepPath, step.Steps ?? []).Concat(GetSteps($"{stepPath}.appointment", step.Appointment?.Steps ?? [])))
-				yield return nested;
-			var options = step.Options ?? [];
-			for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
+			foreach (var (nestedPath, nestedSteps, nestedList) in GetNestedLists(stepPath, step))
 			{
-				foreach (var nested in GetSteps($"{stepPath}.options[{optionIndex}]", options[optionIndex]?.Steps ?? []))
+				foreach (var nested in GetSteps(nestedPath, nestedSteps, nestedList))
 					yield return nested;
 			}
+		}
+	}
+
+	/// <summary>
+	/// Gets the lists of steps a step holds, other than its options' (its own steps and "finally", and its appointment's),
+	/// with the path each is under and its name there.
+	/// </summary>
+	private static IEnumerable<(string Path, IReadOnlyList<Step?> Steps, string List)> GetNestedLists(string stepPath, Step step)
+	{
+		yield return (stepPath, step.Steps ?? [], "steps");
+		yield return (stepPath, step.Finally ?? [], "finally");
+		yield return ($"{stepPath}.appointment", step.Appointment?.Steps ?? [], "steps");
+		yield return ($"{stepPath}.appointment", step.Appointment?.Finally ?? [], "finally");
+		var options = step.Options ?? [];
+		for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
+		{
+			yield return ($"{stepPath}.options[{optionIndex}]", options[optionIndex]?.Steps ?? [], "steps");
+			yield return ($"{stepPath}.options[{optionIndex}]", options[optionIndex]?.Finally ?? [], "finally");
 		}
 	}
 
@@ -379,49 +414,47 @@ public sealed class ScheduleSettings
 		Needs.OfType<Need>().Where(x => x.When is not null).Select(x => ($"needs[{x.Id}].when", x.When!))
 			.Concat(TravelTimeFactors.OfType<TravelTimeFactor>().Select(x => ($"travelTimeFactors[{x.Id}].when", x.When)))
 			.Concat(UrgencyFactors.OfType<UrgencyFactor>().Select(x => ($"urgencyFactors[{x.Id}].when", x.When)))
-			.Concat(Needs.OfType<Need>().SelectMany(need => GetCharacterConditions($"needs[{need.Id}]", need.StepSettings ?? [])))
-			.Concat(StepLists.OfType<StepList>().SelectMany(x => GetCharacterConditions($"stepLists[{x.Id}]", x.Steps ?? [])))
-			.Concat(ProfessionSteps.SelectMany(x => GetCharacterConditions($"professions[{x.Key}].business", x.Value)));
+			.Concat(GetAllSteps().SelectMany(x => GetCharacterConditions(x.Path, x.Step)));
 
 	/// <summary>
-	/// Gets the character conditions of steps (who they talk with, and their chances' factors) and the steps they carry
-	/// out, with where each one is.
+	/// Gets the character conditions of a step (who it talks with, and its chance's factors), with where each one is.
 	/// </summary>
-	private static IEnumerable<(string Path, CharacterCondition Condition)> GetCharacterConditions(string path, IReadOnlyList<Step?> steps)
+	private static IEnumerable<(string Path, CharacterCondition Condition)> GetCharacterConditions(string stepPath, Step step)
 	{
-		for (var index = 0; index < steps.Count; index++)
+		if (step.Who is { } who)
+			yield return ($"{stepPath}.who", who);
+		var factors = step.Chance?.Factors ?? [];
+		for (var factorIndex = 0; factorIndex < factors.Count; factorIndex++)
 		{
-			var stepPath = $"{path}.steps[{index}]";
-			if (steps[index] is not { } step)
-				continue;
-			if (step.Who is { } who)
-				yield return ($"{stepPath}.who", who);
-			var factors = step.Chance?.Factors ?? [];
-			for (var factorIndex = 0; factorIndex < factors.Count; factorIndex++)
-			{
-				if (factors[factorIndex]?.When is { } when)
-					yield return ($"{stepPath}.chance.factors[{factorIndex}].when", when);
-			}
-
-			foreach (var nested in GetCharacterConditions(stepPath, step.Steps ?? []).Concat(GetCharacterConditions($"{stepPath}.appointment", step.Appointment?.Steps ?? [])))
-				yield return nested;
-			var options = step.Options ?? [];
-			for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
-			{
-				foreach (var nested in GetCharacterConditions($"{stepPath}.options[{optionIndex}]", options[optionIndex]?.Steps ?? []))
-					yield return nested;
-			}
+			if (factors[factorIndex]?.When is { } when)
+				yield return ($"{stepPath}.chance.factors[{factorIndex}].when", when);
 		}
 	}
+
+	/// <summary>
+	/// Gets the text the player is shown that can name the other person (see <see cref="OtherText"/>), with where each one
+	/// is, for checking against the character properties and templates: what steps tell the player, and what an
+	/// appointment's two say about starting it.
+	/// </summary>
+	internal IEnumerable<(string Path, string Text)> GetOtherTexts() =>
+		GetAllSteps().SelectMany(x => new (string Path, LongText? Text)[]
+		{
+			($"{x.Path}.player.text.text", x.Step.Player?.Text),
+			($"{x.Path}.player.asked.text", x.Step.Player?.Asked),
+			($"{x.Path}.appointment.start.text.text", x.Step.Appointment?.Start?.Text),
+			($"{x.Path}.appointment.start.asked.text", x.Step.Appointment?.Start?.Asked),
+			($"{x.Path}.appointment.ready.text.text", x.Step.Appointment?.Ready?.Text),
+			($"{x.Path}.appointment.ready.asked.text", x.Step.Appointment?.Ready?.Asked),
+		})
+		.Where(x => x.Text?.Text is not null)
+		.Select(x => (x.Path, x.Text!.Text));
 
 	/// <summary>
 	/// Gets the kinds of quarter the schedules name, with where each one is, for checking against the quarter kinds.
 	/// </summary>
 	internal IEnumerable<(string Path, string QuarterKind)> GetQuarterKinds() =>
-		Needs.OfType<Need>().SelectMany(need => (need.PlaceSetting is { } place ? [($"needs[{need.Id}].place", place)] : Array.Empty<(string, SchedulePlace)>())
-				.Concat(GetStepPlaces($"needs[{need.Id}]", need.StepSettings ?? [])))
-			.Concat(StepLists.OfType<StepList>().SelectMany(x => GetStepPlaces($"stepLists[{x.Id}]", x.Steps ?? [])))
-			.Concat(ProfessionSteps.SelectMany(x => GetStepPlaces($"professions[{x.Key}].business", x.Value)))
+		Needs.OfType<Need>().SelectMany(need => need.PlaceSetting is { } place ? [($"needs[{need.Id}].place", place)] : Array.Empty<(string, SchedulePlace)>())
+			.Concat(GetAllSteps().SelectMany(x => GetStepPlaces(x.Path, x.Step)))
 			.Append(($"{SectionName}.idle.place", Idle.Place))
 			.SelectMany(place => (place.Item2.QuarterKinds ?? []).OfType<QuarterChoice>().Select(x => ($"{place.Item1}.quarterKinds", x.QuarterKind)));
 
@@ -429,66 +462,44 @@ public sealed class ScheduleSettings
 	/// Gets the professions step conditions name, with where each one is, for checking against the professions.
 	/// </summary>
 	internal IEnumerable<(string Path, string Profession)> GetBusinessProfessions() =>
-		Needs.OfType<Need>().SelectMany(need => GetStepConditions($"needs[{need.Id}]", need.StepSettings ?? []))
-			.Concat(StepLists.OfType<StepList>().SelectMany(x => GetStepConditions($"stepLists[{x.Id}]", x.Steps ?? [])))
-			.Concat(ProfessionSteps.SelectMany(x => GetStepConditions($"professions[{x.Key}].business", x.Value)))
+		GetAllSteps().SelectMany(x => GetStepConditions(x.Path, x.Step))
 			.Where(x => x.Condition.BusinessProfession is not null)
 			.Select(x => ($"{x.Path}.businessProfession", x.Condition.BusinessProfession!));
 
 	/// <summary>
-	/// Gets the conditions of steps and their options, and of the steps they carry out, with where each one is.
+	/// Gets the conditions of a step and its options, with where each one is.
 	/// </summary>
-	private static IEnumerable<(string Path, StepCondition Condition)> GetStepConditions(string path, IReadOnlyList<Step?> steps)
+	private static IEnumerable<(string Path, StepCondition Condition)> GetStepConditions(string stepPath, Step step)
 	{
-		for (var index = 0; index < steps.Count; index++)
+		foreach (var condition in Need.GetConditionsWithin($"{stepPath}.when", step.When))
+			yield return condition;
+		var options = step.Options ?? [];
+		for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
 		{
-			var stepPath = $"{path}.steps[{index}]";
-			if (steps[index] is not { } step)
-				continue;
-			foreach (var condition in Need.GetConditionsWithin($"{stepPath}.when", step.When))
+			foreach (var condition in Need.GetConditionsWithin($"{stepPath}.options[{optionIndex}].when", options[optionIndex]?.When))
 				yield return condition;
-			foreach (var nested in GetStepConditions(stepPath, step.Steps ?? []).Concat(GetStepConditions($"{stepPath}.appointment", step.Appointment?.Steps ?? [])))
-				yield return nested;
-			var options = step.Options ?? [];
-			for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
-			{
-				foreach (var condition in Need.GetConditionsWithin($"{stepPath}.options[{optionIndex}].when", options[optionIndex]?.When))
-					yield return condition;
-				foreach (var nested in GetStepConditions($"{stepPath}.options[{optionIndex}]", options[optionIndex]?.Steps ?? []))
-					yield return nested;
-			}
 		}
 	}
 
 	/// <summary>
-	/// Gets the places named in steps (where they go, and where their conditions are met) and the steps they carry out,
-	/// with where each one is.
+	/// Gets the places named in a step (where it goes, and where its and its options' conditions are met), with where each
+	/// one is.
 	/// </summary>
-	private static IEnumerable<(string Path, SchedulePlace Place)> GetStepPlaces(string path, IReadOnlyList<Step?> steps)
+	private static IEnumerable<(string Path, SchedulePlace Place)> GetStepPlaces(string stepPath, Step step)
 	{
-		for (var index = 0; index < steps.Count; index++)
+		if (step.Place is { } place)
+			yield return ($"{stepPath}.place", place);
+		foreach (var (conditionPath, condition) in Need.GetConditionsWithin($"{stepPath}.when", step.When).Where(x => x.Condition.At is not null))
+			yield return ($"{conditionPath}.at", condition.At!);
+		if (step.Appointment?.Place is { } appointmentPlace)
+			yield return ($"{stepPath}.appointment.place", appointmentPlace);
+		if (step.Job?.Place is { } jobPlace)
+			yield return ($"{stepPath}.job.place", jobPlace);
+		var options = step.Options ?? [];
+		for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
 		{
-			var stepPath = $"{path}.steps[{index}]";
-			if (steps[index] is not { } step)
-				continue;
-			if (step.Place is { } place)
-				yield return ($"{stepPath}.place", place);
-			foreach (var (conditionPath, condition) in Need.GetConditionsWithin($"{stepPath}.when", step.When).Where(x => x.Condition.At is not null))
+			foreach (var (conditionPath, condition) in Need.GetConditionsWithin($"{stepPath}.options[{optionIndex}].when", options[optionIndex]?.When).Where(x => x.Condition.At is not null))
 				yield return ($"{conditionPath}.at", condition.At!);
-			if (step.Appointment?.Place is { } appointmentPlace)
-				yield return ($"{stepPath}.appointment.place", appointmentPlace);
-			if (step.Job?.Place is { } jobPlace)
-				yield return ($"{stepPath}.job.place", jobPlace);
-			foreach (var nested in GetStepPlaces(stepPath, step.Steps ?? []).Concat(GetStepPlaces($"{stepPath}.appointment", step.Appointment?.Steps ?? [])))
-				yield return nested;
-			var options = step.Options ?? [];
-			for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
-			{
-				foreach (var (conditionPath, condition) in Need.GetConditionsWithin($"{stepPath}.options[{optionIndex}].when", options[optionIndex]?.When).Where(x => x.Condition.At is not null))
-					yield return ($"{conditionPath}.at", condition.At!);
-				foreach (var nested in GetStepPlaces($"{stepPath}.options[{optionIndex}]", options[optionIndex]?.Steps ?? []))
-					yield return nested;
-			}
 		}
 	}
 
@@ -605,6 +616,11 @@ public sealed class Need : IIdentified
 	public required string Title { get; init; }
 
 	/// <summary>
+	/// The id of the icon that stands for the need where it's shown to the player, from the icons section.
+	/// </summary>
+	public required string Icon { get; init; }
+
+	/// <summary>
 	/// What the engine uses the need for, such as <see cref="ScheduleSettings.SleepRole"/>, or null for none.
 	/// </summary>
 	public string? Role { get; init; }
@@ -635,6 +651,13 @@ public sealed class Need : IIdentified
 	/// the steps are given up.
 	/// </summary>
 	public StepFailure? OnFail { get; init; }
+
+	/// <summary>
+	/// Steps carried out whenever its steps are left, however that happens, for a need that's work, after a profession's
+	/// steps too. Only for a need with steps.
+	/// </summary>
+	[AllowedFor(nameof(StepSettings))]
+	public IReadOnlyList<Step>? Finally { get; init; }
 
 	/// <summary>
 	/// The hours and days the need can be met in. A quota need must have them. A level need can only have a start and an
@@ -699,6 +722,23 @@ public sealed class Need : IIdentified
 	public IReadOnlyList<(StepOption Option, int Start, int End)> GetOptions(int chooseStep) => Layout.Options.GetValueOrDefault(chooseStep) ?? [];
 
 	/// <summary>
+	/// Whether a step is among some "finally" steps, which are carried out whenever the steps before them are left, and go
+	/// on to the next step whatever happens.
+	/// </summary>
+	public bool IsInFinally(int step) => Layout.IsInFinally(step);
+
+	/// <summary>
+	/// Gets the lists of steps with "finally" steps that going from one step to another leaves, innermost first (see
+	/// <see cref="StepLayout.GetBlocksLeft"/>).
+	/// </summary>
+	internal IReadOnlyList<FinallyBlock> GetBlocksLeft(int from, int to) => Layout.GetBlocksLeft(from, to);
+
+	/// <summary>
+	/// Gets the list of steps whose "finally" steps start at a step, or null if there's none.
+	/// </summary>
+	internal FinallyBlock? GetBlockFinallyAt(int finallyStart) => Layout.GetBlockFinallyAt(finallyStart);
+
+	/// <summary>
 	/// Whether a step is part of a "choose" step's option, so only some runs carry it out.
 	/// </summary>
 	public bool IsOptional(int step) => Layout.Optional.Contains(step);
@@ -755,12 +795,21 @@ public sealed class Need : IIdentified
 			Options = [.. professionSteps.OrderBy(x => x.Key, StringComparer.Ordinal).Select(x => new StepOption { When = new StepCondition { BusinessProfession = x.Key }, Steps = x.Value, HasOwnIds = true }),
 				new StepOption { Steps = OwnSteps.OfType<Step>().ToList() }],
 		}]
-		: OwnSteps, m_stepLists, OnFail);
+		: OwnSteps, m_stepLists, OnFail, Finally);
 
 	/// <summary>
 	/// The need's own steps laid out, without any profession's.
 	/// </summary>
-	private StepLayout OwnLayout => m_ownLayout ??= StepLayout.Create(OwnSteps, m_stepLists, OnFail);
+	private StepLayout OwnLayout => m_ownLayout ??= StepLayout.Create(OwnSteps, m_stepLists, OnFail, Finally);
+
+	/// <summary>
+	/// Gets every step someone takes for the need, including its finally steps and the steps of the step lists they call:
+	/// for a need that's work, those of their business's profession, if it has its own.
+	/// </summary>
+	public IReadOnlyList<Step> GetSteps(string? businessProfession) =>
+		(IsWork && businessProfession is not null && m_professionSteps?.GetValueOrDefault(businessProfession) is { } steps
+			? StepLayout.Create(steps, m_stepLists, OnFail, Finally)
+			: OwnLayout).Steps;
 
 	private IReadOnlyList<Step?> OwnSteps => StepSettings ?? (PlaceSetting is { } place
 		? [new Step { Kind = StepKind.GoTo, Place = place }, new Step { Kind = StepKind.Do, MeetsQuota = Quota?.Time is not null }]
@@ -987,6 +1036,8 @@ public sealed class Need : IIdentified
 
 		if (IsBroken(nameof(PlaceSetting), PlaceSetting is not null) || IsBroken(nameof(StepSettings), StepSettings is not null))
 			yield return OurResources.NeedPlaceOrSteps.FormatCurrentCulture(Id);
+		if (IsBroken(nameof(Finally), Finally is not null))
+			yield return OurResources.NeedFinallyWithoutSteps.FormatCurrentCulture(Id);
 		if (PlaceSetting is { } placeSetting)
 		{
 			foreach (var error in placeSetting.Validate($"{path}.place", allowRemembered: false))
@@ -1024,7 +1075,7 @@ public sealed class Need : IIdentified
 			yield break;
 		}
 
-		foreach (var error in ValidateScope(this, m_stepLists, path, steps, new StepNames(), [], OnFail is null ? [] : [($"{path}.onFail", OnFail)]))
+		foreach (var error in ValidateScope(this, m_stepLists, path, steps, Finally, new StepNames(), [], OnFail is null ? [] : [($"{path}.onFail", OnFail)], loops: []))
 			yield return error;
 
 		if (!OwnLayout.Steps.Any(x => x.Kind is StepKind.Do or StepKind.Wander or StepKind.Seek))
@@ -1050,7 +1101,7 @@ public sealed class Need : IIdentified
 			yield break;
 		}
 
-		foreach (var error in ValidateScope(this, m_stepLists, path, steps, new StepNames(), [], []))
+		foreach (var error in ValidateScope(this, m_stepLists, path, steps, null, new StepNames(), [], [], loops: []))
 			yield return error;
 		var laidOut = StepLayout.Create(steps, m_stepLists).Steps;
 		if (!laidOut.Any(x => x.Kind == StepKind.Do))
@@ -1064,39 +1115,76 @@ public sealed class Need : IIdentified
 	/// what the steps that would come before it took, remembered, or asked for.
 	/// </summary>
 	internal static IEnumerable<string> ValidateUncalledStepList(StepList list, IReadOnlyDictionary<string, StepList> stepLists) =>
-		ValidateScope(null, stepLists, $"stepLists[{list.Id}]", list.Steps ?? [], new StepNames { IsOpen = true }, [list.Id],
-			list.OnFail is null ? [] : [($"stepLists[{list.Id}].onFail", list.OnFail)]);
+		ValidateScope(null, stepLists, $"stepLists[{list.Id}]", list.Steps ?? [], list.Finally, new StepNames { IsOpen = true }, [list.Id],
+			list.OnFail is null ? [] : [($"stepLists[{list.Id}].onFail", list.OnFail)], loops: null);
 
 	/// <summary>
-	/// Validates the steps of a need, step list, or appointment, as <see cref="ValidateStepList"/> does, along with the
-	/// "onFail" settings of the need or step list, and checks that every step they skip to has a unique id among them.
+	/// Validates the steps of a need, step list, or appointment, and its "finally" steps, as <see cref="ValidateStepList"/>
+	/// does, along with the "onFail" settings of the need or step list, and checks that every step they skip to has a
+	/// unique id among them. The loops are the ids of the "repeat" steps it's in, innermost first, or null if they aren't
+	/// known, as for a step list no need calls.
 	/// </summary>
-	private static IEnumerable<string> ValidateScope(Need? need, IReadOnlyDictionary<string, StepList>? stepLists, string path, IReadOnlyList<Step?> steps, StepNames names, IReadOnlyList<string> calling, IReadOnlyList<(string Path, StepFailure Failure)> failures,
-		bool isAppointment = false)
+	private static IEnumerable<string> ValidateScope(Need? need, IReadOnlyDictionary<string, StepList>? stepLists, string path, IReadOnlyList<Step?> steps, IReadOnlyList<Step?>? finallySteps, StepNames names,
+		IReadOnlyList<string> calling, IReadOnlyList<(string Path, StepFailure Failure)> failures, IReadOnlyList<string?>? loops, bool isAppointment = false, bool isFinally = false)
 	{
 		var scope = new StepScope();
 		foreach (var (failurePath, failure) in failures)
-			scope.AddSkips(failurePath, failure);
-		foreach (var error in ValidateStepList(need, stepLists, path, steps, names, calling, scope, isAppointment))
+		{
+			foreach (var error in ValidateFailure(failurePath, failure, loops, scope))
+				yield return error;
+		}
+
+		var context = new StepListContext(need, stepLists, names, calling, scope);
+		foreach (var error in ValidateStepList(context, path, "steps", steps, loops, isFinally, isAppointment))
+			yield return error;
+		foreach (var error in ValidateStepList(context, path, "finally", finallySteps ?? [], loops, isFinally: true))
 			yield return error;
 		foreach (var (skipPath, id) in scope.Skips.Where(x => !scope.Ids.Contains(x.Id)))
 			yield return OurResources.StepSkipToUnknown.FormatCurrentCulture(skipPath, id);
 	}
 
 	/// <summary>
-	/// Validates a list of steps, and the steps that "repeat" steps, "choose" options, and called step lists in it carry
-	/// out, given the names of the bundles and places taken and remembered by the steps before them, the step lists being
-	/// called, and the ids of the steps of the need, step list, or appointment they're in. Steps in a called step list are
-	/// reported at their place in the step list. A "meet" step is only allowed directly among an appointment's steps.
+	/// Checks what happens when a step fails, given the ids of the "repeat" steps it's in, innermost first (or null if
+	/// they aren't known): going on with or leaving a loop needs one around it (the one it names, if it does), and
+	/// skipping to a "repeat" step it's in isn't allowed, since it's unclear whether that's going on with it or starting it
+	/// again. The steps it skips to are noted, to check once all the ids are known.
 	/// </summary>
-	private static IEnumerable<string> ValidateStepList(Need? need, IReadOnlyDictionary<string, StepList>? stepLists, string path, IReadOnlyList<Step?> steps, StepNames names, IReadOnlyList<string> calling, StepScope scope, bool isAppointment = false)
+	private static IEnumerable<string> ValidateFailure(string path, StepFailure failure, IReadOnlyList<string?>? loops, StepScope scope)
 	{
+		scope.AddSkips(path, failure);
+		foreach (var result in loops is null ? [] : failure.Results)
+		{
+			if (result.Kind is StepFailureKind.LoopContinue or StepFailureKind.LoopBreak)
+			{
+				if (loops!.Count == 0)
+					yield return OurResources.StepLoopResultWithoutLoop.FormatCurrentCulture(path, result.Kind == StepFailureKind.LoopContinue ? "loopContinue" : "loopBreak");
+				else if (result.Target is { } id && !loops.Contains(id, StringComparer.Ordinal))
+					yield return OurResources.StepLoopResultUnknown.FormatCurrentCulture(path, id);
+			}
+			else if (result is { Kind: StepFailureKind.SkipTo, Target: { } id } && loops!.Contains(id, StringComparer.Ordinal))
+			{
+				yield return OurResources.StepSkipToEnclosingLoop.FormatCurrentCulture(path, id);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Validates a list of steps (a need's or step list's "steps" or "finally"), and the steps that "repeat" and "group"
+	/// steps, "choose" options, and called step lists in it carry out, given the names of the bundles and places taken and
+	/// remembered by the steps before them, the step lists being called, the ids of the steps of the need, step list, or
+	/// appointment they're in, and the ids of the "repeat" steps they're in. Steps in a called step list are reported at
+	/// their place in the step list. A "meet" step is only allowed directly among an appointment's steps, and steps in a
+	/// "finally" can't have "onFail", since they always go on to the next one.
+	/// </summary>
+	private static IEnumerable<string> ValidateStepList(StepListContext context, string path, string list, IReadOnlyList<Step?> steps, IReadOnlyList<string?>? loops, bool isFinally, bool isAppointment = false)
+	{
+		var (need, stepLists, names, calling, scope) = context;
 		for (var index = 0; index < steps.Count; index++)
 		{
-			var stepPath = $"{path}.steps[{index}]";
+			var stepPath = $"{path}.{list}[{index}]";
 			if (steps[index] is not { } step)
 			{
-				yield return OurResources.DataListItemEmpty.FormatCurrentCulture($"{path}.steps");
+				yield return OurResources.DataListItemEmpty.FormatCurrentCulture($"{path}.{list}");
 				continue;
 			}
 
@@ -1107,14 +1195,29 @@ public sealed class Need : IIdentified
 			if (step.Id is { } stepId && !string.IsNullOrWhiteSpace(stepId) && !scope.Ids.Add(stepId))
 				yield return OurResources.StepIdDuplicate.FormatCurrentCulture($"{stepPath}.id", stepId);
 			if (step.OnFail is { } onFail)
-				scope.AddSkips($"{stepPath}.onFail", onFail);
-			if (step.Kind == StepKind.Make && step.Replaces is { } replaced && !string.IsNullOrWhiteSpace(replaced) && !names.Bundles.Remove(replaced) && !names.IsOpen)
-				yield return OurResources.StepBundleUnknown.FormatCurrentCulture($"{stepPath}.replaces", replaced);
+			{
+				if (isFinally)
+					yield return OurResources.StepOnFailInFinally.FormatCurrentCulture($"{stepPath}.onFail");
+
+				// A "repeat" step's own "onFail" is for the steps in it, so it's inside its loop.
+				foreach (var error in ValidateFailure($"{stepPath}.onFail", onFail, step.Kind == StepKind.Repeat && loops is not null ? [step.Id, .. loops] : loops, scope))
+					yield return error;
+			}
+
+			// A bundle made in place of another carries its things, as the same kind.
+			StepItemKind? replacedKind = null;
+			if (step.Kind == StepKind.Make && step.Replaces is { } replaced && !string.IsNullOrWhiteSpace(replaced))
+			{
+				if (names.Bundles.Remove(replaced, out replacedKind))
+					names.Replaced[replaced] = replacedKind;
+				else if (!names.IsOpen)
+					yield return OurResources.StepBundleUnknown.FormatCurrentCulture($"{stepPath}.replaces", replaced);
+			}
 			if (step.Kind is StepKind.Take or StepKind.Make && step.Bundle is { } taken && !string.IsNullOrWhiteSpace(taken.Id))
-				names.Bundles[taken.Id] = step.ItemKind;
+				names.Bundles[taken.Id] = step.Kind == StepKind.Make ? replacedKind : step.ItemKind;
 			if (step.Kind == StepKind.Put && step.Bundle is { } bundle && !string.IsNullOrWhiteSpace(bundle.Id))
 			{
-				if (!names.Bundles.TryGetValue(bundle.Id, out var bundleKind))
+				if (!names.TryGetBundle(bundle.Id, isFinally, out var bundleKind))
 				{
 					if (!names.IsOpen)
 						yield return OurResources.StepBundleUnknown.FormatCurrentCulture($"{stepPath}.bundle", bundle.Id);
@@ -1131,7 +1234,7 @@ public sealed class Need : IIdentified
 
 			if (step.Kind == StepKind.Remember && step.Name is { } name)
 				names.Places.Add(name);
-			foreach (var error in ValidateAnswers($"{stepPath}.when", step.When, names))
+			foreach (var error in ValidateNames($"{stepPath}.when", step.When, names, isFinally))
 				yield return error;
 			if (step.Kind == StepKind.Ask && step.Name is { } answer)
 				names.Answers.Add(answer);
@@ -1144,10 +1247,20 @@ public sealed class Need : IIdentified
 					yield return OurResources.DataListEmpty.FormatCurrentCulture($"{stepPath}.steps");
 				else if (!StepLayout.Create(repeated, stepLists).Steps.Any(x => x is { Kind: StepKind.Do, MeetsQuota: true }))
 					yield return OurResources.StepRepeatWithoutMeetsQuota.FormatCurrentCulture(stepPath);
-				foreach (var error in ValidateStepList(need, stepLists, stepPath, repeated, names, calling, scope))
+				foreach (var error in ValidateStepList(context, stepPath, "steps", repeated, loops is null ? null : [step.Id, .. loops], isFinally))
 					yield return error;
 			}
 
+			if (step is { Kind: StepKind.Group, Steps: { } grouped })
+			{
+				if (grouped.Count == 0)
+					yield return OurResources.DataListEmpty.FormatCurrentCulture($"{stepPath}.steps");
+				foreach (var error in ValidateStepList(context, stepPath, "steps", grouped, loops, isFinally))
+					yield return error;
+			}
+
+			foreach (var error in ValidateStepList(context, stepPath, "finally", step.Finally ?? [], loops, isFinally: true))
+				yield return error;
 			if (step is { Kind: StepKind.Choose, Options: { } options })
 			{
 				if (options.Count == 0)
@@ -1165,16 +1278,23 @@ public sealed class Need : IIdentified
 					if (!step.First && string.IsNullOrWhiteSpace(option.Player?.Title))
 						yield return OurResources.DataValueMissing.FormatCurrentCulture($"{optionPath}.player.title");
 					if (option.OnFail is { } optionFailure)
-						scope.AddSkips($"{optionPath}.onFail", optionFailure);
+					{
+						if (isFinally)
+							yield return OurResources.StepOnFailInFinally.FormatCurrentCulture($"{optionPath}.onFail");
+						foreach (var error in ValidateFailure($"{optionPath}.onFail", optionFailure, loops, scope))
+							yield return error;
+					}
 					if (option.When is { } when)
 					{
 						foreach (var error in when.Validate($"{optionPath}.when", need))
 							yield return error;
-						foreach (var error in ValidateAnswers($"{optionPath}.when", when, names))
+						foreach (var error in ValidateNames($"{optionPath}.when", when, names, isFinally))
 							yield return error;
 					}
 
-					foreach (var error in ValidateStepList(need, stepLists, optionPath, option.Steps ?? [], names, calling, scope))
+					foreach (var error in ValidateStepList(context, optionPath, "steps", option.Steps ?? [], loops, isFinally))
+						yield return error;
+					foreach (var error in ValidateStepList(context, optionPath, "finally", option.Finally ?? [], loops, isFinally: true))
 						yield return error;
 				}
 			}
@@ -1207,13 +1327,13 @@ public sealed class Need : IIdentified
 					yield return OurResources.StepAppointmentBeforeMeet.FormatCurrentCulture(appointmentPath);
 				}
 
-				foreach (var error in ValidateScope(need, stepLists, appointmentPath, appointmentSteps, new StepNames(), calling, [], isAppointment: true))
+				foreach (var error in ValidateScope(need, stepLists, appointmentPath, appointmentSteps, step.Appointment.Finally, new StepNames(), calling, [], loops: loops is null ? null : [], isAppointment: true))
 					yield return error;
 			}
 
 			if (step is { Kind: StepKind.Call, List: { } id } && !string.IsNullOrWhiteSpace(id))
 			{
-				if (stepLists is null || !stepLists.TryGetValue(id, out var list))
+				if (stepLists is null || !stepLists.TryGetValue(id, out var calledList))
 				{
 					yield return OurResources.DataIdUnknown.FormatCurrentCulture($"{stepPath}.list", id, "stepLists");
 				}
@@ -1223,7 +1343,8 @@ public sealed class Need : IIdentified
 				}
 				else
 				{
-					foreach (var error in ValidateScope(need, stepLists, $"stepLists[{id}]", list.Steps ?? [], names, [.. calling, id], list.OnFail is null ? [] : [($"stepLists[{id}].onFail", list.OnFail)]))
+					foreach (var error in ValidateScope(need, stepLists, $"stepLists[{id}]", calledList.Steps ?? [], calledList.Finally, names, [.. calling, id],
+						calledList.OnFail is null ? [] : [($"stepLists[{id}].onFail", calledList.OnFail)], loops, isFinally: isFinally))
 						yield return error;
 				}
 			}
@@ -1231,12 +1352,15 @@ public sealed class Need : IIdentified
 	}
 
 	/// <summary>
-	/// Checks that the answers a condition names were asked for by steps before it.
+	/// Checks that the answers a condition names were asked for by steps before it, and the bundles it names were taken or
+	/// made by them.
 	/// </summary>
-	private static IEnumerable<string> ValidateAnswers(string path, StepCondition? when, StepNames names)
+	private static IEnumerable<string> ValidateNames(string path, StepCondition? when, StepNames names, bool isFinally)
 	{
 		foreach (var (conditionPath, condition) in GetConditionsWithin(path, when))
 		{
+			if (condition.Carrying is { } carrying && !string.IsNullOrWhiteSpace(carrying) && !names.TryGetBundle(carrying, isFinally, out _) && !names.IsOpen)
+				yield return OurResources.StepBundleUnknown.FormatCurrentCulture($"{conditionPath}.carrying", carrying);
 			foreach (var (name, answer) in new[] { ("answeredYes", condition.AnsweredYes), ("answeredNo", condition.AnsweredNo) })
 			{
 				if (answer is not null && !names.Answers.Contains(answer) && !names.IsOpen)
@@ -1270,7 +1394,25 @@ public sealed class Need : IIdentified
 		public HashSet<string> Places { get; } = new(StringComparer.Ordinal);
 
 		public HashSet<string> Answers { get; } = new(StringComparer.Ordinal);
+
+		/// <summary>
+		/// The bundles other bundles were made in place of, with the kind of things taken into them. "Finally" steps can still
+		/// name them, since they can be carried out before the bundle is replaced.
+		/// </summary>
+		public Dictionary<string, StepItemKind?> Replaced { get; } = new(StringComparer.Ordinal);
+
+		/// <summary>
+		/// Gets whether a bundle was taken or made, and the kind of things taken into it, counting those replaced since, for
+		/// "finally" steps.
+		/// </summary>
+		public bool TryGetBundle(string id, bool isFinally, out StepItemKind? kind) => Bundles.TryGetValue(id, out kind) || (isFinally && Replaced.TryGetValue(id, out kind));
 	}
+
+	/// <summary>
+	/// What validating a list of steps keeps track of: the need they're for, if known, the step lists, the names taken so
+	/// far, the step lists being called, and the ids of the steps of the need, step list, or appointment they're in.
+	/// </summary>
+	private sealed record StepListContext(Need? Need, IReadOnlyDictionary<string, StepList>? StepLists, StepNames Names, IReadOnlyList<string> Calling, StepScope Scope);
 
 	/// <summary>
 	/// The ids of the steps of a need, step list, or appointment, and the steps "onFail" settings among them skip to.
@@ -1284,7 +1426,7 @@ public sealed class Need : IIdentified
 		public void AddSkips(string path, StepFailure failure)
 		{
 			foreach (var result in failure.Results.Where(x => x.Kind == StepFailureKind.SkipTo))
-				Skips.Add(($"{path}.skipTo", result.SkipTo ?? ""));
+				Skips.Add(($"{path}.skipTo", result.Target ?? ""));
 		}
 	}
 
@@ -1409,6 +1551,11 @@ public sealed class Need : IIdentified
 	/// Gets the words for a level of the need, or null if it isn't shown to the player.
 	/// </summary>
 	public string? GetLevelTitle(double level) => Levels is { Count: > 0 } levels ? (levels.LastOrDefault(x => x.Minimum <= level) ?? levels[0]).Title : null;
+
+	/// <summary>
+	/// Whether a level of the need is in its last, worst level, of two or more shown to the player.
+	/// </summary>
+	public bool IsWorstLevel(double level) => Levels is { Count: > 1 } levels && level >= levels[^1].Minimum;
 
 	private StepLayout? m_layout;
 	private StepLayout? m_ownLayout;
@@ -1626,6 +1773,69 @@ public sealed class ClothingSchedule
 		if (ChangeMinutes < 1)
 			yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.changeMinutes", ChangeMinutes.Minutes, 1);
 	}
+}
+
+/// <summary>
+/// The other ways the player is offered to wait, besides waiting until something changes, and to spend less time on a
+/// quota need measured in time than the shift anyone else would choose.
+/// </summary>
+public sealed class PlayerTimeSettings
+{
+	/// <summary>
+	/// The other ways to wait, in the order they're offered.
+	/// </summary>
+	public IReadOnlyList<PlayerTimeChoice> Waits { get; init; } = [];
+
+	/// <summary>
+	/// The shorter shifts, in the order they're offered.
+	/// </summary>
+	public IReadOnlyList<PlayerTimeChoice> Shifts { get; init; } = [];
+
+	internal IEnumerable<string> Validate()
+	{
+		const string path = $"{ScheduleSettings.SectionName}.player";
+		foreach (var (name, choices) in new[] { ("waits", Waits), ("shifts", Shifts) })
+		{
+			for (var index = 0; index < choices.Count; index++)
+			{
+				var choice = choices[index];
+				var choicePath = $"{path}.{name}[{index}]";
+				if (choice is null)
+					yield return OurResources.DataValueMissing.FormatCurrentCulture(choicePath);
+				else if ((choice.Minutes is null) == (choice.Until is null))
+					yield return OurResources.PlayerTimeChoiceInvalid.FormatCurrentCulture(choicePath);
+				else if (choice.Minutes is { } minutes && minutes < 1)
+					yield return OurResources.DataNumberTooSmall.FormatCurrentCulture($"{choicePath}.minutes", minutes.Minutes, 1);
+			}
+		}
+	}
+}
+
+/// <summary>
+/// How long the player can choose to wait or spend on something: so many minutes, or until a time.
+/// </summary>
+public sealed class PlayerTimeChoice
+{
+	/// <summary>
+	/// So many minutes.
+	/// </summary>
+	public Duration? Minutes { get; init; }
+
+	/// <summary>
+	/// Until a time worked out when it's offered.
+	/// </summary>
+	public PlayerTimeUntil? Until { get; init; }
+}
+
+/// <summary>
+/// A time the player can choose to wait or spend on something until.
+/// </summary>
+public enum PlayerTimeUntil
+{
+	/// <summary>
+	/// The start of the next part of the day.
+	/// </summary>
+	NextDayPart,
 }
 
 /// <summary>

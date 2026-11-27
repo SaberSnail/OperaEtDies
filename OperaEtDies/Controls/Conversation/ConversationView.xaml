@@ -25,7 +25,7 @@
 					Content="{x:Static operaEtDies:OurResources.CloseView}"
 					DockPanel.Dock="Right" />
 				<TextBlock
-					FontSize="{DynamicResource TitleFontSize}"
+					Style="{DynamicResource TitleTextStyle}"
 					Text="{Binding Title}"
 					TextWrapping="Wrap" />
 			</DockPanel>
@@ -44,7 +44,7 @@
 					Stretch="Uniform"
 					Visibility="{Binding Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 				<TextBlock
-					Foreground="{DynamicResource FontLightBrush}"
+					Foreground="{DynamicResource TextMutedBrush}"
 					Text="{Binding Activity}"
 					TextWrapping="Wrap" />
 			</DockPanel>
@@ -55,7 +55,7 @@
 				Margin="0,12,0,0"
 				HorizontalScrollBarVisibility="Disabled"
 				VerticalScrollBarVisibility="Auto">
-				<ItemsControl ItemsSource="{Binding Lines}">
+				<ItemsControl FontFamily="{DynamicResource NarrativeFontFamily}" ItemsSource="{Binding Lines}">
 					<ItemsControl.ItemTemplate>
 						<DataTemplate>
 							<TextBlock
@@ -74,6 +74,7 @@
 						MinWidth="160"
 						Height="32"
 						Padding="12,0"
+						operaEtDies:Hotkeys.Badge="1"
 						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AskWhatDoing}"
 						Content="{Binding AskWhatDoingText}" />
 					<Button
@@ -81,6 +82,7 @@
 						Height="32"
 						Margin="8,0,0,0"
 						Padding="12,0"
+						operaEtDies:Hotkeys.Badge="2"
 						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Socialize}"
 						Content="{Binding SocializeText}" />
 					<!--  Asking the question of the player's next "ask" step comes last, so the other buttons don't move.  -->
@@ -89,6 +91,7 @@
 						Height="32"
 						Margin="8,0,0,0"
 						Padding="12,0"
+						operaEtDies:Hotkeys.Badge="3"
 						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AskStep}"
 						Content="{Binding AskStepText}"
 						Visibility="{Binding AskStepText, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
@@ -97,10 +100,21 @@
 						Height="32"
 						Margin="8,0,0,0"
 						Padding="12,0"
+						operaEtDies:Hotkeys.Badge="4"
 						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CallOff}"
 						Content="{x:Static operaEtDies:OurResources.ConversationCallOff}"
 						ToolTip="{x:Static operaEtDies:OurResources.ConversationCallOffToolTip}"
 						Visibility="{Binding HasCallOff, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
+					<!--  Asking to start an appointment with the person comes after the rest, so they don't move.  -->
+					<Button
+						MinWidth="120"
+						Height="32"
+						Margin="8,0,0,0"
+						Padding="12,0"
+						operaEtDies:Hotkeys.Badge="5"
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AskToStart}"
+						Content="{Binding AskToStartText}"
+						Visibility="{Binding AskToStartText, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 				</StackPanel>
 				<StackPanel Margin="0,8,0,0" Orientation="Horizontal">
 					<TextBlock VerticalAlignment="Center" Text="{x:Static operaEtDies:OurResources.ConversationAskAboutLabel}" />
@@ -116,6 +130,7 @@
 						Height="32"
 						Margin="8,0,0,0"
 						Padding="12,0"
+						operaEtDies:Hotkeys.Badge="6"
 						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AskAbout}"
 						Content="{Binding AskAboutText}" />
 				</StackPanel>
@@ -142,7 +157,7 @@
 					Stretch="Uniform"
 					Visibility="{Binding Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 				<TextBlock
-					Foreground="{DynamicResource FontLightBrush}"
+					Foreground="{DynamicResource TextMutedBrush}"
 					Text="{Binding Activity}"
 					TextWrapping="Wrap" />
 			</DockPanel>
@@ -156,6 +171,7 @@
 					MinWidth="120"
 					Height="32"
 					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="1"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Accept}"
 					Content="{Binding AcceptText}" />
 				<Button
@@ -163,6 +179,7 @@
 					Height="32"
 					Margin="8,0,0,0"
 					Padding="12,0"
+					operaEtDies:Hotkeys.Badge="2"
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Decline}"
 					Content="{x:Static operaEtDies:OurResources.TalkPromptDecline}" />
 			</StackPanel>

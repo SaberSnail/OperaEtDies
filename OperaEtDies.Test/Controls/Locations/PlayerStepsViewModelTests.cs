@@ -45,7 +45,7 @@ public sealed class PlayerStepsViewModelTests
 		var player = world.Player;
 		var need = new Need
 		{
-			Id = "choosing", Title = "Choosing", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			Id = "choosing", Title = "Choosing", Icon = "icon", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings = [new Step { Kind = StepKind.Choose, Options = [new StepOption { Player = new StepOptionPlayer { Title = "Rest" }, Steps = [TestData.Do(TestData.Amount(10))] }] }],
 		};
 		var sequence = Scheduler.StartSequence(player, need, 0, null, [], null);
@@ -55,5 +55,34 @@ public sealed class PlayerStepsViewModelTests
 
 		Assert.That(steps.Steps.Select(x => x.Text), Is.EqualTo(new[] { "Or: Rest", "…" }));
 		Assert.That((steps.Next, steps.CanDoStep()), Is.EqualTo(("Next: Choose what to do", false)));
+	}
+
+	[Test]
+	public void TheSplitButtonPressesTheStepsButtonOrHasItDone()
+	{
+		var (_, world) = GameWorldTests.CreateWorld(0, withSchedules: true, isHeadless: false);
+		var player = world.Player;
+		var water = world.GameData.Schedules.Needs.Single(x => x.Id == "water");
+		var sequence = Scheduler.StartSequence(player, water, 1, null, [], null);
+		var (actionCount, stepCount, allCount) = (0, 0, 0);
+		var action = new PlayerStepActionViewModel("Fetch water", isEnabled: true, note: null, () => actionCount++);
+		var steps = new PlayerStepsViewModel(sequence, [new PlayerStep(sequence, PlayerStepKind.Step, 1, IsCurrent: true)], player, isExpanded: false, action, choices: [], others: [],
+			() => stepCount++, () => allCount++, () => { }, canDoStep: true, firstNumber: 3);
+
+		// With a button, the step's button is the default, numbered first, and having it or all of it done is in the menu.
+		Assert.That((steps.Primary.Text, steps.Primary.Badge), Is.EqualTo(("Fetch water", "3")));
+		Assert.That(steps.Primary.Alternatives.Select(x => x.Text), Is.EqualTo(new[] { "Do it for me", "Do it all for me" }));
+		Assert.That(steps.ChooseNumber(3), Is.True);
+		Assert.That((steps.OpenChoiceMenu(4), steps.OpenChoiceMenu(3), steps.Primary.IsMenuOpen), Is.EqualTo((false, true, true)));
+		Assert.That(steps.Primary.ChooseAlternative(1), Is.True);
+		steps.Primary.Alternatives[1].Do();
+		Assert.That((actionCount, stepCount, allCount, steps.Primary.IsMenuOpen), Is.EqualTo((1, 1, 1, false)));
+
+		// Without one, having the step done is the default, and only having all of it done is in the menu, which isn't
+		// shown while it can't be chosen, since the button's text changes from step to step.
+		var none = new PlayerStepsViewModel(sequence, [new PlayerStep(sequence, PlayerStepKind.Step, 1, IsCurrent: true)], player, isExpanded: false, action: null, choices: [], others: [],
+			() => stepCount++, () => allCount++, () => { }, canDoStep: false);
+		Assert.That((none.Primary.Text, none.Primary.CanDo()), Is.EqualTo(("Do it for me", false)));
+		Assert.That((none.Primary.Alternatives.Single().Text, none.Primary.HasMenu), Is.EqualTo(("Do it all for me", true)));
 	}
 }

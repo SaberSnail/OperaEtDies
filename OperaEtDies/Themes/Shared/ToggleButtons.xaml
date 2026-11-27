@@ -3,8 +3,10 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:local="clr-namespace:OperaEtDies">
 
+	<!--  States are triggers on the theme brushes rather than color animations, so a new theme changes them at once.  -->
 	<Style x:Key="ToggleButtonStyleBase" TargetType="{x:Type ToggleButton}">
 		<Setter Property="OverridesDefaultStyle" Value="true" />
+		<Setter Property="FocusVisualStyle" Value="{DynamicResource KeyboardFocusVisualStyle}" />
 		<Setter Property="local:TemplateHelper.CornerRadius" Value="{DynamicResource ControlBorderRadius}" />
 		<Setter Property="BorderThickness" Value="{DynamicResource ControlBorderThickness}" />
 
@@ -13,75 +15,34 @@
 				<ControlTemplate TargetType="{x:Type ToggleButton}">
 					<Border
 						x:Name="Border"
-						Background="{DynamicResource ControlBackgroundBaseBrush}"
-						BorderBrush="{DynamicResource ControlBackgroundBaseBrush}"
+						Background="{DynamicResource ControlBrush}"
+						BorderBrush="{DynamicResource RuleBrush}"
 						BorderThickness="{TemplateBinding BorderThickness}"
 						CornerRadius="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=(local:TemplateHelper.CornerRadius)}"
-						TextBlock.Foreground="{DynamicResource FontBrush}">
+						TextBlock.Foreground="{DynamicResource TextBrush}">
 						<ContentPresenter
 							Margin="2"
 							HorizontalAlignment="Center"
 							VerticalAlignment="Center"
 							RecognizesAccessKey="True" />
-
-						<VisualStateManager.VisualStateGroups>
-							<VisualStateGroup x:Name="CommonStates">
-								<VisualStateGroup.Transitions>
-									<VisualTransition GeneratedDuration="0:0:0.25" />
-									<VisualTransition GeneratedDuration="0" To="Pressed" />
-									<VisualTransition GeneratedDuration="0" From="Pressed" />
-								</VisualStateGroup.Transitions>
-
-								<VisualState x:Name="Normal" />
-
-								<VisualState x:Name="MouseOver">
-									<Storyboard>
-										<ColorAnimationUsingKeyFrames Storyboard.TargetName="Border" Storyboard.TargetProperty="BorderBrush.(SolidColorBrush.Color)">
-											<EasingColorKeyFrame KeyTime="0" Value="{DynamicResource ControlBorderBaseHoveredColor}" />
-										</ColorAnimationUsingKeyFrames>
-									</Storyboard>
-								</VisualState>
-
-								<VisualState x:Name="Pressed">
-									<Storyboard>
-										<ColorAnimationUsingKeyFrames Storyboard.TargetName="Border" Storyboard.TargetProperty="BorderBrush.(SolidColorBrush.Color)">
-											<EasingColorKeyFrame KeyTime="0" Value="{DynamicResource ControlBorderBasePressedColor}" />
-										</ColorAnimationUsingKeyFrames>
-									</Storyboard>
-								</VisualState>
-
-								<VisualState x:Name="Disabled">
-									<Storyboard>
-										<ColorAnimationUsingKeyFrames Storyboard.TargetName="Border" Storyboard.TargetProperty="BorderBrush.(SolidColorBrush.Color)">
-											<EasingColorKeyFrame KeyTime="0" Value="{DynamicResource ControlBackgroundBaseDisabledColor}" />
-										</ColorAnimationUsingKeyFrames>
-										<ColorAnimationUsingKeyFrames Storyboard.TargetName="Border" Storyboard.TargetProperty="(TextBlock.Foreground).(SolidColorBrush.Color)">
-											<EasingColorKeyFrame KeyTime="0" Value="{DynamicResource FontDisabledColor}" />
-										</ColorAnimationUsingKeyFrames>
-									</Storyboard>
-								</VisualState>
-							</VisualStateGroup>
-
-							<VisualStateGroup x:Name="CheckStates">
-								<VisualState x:Name="Checked">
-									<Storyboard>
-										<ColorAnimationUsingKeyFrames Storyboard.TargetName="Border" Storyboard.TargetProperty="Background.(SolidColorBrush.Color)">
-											<EasingColorKeyFrame KeyTime="0" Value="{DynamicResource ControlBackgroundBasePressedColor}" />
-										</ColorAnimationUsingKeyFrames>
-									</Storyboard>
-								</VisualState>
-								<VisualState x:Name="Unchecked" />
-								<VisualState x:Name="Indeterminate" />
-								<VisualState x:Name="Disabled">
-									<Storyboard>
-										<ColorAnimationUsingKeyFrames Storyboard.TargetName="Border" Storyboard.TargetProperty="Background.(SolidColorBrush.Color)">
-											<EasingColorKeyFrame KeyTime="0" Value="{DynamicResource ControlBackgroundBaseDisabledColor}" />
-										</ColorAnimationUsingKeyFrames>
-									</Storyboard>
-								</VisualState>
-							</VisualStateGroup>
-						</VisualStateManager.VisualStateGroups>
 					</Border>
+
+					<ControlTemplate.Triggers>
+						<Trigger Property="IsChecked" Value="true">
+							<Setter TargetName="Border" Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+						</Trigger>
+						<Trigger Property="IsMouseOver" Value="true">
+							<Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource RuleStrongBrush}" />
+						</Trigger>
+						<Trigger Property="IsPressed" Value="true">
+							<Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource RuleStrongBrush}" />
+						</Trigger>
+						<Trigger Property="IsEnabled" Value="false">
+							<Setter TargetName="Border" Property="Background" Value="{DynamicResource ControlDisabledBrush}" />
+							<Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource ControlDisabledBrush}" />
+							<Setter TargetName="Border" Property="TextBlock.Foreground" Value="{DynamicResource TextDisabledBrush}" />
+						</Trigger>
+					</ControlTemplate.Triggers>
 				</ControlTemplate>
 			</Setter.Value>
 		</Setter>

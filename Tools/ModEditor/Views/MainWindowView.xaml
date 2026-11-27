@@ -10,9 +10,9 @@
 	Height="900"
 	MinWidth="700"
 	MinHeight="400"
-	Background="{DynamicResource WindowBackgroundBrush}"
+	Background="{DynamicResource SurfaceBrush}"
 	FontSize="{DynamicResource DefaultFontSize}"
-	Foreground="{DynamicResource FontBrush}"
+	Foreground="{DynamicResource TextBrush}"
 	Icon="pack://application:,,,/ModEditor;component/Icon.ico"
 	WindowStartupLocation="CenterScreen">
 
@@ -118,7 +118,7 @@
 					<TextBlock
 						Margin="0,12,0,0"
 						HorizontalAlignment="Center"
-						Foreground="{DynamicResource FontLightBrush}"
+						Foreground="{DynamicResource TextMutedBrush}"
 						Text="Open a mod folder to edit it. An empty folder starts a new mod."
 						TextWrapping="Wrap" />
 					<Button
@@ -419,7 +419,7 @@
 												Text="Comments" />
 											<TextBlock
 												Margin="0,2,0,4"
-												Foreground="{DynamicResource FontLightBrush}"
+												Foreground="{DynamicResource TextMutedBrush}"
 												Text="{Binding CommentsHint}"
 												TextWrapping="Wrap" />
 											<TextBox
@@ -433,7 +433,7 @@
 										</StackPanel>
 										<TextBlock
 											Margin="8"
-											Foreground="{DynamicResource FontLightBrush}"
+											Foreground="{DynamicResource TextMutedBrush}"
 											Text="{Binding FormMessage}"
 											TextWrapping="Wrap" />
 									</DockPanel>
@@ -464,7 +464,7 @@
 										DockPanel.Dock="Bottom">
 										<Grid>
 											<TextBlock
-												Foreground="{DynamicResource FontLightBrush}"
+												Foreground="{DynamicResource TextMutedBrush}"
 												Text="Changes apply as you type, once the JSON is valid. Selecting a file edits its whole text."
 												TextWrapping="Wrap"
 												Visibility="{Binding EditorError, Converter={x:Static utility:CommonConverters.IsNotNullToVisibility}}" />
@@ -496,7 +496,7 @@
 									<TextBlock
 										Margin="4,6,4,6"
 										DockPanel.Dock="Top"
-										Foreground="{DynamicResource FontLightBrush}"
+										Foreground="{DynamicResource TextMutedBrush}"
 										Text="{Binding ChangesMessage}"
 										TextWrapping="Wrap" />
 									<ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
@@ -538,7 +538,7 @@
 																</Grid.RowDefinitions>
 																<TextBlock
 																	Margin="0,0,8,0"
-																	Foreground="{DynamicResource FontLightBrush}"
+																	Foreground="{DynamicResource TextMutedBrush}"
 																	Text="Before"
 																	Visibility="{Binding Before, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 																<TextBox
@@ -553,7 +553,7 @@
 																<TextBlock
 																	Grid.Row="1"
 																	Margin="0,0,8,0"
-																	Foreground="{DynamicResource FontLightBrush}"
+																	Foreground="{DynamicResource TextMutedBrush}"
 																	Text="After"
 																	Visibility="{Binding After, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 																<TextBox
@@ -572,7 +572,7 @@
 																<ItemsControl.ItemTemplate>
 																	<DataTemplate>
 																		<TextBlock Margin="0,1,0,0">
-																			<Run Foreground="{DynamicResource FontLightBrush}" Text="by " />
+																			<Run Foreground="{DynamicResource TextMutedBrush}" Text="by " />
 																			<Hyperlink Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=GoTo}" ToolTip="Go to it in the Mod tab">
 																				<Run Text="{Binding Title, Mode=OneWay}" />
 																			</Hyperlink>

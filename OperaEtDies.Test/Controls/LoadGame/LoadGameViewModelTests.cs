@@ -2,7 +2,7 @@ using System.IO;
 using OperaEtDies.Controls.LoadGame;
 using OperaEtDies.GameState;
 using OperaEtDies.Test.GameState;
-using OperaEtDies.Windows.Main;
+using OperaEtDies.Controls.Game;
 
 namespace OperaEtDies.Test.Controls.LoadGame;
 
@@ -182,10 +182,10 @@ public sealed class LoadGameViewModelTests
 	}
 
 	[Test]
-	public void MainWindowSavesTheGame()
+	public void GameScreenSavesTheGame()
 	{
 		var (_, world) = GameWorldTests.CreateWorld();
-		using var mainWindow = new MainWindowViewModel(TestData.CreateGameInfo().Title, world, saveSettings: m_settings);
+		using var mainWindow = new GameScreenViewModel(world, saveSettings: m_settings);
 
 		Assert.That(mainWindow.CanSaveGame(), Is.True);
 		mainWindow.SaveGame();
@@ -197,7 +197,7 @@ public sealed class LoadGameViewModelTests
 		mainWindow.TravelTo(world.Player.Home.Connections[0]);
 		Assert.That(mainWindow.SaveStatus, Is.Null);
 
-		using var withoutSettings = new MainWindowViewModel(TestData.CreateGameInfo().Title, world);
+		using var withoutSettings = new GameScreenViewModel(world);
 		Assert.That(withoutSettings.CanSaveGame(), Is.False);
 	}
 

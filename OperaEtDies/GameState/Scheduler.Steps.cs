@@ -103,6 +103,7 @@ internal sealed partial class Scheduler
 		[StepKind.Repeat] = new RepeatHandler(),
 		[StepKind.Choose] = new ChooseHandler(),
 		[StepKind.Call] = new PassHandler(),
+		[StepKind.Group] = new PassHandler(),
 		[StepKind.Stop] = new StopHandler(),
 		[StepKind.Remember] = new RememberHandler(),
 		[StepKind.Wait] = new WaitHandler(),
@@ -189,9 +190,10 @@ internal sealed partial class Scheduler
 
 	/// <summary>
 	/// "meet": going to an appointment's place and waiting there for the other, done once the appointment starts, which it
-	/// does once both are there at its time. The game walks there and waits, until its time and then for the other. The
-	/// player walks there themselves, and waits by being there, or has it done for them. It fails as "noShow" once the wait
-	/// is over.
+	/// does once one asks the other and they say yes (see <see cref="TryStartAppointment"/>), even before its time. The game
+	/// walks there and waits, until its time and then for the other, or until it would ask again someone who said no. The
+	/// player walks there themselves, and waits by being there, or has it done for them. Once the wait is over, it fails as
+	/// "no" if someone said no to starting it and they're still there, or otherwise as "noShow".
 	/// </summary>
 	private sealed class MeetHandler : StepHandler
 	{
@@ -201,9 +203,10 @@ internal sealed partial class Scheduler
 		{
 			var (person, time) = (context.Person, context.Time);
 			return context.Sequence.Appointment is not { } appointment ? StepCheck.Fail(FailCause.NoShow) :
-				appointment.IsStarted || (person.Location == appointment.Place && time >= appointment.Time && scheduler.TryStartAppointment(appointment, time, person)) ? StepCheck.Done :
-				time >= scheduler.GetMeetEnd(appointment) ? StepCheck.Fail(FailCause.NoShow) :
-				StepCheck.NotDone;
+				appointment.IsStarted || (person.Location == appointment.Place && scheduler.TryStartAppointment(appointment, time, person)) ? StepCheck.Done :
+				time < scheduler.GetMeetEnd(appointment) ? StepCheck.NotDone :
+				appointment.DeclinedBy is { } declined ? StepCheck.Fail(FailCause.No, declined) :
+				StepCheck.Fail(FailCause.NoShow);
 		}
 
 		public override StepWork CarryOut(Scheduler scheduler, StepContext context)
@@ -211,6 +214,8 @@ internal sealed partial class Scheduler
 			var (person, appointment, time) = (context.Person, context.Sequence.Appointment!, context.Time);
 			var distances = scheduler.GetDistances(person.Location);
 			var waitEnd = time < appointment.Time ? appointment.Time : scheduler.GetMeetEnd(appointment);
+			if (scheduler.GetAskAgainTime(appointment) is { } again && again > time && again < waitEnd)
+				waitEnd = again;
 			return person.Location == appointment.Place ? StepWork.Give([new MeetTask(appointment, (int) Math.Max(scheduler.m_calendar.GetTotalMinutes(waitEnd - time), 1))]) :
 				distances.ContainsKey(appointment.Place) ? StepWork.Give(GetPath(person.Location, appointment.Place, distances).Select(PersonTask (x) => new TravelTask(x)).ToList()) :
 				StepWork.Fail(FailCause.Unreachable);
@@ -351,6 +356,7 @@ internal sealed partial class Scheduler
 				return StepWork.Fail(FailCause.Missing);
 
 			var bundle = sequence.RemoveBundle(step.Bundle!.Id)!;
+			sequence.KeptSince = null;
 			var world = scheduler.m_world;
 			if (step.ItemKind is not null)
 				ClothingRules.Put(person, bundle.Items, step.AfterDelay is { } delay ? scheduler.m_calendar.AddMinutes(context.Time, delay.Minutes) : null, step.DelayActivity);
@@ -370,11 +376,18 @@ internal sealed partial class Scheduler
 		{
 			var (person, sequence, step) = (context.Person, context.Sequence, context.Step);
 			var world = scheduler.m_world;
+
+			// The bundle made in place of another carries its things, such as the washing once it's washed.
+			var items = new List<Item>();
 			if (step.Replaces is { } replaced && sequence.RemoveBundle(replaced) is { } old)
+			{
+				items.AddRange(old.Items);
 				world.Unpack(old);
+			}
+
 			if (sequence.RemoveBundle(step.Bundle!.Id) is { } existing)
 				world.Unpack(existing);
-			sequence.AddBundle(step.Bundle.Id, world.CreateBundle(person, step.Bundle.Title!, []));
+			sequence.AddBundle(step.Bundle.Id, world.CreateBundle(person, step.Bundle.Title!, items));
 			return StepWork.Done;
 		}
 
@@ -383,8 +396,9 @@ internal sealed partial class Scheduler
 
 	/// <summary>
 	/// "dress" and "undress": done once the person has on an outfit of the kind, or has taken it off. The game changes, and
-	/// the partner changes too, if the step says (the player's clothes are changed for them). The player changes
-	/// themselves.
+	/// the partner changes too, if the step says (the player's clothes are changed for them). While either of them wouldn't
+	/// be comfortable in the outfit they'd change into, they wait for privacy, a few minutes at a time, and it fails as "shy"
+	/// once they've waited the most they will. The player changes themselves.
 	/// </summary>
 	private sealed class ChangeHandler : StepHandler
 	{
@@ -401,20 +415,33 @@ internal sealed partial class Scheduler
 			if (GetStepChange(person, step, time) is not { } change)
 				return StepWork.Fail(FailCause.Missing);
 
-			// The partner changes at the same time, if they're there and can, such as a friend going swimming with them. The
-			// player's clothes are changed for them, at once.
+			// The partner changes at the same time, if they're there and can, such as a friend going swimming with them. No one
+			// changes into clothes they wouldn't be comfortable in there and then, on the step.
 			var world = scheduler.m_world;
-			if (step.WithPartner && sequence.Partner is { } changing && changing.Location == person.Location && !changing.IsAsleep &&
-				changing.CurrentTask is not TalkTask && GetStepChange(changing, step, time) is { } partnerChange)
+			var changing = step.WithPartner && sequence.Partner is { } partner && partner.Location == person.Location && !partner.IsAsleep && partner.CurrentTask is not TalkTask ? partner : null;
+			var partnerChange = changing is null ? null : GetStepChange(changing, step, time);
+			if (IsTooShyToChange(world.GameData, person, change, step, time) || (partnerChange is not null && IsTooShyToChange(world.GameData, changing!, partnerChange, step, time)))
 			{
-				if (world.IsAutomatic(changing))
+				// They wait a while for whoever makes them uncomfortable to leave, unless it's their own household, who won't.
+				var coverUp = world.GameData.ModestySettings.CoverUp;
+				var isWaitingUseless = IsTooShyToChange(world.GameData, person, change, step, time, isHouseholdOnly: true, partner: partnerChange is null ? null : changing) ||
+					(partnerChange is not null && IsTooShyToChange(world.GameData, changing!, partnerChange, step, time, isHouseholdOnly: true, partner: person));
+				sequence.Until ??= scheduler.m_calendar.AddMinutes(time, coverUp.WaitMinutes);
+				return time < sequence.Until && !isWaitingUseless ? StepWork.Give([new PrivacyTask(coverUp.CheckMinutes)]) :
+					StepWork.Fail(FailCause.Shy, IsTooShyToChange(world.GameData, person, change, step, time) ? person : changing);
+			}
+
+			// The player's clothes are changed for them, at once.
+			if (partnerChange is not null)
+			{
+				if (world.IsAutomatic(changing!))
 				{
-					changing.Interrupt(partnerChange, time, scheduler.m_calendar.AddMinutes(time, scheduler.GetMinutes(changing, partnerChange)));
+					changing!.Interrupt(partnerChange, time, scheduler.m_calendar.AddMinutes(time, scheduler.GetMinutes(changing, partnerChange)));
 					world.OnTaskStarted(changing, partnerChange, time);
 				}
 				else
 				{
-					ClothingRules.Change(changing, partnerChange.Outfit, partnerChange.IsTakingOff, time);
+					ClothingRules.Change(changing!, partnerChange.Outfit, partnerChange.IsTakingOff, time);
 				}
 			}
 
@@ -422,7 +449,7 @@ internal sealed partial class Scheduler
 		}
 
 		public override StepCheck AfterTasks(Scheduler scheduler, StepContext context) =>
-			Check(scheduler, context).State == StepState.Done ? StepCheck.Done : StepCheck.Fail(FailCause.Missing);
+			Check(scheduler, context).State == StepState.Done ? StepCheck.Done : context.Sequence.Until is not null ? StepCheck.NotDone : StepCheck.Fail(FailCause.Missing);
 	}
 
 	/// <summary>
@@ -463,6 +490,10 @@ internal sealed partial class Scheduler
 
 		public override bool IsForPlayer(Scheduler scheduler, StepContext context) => true;
 	}
+
+	/// <summary>
+	/// "group": isn't laid out among the steps, only the steps it carries out, as for a "call" step.
+	/// </summary>
 
 	/// <summary>
 	/// "repeat": after a pass of its steps, goes back to the first of them while there's time left of the time chosen and
@@ -561,7 +592,7 @@ internal sealed partial class Scheduler
 		}
 
 		public override StepCheck AfterTasks(Scheduler scheduler, StepContext context) =>
-			context.Step.Kind == StepKind.Ask && !context.Sequence.Answers.GetValueOrDefault(context.Step.Name!) ? StepCheck.Fail(FailCause.No) : StepCheck.Done;
+			context.Step.Kind == StepKind.Ask && !context.Sequence.Answers.GetValueOrDefault(context.Step.Name!) ? (context.Sequence.ShyAnswers.TryGetValue(context.Step.Name!, out var shy) ? StepCheck.Fail(FailCause.Shy, shy) : StepCheck.Fail(FailCause.No, context.Sequence.Partner)) : StepCheck.Done;
 	}
 
 	/// <summary>
@@ -630,9 +661,10 @@ internal enum StepState
 }
 
 /// <summary>
-/// What checking a step found, with why it failed, if it did.
+/// What checking a step found, with why it failed, if it did, and who it was down to, if anyone in particular, such as
+/// who was too shy.
 /// </summary>
-internal readonly record struct StepCheck(StepState State, FailCause? Cause = null)
+internal readonly record struct StepCheck(StepState State, FailCause? Cause = null, Person? Who = null)
 {
 	public static StepCheck NotDone => new(StepState.NotDone);
 
@@ -640,7 +672,7 @@ internal readonly record struct StepCheck(StepState State, FailCause? Cause = nu
 
 	public static StepCheck Passed => new(StepState.Passed);
 
-	public static StepCheck Fail(FailCause cause) => new(StepState.Failed, cause);
+	public static StepCheck Fail(FailCause cause, Person? who = null) => new(StepState.Failed, cause, who);
 }
 
 /// <summary>
@@ -652,7 +684,7 @@ internal abstract record StepWork
 
 	public static StepWork Give(IReadOnlyList<PersonTask> tasks) => new WithTasks(tasks);
 
-	public static StepWork Fail(FailCause cause) => new Failed(cause);
+	public static StepWork Fail(FailCause cause, Person? who = null) => new Failed(cause, who);
 
 	public static StepWork GoToStep(int step) => new GoTo(step);
 
@@ -662,7 +694,7 @@ internal abstract record StepWork
 	{
 	}
 
-	public sealed record Failed(FailCause Cause) : StepWork;
+	public sealed record Failed(FailCause Cause, Person? Who = null) : StepWork;
 
 	public sealed record GoTo(int Step) : StepWork;
 }

@@ -57,6 +57,26 @@ public sealed class Appointment : NotifyPropertyChangedBase, IWorldObject
 	public bool IsStarted { get; internal set; }
 
 	/// <summary>
+	/// Who last said no to starting it, while both are still there, or null if no one has since either of them last came.
+	/// </summary>
+	public Person? DeclinedBy { get; private set; }
+
+	/// <summary>
+	/// When <see cref="DeclinedBy"/> said no.
+	/// </summary>
+	public TimePoint? DeclinedAt { get; private set; }
+
+	/// <summary>
+	/// Remembers that someone said no to starting it.
+	/// </summary>
+	internal void Decline(Person person, TimePoint time) => (DeclinedBy, DeclinedAt) = (person, time);
+
+	/// <summary>
+	/// Forgets who said no to starting it, once either of them leaves.
+	/// </summary>
+	internal void ClearDeclined() => (DeclinedBy, DeclinedAt) = (null, null);
+
+	/// <summary>
 	/// Gets the other person keeping the appointment.
 	/// </summary>
 	public Person GetOther(Person person) => person == Worker ? Client : Worker;
@@ -72,14 +92,15 @@ public sealed class Appointment : NotifyPropertyChangedBase, IWorldObject
 	/// </summary>
 	public bool IsOnTheWay(Person person) => GetSequence(person) is { HasSetOff: true };
 
-	public WorldObjectRecord CreateRecord() => new AppointmentRecord(Id, Worker.Id, Client.Id, Need.Id, Step, Place.Id, Time.SaveToString(), IsStarted);
+	public WorldObjectRecord CreateRecord() => new AppointmentRecord(Id, Worker.Id, Client.Id, Need.Id, Step, Place.Id, Time.SaveToString(), IsStarted, DeclinedBy?.Id, DeclinedAt?.SaveToString());
 }
 
 /// <summary>
-/// The saved form of an appointment: who keeps it, the need and "ask" step that made it, where and when, and whether it's
-/// started. Whether each has set off is in their sequence for it.
+/// The saved form of an appointment: who keeps it, the need and "ask" step that made it, where and when, whether it's
+/// started, and who last said no to starting it, and when. Whether each has set off is in their sequence for it.
 /// </summary>
-public sealed record AppointmentRecord(WorldId Id, WorldId Worker, WorldId Client, string Need, int Step, WorldId Place, string Time, bool IsStarted = false) : WorldObjectRecord(Id)
+public sealed record AppointmentRecord(WorldId Id, WorldId Worker, WorldId Client, string Need, int Step, WorldId Place, string Time, bool IsStarted = false,
+	WorldId? DeclinedBy = null, string? DeclinedAt = null) : WorldObjectRecord(Id)
 {
 	internal override IWorldObject Create(WorldLoader loader)
 	{
@@ -88,9 +109,18 @@ public sealed record AppointmentRecord(WorldId Id, WorldId Worker, WorldId Clien
 		var client = loader.Get<Person>(Client);
 		if (worker == client || need.GetAppointmentSteps(Step) is null)
 			throw new SaveLoadException(OurResources.SaveAppointmentInvalid.FormatCurrentCulture(Id, Step));
-		return new Appointment(Id, worker, client, need, Step, loader.Get<Location>(Place), loader.LoadTime(Time))
+		var appointment = new Appointment(Id, worker, client, need, Step, loader.Get<Location>(Place), loader.LoadTime(Time))
 		{
 			IsStarted = IsStarted,
 		};
+		if (DeclinedBy is { } declinedBy)
+		{
+			var by = loader.Get<Person>(declinedBy);
+			if ((by != worker && by != client) || DeclinedAt is null)
+				throw new SaveLoadException(OurResources.SaveAppointmentInvalid.FormatCurrentCulture(Id, Step));
+			appointment.Decline(by, loader.LoadTime(DeclinedAt));
+		}
+
+		return appointment;
 	}
 }

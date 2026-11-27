@@ -8,10 +8,10 @@ namespace OperaEtDies.Controls.Map;
 /// <summary>
 /// A map of the town, drawing each quarter as a rectangle, each path as a line through the edge the quarters share, and
 /// map features such as the river underneath. The quarter the player is in is marked, and so are the quarters of their
-/// home and the place they work, if it isn't their home, and of their next appointment. Developers can choose a quarter to
-/// go there. A mini-map shows just the player's quarter and the quarters connected to it, at a smaller size.
+/// home and the place they work, if it isn't their home, of their next appointment, and of their destination. Choosing a
+/// quarter on the full map makes it the player's destination, and developers can go straight to one. A mini-map shows just the player's quarter and the quarters connected to it, at a smaller size.
 /// </summary>
-public sealed class TownMapViewModel : ViewModelBase
+public sealed class TownMapViewModel : ViewModelBase, ISheet
 {
 	/// <summary>
 	/// The size of one grid cell on the full map, in device-independent pixels.
@@ -24,11 +24,12 @@ public sealed class TownMapViewModel : ViewModelBase
 	public const double MaxMiniMapCellSize = 40;
 
 	/// <summary>
-	/// Creates a map of every quarter in the town. Choosing a quarter goes there, if travel is allowed.
+	/// Creates a map of every quarter in the town. Choosing a quarter makes it the destination, if the given action is
+	/// there to do that, and visiting it goes straight there, if travel is allowed.
 	/// </summary>
 	public TownMapViewModel(IEnumerable<Location> locations, Location current, IEnumerable<Feature>? features = null, bool canTravel = false, Location? home = null, Location? workplace = null,
-		Location? appointment = null)
-		: this(locations.Where(x => x.Bounds is not null).ToList(), current, features, canTravel, DefaultCellSize, clip: null, home, workplace, appointment)
+		Location? appointment = null, Location? destination = null, Action<Location>? chooseDestination = null)
+		: this(locations.Where(x => x.Bounds is not null).ToList(), current, features, canTravel, DefaultCellSize, clip: null, home, workplace, appointment, destination, chooseDestination)
 	{
 	}
 
@@ -37,17 +38,18 @@ public sealed class TownMapViewModel : ViewModelBase
 	/// its paths lead to, scaled to fit within the given size. Features are only shown where they're among those
 	/// quarters.
 	/// </summary>
-	public static TownMapViewModel CreateMiniMap(Location current, IEnumerable<Feature>? features, double maxSize, Location? home = null, Location? workplace = null, Location? appointment = null)
+	public static TownMapViewModel CreateMiniMap(Location current, IEnumerable<Feature>? features, double maxSize, Location? home = null, Location? workplace = null, Location? appointment = null,
+		Location? destination = null)
 	{
 		var quarter = GetQuarter(current);
 		var quarters = quarter is null ? new List<Location>() : new[] { quarter }.Concat(quarter.Exits.Where(x => x.Direction is not null).Select(x => x.Location)).Where(x => x.Bounds is not null).Distinct().ToList();
 		var clip = GetBounds(quarters.Select(x => x.Bounds!.Value).ToList());
 		var cellSize = clip is { } area ? Math.Min(MaxMiniMapCellSize, maxSize / Math.Max(area.Width, area.Height)) : MaxMiniMapCellSize;
-		return new TownMapViewModel(quarters, current, features, canTravel: false, cellSize, clip, home, workplace, appointment);
+		return new TownMapViewModel(quarters, current, features, canTravel: false, cellSize, clip, home, workplace, appointment, destination, chooseDestination: null);
 	}
 
 	private TownMapViewModel(IReadOnlyList<Location> quarters, Location current, IEnumerable<Feature>? features, bool canTravel, double cellSize, MapRect? clip, Location? home, Location? workplace,
-		Location? appointment)
+		Location? appointment, Location? destination, Action<Location>? chooseDestination)
 	{
 		CanTravel = canTravel;
 		CellSize = cellSize;
@@ -65,12 +67,13 @@ public sealed class TownMapViewModel : ViewModelBase
 		var homeQuarter = home is null ? null : GetQuarter(home);
 		var workQuarter = workplace is null || workplace == home ? null : GetQuarter(workplace);
 		var appointmentQuarter = appointment is null ? null : GetQuarter(appointment);
-		Quarters = quarters.Select(x => new TownMapQuarterViewModel(x, minX, minY, cellSize, x == currentQuarter, canTravel, VisitQuarter)
+		Quarters = quarters.Select(x => new TownMapQuarterViewModel(x, minX, minY, cellSize, x == currentQuarter, canTravel, VisitQuarter, chooseDestination)
 		{
 			HasHome = x == homeQuarter,
 			HasWorkplace = x == workQuarter,
 			HasAppointment = x == appointmentQuarter,
 		}).ToList();
+		SetDestination(destination);
 		Features = shownFeatures.Select(x => new TownMapFeatureViewModel(x.Feature, x.Bounds, minX, minY, cellSize)).ToList();
 		Width = (extent?.Width ?? 0) * cellSize;
 		Height = (extent?.Height ?? 0) * cellSize;
@@ -101,12 +104,14 @@ public sealed class TownMapViewModel : ViewModelBase
 		Paths = segments;
 	}
 
-	public event EventHandler? CloseRequested;
-
 	/// <summary>
 	/// Raised when a quarter on the map is chosen, to go there. Only raised if travel is allowed.
 	/// </summary>
 	public event EventHandler<GenericEventArgs<Location>>? TravelRequested;
+
+	public string Title => OurResources.MapHeader;
+
+	public bool IsFullWidth => true;
 
 	public IReadOnlyList<TownMapQuarterViewModel> Quarters { get; }
 
@@ -134,10 +139,15 @@ public sealed class TownMapViewModel : ViewModelBase
 
 	public double Height { get; }
 
-	public void Close()
+	/// <summary>
+	/// Marks the quarter of the player's destination, or none if they have none.
+	/// </summary>
+	public void SetDestination(Location? destination)
 	{
 		VerifyAccess();
-		CloseRequested.Raise(this);
+		var quarter = destination is null ? null : GetQuarter(destination);
+		foreach (var shown in Quarters)
+			shown.HasDestination = shown.Quarter == quarter;
 	}
 
 	/// <summary>
@@ -186,7 +196,7 @@ public sealed class TownMapViewModel : ViewModelBase
 /// </summary>
 public sealed class TownMapQuarterViewModel : ViewModelBase
 {
-	public TownMapQuarterViewModel(Location quarter, int minX, int minY, double cellSize, bool isCurrent, bool canTravel, Action<Location> visit)
+	public TownMapQuarterViewModel(Location quarter, int minX, int minY, double cellSize, bool isCurrent, bool canTravel, Action<Location> visit, Action<Location>? chooseDestination = null)
 	{
 		Quarter = quarter;
 		var bounds = quarter.Bounds!.Value;
@@ -198,6 +208,7 @@ public sealed class TownMapQuarterViewModel : ViewModelBase
 		Category = quarter.IsLandmark ? TownMapCategory.Landmark : quarter.Area == MapArea.Outskirts ? TownMapCategory.Outskirts : TownMapCategory.Village;
 		m_canTravel = canTravel;
 		m_visit = visit;
+		m_chooseDestination = chooseDestination;
 	}
 
 	public Location Quarter { get; }
@@ -238,6 +249,29 @@ public sealed class TownMapQuarterViewModel : ViewModelBase
 	public bool HasAppointment { get; init; }
 
 	/// <summary>
+	/// Whether the player's destination is this quarter, or in it.
+	/// </summary>
+	public bool HasDestination
+	{
+		get => VerifyAccess(m_hasDestination);
+		set => SetPropertyField(value, ref m_hasDestination);
+	}
+
+	/// <summary>
+	/// Whether choosing the quarter makes it the player's destination, as on the full map.
+	/// </summary>
+	public bool CanChooseDestination => m_chooseDestination is not null;
+
+	/// <summary>
+	/// Makes the quarter the player's destination, if the map allows it.
+	/// </summary>
+	public void ChooseDestination()
+	{
+		VerifyAccess();
+		m_chooseDestination?.Invoke(Quarter);
+	}
+
+	/// <summary>
 	/// What kind of place the quarter is, which decides its color.
 	/// </summary>
 	public TownMapCategory Category { get; }
@@ -261,6 +295,8 @@ public sealed class TownMapQuarterViewModel : ViewModelBase
 
 	private readonly bool m_canTravel;
 	private readonly Action<Location> m_visit;
+	private readonly Action<Location>? m_chooseDestination;
+	private bool m_hasDestination;
 }
 
 /// <summary>

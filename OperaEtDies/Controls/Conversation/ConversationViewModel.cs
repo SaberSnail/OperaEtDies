@@ -10,11 +10,12 @@ namespace OperaEtDies.Controls.Conversation;
 
 /// <summary>
 /// Talking with someone in the player's location: asking what they're doing, asking whether they've seen someone,
-/// chatting with them, or asking them the question of the next "ask" step of the player's pending steps, if it asks
-/// them. Each takes time, shown on its button, and what was said is kept as a list of lines. It's shown on top of the
+/// chatting with them, asking them the question of the next "ask" step of the player's pending steps, if it asks
+/// them, or asking them to start an appointment with the player. Each but the last takes time, shown on its button, and
+/// what was said is kept as a list of lines. It's shown on top of the
 /// player's location, which is shown again when it closes.
 /// </summary>
-public sealed class ConversationViewModel : ViewModelBase
+public sealed class ConversationViewModel : ViewModelBase, INumberedChoices
 {
 	public ConversationViewModel(Person person, GameWorld world, TimeRunner timeRunner)
 	{
@@ -110,11 +111,45 @@ public sealed class ConversationViewModel : ViewModelBase
 		{
 			if (m_world.GetPlayerAsk(m_person) is { } ask)
 			{
-				Say(ask.Step.Player!.Text?.Text ?? ask.Step.Player.Title!);
+				Say(ask.Step.Player!.Text is { } text ? ActivityText.FillOther(text.Text, m_person) : ask.Step.Player.Title!);
 				var answer = await m_world.AskPlayerQuestionAsync(m_person).ConfigureAwait(true);
 				Say(answer.Appointment is { } appointment ?
 					OurResources.ConversationAgreedToMeet.FormatCurrentCulture(m_person.FullName, AppointmentText.FormatPlace(m_world, appointment), AppointmentText.FormatWhen(m_world, appointment.Time)) :
 					(answer.IsYes ? OurResources.ConversationAgreed : OurResources.ConversationSaidNo).FormatCurrentCulture(m_person.FullName));
+			}
+			Refresh();
+		});
+	}
+
+	/// <summary>
+	/// The text of the button that asks the person whether they're ready to start the player's appointment with them, or
+	/// tells them the player is ready now, or null if the player can't now. It takes no time.
+	/// </summary>
+	public string? AskToStartText
+	{
+		get
+		{
+			VerifyAccess();
+			return m_world.GetPlayerStartAppointment(m_person) is { } appointment ? AppointmentText.GetStartLine(m_world, appointment).Title : null;
+		}
+	}
+
+	public bool CanAskToStart() => m_world.GetPlayerStartAppointment(m_person) is not null;
+
+	/// <summary>
+	/// Asks the person whether they're ready to start the player's appointment with them, or tells them the player is ready
+	/// now, saying what the data says (or its title), and tells how they answered.
+	/// </summary>
+	public void AskToStart()
+	{
+		VerifyAccess();
+		m_timeRunner.Run(async () =>
+		{
+			if (m_world.GetPlayerStartAppointment(m_person) is { } appointment)
+			{
+				Say(AppointmentText.GetStartLine(m_world, appointment).Text);
+				var isStarted = await m_world.AskToStartAsync(m_person).ConfigureAwait(true);
+				Say((isStarted ? OurResources.ConversationAgreed : OurResources.ConversationSaidNo).FormatCurrentCulture(m_person.FullName));
 			}
 			Refresh();
 		});
@@ -204,6 +239,7 @@ public sealed class ConversationViewModel : ViewModelBase
 	{
 		RaisePropertyChanged(nameof(Unavailable));
 		RaisePropertyChanged(nameof(AskStepText));
+		RaisePropertyChanged(nameof(AskToStartText));
 		RaisePropertyChanged(nameof(HasCallOff));
 	}
 
@@ -217,6 +253,28 @@ public sealed class ConversationViewModel : ViewModelBase
 	{
 		VerifyAccess();
 		CloseRequested.Raise(this);
+	}
+
+	/// <summary>
+	/// Presses the numbered button. Each keeps its number while the ones before it come and go: 1 asks what they're doing,
+	/// 2 chats, 3 asks the question of the player's step, 4 calls off an appointment, 5 asks to start one, and 6 asks about
+	/// the person chosen.
+	/// </summary>
+	public bool ChooseNumber(int number)
+	{
+		VerifyAccess();
+		var choice = number switch
+		{
+			1 when CanAskWhatDoing() => (Action) AskWhatDoing,
+			2 when CanSocialize() => Socialize,
+			3 when AskStepText is not null && CanAskStep() => AskStep,
+			4 when HasCallOff => CallOff,
+			5 when AskToStartText is not null && CanAskToStart() => AskToStart,
+			6 when CanAskAbout() => AskAbout,
+			_ => null,
+		};
+		choice?.Invoke();
+		return choice is not null;
 	}
 
 	/// <summary>
@@ -245,7 +303,7 @@ public sealed class ConversationViewModel : ViewModelBase
 	/// (or title, without one).
 	/// </summary>
 	private static string GetActivity(Person person, Need need, Location place, string? doing) =>
-		LowerFirst(doing ?? need.GetActivityAt(x => Scheduler.IsPlaceFor(person, null, x, place), person.Business?.Profession.Id));
+		LowerFirst(doing ?? ActivityText.Fill(need.GetActivityAt(x => Scheduler.IsPlaceFor(person, null, x, place), person.Business?.Profession.Id), (Person?) null));
 
 	/// <summary>
 	/// Describes a sighting of someone in the words of the person who saw them (or was told about it), with what that
@@ -262,6 +320,7 @@ public sealed class ConversationViewModel : ViewModelBase
 			SightingActivity.Busy when sighting.Need is { } need => OurResources.TalkSeenBusy.FormatCurrentCulture(place, GetActivity(subject, need, sighting.Location, sighting.Doing)),
 			SightingActivity.Walking => OurResources.TalkSeenWalking.FormatCurrentCulture(place, destination),
 			SightingActivity.Left => OurResources.TalkSeenLeaving.FormatCurrentCulture(place, destination),
+			SightingActivity.Talking when sighting.With is { } with => OurResources.TalkSeenTalkingWith.FormatCurrentCulture(place, ActivityText.GetPartnerName(with)),
 			SightingActivity.Talking => OurResources.TalkSeenTalking.FormatCurrentCulture(place),
 			_ => OurResources.TalkSeenAt.FormatCurrentCulture(place),
 		};

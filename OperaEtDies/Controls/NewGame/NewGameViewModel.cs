@@ -21,6 +21,7 @@ public sealed class NewGameViewModel : ViewModelBase
 		m_gameData = gameData;
 		m_clothingSeed = random.Next();
 		m_atWorkPropertyId = gameData.Families.Roles.Properties.AtWork;
+		m_professionPropertyId = gameData.Families.Roles.Properties.Profession;
 		m_notAtWork = gameData.CharacterProperties.Find(m_atWorkPropertyId)?.Values?.FirstOrDefault(x => x.Id == gameData.Families.Roles.NotAtWork);
 		m_developerPropertyId = isDeveloper ? gameData.Families.Roles.Properties.Gender : null;
 
@@ -34,17 +35,45 @@ public sealed class NewGameViewModel : ViewModelBase
 			.Where(x => x.CanHaveValue || (developerProperties is not null && CharacterData.CanHaveValue(developerProperties, x.Property, CharacterRole.Player)))
 			.Select(x => CreateEditor(x.Property, isDeveloperOnly: !x.CanHaveValue))
 			.ToList();
+		Steps = [new CharacterStepViewModel(OurResources.NewGameCharacterStep, Properties)];
+		m_currentStep = Steps[0];
 
-		// Any change can change the portrait. It's drawn again the next time it's needed.
+		// Any change can change the portrait, name, or profession. The portrait is drawn again the next time it's needed.
 		foreach (var property in m_character.Properties)
 		{
 			m_character[property.Id].ValueChanged += (_, _) =>
 			{
 				m_portrait = null;
 				RaisePropertyChanged(nameof(Portrait));
+				RaisePropertyChanged(nameof(Name));
+				RaisePropertyChanged(nameof(Profession));
 			};
 		}
 	}
+
+	/// <summary>
+	/// The steps of setting up a new game, which the player can move between freely, in order.
+	/// </summary>
+	public IReadOnlyList<NewGameStepViewModel> Steps { get; }
+
+	/// <summary>
+	/// The step being edited.
+	/// </summary>
+	public NewGameStepViewModel CurrentStep
+	{
+		get => VerifyAccess(m_currentStep);
+		set => SetPropertyField(value, ref m_currentStep);
+	}
+
+	/// <summary>
+	/// The player character's full name as currently configured, for the summary of what's chosen.
+	/// </summary>
+	public string Name => VerifyAccess(m_character.GetTraits().GetFullName(m_gameData.CharacterTemplates).Trim());
+
+	/// <summary>
+	/// The player character's profession as currently configured, or null if they don't have one.
+	/// </summary>
+	public string? Profession => VerifyAccess((m_character[m_professionPropertyId].Value as CharacterPropertyOption)?.Title);
 
 	public event EventHandler<GenericEventArgs<NewGameSettings>>? StartGameRequested;
 
@@ -131,7 +160,9 @@ public sealed class NewGameViewModel : ViewModelBase
 	private readonly int m_clothingSeed;
 	private readonly PortraitRenderer? m_portraitRenderer;
 	private readonly string m_atWorkPropertyId;
+	private readonly string m_professionPropertyId;
 	private readonly CharacterPropertyOption? m_notAtWork;
 	private readonly string? m_developerPropertyId;
 	private ImageSource? m_portrait;
+	private NewGameStepViewModel m_currentStep;
 }

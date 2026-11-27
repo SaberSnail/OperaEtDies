@@ -8,16 +8,18 @@ namespace OperaEtDies.Controls.Log;
 
 /// <summary>
 /// Shows the event log, oldest first, kept up to date as entries are added. Each entry shows the time when it's different
-/// from the entry before it, and the date when the day changes. The people and places in entries can be clicked.
+/// from the entry before it, and the date when the day changes. The people and places in entries can be clicked, and the
+/// log can be opened in a sheet.
 /// </summary>
 public sealed class EventLogViewModel : ViewModelBase
 {
-	public EventLogViewModel(EventLog log, GameCalendar calendar, Action<Person> examinePerson, Action<Location> showPlace)
+	public EventLogViewModel(EventLog log, GameCalendar calendar, Action<Person> examinePerson, Action<Location> showPlace, Action? openSheet = null)
 	{
 		m_log = log;
 		m_calendar = calendar;
 		m_examinePerson = examinePerson;
 		m_showPlace = showPlace;
+		m_openSheet = openSheet;
 		m_entries = [];
 		Entries = new ReadOnlyObservableCollection<LogEntryViewModel>(m_entries);
 		Rebuild();
@@ -30,6 +32,38 @@ public sealed class EventLogViewModel : ViewModelBase
 	/// The entries, oldest first.
 	/// </summary>
 	public ReadOnlyObservableCollection<LogEntryViewModel> Entries { get; }
+
+	/// <summary>
+	/// Whether the log is collapsed down to its heading, giving the panel above it the room.
+	/// </summary>
+	public bool IsCollapsed
+	{
+		get => VerifyAccess(m_isCollapsed);
+		set => SetPropertyField([nameof(IsCollapsed), nameof(CollapseToolTip)], value, ref m_isCollapsed);
+	}
+
+	/// <summary>
+	/// The tooltip of the button that collapses the log, or opens it again.
+	/// </summary>
+	public string CollapseToolTip => VerifyAccess(m_isCollapsed ? OurResources.LogExpandToolTip : OurResources.LogCollapseToolTip);
+
+	/// <summary>
+	/// Collapses the log down to its heading, or opens it again.
+	/// </summary>
+	public void ToggleCollapsed()
+	{
+		VerifyAccess();
+		IsCollapsed = !IsCollapsed;
+	}
+
+	/// <summary>
+	/// Opens the log in a sheet, for reading at a larger size.
+	/// </summary>
+	public void OpenSheet()
+	{
+		VerifyAccess();
+		m_openSheet?.Invoke();
+	}
 
 	private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
 	{
@@ -73,7 +107,9 @@ public sealed class EventLogViewModel : ViewModelBase
 	private readonly GameCalendar m_calendar;
 	private readonly Action<Person> m_examinePerson;
 	private readonly Action<Location> m_showPlace;
+	private readonly Action? m_openSheet;
 	private readonly ObservableCollection<LogEntryViewModel> m_entries;
+	private bool m_isCollapsed;
 }
 
 /// <summary>

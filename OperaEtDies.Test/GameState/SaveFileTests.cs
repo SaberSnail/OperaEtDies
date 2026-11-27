@@ -153,6 +153,21 @@ public sealed class SaveFileTests
 	}
 
 	[Test]
+	public void DestinationSavesAndLoads()
+	{
+		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
+		var destination = world.Locations.Last(x => x != world.Player.Location);
+		world.SetPlayerDestination(destination);
+
+		var json = CreateSave(world).Serialize();
+		var loaded = SaveFile.Deserialize(json).Load(world.GameData, GameTitle, new Random(0));
+
+		AssertSameWorld(loaded, world);
+		Assert.That(CreateSave(loaded).Serialize(), Is.EqualTo(json));
+		Assert.That(loaded.Player.Destination?.Id, Is.EqualTo(destination.Id));
+	}
+
+	[Test]
 	public void FollowingSavesAndLoads()
 	{
 		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
@@ -199,6 +214,7 @@ public sealed class SaveFileTests
 		var player = world.Player;
 		var held = player.SetPlan(laundry, [], startStep: 4)!;
 		held.SetAnswer("asked", true);
+		held.SetAnswer("shied", false, player);
 		var playing = new StepSequence(work, 6, 60) { Takeover = StepTakeover.All, IsCarriedOut = true, Place = world.Locations[1], Partner = world.Npcs[1] };
 		player.AddSequence(playing);
 		var person = world.Npcs[0];
@@ -224,6 +240,8 @@ public sealed class SaveFileTests
 		var loadedPlayer = loaded.Player;
 		Assert.That(loadedPlayer.Sequences.Select(x => (x.Need.Id, x.Step)), Is.EqualTo(new[] { ("laundry", 4), ("work", 6) }));
 		Assert.That(loadedPlayer.Sequences[0].Answers["asked"], Is.True);
+		Assert.That(loadedPlayer.Sequences[0].Answers["shied"], Is.False);
+		Assert.That(loadedPlayer.Sequences[0].ShyAnswers.Select(x => (x.Key, x.Value.Id)), Is.EquivalentTo(new[] { ("shied", player.Id) }));
 		var loadedPlaying = loadedPlayer.Current!;
 		Assert.That((loadedPlaying.MinutesLeft, loadedPlaying.Takeover, loadedPlaying.IsCarriedOut, loadedPlaying.Place?.Id, loadedPlaying.Partner?.Id),
 			Is.EqualTo(((int?) 60, StepTakeover.All, true, world.Locations[1].Id, world.Npcs[1].Id)));
@@ -297,14 +315,19 @@ public sealed class SaveFileTests
 		carried.ReadyAt = world.GameData.Calendar.AddMinutes(world.Time, 60);
 		carried.DelayActivity = "Drying";
 		var outfit = person.Outfits[0];
-		person.SetPlan(null, [new AtWorkTask(true), new ChangeClothesTask(outfit, IsTakingOff: true) { ResumeMinutes = 3 }]);
+		var home = person.Home;
+		person.SetPlan(null, [new AtWorkTask(true), new ChangeClothesTask(outfit, IsTakingOff: true) { ResumeMinutes = 3 }, new ChangeClothesTask(outfit, IsTakingOff: false, IsCoverUp: true), new PrivacyTask(5) { ResumeMinutes = 2 }, new TravelTask(home, IsRetreat: true)]);
 
 		var json = CreateSave(world).Serialize();
 		var loaded = SaveFile.Deserialize(json).Load(world.GameData, GameTitle, new Random(0));
 
 		Assert.That(CreateSave(loaded).Serialize(), Is.EqualTo(json));
 		var loadedOutfit = loaded.Objects.Get<OwnedOutfit>(outfit.Id);
-		Assert.That(loaded.Objects.Get<Person>(person.Id).Tasks, Is.EqualTo(new PersonTask[] { new AtWorkTask(true), new ChangeClothesTask(loadedOutfit, IsTakingOff: true) { ResumeMinutes = 3 } }));
+		Assert.That(loaded.Objects.Get<Person>(person.Id).Tasks, Is.EqualTo(new PersonTask[]
+		{
+			new AtWorkTask(true), new ChangeClothesTask(loadedOutfit, IsTakingOff: true) { ResumeMinutes = 3 }, new ChangeClothesTask(loadedOutfit, IsTakingOff: false, IsCoverUp: true),
+			new PrivacyTask(5) { ResumeMinutes = 2 }, new TravelTask(loaded.Objects.Get<Location>(home.Id), IsRetreat: true),
+		}));
 		var loadedPerson = loaded.Objects.Get<Person>(person.Id);
 		var loadedWorn = loaded.Objects.Get<ClothingPiece>(worn.Id);
 		var loadedCarried = loaded.Objects.Get<ClothingPiece>(carried.Id);

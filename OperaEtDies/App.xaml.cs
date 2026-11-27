@@ -5,9 +5,12 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using Microsoft.VisualStudio.Threading;
+using OperaEtDies.Data;
+using OperaEtDies.Controls;
 using OperaEtDies.Reports;
+using OperaEtDies.Settings;
+using OperaEtDies.Themes;
 using OperaEtDies.Windows.Main;
-using OperaEtDies.Windows.StartUp;
 
 namespace OperaEtDies;
 
@@ -57,10 +60,11 @@ public partial class App : Application
 		var appModel = AppModel.Instance;
 		appModel.PropertyChanged += OnAppModelPropertyChanged;
 		appModel.ExitRequested += OnExitRequested;
+		SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
 
 		try
 		{
-			await appModel.StartupAsync(state, options.AreModsEnabled, options.ModDirectories, options.IsDeveloper).ConfigureAwait(false);
+			await appModel.StartupAsync(state, options.AreModsEnabled, options.ModDirectories, options.IsDeveloper, options.ResetSettings).ConfigureAwait(false);
 			Log.Info($"Finished starting up in {stopwatch.Elapsed}");
 		}
 #pragma warning disable CA1031 // Do not catch general exception types (any start up failure must shut the app down)
@@ -76,29 +80,77 @@ public partial class App : Application
 
 	private void OnAppModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
 	{
-		if (e.PropertyName == nameof(AppModel.StartUpWindow))
-			UpdateStartUpWindowView();
-		else if (e.PropertyName == nameof(AppModel.MainWindow))
+		if (e.PropertyName == nameof(AppModel.MainWindow))
 			UpdateMainWindowView();
+		else if (e.PropertyName == nameof(AppModel.Theme))
+			ApplyTheme();
+		else if (e.PropertyName == nameof(AppModel.Settings))
+			UpdateSettings();
 	}
 
-	private void UpdateStartUpWindowView()
+	/// <summary>
+	/// Follows the app model's settings, applying them now and whenever they change.
+	/// </summary>
+	private void UpdateSettings()
 	{
-		var viewModel = AppModel.Instance.StartUpWindow;
-		if (m_startUpWindowView?.ViewModel == viewModel)
-			return;
+		if (m_settings is not null)
+			m_settings.PropertyChanged -= OnSettingsPropertyChanged;
+		m_settings = AppModel.Instance.Settings;
+		if (m_settings is not null)
+			m_settings.PropertyChanged += OnSettingsPropertyChanged;
 
-		// Clear the field before closing, so OnStartUpWindowViewClosed can tell this close didn't come from the user.
-		var oldView = m_startUpWindowView;
-		m_startUpWindowView = null;
-		oldView?.Close();
+		ApplyFontSizes();
+		ApplyMotion();
+	}
 
-		if (viewModel is not null)
-		{
-			m_startUpWindowView = new StartUpWindowView(viewModel);
-			m_startUpWindowView.Closed += OnStartUpWindowViewClosed;
-			m_startUpWindowView.Show();
-		}
+	private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (e.PropertyName == nameof(AppSettings.TextSize))
+			ApplyFontSizes();
+		else if (e.PropertyName == nameof(AppSettings.IsMotionReduced))
+			ApplyMotion();
+	}
+
+	// Following Windows' setting for animations means following it when it changes too.
+	private void OnSystemParametersChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (e.PropertyName == nameof(SystemParameters.ClientAreaAnimation))
+			ApplyMotion();
+	}
+
+	private void ApplyMotion()
+	{
+		if (m_settings is not null)
+			Motion.IsReduced = m_settings.IsMotionReduced;
+	}
+
+	/// <summary>
+	/// Replaces the text sizes with the theme's (or the built-in theme's) scaled by the text size setting.
+	/// </summary>
+	private void ApplyFontSizes()
+	{
+		if (m_fontSizeResources is not null)
+			Resources.MergedDictionaries.Remove(m_fontSizeResources);
+
+		var scale = (m_settings?.TextSize ?? AppSettings.DefaultTextSize) / 100.0;
+		m_fontSizeResources = ThemeResources.CreateScaledFontSizes(TryFindResource, scale);
+		Resources.MergedDictionaries.Add(m_fontSizeResources);
+	}
+
+	/// <summary>
+	/// Replaces the theme resources with the app model's theme, or goes back to the built-in theme if it has none.
+	/// </summary>
+	private void ApplyTheme()
+	{
+		if (m_themeResources is not null)
+			Resources.MergedDictionaries.Remove(m_themeResources);
+
+		m_themeResources = AppModel.Instance.Theme is { } theme ? ThemeResources.Create(theme, ThemeSettings.GetFontFolder(JsonDataLoader.DefaultDataDirectory)) : null;
+		if (m_themeResources is not null)
+			Resources.MergedDictionaries.Add(m_themeResources);
+
+		// The text sizes come from the theme, so they're worked out again, after it.
+		ApplyFontSizes();
 	}
 
 	private void UpdateMainWindowView()
@@ -113,21 +165,9 @@ public partial class App : Application
 
 		if (viewModel is not null)
 		{
-			m_mainWindowView = new MainWindowView(viewModel);
+			m_mainWindowView = new MainWindowView(viewModel, AppModel.Instance.WindowPlacementKeyPath);
 			m_mainWindowView.Closed += OnMainWindowViewClosed;
 			m_mainWindowView.Show();
-		}
-	}
-
-	private void OnStartUpWindowViewClosed(object? sender, EventArgs e)
-	{
-		((Window) sender!).Closed -= OnStartUpWindowViewClosed;
-
-		// The user closed the start up window, which exits the game.
-		if (sender == m_startUpWindowView)
-		{
-			m_startUpWindowView = null;
-			AppModel.Instance.ExitGame();
 		}
 	}
 
@@ -135,11 +175,11 @@ public partial class App : Application
 	{
 		((Window) sender!).Closed -= OnMainWindowViewClosed;
 
-		// The user closed the main window, which returns to the start up window.
+		// The player closed the window, which exits the game.
 		if (sender == m_mainWindowView)
 		{
 			m_mainWindowView = null;
-			AppModel.Instance.EndGame();
+			AppModel.Instance.ExitGame();
 		}
 	}
 
@@ -149,6 +189,11 @@ public partial class App : Application
 			return;
 
 		m_isShuttingDown = true;
+
+		// Close the window first, so it keeps where it was.
+		var view = m_mainWindowView;
+		m_mainWindowView = null;
+		view?.Close();
 		Shutdown();
 	}
 
@@ -171,6 +216,9 @@ public partial class App : Application
 		var appModel = AppModel.Instance;
 		appModel.PropertyChanged -= OnAppModelPropertyChanged;
 		appModel.ExitRequested -= OnExitRequested;
+		SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
+		if (m_settings is not null)
+			m_settings.PropertyChanged -= OnSettingsPropertyChanged;
 
 		await appModel.ShutdownAsync();
 
@@ -179,8 +227,10 @@ public partial class App : Application
 
 	private static ILogSource Log { get; } = LogManager.CreateLogSource(nameof(App));
 
-	private StartUpWindowView? m_startUpWindowView;
 	private MainWindowView? m_mainWindowView;
+	private ResourceDictionary? m_themeResources;
+	private ResourceDictionary? m_fontSizeResources;
+	private AppSettings? m_settings;
 	private bool m_isShuttingDown;
 	private bool m_isRunningWithoutGame;
 }

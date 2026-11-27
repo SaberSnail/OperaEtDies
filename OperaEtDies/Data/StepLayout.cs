@@ -1,23 +1,24 @@
 namespace OperaEtDies.Data;
 
 /// <summary>
-/// A need's steps laid out in the order they're carried out, with the steps of "repeat" steps, "choose" options, and
-/// called step lists in line, where to go next from each step that doesn't go on to the one after it, and what happens
-/// when each step fails.
+/// A need's steps laid out in the order they're carried out, with the steps of "repeat" and "group" steps, "choose"
+/// options, and called step lists in line, where to go next from each step that doesn't go on to the one after it, what
+/// happens when each step fails, and the "finally" steps of each list of steps, laid out after them (for a "repeat"
+/// step, after the "repeat" step itself).
 /// </summary>
 internal sealed class StepLayout
 {
 	/// <summary>
-	/// Lays out steps, with the step lists that "call" steps can carry out, and what happens when any of them fails, if
-	/// nothing closer to the step says. A step list that would call itself, directly or not, or that isn't found, is left
-	/// out.
+	/// Lays out steps, with the step lists that "call" steps can carry out, what happens when any of them fails, if
+	/// nothing closer to the step says, and the steps carried out whenever they're left. A step list that would call
+	/// itself, directly or not, or that isn't found, is left out.
 	/// </summary>
-	public static StepLayout Create(IEnumerable<Step?> steps, IReadOnlyDictionary<string, StepList>? stepLists, StepFailure? onFail = null)
+	public static StepLayout Create(IEnumerable<Step?> steps, IReadOnlyDictionary<string, StepList>? stepLists, StepFailure? onFail = null, IEnumerable<Step?>? finallySteps = null)
 	{
 		var layout = new StepLayout();
-		var root = new FailureFrame(onFail, new Dictionary<string, int>(StringComparer.Ordinal), null);
+		var root = new FailureFrame(onFail, new Dictionary<string, int>(StringComparer.Ordinal), null, []);
 		layout.m_root = root;
-		layout.Add(steps, stepLists, new HashSet<string>(StringComparer.Ordinal), root.Scope, root);
+		layout.AddBlock(steps, finallySteps, stepLists, new HashSet<string>(StringComparer.Ordinal), root.Scope, root, []);
 
 		// The steps of an appointment end the steps once they're done.
 		foreach (var key in layout.m_next.Where(x => x.Value == EndOfSteps).Select(x => x.Key).ToList())
@@ -62,23 +63,67 @@ internal sealed class StepLayout
 	public IReadOnlyDictionary<int, (int Start, int Meet, int End)> Appointments => m_appointments;
 
 	/// <summary>
+	/// The lists of steps with "finally" steps, innermost first where they're nested.
+	/// </summary>
+	public IReadOnlyList<FinallyBlock> Blocks => m_blocks;
+
+	/// <summary>
+	/// Whether a step is among some "finally" steps.
+	/// </summary>
+	public bool IsInFinally(int step) => m_blocks.Any(x => x.IsInFinally(step));
+
+	/// <summary>
+	/// Gets the lists of steps with "finally" steps that going from one step to another leaves (that the step is in, but
+	/// not in their "finally" steps, and the step gone to isn't in at all), innermost first. Only lists of the same steps
+	/// count: a need's own, or the same appointment's.
+	/// </summary>
+	public IReadOnlyList<FinallyBlock> GetBlocksLeft(int from, int to)
+	{
+		var context = m_contexts.GetValueOrDefault(from, MainContext);
+		return m_blocks.Where(x => x.Context == context && x.IsInBody(from) && !x.Contains(to)).ToList();
+	}
+
+	/// <summary>
+	/// Gets the list of steps whose "finally" steps start at a step, or null if there's none.
+	/// </summary>
+	public FinallyBlock? GetBlockFinallyAt(int finallyStart) => m_blocks.FirstOrDefault(x => x.FinallyStart == finallyStart);
+
+	/// <summary>
 	/// Gets what happens when a step fails for a cause: its own "onFail" for the cause, or that of the "repeat" step,
 	/// option, step list, or need it's in, the closest first, or failing all of them, stopping. A step skipped to is given
 	/// by its index (the first step a step list carries out, for a "call" step). Skipping to a step that isn't found stops.
 	/// </summary>
 	public (StepFailureKind Kind, int? Target) GetFailure(int step, FailCause cause)
 	{
+		// The "finally" steps go on whatever happens.
+		if (IsInFinally(step))
+			return (StepFailureKind.Next, null);
+
 		for (var frame = m_failures.TryGetValue(step, out var found) ? found : m_root; frame is not null; frame = frame.Outer)
 		{
 			if (frame.Failure?.Get(cause) is { } result)
-			{
-				return result.Kind != StepFailureKind.SkipTo ? (result.Kind, null) :
-					frame.Scope.TryGetValue(result.SkipTo ?? "", out var target) ? (StepFailureKind.SkipTo, target) :
-					(StepFailureKind.Stop, null);
-			}
+				return Resolve(frame, result);
 		}
 
 		return (StepFailureKind.Stop, null);
+	}
+
+	/// <summary>
+	/// Works out where a failure's result goes: the step skipped to, or for going on with a loop, its "repeat" step, where it
+	/// decides whether to go round again, or for leaving one, the step after it. The loop is the one named, or the nearest
+	/// around where the result is given (for a "repeat" step's own, itself). Skipping to a step or loop that isn't found
+	/// stops.
+	/// </summary>
+	private (StepFailureKind Kind, int? Target) Resolve(FailureFrame frame, StepFailureResult result)
+	{
+		if (result.Kind == StepFailureKind.SkipTo)
+			return frame.Scope.TryGetValue(result.Target ?? "", out var target) ? (StepFailureKind.SkipTo, target) : (StepFailureKind.Stop, null);
+		if (result.Kind is not (StepFailureKind.LoopContinue or StepFailureKind.LoopBreak))
+			return (result.Kind, null);
+
+		var loop = result.Target is { } id ? frame.Loops.FirstOrDefault(x => x.Id == id) : frame.Loops.Count == 0 ? null : frame.Loops[0];
+		return loop is null ? (StepFailureKind.Stop, null) :
+			(result.Kind, result.Kind == StepFailureKind.LoopContinue ? loop.Index : m_next.TryGetValue(loop.Index, out var after) ? after : loop.Index + 1);
 	}
 
 	/// <summary>
@@ -127,19 +172,55 @@ internal sealed class StepLayout
 		return null;
 	}
 
-	private void Add(IEnumerable<Step?> steps, IReadOnlyDictionary<string, StepList>? stepLists, HashSet<string> calling, Dictionary<string, int> scope, FailureFrame frame)
+	/// <summary>
+	/// Lays out a list of steps followed by its "finally" steps, if it has any, noting them as a block.
+	/// </summary>
+	private void AddBlock(IEnumerable<Step?> steps, IEnumerable<Step?>? finallySteps, IReadOnlyDictionary<string, StepList>? stepLists, HashSet<string> calling, Dictionary<string, int> scope,
+		FailureFrame frame, IReadOnlyList<Loop> loops)
+	{
+		var start = m_steps.Count;
+		Add(steps, stepLists, calling, scope, frame, loops);
+		AddFinally(start, finallySteps, stepLists, calling, scope, frame, loops);
+	}
+
+	/// <summary>
+	/// Lays out the "finally" steps of the steps from a start, if there are any, noting them as a block. A block laid out
+	/// inside another comes before it, so the innermost are first.
+	/// </summary>
+	private void AddFinally(int start, IEnumerable<Step?>? finallySteps, IReadOnlyDictionary<string, StepList>? stepLists, HashSet<string> calling, Dictionary<string, int> scope,
+		FailureFrame frame, IReadOnlyList<Loop> loops)
+	{
+		var finallyStart = m_steps.Count;
+		Add(finallySteps ?? [], stepLists, calling, scope, frame, loops);
+		if (m_steps.Count > finallyStart)
+			m_blocks.Add(new FinallyBlock(start, finallyStart, m_steps.Count, m_context));
+	}
+
+	private void Add(IEnumerable<Step?> steps, IReadOnlyDictionary<string, StepList>? stepLists, HashSet<string> calling, Dictionary<string, int> scope, FailureFrame frame, IReadOnlyList<Loop> loops)
 	{
 		foreach (var step in steps.OfType<Step>())
 		{
-			// A step's own "onFail" comes first for it, and for a "repeat", "choose", or "call" step, for the steps it carries out.
-			var own = step.OnFail is null ? frame : new FailureFrame(step.OnFail, scope, frame);
+			// A step's own "onFail" comes first for it, and for a "repeat", "group", "choose", or "call" step, for the steps it
+			// carries out. A "repeat" step's own is inside its loop.
+			var loop = step.Kind == StepKind.Repeat ? new Loop(step.Id) : null;
+			IReadOnlyList<Loop> inner = loop is null ? loops : [loop, .. loops];
+			var own = step.OnFail is null ? frame : new FailureFrame(step.OnFail, scope, frame, inner);
 			switch (step.Kind)
 			{
 			case StepKind.Repeat:
 				var loopStart = m_steps.Count;
-				Add(step.Steps ?? [], stepLists, calling, scope, own);
+				Add(step.Steps ?? [], stepLists, calling, scope, own, inner);
 				m_loopStarts[m_steps.Count] = loopStart;
+				loop!.Index = m_steps.Count;
 				AddStep(step, scope, own);
+
+				// Its "finally" steps come once the loop as a whole is done.
+				AddFinally(loopStart, step.Finally, stepLists, calling, scope, frame, loops);
+				break;
+			case StepKind.Group:
+				if (step.Id is { } groupId)
+					scope.TryAdd(groupId, m_steps.Count);
+				AddBlock(step.Steps ?? [], step.Finally, stepLists, calling, scope, own, loops);
 				break;
 			case StepKind.Call:
 				if (step.Id is { } callId)
@@ -147,22 +228,26 @@ internal sealed class StepLayout
 				if (step.List is { } id && stepLists is not null && stepLists.TryGetValue(id, out var list) && calling.Add(id))
 				{
 					var listScope = new Dictionary<string, int>(StringComparer.Ordinal);
-					Add(list.Steps, stepLists, calling, listScope, list.OnFail is null ? own : new FailureFrame(list.OnFail, listScope, own));
+					AddBlock(list.Steps, list.Finally, stepLists, calling, listScope, list.OnFail is null ? own : new FailureFrame(list.OnFail, listScope, own, loops), loops);
 					calling.Remove(id);
 				}
 
 				break;
 			case StepKind.Choose:
-				AddChoose(step, stepLists, calling, scope, own);
+				AddChoose(step, stepLists, calling, scope, own, loops);
 				break;
 			case StepKind.Ask when step.Appointment?.Steps is { } appointmentSteps:
 				var ask = m_steps.Count;
 				AddStep(step, scope, own);
 				var start = m_steps.Count;
 
-				// The appointment's steps are carried out on their own, so only the need's "onFail" applies to them.
+				// The appointment's steps are carried out on their own, so only the need's "onFail" applies to them, and they're
+				// in no loop.
 				var appointmentScope = new Dictionary<string, int>(StringComparer.Ordinal);
-				Add(appointmentSteps, stepLists, calling, appointmentScope, new FailureFrame(m_root!.Failure, appointmentScope, null));
+				var outerContext = m_context;
+				m_context = ask;
+				AddBlock(appointmentSteps, step.Appointment.Finally, stepLists, calling, appointmentScope, new FailureFrame(m_root!.Failure, appointmentScope, null, []), []);
+				m_context = outerContext;
 				var end = m_steps.Count;
 
 				// The steps before the appointment's go on past them, and the appointment's steps end the steps.
@@ -188,10 +273,12 @@ internal sealed class StepLayout
 		if (step.Id is { } id)
 			scope.TryAdd(id, m_steps.Count);
 		m_failures[m_steps.Count] = frame;
+		if (m_context != MainContext)
+			m_contexts[m_steps.Count] = m_context;
 		m_steps.Add(step);
 	}
 
-	private void AddChoose(Step choose, IReadOnlyDictionary<string, StepList>? stepLists, HashSet<string> calling, Dictionary<string, int> scope, FailureFrame own)
+	private void AddChoose(Step choose, IReadOnlyDictionary<string, StepList>? stepLists, HashSet<string> calling, Dictionary<string, int> scope, FailureFrame own, IReadOnlyList<Loop> loops)
 	{
 		var index = m_steps.Count;
 		AddStep(choose, scope, own);
@@ -201,7 +288,7 @@ internal sealed class StepLayout
 			// An option with steps of their own, such as a profession's, has ids of its own, as a step list does.
 			var start = m_steps.Count;
 			var optionScope = option.HasOwnIds ? new Dictionary<string, int>(StringComparer.Ordinal) : scope;
-			Add(option.Steps ?? [], stepLists, calling, optionScope, option.OnFail is null ? own : new FailureFrame(option.OnFail, optionScope, own));
+			AddBlock(option.Steps ?? [], option.Finally, stepLists, calling, optionScope, option.OnFail is null ? own : new FailureFrame(option.OnFail, optionScope, own, loops), loops);
 			ranges.Add((option, start, m_steps.Count));
 		}
 
@@ -227,9 +314,19 @@ internal sealed class StepLayout
 
 	/// <summary>
 	/// What happens when a step fails, from one thing the step is in (or the step itself), with the ids of the steps it can
-	/// skip to, and what happens for causes it says nothing about.
+	/// skip to, the loops it's in, innermost first, and what happens for causes it says nothing about.
 	/// </summary>
-	private sealed record FailureFrame(StepFailure? Failure, Dictionary<string, int> Scope, FailureFrame? Outer);
+	private sealed record FailureFrame(StepFailure? Failure, Dictionary<string, int> Scope, FailureFrame? Outer, IReadOnlyList<Loop> Loops);
+
+	/// <summary>
+	/// A loop: a "repeat" step's id, if it has one, and its index, once it's laid out.
+	/// </summary>
+	private sealed class Loop(string? id)
+	{
+		public string? Id { get; } = id;
+
+		public int Index { get; set; }
+	}
 
 	private readonly System.Collections.ObjectModel.Collection<Step> m_steps = [];
 	private readonly Dictionary<int, int> m_loopStarts = [];
@@ -238,11 +335,40 @@ internal sealed class StepLayout
 	private readonly HashSet<int> m_optional = [];
 	private readonly Dictionary<int, (int Start, int Meet, int End)> m_appointments = [];
 	private readonly Dictionary<int, FailureFrame> m_failures = [];
+	private readonly System.Collections.ObjectModel.Collection<FinallyBlock> m_blocks = [];
+	private readonly Dictionary<int, int> m_contexts = [];
+	private int m_context = MainContext;
 	private FailureFrame? m_root;
+
+	// The steps that aren't an appointment's. An appointment's are noted by the index of the "ask" step that makes it.
+	private const int MainContext = -1;
 
 	// Stands for the end of all the steps while they're laid out, since that isn't known until they all are.
 	private const int EndOfSteps = int.MaxValue;
 
 	// For each step in an option, the "choose" step and the start of the innermost option it's in.
 	private readonly Dictionary<int, (int Choose, int Start)> m_containers = [];
+}
+
+/// <summary>
+/// A list of steps with "finally" steps: where its steps start, where its "finally" steps start (after its steps, or for a
+/// "repeat" step, after the "repeat" step), and the index after the last of them, with whose steps they are (a need's
+/// own, or an appointment's, by the index of the "ask" step that makes it).
+/// </summary>
+internal sealed record FinallyBlock(int Start, int FinallyStart, int End, int Context)
+{
+	/// <summary>
+	/// Whether a step is one of its steps, other than its "finally" steps.
+	/// </summary>
+	public bool IsInBody(int step) => step >= Start && step < FinallyStart;
+
+	/// <summary>
+	/// Whether a step is one of its "finally" steps.
+	/// </summary>
+	public bool IsInFinally(int step) => step >= FinallyStart && step < End;
+
+	/// <summary>
+	/// Whether a step is one of its steps, or one of its "finally" steps.
+	/// </summary>
+	public bool Contains(int step) => step >= Start && step < End;
 }

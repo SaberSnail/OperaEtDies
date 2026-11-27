@@ -45,6 +45,7 @@ public sealed class ModEditorTemplateTests
 			{
 				"pack://application:,,,/GoldenAnvil.Utility.Windows;component/Themes/Generic.xaml",
 				"pack://application:,,,/OperaEtDies;component/Themes/Default/Default.xaml",
+				"pack://application:,,,/OperaEtDies;component/Themes/Tools/Tools.xaml",
 				"pack://application:,,,/OperaEtDies;component/Themes/Shared/Shared.xaml",
 				"pack://application:,,,/ModEditor;component/Views/EditorResources.xaml",
 				"pack://application:,,,/ModEditor;component/Views/FormResources.xaml",

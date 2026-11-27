@@ -186,7 +186,7 @@ public sealed class LocationPersonViewModel : ViewModelBase
 		}
 		else if (Person.CurrentTask is BusyTask busy)
 		{
-			activity = Person.Goal is { } goal ? goal.GetActivity(busy.Step, Person.Business?.Profession.Id) : m_schedules?.Idle.Activity;
+			activity = Person.Goal is { } goal ? ActivityText.Fill(goal.GetActivity(busy.Step, Person.Business?.Profession.Id), Person.Current) : m_schedules?.Idle.Activity;
 		}
 
 		return activity;

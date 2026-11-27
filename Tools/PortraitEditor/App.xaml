@@ -9,6 +9,7 @@
 			<ResourceDictionary.MergedDictionaries>
 				<ResourceDictionary Source="pack://application:,,,/GoldenAnvil.Utility.Windows;component/Themes/Generic.xaml" />
 				<ResourceDictionary Source="pack://application:,,,/OperaEtDies;component/Themes/Default/Default.xaml" />
+				<ResourceDictionary Source="pack://application:,,,/OperaEtDies;component/Themes/Tools/Tools.xaml" />
 				<ResourceDictionary Source="pack://application:,,,/OperaEtDies;component/Themes/Shared/Shared.xaml" />
 				<ResourceDictionary Source="Views/EditorResources.xaml" />
 			</ResourceDictionary.MergedDictionaries>

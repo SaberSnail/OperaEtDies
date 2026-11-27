@@ -31,4 +31,17 @@ public static class TemplateHelper
 
 	public static void SetBorderBrush(DependencyObject d, Brush value) =>
 		d.SetValue(BorderBrushProperty, value);
+
+	/// <summary>
+	/// Whether a button stands for something that's open now, such as a toolbar button whose sheet is open, which styles
+	/// can draw as pressed.
+	/// </summary>
+	public static readonly DependencyProperty IsActiveProperty =
+		DependencyProperty.RegisterAttached("IsActive", typeof(bool), typeof(TemplateHelper));
+
+	public static bool GetIsActive(DependencyObject d) =>
+		(bool) d.GetValue(IsActiveProperty);
+
+	public static void SetIsActive(DependencyObject d, bool value) =>
+		d.SetValue(IsActiveProperty, value);
 }

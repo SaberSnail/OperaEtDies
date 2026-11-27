@@ -8,7 +8,7 @@ namespace OperaEtDies.Controls.Conversation;
 /// <summary>
 /// Asks the player whether they'll chat with someone who asked them to, shown on top of everything else until they answer.
 /// </summary>
-public sealed class TalkPromptViewModel : ViewModelBase
+public sealed class TalkPromptViewModel : ViewModelBase, INumberedChoices
 {
 	public TalkPromptViewModel(Person asker, GameWorld world)
 	{
@@ -55,5 +55,21 @@ public sealed class TalkPromptViewModel : ViewModelBase
 	{
 		VerifyAccess();
 		Declined.Raise(this);
+	}
+
+	/// <summary>
+	/// Presses the numbered button: 1 to agree, 2 to turn them down.
+	/// </summary>
+	public bool ChooseNumber(int number)
+	{
+		VerifyAccess();
+		var choice = number switch
+		{
+			1 => (Action) Accept,
+			2 => Decline,
+			_ => null,
+		};
+		choice?.Invoke();
+		return choice is not null;
 	}
 }

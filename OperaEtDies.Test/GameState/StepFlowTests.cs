@@ -79,7 +79,7 @@ public sealed class StepFlowTests
 		var need = new Need
 		{
 			Id = "chore",
-			Title = "Chore",
+			Title = "Chore", Icon = "icon",
 			StepSettings = [new Step { Kind = StepKind.Choose, Options = [Option([Do(Amount(5))]), Option([Do(Amount(2000))])] }, new Step { Kind = StepKind.CountRun }],
 			Hours = new Hours { Start = 0, End = 24 },
 			Quota = new QuotaNeedSettings { Lead = 30, Runs = new FamilyAmount { Base = 1 } },
@@ -93,7 +93,7 @@ public sealed class StepFlowTests
 		var nothingFits = new Need
 		{
 			Id = "chore",
-			Title = "Chore",
+			Title = "Chore", Icon = "icon",
 			StepSettings = [new Step { Kind = StepKind.Choose, Options = [Option([Do(Amount(1500))]), Option([Do(Amount(2000))])] }, new Step { Kind = StepKind.CountRun }],
 			Hours = new Hours { Start = 0, End = 24 },
 			Quota = new QuotaNeedSettings { Lead = 30, Runs = new FamilyAmount { Base = 1 } },
@@ -224,7 +224,7 @@ public sealed class StepFlowTests
 	public async Task ThePlayerTakesTheSameStepsOneAtATimeAsync()
 	{
 		var need = Errand([
-			new Step { Kind = StepKind.Seek, Place = Quarters(false, "square"), Minutes = Amount(10) },
+			new Step { Kind = StepKind.Seek, Who = new StepWho { NotValues = new Dictionary<string, IReadOnlyList<string>> { [StepWho.FamilyKey] = [StepWho.FamilyMember] } }, Place = Quarters(false, "square"), Minutes = Amount(10) },
 			new Step { Kind = StepKind.Ask, With = StepTarget.Sought, Name = "agreed", Player = new StepPlayer { Title = "Ask" }, Minutes = Amount(5), Chance = new StepChance { Base = 100 } },
 			Do(Amount(5)),
 		]);
@@ -272,6 +272,22 @@ public sealed class StepFlowTests
 		var stranger = world.Npcs.First(x => x.Family != person.Family);
 		var who = Who(StepWho.FamilyKey, StepWho.FamilyMember);
 		Assert.That((Scheduler.IsWho(person, member, who), Scheduler.IsWho(person, stranger, who)), Is.EqualTo((true, false)));
+	}
+
+	[Test]
+	public void WithoutFamilyAnyoneCanBeTalkedWithOrFound()
+	{
+		// Without a who, or with one that doesn't say whether they're family, the person's own household can be talked
+		// with, asked, or found, as well as anyone else.
+		var need = Errand([new Step { Kind = StepKind.Talk, With = StepTarget.Anyone, Minutes = Amount(10) }, Do(Amount(5))]);
+		var (world, _) = CreateWorld(need, 0);
+		var scheduler = new Scheduler(world);
+		var family = world.People.Select(x => x.Family).First(x => x.Members.Count > 1);
+		var (person, member) = (family.Members[0], family.Members[1]);
+		var stranger = world.Npcs.First(x => x.Family != person.Family);
+		var notFamily = new StepWho { NotValues = new Dictionary<string, IReadOnlyList<string>> { [StepWho.FamilyKey] = [StepWho.FamilyMember] } };
+		Assert.That((scheduler.IsSought(person, member, null), scheduler.IsSought(person, member, new StepWho()), scheduler.IsSought(person, stranger, null)), Is.EqualTo((true, true, true)));
+		Assert.That((scheduler.IsSought(person, member, notFamily), scheduler.IsSought(person, stranger, notFamily)), Is.EqualTo((false, true)));
 	}
 
 	[Test]
@@ -481,7 +497,7 @@ public sealed class StepFlowTests
 				new Step { Kind = StepKind.Ask, With = StepTarget.Anyone, Name = "q", Player = new StepPlayer { Title = "Ask" }, Minutes = Amount(1), Chance = new StepChance { Base = 150 } },
 				DoWhen(Amount(5), new StepCondition { AnsweredYes = "unasked" }),
 			]),
-			new Need { Id = "remembering", Title = "Remembering", PlaceSetting = new SchedulePlace { Kind = NeedPlace.Remembered, Remembered = "spot" }, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1 } },
+			new Need { Id = "remembering", Title = "Remembering", Icon = "icon", PlaceSetting = new SchedulePlace { Kind = NeedPlace.Remembered, Remembered = "spot" }, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1 } },
 		];
 		settings.UrgencyFactors = [];
 
@@ -513,7 +529,7 @@ public sealed class StepFlowTests
 	/// </summary>
 	private static Need Errand(IReadOnlyList<Step> steps, IReadOnlyList<StepList>? stepLists = null)
 	{
-		var need = new Need { Id = "errand", Title = "Errand", StepSettings = steps, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 } };
+		var need = new Need { Id = "errand", Title = "Errand", Icon = "icon", StepSettings = steps, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 } };
 		need.StepLists = (stepLists ?? []).ToDictionary(x => x.Id, StringComparer.Ordinal);
 		return need;
 	}

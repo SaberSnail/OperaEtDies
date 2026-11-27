@@ -1,12 +1,11 @@
-using GoldenAnvil.Utility;
-using GoldenAnvil.Utility.Calendar;
-using OperaEtDies.Controls;
-using OperaEtDies.Controls.Locations;
-using OperaEtDies.Controls.Start;
+using System.IO;
+using OperaEtDies.Controls.LoadGame;
+using OperaEtDies.Controls.ManageMods;
+using OperaEtDies.Controls.Settings;
 using OperaEtDies.Data;
 using OperaEtDies.GameState;
-using OperaEtDies.Test.GameState;
-using OperaEtDies.Town;
+using OperaEtDies.Settings;
+using OperaEtDies.Test.Controls.ManageMods;
 using OperaEtDies.Windows.Main;
 
 namespace OperaEtDies.Test.Windows.Main;
@@ -14,939 +13,517 @@ namespace OperaEtDies.Test.Windows.Main;
 [TestFixture]
 public sealed class MainWindowViewModelTests
 {
-	[Test]
-	public void StartsAtHome()
+	[SetUp]
+	public void SetUp()
 	{
-		using var viewModel = CreateViewModel();
-		var home = viewModel.World.Player.Home;
+		m_folder = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+		m_settings = new SaveSettings(TestData.CreateGameInfo().Title, "hash", "", [], m_folder);
+	}
 
+	[TearDown]
+	public void TearDown()
+	{
+		if (Directory.Exists(m_folder))
+			Directory.Delete(m_folder, recursive: true);
+	}
+
+	[Test]
+	public void ShowsTheMainMenuWhileLoading()
+	{
+		using var viewModel = new MainWindowViewModel(new Random(0), settings: CreateAppSettings());
+
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
+		Assert.That(viewModel.Game, Is.Null);
+		Assert.That(viewModel.MainMenu.IsLoading, Is.True);
+		Assert.That(viewModel.MainMenu.CanNewGame(), Is.False);
+
+		viewModel.SetData(TestData.CreateGameInfo(), TestData.CreateGameData(), [], null);
+		Assert.That(viewModel.MainMenu.IsLoading, Is.False);
 		Assert.That(viewModel.Title, Is.EqualTo("Title"));
-		Assert.That(viewModel.CurrentLocation.Location, Is.SameAs(viewModel.World.Player.Location));
-		Assert.That(viewModel.CurrentLocation.Location, Is.SameAs(home));
-		Assert.That(viewModel.CurrentLocation.Title, Is.EqualTo(home.Title));
-		Assert.That(viewModel.CurrentLocation.Description, Is.EqualTo(home.MediumDescription));
-		Assert.That(viewModel.CurrentLocation.Connections.Select(x => x.Title), Is.EqualTo(home.Connections.Select(x => x.Title)));
-		Assert.That(viewModel.CurrentLocation.Connections.Select(x => x.Description), Is.EqualTo(home.Connections.Select(x => x.ShortDescription)));
+		Assert.That(viewModel.MainMenu.Title, Is.EqualTo("Title"));
+		Assert.That(viewModel.MainMenu.CanNewGame(), Is.True);
 	}
 
 	[Test]
-	public void ExamineShowsLongDescription()
+	public void MissingGameInfoShowsErrorsAndBlocksNewGame()
+	{
+		using var viewModel = new MainWindowViewModel(new Random(0), settings: CreateAppSettings());
+		viewModel.SetData(null, TestData.CreateGameData(), [new DataLoadError(@"C:\Data\GameInfo.json", "Broken")], null);
+
+		Assert.That(viewModel.Title, Is.EqualTo(OurResources.EngineName));
+		Assert.That(viewModel.MainMenu.LoadErrors, Is.EqualTo(new[] { "GameInfo.json: Broken" }));
+		Assert.That(viewModel.MainMenu.CanNewGame(), Is.False);
+
+		viewModel.MainMenu.NewGame();
+		Assert.That(viewModel.NewGame, Is.Null);
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
+	}
+
+	[Test]
+	public void MissingGameDataBlocksNewGame()
+	{
+		using var viewModel = new MainWindowViewModel(new Random(0), settings: CreateAppSettings());
+		viewModel.SetData(TestData.CreateGameInfo(), null, [new DataLoadError(@"C:\Data\Professions.json", "Broken")], null);
+
+		Assert.That(viewModel.MainMenu.Title, Is.EqualTo("Title"));
+		Assert.That(viewModel.MainMenu.CanNewGame(), Is.False);
+	}
+
+	[Test]
+	public void LoadGameNeedsDataAndSaveSettings()
+	{
+		using var withoutSettings = CreateViewModel(saveSettings: null);
+		using var withoutData = new MainWindowViewModel(new Random(0), settings: CreateAppSettings());
+		withoutData.SetData(TestData.CreateGameInfo(), null, [], null, m_settings);
+		using var viewModel = CreateViewModel();
+
+		Assert.That(withoutSettings.MainMenu.HasHashes, Is.False);
+		Assert.That(viewModel.MainMenu.HasHashes, Is.True);
+		Assert.That(viewModel.MainMenu.DataHash, Is.EqualTo("hash"));
+		Assert.That(viewModel.MainMenu.DataHashText, Does.Contain("hash"));
+		Assert.That(viewModel.MainMenu.HasModsHash, Is.False);
+
+		using var withMods = new MainWindowViewModel(new Random(0), settings: CreateAppSettings());
+		withMods.SetData(TestData.CreateGameInfo(), TestData.CreateGameData(), [], null, m_settings with { DataHash = "0123456789ABCDEF", ModsHash = "FEDCBA9876543210" });
+		Assert.That(withMods.MainMenu.DataHashText, Does.Contain("0123456789AB").And.Not.Contain("CDEF"));
+		Assert.That(withMods.MainMenu.ModsHashText, Does.Contain("FEDCBA987654").And.Not.Contain("3210"));
+		Assert.That(withMods.MainMenu.ModsHash, Is.EqualTo("FEDCBA9876543210"));
+		Assert.That(withMods.MainMenu.HasModsHash, Is.True);
+
+		Assert.That(withoutSettings.MainMenu.CanLoadGame(), Is.False);
+		Assert.That(withoutData.MainMenu.CanLoadGame(), Is.False);
+		Assert.That(viewModel.MainMenu.CanLoadGame(), Is.True);
+
+		viewModel.MainMenu.LoadGame();
+		Assert.That(viewModel.Screen, Is.InstanceOf<LoadGameViewModel>());
+
+		((LoadGameViewModel) viewModel.Screen!).Back();
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
+	}
+
+	[Test]
+	public void BackFromNewGameKeepsItToContinue()
 	{
 		using var viewModel = CreateViewModel();
-		var location = viewModel.CurrentLocation;
+		Assert.That(viewModel.MainMenu.CanContinueNewGame(), Is.False);
 
-		Assert.That(location.IsExamined, Is.False);
-		Assert.That(location.CanExamine(), Is.True);
+		viewModel.MainMenu.NewGame();
+		var newGame = viewModel.NewGame;
+		Assert.That(viewModel.Screen, Is.SameAs(newGame));
 
-		location.Examine();
+		newGame!.Back();
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
+		Assert.That(viewModel.NewGame, Is.SameAs(newGame));
+		Assert.That(viewModel.MainMenu.CanContinueNewGame(), Is.True);
 
-		Assert.That(location.IsExamined, Is.True);
-		Assert.That(location.CanExamine(), Is.False);
-		Assert.That(location.LongDescription, Is.EqualTo(viewModel.World.Player.Home.LongDescription));
+		viewModel.MainMenu.ContinueNewGame();
+		Assert.That(viewModel.Screen, Is.SameAs(newGame));
+
+		// Starting a new game again starts over.
+		viewModel.Escape();
+		viewModel.MainMenu.NewGame();
+		Assert.That(viewModel.NewGame, Is.Not.SameAs(newGame));
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.NewGame));
 	}
 
 	[Test]
-	public void TravelMovesPlayer()
+	public void StartingAGameShowsIt()
 	{
 		using var viewModel = CreateViewModel();
-		var home = viewModel.World.Player.Home;
-		var changed = new List<string?>();
-		viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
-		viewModel.CurrentLocation.Examine();
+		Assert.That(viewModel.IsPlaying, Is.False);
 
-		viewModel.CurrentLocation.Connections[0].Travel();
+		StartGame(viewModel);
 
-		var quarter = home.Connections[0];
-		Assert.That(viewModel.World.Player.Location, Is.SameAs(quarter));
-		Assert.That(viewModel.CurrentLocation.Title, Is.EqualTo(quarter.Title));
-		Assert.That(viewModel.CurrentLocation.IsExamined, Is.False);
-		Assert.That(viewModel.CurrentLocation.Connections.Select(x => x.Location), Does.Contain(home));
-		Assert.That(changed, Does.Contain(nameof(MainWindowViewModel.CurrentLocation)));
+		Assert.That(viewModel.IsPlaying, Is.True);
+		Assert.That(viewModel.Game, Is.Not.Null);
+		Assert.That(viewModel.Screen, Is.Null);
+		Assert.That(viewModel.NewGame, Is.Null);
+		Assert.That(viewModel.MainMenu.IsInGame, Is.True);
+		Assert.That(viewModel.MainMenu.IsNewGameInProgress, Is.False);
+		Assert.That(viewModel.MainMenu.CanNewGame(), Is.False);
+		Assert.That(viewModel.MainMenu.CanResume(), Is.True);
 	}
 
 	[Test]
-	public void WalkingBetweenQuartersTakesTime()
+	public void EscapeOpensTheMenuAndResumeReturnsToTheSameGame()
 	{
 		using var viewModel = CreateViewModel();
-		var world = viewModel.World;
-		var calendar = world.GameData.Calendar;
-		var start = world.Time;
+		StartGame(viewModel);
+		var game = viewModel.Game;
+		game!.ShowVillagers();
+		game.EscapeRepeatTime = TimeSpan.FromMinutes(1);
 
-		// Stepping out of the house into its quarter takes a minute.
-		viewModel.TravelTo(world.Player.Home.Quarter!);
-		Assert.That(world.Time, Is.EqualTo(start + calendar.CreateTimeOffset(0, 0, 1)));
-		start = world.Time;
+		// The first Esc closes the sheet on top, and a second one straight after it doesn't go on to the main menu.
+		viewModel.Escape();
+		Assert.That(game.HasSheets, Is.False);
+		Assert.That(viewModel.Screen, Is.Null);
+		viewModel.Escape();
+		Assert.That(viewModel.Screen, Is.Null);
 
-		var quarter = world.Player.Location;
-		var next = quarter.Exits.First(x => x.Direction is not null).Location;
-		viewModel.TravelTo(next);
+		viewModel.Escape();
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
+		Assert.That(viewModel.Game, Is.SameAs(game));
+		Assert.That(viewModel.IsPlaying, Is.False);
 
-		Assert.That(world.Time, Is.EqualTo(start + world.GetTravelTime(quarter, next)));
-		Assert.That(world.Time, Is.GreaterThan(start));
-		Assert.That(calendar.GetParts(world.Time - start).Minutes, Is.EqualTo(2).Or.EqualTo(5));
+		viewModel.Escape();
+		Assert.That(viewModel.Screen, Is.Null);
+
+		viewModel.Escape();
+		viewModel.MainMenu.Resume();
+		Assert.That(viewModel.Screen, Is.Null);
+		Assert.That(viewModel.Game, Is.SameAs(game));
 	}
 
 	[Test]
-	public void ConnectionsShowHowLongTheyTake()
+	public void QuittingAnUnchangedGameDoesNotAsk()
 	{
 		using var viewModel = CreateViewModel();
-		var world = viewModel.World;
+		StartGame(viewModel);
 
-		// From the house, the only way out is into its quarter.
-		Assert.That(viewModel.CurrentLocation.Places.Select(x => x.TravelTime), Is.EqualTo(new[] { "1 minute" }));
+		Assert.That(viewModel.Game!.HasUnsavedChanges(), Is.False);
+		OpenMenu(viewModel);
+		viewModel.MainMenu.QuitToMainMenu();
 
-		viewModel.TravelTo(world.Player.Home.Quarter!);
-		var quarter = world.Player.Location;
-		Assert.Multiple(() =>
-		{
-			foreach (var path in viewModel.CurrentLocation.Paths)
-			{
-				var minutes = world.GameData.Calendar.GetParts(world.GetTravelTime(quarter, path.Location)).Minutes;
-				Assert.That(path.TravelTime, Is.EqualTo($"{minutes} minutes"));
-				Assert.That(path.TravelTimeText, Is.EqualTo($"({minutes} minutes)"));
-			}
-			Assert.That(viewModel.CurrentLocation.Places.Select(x => x.TravelTime), Is.All.EqualTo("1 minute"));
-		});
+		Assert.That(viewModel.SavePrompt, Is.Null);
+		Assert.That(viewModel.Game, Is.Null);
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
+		Assert.That(viewModel.MainMenu.IsInGame, Is.False);
 	}
 
 	[Test]
-	public void LocationShowsPeopleInIt()
+	public void QuittingAChangedGameAsksToSave()
 	{
 		using var viewModel = CreateViewModel();
-		var gameState = viewModel.World;
+		StartGame(viewModel);
+		var game = viewModel.Game!;
+		ChangeGame(viewModel);
+		Assert.That(game.HasUnsavedChanges(), Is.True);
 
-		foreach (var location in gameState.Locations)
-		{
-			viewModel.TravelTo(location);
+		// Cancelling stays in the game.
+		OpenMenu(viewModel);
+		viewModel.MainMenu.QuitToMainMenu();
+		Assert.That(viewModel.SavePrompt, Is.Not.Null);
+		Assert.That(viewModel.IsPlaying, Is.False);
+		viewModel.Escape();
+		Assert.That(viewModel.SavePrompt, Is.Null);
+		Assert.That(viewModel.Game, Is.SameAs(game));
 
-			var expected = gameState.Npcs.Where(x => x.Location == location).Select(x => x.FullName);
-			Assert.That(viewModel.CurrentLocation.People.Select(x => x.Name), Is.EquivalentTo(expected));
-			Assert.That(viewModel.CurrentLocation.HasPeople, Is.EqualTo(expected.Any()));
-		}
+		// Saving saves, then quits.
+		viewModel.MainMenu.QuitToMainMenu();
+		viewModel.SavePrompt!.Save();
+		Assert.That(viewModel.SavePrompt, Is.Null);
+		Assert.That(viewModel.Game, Is.Null);
+		Assert.That(Directory.GetFiles(m_folder), Has.Length.EqualTo(1));
 	}
 
 	[Test]
-	public void ShowVillagersListsEveryoneByFamily()
+	public void SavingFromTheMenuStopsTheQuestion()
 	{
 		using var viewModel = CreateViewModel();
-		var changed = new List<string?>();
-		viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+		StartGame(viewModel);
+		ChangeGame(viewModel);
 
-		viewModel.ShowVillagers();
+		OpenMenu(viewModel);
+		viewModel.MainMenu.SaveGame();
+		Assert.That(viewModel.MainMenu.SaveStatus, Is.EqualTo(OurResources.GameSaved));
+		Assert.That(viewModel.Game!.HasUnsavedChanges(), Is.False);
 
-		var villagers = viewModel.Villagers!;
-		var families = viewModel.World.Families.OrderBy(x => x.LastName, StringComparer.CurrentCulture).ToList();
-		Assert.That(viewModel.CurrentView, Is.SameAs(villagers));
-		Assert.That(changed, Is.EquivalentTo(new[] { nameof(MainWindowViewModel.Villagers), nameof(MainWindowViewModel.CurrentView) }));
-		// Families are sorted by last name.
-		Assert.That(villagers.Families.Select(x => x.Family), Is.EqualTo(families));
-		Assert.That(villagers.Families.Select(x => x.Title), Is.EqualTo(families.Select(x => $"The {x.LastName} Family")));
-		foreach (var family in villagers.Families)
-			Assert.That(family.People.Select(x => x.Person), Is.EqualTo(family.Family.Members));
-
-		// Showing them again while they're open changes nothing.
-		viewModel.ShowVillagers();
-		Assert.That(viewModel.Villagers, Is.SameAs(villagers));
+		viewModel.MainMenu.QuitToMainMenu();
+		Assert.That(viewModel.SavePrompt, Is.Null);
+		Assert.That(viewModel.Game, Is.Null);
 	}
 
 	[Test]
-	public void ShowStatusListsThePlayersNeeds()
-	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		viewModel.ShowMap();
-		viewModel.ShowStatus();
-
-		var status = viewModel.Status!;
-		var world = viewModel.World;
-		Assert.That(viewModel.Map, Is.Null);
-		Assert.That(viewModel.CurrentView, Is.SameAs(status));
-		var fatigue = status.Needs.Single(x => x.Title == "Fatigue");
-		Assert.That(fatigue.Value, Does.StartWith("Rested (").And.EndsWith(" of 100)"));
-		var upkeep = status.Needs.Single(x => x.Title == "Upkeep");
-		var quota = 30 + (15 * world.Player.Family.Members.Count);
-		Assert.That(upkeep.Value, Does.EndWith($" of {world.GameData.Calendar.FormatOffsetFrom(world.Time, world.GameData.Calendar.CreateTimeOffset(0, 0, quota), TimeFormat.Long)} today"));
-		Assert.That(upkeep.Note, Is.EqualTo(OurResources.NeedStatusShared));
-		Assert.That(status.Needs.Any(x => x.Title == "Work"), Is.EqualTo(world.Player.Business is not null));
-
-		// Trips are counted in visits, with how long each takes.
-		var members = world.Player.Family.Members;
-		var water = world.GameData.Schedules.Needs.Single(x => x.Id == "water");
-		var visits = members.Sum(x => x.GetProgress(water)) / 5;
-		Assert.That(status.Needs.Single(x => x.Title == "Water").Value, Is.EqualTo($"{Math.Min(visits, members.Count)} of {members.Count} visits today (5 minutes each)"));
-		Assert.That(status.Needs.Single(x => x.Title == "Water").IsDone, Is.EqualTo(visits >= members.Count));
-		Assert.That(fatigue.IsDone, Is.False);
-
-		// Opening the villagers closes it, and closing it shows the location.
-		viewModel.ShowVillagers();
-		Assert.That(viewModel.Status, Is.Null);
-		viewModel.ShowStatus();
-		viewModel.Status!.Close();
-		Assert.That((viewModel.Status, viewModel.CurrentView), Is.EqualTo(((object?) null, (object) viewModel.CurrentLocation)));
-	}
-
-	[Test]
-	public void DoneChoresAreMarkedAndNoLongerOffered()
-	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		var world = viewModel.World;
-		var upkeep = world.GameData.Schedules.Needs.Single(x => x.Id == "upkeep");
-		foreach (var member in world.Player.Family.Members)
-		{
-			member.UpdateNeeds(world.Time);
-			member.SetProgress(upkeep, 0);
-			if (!member.IsPlayer)
-				member.SetPlan(null, []);
-		}
-
-		// With less time left than a shift, it takes what's left.
-		var quota = 30 + (15 * world.Player.Family.Members.Count);
-		world.Player.SetProgress(upkeep, quota - 10);
-		var tidy = GetStart(viewModel, "upkeep");
-		Assert.That(tidy.Options.Select(x => x.Text), Is.EqualTo(new[] { "Start" }));
-
-		// Started at home, tidying up is the next step, and takes the time left.
-		tidy.Options[0].Start();
-		var steps = viewModel.CurrentLocation.Steps!;
-		Assert.That(steps.Action!.Text, Is.EqualTo("Tidy up (10 minutes)"));
-		steps.Action.Do();
-
-		// Once it's done, it can't be started again today, and the status page says so.
-		var done = GetStart(viewModel, "upkeep");
-		Assert.That((done.Options.Count, done.Note), Is.EqualTo((0, "Done for today")));
-		viewModel.ShowStatus();
-		Assert.That(viewModel.Status!.Needs.Single(x => x.Title == "Upkeep").IsDone, Is.True);
-	}
-
-	[Test]
-	public void StartingSomethingShowsItsStepsUntilStopped()
-	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		var world = viewModel.World;
-		var player = world.Player;
-		var square = world.Locations.First(x => x.Template is QuarterTemplate && x.QuarterKind == "square");
-		var water = world.GameData.Schedules.Needs.Single(x => x.Id == "water");
-		player.SetProgress(water, 0);
-		viewModel.TravelTo(square);
-
-		// Started at the square, fetching water is next, and the start page says it's in progress.
-		GetStart(viewModel, "water").Options.Single().Start();
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
-		Assert.That(player.Current?.Need, Is.EqualTo(water));
-		viewModel.ShowStart();
-		Assert.That(viewModel.StartScreen!.InProgress, Is.EqualTo("In progress: Water. Starting something else puts it on hold."));
-		viewModel.CloseStart();
-
-		// Stopping gives it up.
-		viewModel.CurrentLocation.Steps!.Stop();
-		Assert.That((player.Current, viewModel.CurrentLocation.Steps), Is.EqualTo(((StepSequence?) null, (PlayerStepsViewModel?) null)));
-		Assert.That(viewModel.CurrentLocation.WaitResult, Does.StartWith("You stopped "));
-	}
-
-	[Test]
-	public void PathsToThePlayersHomeAreMarked()
+	public void ClosingWithAChangedGameAsksToSaveThenExits()
 	{
 		using var viewModel = CreateViewModel();
-		var player = viewModel.World.Player;
-		Assert.That(viewModel.CurrentLocation.Connections.All(x => x.Marker is null), Is.True);
+		var exitCount = 0;
+		viewModel.ExitRequested += (_, _) => exitCount++;
+		StartGame(viewModel);
+		ChangeGame(viewModel);
 
-		viewModel.TravelTo(player.Home.Quarter!);
-		var home = viewModel.CurrentLocation.Connections.Single(x => x.Location == player.Home);
-		Assert.That(home.Marker, Is.EqualTo("Home"));
-		Assert.That(viewModel.CurrentLocation.Connections.Where(x => x.Marker is not null).Select(x => x.Location),
-			Is.SubsetOf(new[] { player.Home, player.Workplace }));
+		Assert.That(viewModel.RequestClose(), Is.False);
+		Assert.That(viewModel.SavePrompt, Is.Not.Null);
+
+		viewModel.SavePrompt!.DontSave();
+		Assert.That(exitCount, Is.EqualTo(1));
+		Assert.That(viewModel.RequestClose(), Is.True);
+		Assert.That(Directory.Exists(m_folder), Is.False);
 	}
 
 	[Test]
-	public void MapsMarkThePlayersHome()
+	public void ClosingWithoutAGameDoesNotAsk()
 	{
 		using var viewModel = CreateViewModel();
-		var player = viewModel.World.Player;
-		viewModel.ShowMap();
 
-		Assert.That(viewModel.Map!.Quarters.Where(x => x.HasHome).Select(x => x.Quarter), Is.EqualTo(new[] { player.Home.Quarter }));
-		Assert.That(viewModel.Map.Quarters.Where(x => x.HasWorkplace).Select(x => x.Quarter),
-			Is.EqualTo(player.Business is null || player.Workplace == player.Home ? Array.Empty<Location>() : new[] { player.Workplace.Quarter }));
-		Assert.That(viewModel.MiniMap.Quarters.Where(x => x.HasHome).Select(x => x.Quarter), Is.EqualTo(new[] { player.Home.Quarter }));
+		Assert.That(viewModel.RequestClose(), Is.True);
+		Assert.That(viewModel.SavePrompt, Is.Null);
 	}
 
 	[Test]
-	public void FetchingWaterTellsThePlayerToTakeItHome()
-	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		var world = viewModel.World;
-		var square = world.Locations.First(x => x.Template is QuarterTemplate && x.QuarterKind == "square");
-		var water = world.GameData.Schedules.Needs.Single(x => x.Id == "water");
-		foreach (var member in world.Player.Family.Members)
-		{
-			member.UpdateNeeds(world.Time);
-			member.SetProgress(water, 0);
-			if (!member.IsPlayer)
-				member.SetPlan(null, []);
-		}
-		viewModel.TravelTo(square);
-
-		var start = GetStart(viewModel, "water");
-		Assert.That(start.Options.Select(x => x.Text), Is.EqualTo(new[] { "Start" }));
-		start.Options[0].Start();
-		var fetch = viewModel.CurrentLocation.Steps!.Action!;
-		Assert.That(fetch.Text, Is.EqualTo("Fetch water (5 minutes)"));
-		fetch.Do();
-
-		Assert.That(viewModel.CurrentLocation.WaitResult, Is.EqualTo("You fetched water for 5 minutes. Take it home to finish."));
-		// Taking it home is next, which the player does themselves, so there's no button for it.
-		var steps = viewModel.CurrentLocation.Steps!;
-		Assert.That((steps.Action, steps.Next), Is.EqualTo(((PlayerStepActionViewModel?) null, "Next: Take it home to finish.")));
-	}
-
-	[Test]
-	public async Task ThePlayerIsAskedWhetherToKeepGoingAsync()
-	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		var world = viewModel.World;
-		var player = world.Player;
-		var work = world.GameData.Schedules.Needs.Single(x => x.Id == "work");
-		var loop = work.Steps.ToList().FindIndex(x => x.Kind == StepKind.Do);
-		player.SetProgress(work, 0);
-		player.SetPlan(work, [], startStep: loop + 1, goalMinutes: 60);
-		await world.UpdatePlayerStepsAsync();
-
-		var prompt = viewModel.Overlay as RepeatPromptViewModel;
-		Assert.That(prompt, Is.Not.Null);
-		Assert.That(prompt!.ContinueText, Does.StartWith("Keep going ("));
-
-		// Stopping closes the prompt and says what the player stopped doing.
-		prompt.Stop();
-		Assert.That((viewModel.Overlay, player.Current), Is.EqualTo(((object?) null, (StepSequence?) null)));
-		Assert.That(viewModel.CurrentLocation.WaitResult, Is.EqualTo("You stopped work."));
-	}
-
-	[Test]
-	public void ClosedMarketShowsWhenItIsOpen()
-	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		var world = viewModel.World;
-		var square = world.Locations.First(x => x.Template is QuarterTemplate && x.QuarterKind == "square");
-		viewModel.TravelTo(square);
-
-		// The game starts on the first day, and the market is only open on the sixth.
-		var market = GetStart(viewModel, "market");
-		Assert.That(market.Title, Is.EqualTo("Market"));
-		Assert.That(market.Options, Is.Empty);
-		Assert.That(market.Note, Is.EqualTo("Open on Day 6 from 7:00 to 14:00"));
-		Assert.That(GetStart(viewModel, "water").Note, Is.Null);
-	}
-
-	[Test]
-	public void SidebarButtonsCloseTheirOpenViews()
-	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-
-		viewModel.ToggleVillagers();
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Villagers));
-		viewModel.ToggleVillagers();
-		Assert.That(viewModel.Villagers, Is.Null);
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
-
-		viewModel.ToggleStatus();
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Status));
-		viewModel.ToggleStatus();
-		Assert.That(viewModel.Status, Is.Null);
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
-
-		// Another view's button switches to that view rather than closing.
-		viewModel.ToggleMap();
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Map));
-		viewModel.ToggleStatus();
-		Assert.That(viewModel.Map, Is.Null);
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Status));
-		viewModel.ToggleMap();
-		viewModel.ToggleMap();
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
-
-		// The player's character view opens on top of the current view, and the same button closes it. With it open, a
-		// view's button shows that view instead of closing it.
-		viewModel.ToggleVillagers();
-		viewModel.TogglePlayerCharacter();
-		Assert.That(viewModel.Character!.Person.Person, Is.SameAs(viewModel.World.Player));
-		viewModel.TogglePlayerCharacter();
-		Assert.That(viewModel.Character, Is.Null);
-		viewModel.TogglePlayerCharacter();
-		viewModel.ToggleVillagers();
-		Assert.That(viewModel.Character, Is.Null);
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Villagers));
-	}
-
-	[Test]
-	public void PeopleAtTheLocationAreLabeledWithTheirRelationToThePlayer()
+	public void ExitingFromTheMenuRaisesExit()
 	{
 		using var viewModel = CreateViewModel();
-		var world = viewModel.World;
-		var player = world.Player;
-		var relatives = viewModel.CurrentLocation.People.Where(x => x.Person.Family == player.Family).ToList();
+		var exitCount = 0;
+		viewModel.ExitRequested += (_, _) => exitCount++;
 
-		// The game starts at home, with the family there.
-		Assert.That(relatives, Is.Not.Empty);
-		Assert.That(relatives.Select(x => x.PlayerLabel), Has.All.StartsWith("This is your "));
-		Assert.That(viewModel.CurrentLocation.People.Where(x => x.Person.Family != player.Family).Select(x => x.PlayerLabel), Has.All.Null);
-		Assert.That(viewModel.CurrentLocation.People.Any(x => x.IsYou), Is.False);
+		viewModel.MainMenu.ExitGame();
+
+		Assert.That(exitCount, Is.EqualTo(1));
 	}
 
 	[Test]
-	public void PlayerCanSleepAtHome()
-	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		var world = viewModel.World;
-		Assert.That(viewModel.CurrentLocation.Location, Is.SameAs(world.Player.Home));
-		var sleep = GetStart(viewModel, "fatigue");
-		Assert.That(sleep.Title, Is.EqualTo("Fatigue"));
-		Assert.That(sleep.Options.Select(x => x.Text), Is.EqualTo(new[] { "Start" }));
-
-		// Started at home, changing into night clothes is next, which can be done for them, and then sleeping until rested.
-		sleep.Options[0].Start();
-		viewModel.CurrentLocation.Steps!.DoStep();
-		var location = viewModel.CurrentLocation;
-		var action = location.Steps!.Action!;
-		Assert.That(action.Text, Is.EqualTo("Sleep"));
-		action.Do();
-
-		Assert.That(location.WaitResult, Does.StartWith("You slept for "));
-		Assert.That(world.Player.GetLevel(world.GameData.Schedules.Needs.Single(x => x.Id == "fatigue")), Is.Zero);
-	}
-
-	/// <summary>
-	/// Opens the start page and gets what it offers for a need.
-	/// </summary>
-	private static StartChoiceViewModel GetStart(MainWindowViewModel viewModel, string needId)
-	{
-		viewModel.CloseStart();
-		viewModel.ShowStart();
-		return viewModel.StartScreen!.Choices.Single(x => x.Choice.Need.Id == needId);
-	}
-
-	[Test]
-	public void VillagersLabelThePlayer()
+	public void LoadingAGameDuringAnotherReplacesIt()
 	{
 		using var viewModel = CreateViewModel();
-		viewModel.ShowVillagers();
-		var people = viewModel.Villagers!.Families.SelectMany(x => x.People).ToList();
+		StartGame(viewModel);
+		var game = viewModel.Game!;
+		var save = SaveFile.Create(game.World, m_settings, DateTimeOffset.Now);
+		save.Write(Path.Combine(m_folder, save.GetFileName()));
+		ChangeGame(viewModel);
 
-		Assert.That(people.Where(x => x.IsYou).Select(x => x.Person), Is.EqualTo(new[] { viewModel.World.Player }));
-		var player = viewModel.World.Player;
-		foreach (var person in people)
-		{
-			var expected = person.Person.IsPlayer ? "This is you" :
-				person.Person.Family != player.Family ? null :
-				person.Person.Role == FamilyRole.Wife ? "This is your wife" :
-				person.Person.Role == FamilyRole.Child ? (person.Person.Traits.GetValueId("gender") == "male" ? "This is your son" : "This is your daughter") :
-				person.Person.Traits.GetValueId("gender") == "male" ? "This is your father" : "This is your mother";
-			Assert.That(person.PlayerLabel, Is.EqualTo(expected), person.Name);
-		}
-		Assert.That(people.Count(x => x.PlayerLabel is not null), Is.GreaterThan(1));
-		Assert.That(people.Any(x => x.CanGoTo), Is.False);
+		OpenMenu(viewModel);
+		viewModel.MainMenu.LoadGame();
+		var loadGame = (LoadGameViewModel) viewModel.Screen!;
+		loadGame.Saves.Single().Load();
+
+		// The changed game is kept until the player answers.
+		Assert.That(viewModel.SavePrompt, Is.Not.Null);
+		Assert.That(viewModel.Game, Is.SameAs(game));
+
+		viewModel.SavePrompt!.DontSave();
+		Assert.That(viewModel.Game, Is.Not.Null.And.Not.SameAs(game));
+		Assert.That(viewModel.Screen, Is.Null);
 	}
 
 	[Test]
-	public void DevelopersCanGoStraightToAVillager()
-	{
-		using var viewModel = CreateViewModel(isDeveloper: true, withSchedules: true);
-		var start = viewModel.World.Time;
-		viewModel.World.AdvanceTime(viewModel.World.GameData.Calendar.CreateTimeOffset(0, 3, 0));
-		viewModel.ShowVillagers();
-		var people = viewModel.Villagers!.Families.SelectMany(x => x.People).ToList();
-		var target = people.First(x => !x.Person.IsPlayer && x.Person.Location != viewModel.World.Player.Location);
-		var time = viewModel.World.Time;
-
-		Assert.That(people.Where(x => x.CanGoTo).Select(x => x.Person), Is.EquivalentTo(viewModel.World.Npcs));
-
-		target.GoTo();
-
-		Assert.That(viewModel.World.Player.Location, Is.SameAs(target.Person.Location));
-		Assert.That(viewModel.CurrentLocation.Location, Is.SameAs(target.Person.Location));
-		Assert.That(viewModel.Villagers, Is.Null);
-		Assert.That(viewModel.World.Time, Is.EqualTo(time));
-		Assert.That(time, Is.GreaterThan(start));
-	}
-
-	[Test]
-	public void FollowingSomeoneTakesThePlayerWithThemWhenTheyLeave()
-	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		var world = viewModel.World;
-		var target = viewModel.CurrentLocation.People[0];
-		var person = target.Person;
-
-		target.ToggleFollow();
-		Assert.That((viewModel.CurrentLocation.Following, target.IsFollowed), Is.EqualTo((person, true)));
-
-		// While they stay put, waiting stops each time they start spending time on a different goal (or when the part of the day
-		// ends), not when they carry on with the same one, and leaves the player where they are.
-		// Once they leave, the player goes with them.
-		var start = viewModel.CurrentLocation.Location;
-		var calendar = world.GameData.Calendar;
-		for (var wait = 0; wait < 200 && viewModel.CurrentLocation.Location == start; wait++)
-		{
-			var (time, goal) = (world.Time, person.Goal);
-			viewModel.CurrentLocation.Wait();
-			if (viewModel.CurrentLocation.Location == start)
-				Assert.That(person.Goal != goal || world.Time == calendar.GetNextDayPartStart(time), Is.True);
-		}
-
-		var screen = viewModel.CurrentLocation;
-		Assert.That(screen.Location, Is.Not.SameAs(start));
-		Assert.That(world.Player.Location, Is.SameAs(person.Location));
-		Assert.That(screen.Location, Is.SameAs(person.Location));
-		Assert.That(screen.Following, Is.SameAs(person));
-		Assert.That(screen.People.Single(x => x.Person == person).IsFollowed, Is.True);
-		Assert.That(screen.WaitResult, Is.EqualTo(OurResources.WaitResultFollowed.FormatCurrentCulture(person.FullName, screen.Location.Title)));
-
-		// Following can be stopped, and walking somewhere stops it too.
-		screen.People.Single(x => x.Person == person).ToggleFollow();
-		Assert.That(screen.Following, Is.Null);
-		screen.People.Single(x => x.Person == person).ToggleFollow();
-		screen.Connections[0].Travel();
-		Assert.That(viewModel.CurrentLocation.Following, Is.Null);
-	}
-
-	[Test]
-	public void WaitingStopsWhenSomeoneArrivesOrLeaves()
-	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		var world = viewModel.World;
-		var calendar = world.GameData.Calendar;
-		var screen = viewModel.CurrentLocation;
-		var changes = 0;
-		var dayParts = new HashSet<string>();
-
-		Assert.That(screen.WaitResult, Is.Null);
-		for (var wait = 0; wait < 30; wait++)
-		{
-			var before = screen.People.Select(x => x.Person).ToList();
-			var start = world.Time;
-
-			screen.Wait();
-
-			var after = screen.People.Select(x => x.Person).ToList();
-			Assert.That(after, Is.EquivalentTo(screen.Location.People.Where(x => !x.IsPlayer)));
-			Assert.That(world.Time, Is.GreaterThan(start).And.LessThanOrEqualTo(calendar.GetNextDayPartStart(start)));
-			if (!after.SequenceEqual(before))
-				changes++;
-			else if (viewModel.TalkPrompt is { } prompt)
-				prompt.Decline();
-			else
-			{
-				Assert.That(world.Time, Is.EqualTo(calendar.GetNextDayPartStart(start)));
-				var dayPart = calendar.GetDayPart(world.Time);
-				Assert.That(screen.WaitResult, Does.EndWith(dayPart.Announcement?.Text ?? OurResources.DayPartStarted.FormatCurrentCulture(dayPart.Title)));
-				dayParts.Add(dayPart.Id);
-			}
-			Assert.That(screen.WaitResult, Is.Not.Null);
-		}
-
-		Assert.That(changes, Is.GreaterThan(0));
-		Assert.That(dayParts, Has.Count.GreaterThan(1));
-	}
-
-	[Test]
-	public void ExamineVillagerOpensTheirCharacterViewAndClosingItReturnsToVillagers()
+	public void ManageModsNeedsModListStore()
 	{
 		using var viewModel = CreateViewModel();
-		viewModel.ShowVillagers();
-		var villagers = viewModel.Villagers;
-		var person = villagers!.Families[1].People[0];
 
-		person.Examine();
-
-		Assert.That(viewModel.Character!.Person.Person, Is.SameAs(person.Person));
-		Assert.That(viewModel.Character.Person.Person.Description, Is.Not.Empty);
-		Assert.That(viewModel.CurrentView, Is.SameAs(villagers));
-
-		viewModel.Character.Close();
-
-		Assert.That(viewModel.Character, Is.Null);
-		Assert.That(viewModel.Villagers, Is.SameAs(villagers));
-		Assert.That(viewModel.CurrentView, Is.SameAs(villagers));
+		Assert.That(viewModel.MainMenu.CanManageMods(), Is.False);
+		viewModel.MainMenu.ManageMods();
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
 	}
 
 	[Test]
-	public void ExaminePersonAtTheLocationOpensTheirCharacterView()
+	public void ReturningFromManageModsReloadsData()
 	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		var person = viewModel.CurrentLocation.People[0];
+		var store = new ManageModsViewModelTests.FakeModListStore();
+		using var viewModel = new MainWindowViewModel(new Random(0), new ManageModsViewModelTests.FakeFolderPicker(), settings: CreateAppSettings());
+		viewModel.SetData(TestData.CreateGameInfo(), TestData.CreateGameData(), [], store);
+		var reloadCount = 0;
+		viewModel.ReloadDataRequested += (_, _) => reloadCount++;
+		viewModel.MainMenu.NewGame();
+		viewModel.NewGame!.Back();
 
-		person.Examine();
+		viewModel.MainMenu.ManageMods();
+		Assert.That(viewModel.Screen, Is.InstanceOf<ManageModsViewModel>());
 
-		Assert.That(viewModel.Character!.Person.Person, Is.SameAs(person.Person));
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
+		viewModel.Escape();
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
+		Assert.That(reloadCount, Is.EqualTo(1));
+		Assert.That(viewModel.MainMenu.IsLoading, Is.True);
+		Assert.That(viewModel.MainMenu.CanNewGame(), Is.False);
 
-		// Opening another view from the sidebar closes the character view.
-		viewModel.ToggleStatus();
-		Assert.That(viewModel.Character, Is.Null);
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Status));
+		// The new game being set up used the old data, so it's gone.
+		Assert.That(viewModel.NewGame, Is.Null);
+
+		viewModel.SetData(TestData.CreateGameInfo(), null, [new DataLoadError(@"C:\Data\Characters.json", "Broken", "with mods")], store);
+		Assert.That(viewModel.MainMenu.IsLoading, Is.False);
+		Assert.That(viewModel.MainMenu.LoadErrors, Is.EqualTo(new[] { "Characters.json (with mods): Broken" }));
+		Assert.That(viewModel.MainMenu.CanNewGame(), Is.False);
+		Assert.That(viewModel.MainMenu.CanManageMods(), Is.True);
 	}
 
 	[Test]
-	public void VillagersShowDeveloperInformationOnlyForDevelopers()
+	public void ManagingModsDuringAGameQuitsIt()
 	{
-		using var player = CreateViewModel();
-		using var developer = CreateViewModel(isDeveloper: true);
+		var store = new ManageModsViewModelTests.FakeModListStore();
+		using var viewModel = new MainWindowViewModel(new Random(0), new ManageModsViewModelTests.FakeFolderPicker(), settings: CreateAppSettings());
+		viewModel.SetData(TestData.CreateGameInfo(), TestData.CreateGameData(), [], store, m_settings);
+		StartGame(viewModel);
 
-		player.ShowVillagers();
-		developer.ShowVillagers();
+		OpenMenu(viewModel);
+		viewModel.MainMenu.ManageMods();
 
-		Assert.That(player.Villagers!.Families.Select(x => x.IsDeveloper), Has.All.False);
-		Assert.That(developer.Villagers!.Families.Select(x => x.IsDeveloper), Has.All.True);
-		foreach (var family in developer.Villagers.Families)
-		{
-			Assert.That(family.Wealth, Is.EqualTo($"Wealth: {family.Family.WealthLevel.GetDataName()}"));
-			Assert.That(family.HomeTitle, Is.EqualTo(family.Family.Home.Title));
-			Assert.That(family.Family.Members.Select(x => x.Home), Has.All.SameAs(family.Family.Home));
-		}
+		Assert.That(viewModel.Game, Is.Null);
+		Assert.That(viewModel.Screen, Is.InstanceOf<ManageModsViewModel>());
 	}
 
 	[Test]
-	public void VisitHomeClosesVillagersAndGoesToTheHouse()
-	{
-		using var viewModel = CreateViewModel(isDeveloper: true);
-		viewModel.ShowVillagers();
-		var family = viewModel.Villagers!.Families[1];
-
-		family.VisitHome();
-
-		Assert.That(viewModel.Villagers, Is.Null);
-		Assert.That(viewModel.World.Player.Location, Is.SameAs(family.Family.Home));
-		Assert.That(viewModel.CurrentLocation.Location, Is.SameAs(family.Family.Home));
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
-	}
-
-	[Test]
-	public void QuartersListPathsInCompassOrderAndPlacesSeparately()
+	public void SettingsOpenFromTheMainMenuBeforeAGame()
 	{
 		using var viewModel = CreateViewModel();
-		var quarter = viewModel.World.Player.Home.Connections.Single();
 
-		viewModel.TravelTo(quarter);
-		var screen = viewModel.CurrentLocation;
+		viewModel.MainMenu.OpenSettings();
+		Assert.That(viewModel.Screen, Is.InstanceOf<SettingsViewModel>());
 
-		// Paths lead to other quarters, in compass order, and say which way they go. Places are the houses and businesses.
-		Assert.That(screen.Paths, Is.Not.Empty);
-		Assert.That(screen.Paths.Select(x => x.Direction), Is.Ordered);
-		Assert.That(screen.Paths.Select(x => x.Location.Bounds), Has.All.Not.Null);
-		foreach (var path in screen.Paths)
-		{
-			var exit = quarter.Exits.Single(x => x.Location == path.Location);
-			Assert.That(path.Route, Is.EqualTo($"{exit.Direction!.Value.GetTitle()} along the {exit.Path}"));
-		}
+		viewModel.Escape();
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
 
-		Assert.That(screen.Places.Select(x => x.Location), Does.Contain(viewModel.World.Player.Home));
-		Assert.That(screen.Places.Select(x => x.Route), Has.All.Null);
-		Assert.That(screen.PlacesHeader, Is.EqualTo(OurResources.PlacesHeader));
-		Assert.That(screen.Connections, Is.EqualTo(screen.Paths.Concat(screen.Places)));
-
-		// A house only leads back to its quarter.
-		viewModel.TravelTo(viewModel.World.Player.Home);
-		Assert.That(viewModel.CurrentLocation.HasPaths, Is.False);
-		Assert.That(viewModel.CurrentLocation.PlacesHeader, Is.EqualTo(OurResources.ConnectionsHeader));
+		viewModel.MainMenu.OpenSettings();
+		((SettingsViewModel) viewModel.Screen!).Back();
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
 	}
 
 	[Test]
-	public void OnlyDevelopersCanTravelByTheMap()
-	{
-		using var player = CreateViewModel();
-		using var developer = CreateViewModel(isDeveloper: true);
-		var home = player.World.Player.Home;
-
-		player.ShowMap();
-		developer.ShowMap();
-
-		// Everyone can open the map.
-		Assert.That(player.CurrentView, Is.SameAs(player.Map));
-		Assert.That(developer.CurrentView, Is.SameAs(developer.Map));
-		Assert.That(player.Map!.CanTravel, Is.False);
-		Assert.That(developer.Map!.CanTravel, Is.True);
-
-		// Choosing a quarter does nothing for players.
-		var quarter = player.Map.Quarters.First(x => !x.IsCurrent);
-		Assert.That(quarter.CanVisit(), Is.False);
-		quarter.Visit();
-		Assert.That(player.Map, Is.Not.Null);
-		Assert.That(player.World.Player.Location, Is.SameAs(home));
-	}
-
-	[Test]
-	public void MiniMapShowsThePlayersQuarterAndItsNeighbors()
+	public void SettingsOpenFromTheMainMenuDuringAGameAndKeepIt()
 	{
 		using var viewModel = CreateViewModel();
-		var home = viewModel.World.Player.Home;
-		var quarter = home.Connections.Single();
-		var neighbors = quarter.Exits.Where(x => x.Direction is not null).Select(x => x.Location).ToList();
+		StartGame(viewModel);
+		var game = viewModel.Game;
+		OpenMenu(viewModel);
 
-		// At home, the mini-map shows the quarter the house is in.
-		var miniMap = viewModel.MiniMap;
-		Assert.That(miniMap.CanTravel, Is.False);
-		Assert.That(miniMap.Quarters.Select(x => x.Quarter), Is.EquivalentTo(neighbors.Prepend(quarter)));
-		Assert.That(miniMap.Quarters.Where(x => x.IsCurrent).Select(x => x.Quarter), Is.EqualTo(new[] { quarter }));
-		Assert.That(miniMap.Width, Is.LessThanOrEqualTo(196.001));
-		Assert.That(miniMap.Height, Is.LessThanOrEqualTo(196.001));
+		viewModel.MainMenu.OpenSettings();
+		var settings = (SettingsViewModel) viewModel.Screen!;
+		settings.TimeSpeeds[0].IsSelected = true;
+		Assert.That(viewModel.Settings.TimeSpeed, Is.EqualTo(TimeSpeed.Slow));
+		Assert.That(viewModel.Game, Is.SameAs(game));
 
-		// Moving updates it.
-		var changed = new List<string?>();
-		viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
-		var next = neighbors[0];
-		viewModel.TravelTo(next);
-
-		Assert.That(changed, Does.Contain(nameof(MainWindowViewModel.MiniMap)));
-		Assert.That(viewModel.MiniMap.Quarters.Where(x => x.IsCurrent).Select(x => x.Quarter), Is.EqualTo(new[] { next }));
-		Assert.That(viewModel.MiniMap.Quarters.Select(x => x.Quarter), Does.Contain(quarter));
+		settings.Back();
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
+		viewModel.MainMenu.Resume();
+		Assert.That(viewModel.Screen, Is.Null);
+		Assert.That(viewModel.Game, Is.SameAs(game));
 	}
 
 	[Test]
-	public void MapShowsEveryQuarterAndMarksThePlayersQuarter()
-	{
-		using var viewModel = CreateViewModel(isDeveloper: true);
-		var quarters = viewModel.World.Locations.Where(x => x.Bounds is not null).ToList();
-		var home = viewModel.World.Player.Home;
-
-		viewModel.ShowMap();
-		var map = viewModel.Map!;
-
-		// The player is at home, so their quarter is the one the house is in.
-		Assert.That(map.Quarters.Select(x => x.Quarter), Is.EquivalentTo(quarters));
-		Assert.That(map.Quarters.Where(x => x.IsCurrent).Select(x => x.Quarter), Is.EqualTo(new[] { home.Connections.Single() }));
-		Assert.That(map.Quarters.Select(x => x.Left), Has.All.GreaterThanOrEqualTo(0));
-		Assert.That(map.Quarters.Select(x => x.Top), Has.All.GreaterThanOrEqualTo(0));
-		Assert.That(map.Quarters.Max(x => x.Left + x.Width), Is.EqualTo(map.Width));
-		Assert.That(map.Quarters.Max(x => x.Top + x.Height), Is.EqualTo(map.Height));
-
-		// Each path between quarters is drawn as two segments.
-		var pathCount = quarters.Sum(x => x.Exits.Count(exit => exit.Direction is not null)) / 2;
-		Assert.That(map.Paths, Has.Count.EqualTo(pathCount * 2));
-	}
-
-	[Test]
-	public void ChoosingAQuarterOnTheMapGoesThere()
-	{
-		using var viewModel = CreateViewModel(isDeveloper: true);
-		viewModel.ShowMap();
-		var quarter = viewModel.Map!.Quarters.First(x => !x.IsCurrent);
-
-		var time = viewModel.World.Time;
-
-		quarter.Visit();
-
-		Assert.That(viewModel.World.Time, Is.EqualTo(time), "Developers' jumps take no time.");
-		Assert.That(viewModel.Map, Is.Null);
-		Assert.That(viewModel.World.Player.Location, Is.SameAs(quarter.Quarter));
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
-	}
-
-	[Test]
-	public void ShowsTheDateAndTimeAsTimePasses()
+	public void ToggleFullScreenSwitchesTheSetting()
 	{
 		using var viewModel = CreateViewModel();
-		var world = viewModel.World;
-		var calendar = world.GameData.Calendar;
-		var changes = new List<string?>();
-		viewModel.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
 
-		// Move to midsummer afternoon of the next year, which is always later than the start.
-		var midsummer = calendar.CreateTimePoint(calendar.StartYear + 1, 2, 2, 4, 13, 5);
-		world.AdvanceTime(midsummer - world.Time);
+		viewModel.ToggleFullScreen();
+		Assert.That(viewModel.Settings.IsFullScreen, Is.True);
 
-		Assert.Multiple(() =>
-		{
-			Assert.That(viewModel.Date, Is.EqualTo("Day 4, Mid Summer, year 2"));
-			Assert.That(viewModel.TimeOfDay, Is.EqualTo("Afternoon, 13:05"));
-			Assert.That(viewModel.SpecialDay, Is.EqualTo("Midsummer"));
-			Assert.That(changes, Is.SupersetOf(new[] { nameof(MainWindowViewModel.Date), nameof(MainWindowViewModel.TimeOfDay), nameof(MainWindowViewModel.SpecialDay) }));
-		});
-
-		world.AdvanceTime(calendar.CreateTimeOffset(1, 9, 0));
-
-		Assert.Multiple(() =>
-		{
-			Assert.That(viewModel.Date, Is.EqualTo("Day 5, Mid Summer, year 2"));
-			Assert.That(viewModel.TimeOfDay, Is.EqualTo("Night, 22:05"));
-			Assert.That(viewModel.SpecialDay, Is.Null);
-		});
+		viewModel.ToggleFullScreen();
+		Assert.That(viewModel.Settings.IsFullScreen, Is.False);
 	}
 
 	[Test]
-	public void TalkingToSomeoneOpensAConversationThatEndsWhenThePlayerLeaves()
+	public void WithoutSettingsTheDefaultsAreUsed()
 	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		var target = viewModel.CurrentLocation.People[0];
+		using var viewModel = new MainWindowViewModel(new Random(0));
 
-		Assert.That(target.CanTalk, Is.True);
-		target.Talk();
-		Assert.That(viewModel.Conversation!.Person.Person, Is.SameAs(target.Person));
-		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.Conversation));
-
-		viewModel.Conversation.Close();
-		Assert.That((viewModel.Conversation, viewModel.Overlay), Is.EqualTo(((object?) null, (object?) null)));
-
-		target.Talk();
-		viewModel.CurrentLocation.Connections[0].Travel();
-		Assert.That(viewModel.Conversation, Is.Null);
-
-		// The player can't talk with themselves.
-		Assert.That(viewModel.CurrentLocation.People.Any(x => x.Person.IsPlayer && x.CanTalk), Is.False);
+		Assert.That(viewModel.Settings.TextSize, Is.EqualTo(AppSettings.DefaultTextSize));
+		Assert.That(viewModel.Settings.TimeSpeed, Is.EqualTo(TimeSpeed.Normal));
 	}
 
 	[Test]
-	public void SidebarViewsOpenOnTopOfAConversation()
+	public void GameHotkeysOnlyWorkDuringPlay()
 	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		viewModel.CurrentLocation.People[0].Talk();
+		using var viewModel = CreateViewModel();
 
-		viewModel.ToggleMap();
+		// Before a game, and on the screens over one, only Esc and full screen do anything.
+		Assert.That(viewModel.HandleHotkey(new Hotkey(HotkeyCommand.Villagers)), Is.False);
+		Assert.That(viewModel.HandleHotkey(new Hotkey(HotkeyCommand.QuickLoad)), Is.False);
+		Assert.That(viewModel.HandleHotkey(new Hotkey(HotkeyCommand.FullScreen)), Is.True);
+		Assert.That(viewModel.Settings.IsFullScreen, Is.True);
+		viewModel.HandleHotkey(new Hotkey(HotkeyCommand.FullScreen));
 
-		Assert.That(viewModel.Conversation, Is.Null);
-		Assert.That(viewModel.Overlay, Is.Null);
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Map));
+		StartGame(viewModel);
+		var game = viewModel.Game!;
+		Assert.That(viewModel.HandleHotkey(new Hotkey(HotkeyCommand.Villagers)), Is.True);
+		Assert.That(game.IsVillagersOpen, Is.True);
+
+		Assert.That(viewModel.HandleHotkey(new Hotkey(HotkeyCommand.Escape)), Is.True);
+		Assert.That(game.HasSheets, Is.False);
+		viewModel.ShowMainMenu();
+		Assert.That(viewModel.HandleHotkey(new Hotkey(HotkeyCommand.Villagers)), Is.False);
+		Assert.That(game.HasSheets, Is.False);
 	}
 
 	[Test]
-	public void SomeoneAskingThePlayerToChatShowsAPromptOnTop()
+	public void QuickSaveKeepsOneFileAndQuickLoadGoesBackWithoutAsking()
 	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		var world = viewModel.World;
-		var asker = viewModel.CurrentLocation.People[0].Person;
-		viewModel.CurrentLocation.People[0].Talk();
+		using var viewModel = CreateViewModel();
+		StartGame(viewModel);
 
-		world.Player.TalkRequest = asker;
-		Assert.That(viewModel.TalkPrompt!.Text, Is.EqualTo(OurResources.TalkPromptText.FormatCurrentCulture(asker.FullName)));
-		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.TalkPrompt));
+		// With no quick save, quick load says so.
+		viewModel.HandleHotkey(new Hotkey(HotkeyCommand.QuickLoad));
+		Assert.That(viewModel.Game!.SaveStatus, Is.EqualTo(OurResources.QuickLoadNone));
 
-		// Turning them down closes the prompt, and they don't ask again for a while.
-		viewModel.TalkPrompt.Decline();
-		Assert.That((viewModel.TalkPrompt, world.Player.TalkRequest), Is.EqualTo(((object?) null, (object?) null)));
-		Assert.That(asker.GetRelationship(world.Player).LastDeclined, Is.EqualTo(world.Time));
-		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.Conversation));
+		viewModel.HandleHotkey(new Hotkey(HotkeyCommand.QuickSave));
+		var quickSave = SaveFile.GetQuickSavePath(m_folder);
+		Assert.That(viewModel.Game.SaveStatus, Is.EqualTo(OurResources.QuickSaved));
+		Assert.That(Directory.GetFiles(m_folder), Is.EqualTo(new[] { quickSave }));
+		var location = viewModel.Game.World.Player.Location;
 
-		// Agreeing chats with them, and says so.
-		var start = world.Time;
-		world.Player.TalkRequest = asker;
-		viewModel.TalkPrompt!.Accept();
-		Assert.That(viewModel.TalkPrompt, Is.Null);
-		Assert.That(world.Time, Is.GreaterThan(start));
-		Assert.That(viewModel.CurrentLocation.WaitResult, Does.StartWith(OurResources.TalkPromptChatted.FormatCurrentCulture(asker.FullName, "")[..^2]));
+		// A second quick save replaces the first.
+		ChangeGame(viewModel);
+		viewModel.HandleHotkey(new Hotkey(HotkeyCommand.QuickSave));
+		Assert.That(Directory.GetFiles(m_folder), Is.EqualTo(new[] { quickSave }));
+		var saved = viewModel.Game.World.Player.Location;
+		Assert.That(saved, Is.Not.SameAs(location));
+
+		// Quick loading a changed game goes straight back, without asking whether to save it first.
+		ChangeGame(viewModel);
+		var game = viewModel.Game;
+		Assert.That(game.HasUnsavedChanges(), Is.True);
+		viewModel.HandleHotkey(new Hotkey(HotkeyCommand.QuickLoad));
+		Assert.That(viewModel.SavePrompt, Is.Null);
+		Assert.That(viewModel.Game, Is.Not.SameAs(game));
+		Assert.That(viewModel.Game!.World.Player.Location.Id, Is.EqualTo(saved.Id));
+		Assert.That(viewModel.Screen, Is.Null);
+
+		// The quick save is marked in the list of saved games.
+		var loadGame = new LoadGameViewModel(TestData.CreateGameData(), m_settings, new Random(0));
+		Assert.That(loadGame.Saves.Single().Title, Does.StartWith("Quick save: "));
 	}
 
 	[Test]
-	public void ThePlayerIsRemindedOfAppointmentsAndToldWhenTheyMissThem()
+	public void QuickLoadingWithChangedDataAsksInTheListOfSaves()
 	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		var world = viewModel.World;
-		var client = world.Npcs.First(x => x.Family != world.Player.Family && x.Home != world.Player.Location);
-		var need = new Need
-		{
-			Id = "errand", Title = "Errand", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
-			StepSettings =
-			[
-				new Step
-				{
-					Kind = StepKind.Ask, With = StepTarget.Anyone, Name = "agreed", Minutes = TestData.Amount(5), Chance = new StepChance { Base = 100 },
-					Player = new StepPlayer { Title = "Ask" },
-					Appointment = TestData.AtPartnerHome([TestData.Do(TestData.Amount(30))]),
-				},
-			],
-		};
-		need.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);
-		var time = world.GameData.Calendar.AddMinutes(world.Time, 120);
-		var appointment = world.AddAppointment(world.Player, client, need, 0, client.Home, time);
+		using var viewModel = CreateViewModel();
+		StartGame(viewModel);
+		viewModel.Game!.QuickSave();
 
-		// The next one is in the sidebar.
-		Assert.That(viewModel.NextAppointment,
-			Is.EqualTo(OurResources.AppointmentNext.FormatCurrentCulture(client.FullName, AppointmentText.FormatWhen(world, time), AppointmentText.FormatPlace(world, appointment))));
+		using var changed = CreateViewModel(m_settings with { DataHash = "other" });
+		StartGame(changed);
+		changed.QuickLoad();
+		var loadGame = (LoadGameViewModel) changed.Screen!;
+		Assert.That(loadGame.ConfirmingLoad?.FilePath, Is.EqualTo(SaveFile.GetQuickSavePath(m_folder)));
 
-		// When it's time, they're asked whether to set off, and setting off has them go there first.
-		world.Player.AskToSetOff(appointment.GetSequence(world.Player)!);
-		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.AppointmentPrompt));
-		Assert.That(viewModel.AppointmentPrompt!.Text, Does.Contain(client.FullName));
-		viewModel.AppointmentPrompt.SetOffNow();
-		Assert.That(viewModel.AppointmentPrompt, Is.Null);
-		Assert.That(viewModel.CurrentLocation.Steps!.Next,
-			Is.EqualTo(OurResources.PlayerStepsNext.FormatCurrentCulture(OurResources.PlayerStepGoToAppointment.FormatCurrentCulture(
-				OurResources.AppointmentPlaceOffQuarter.FormatCurrentCulture(OurResources.AppointmentPlaceNamedHome.FormatCurrentCulture(client.FullName), client.Home.Quarter!.Title)))));
-
-		// Missing it is a notice, which closes.
-		world.OnAppointmentMissed(appointment, isOtherWaiting: true, world.Time);
-		Assert.That(viewModel.NoticePrompt!.Text, Is.EqualTo(OurResources.AppointmentGaveUp.FormatCurrentCulture(client.FullName)));
-		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.NoticePrompt));
-		viewModel.NoticePrompt.Dismiss();
-		Assert.That(viewModel.NoticePrompt, Is.Null);
+		// Confirming loads it in place of the game, without asking whether to save it.
+		var game = changed.Game;
+		ChangeGame(changed);
+		loadGame.ConfirmLoad();
+		Assert.That(changed.SavePrompt, Is.Null);
+		Assert.That(changed.Game, Is.Not.SameAs(game));
+		Assert.That(changed.Screen, Is.Null);
 	}
 
-	[Test]
-	public void AppointmentsCanBeCalledOffWhenReminded()
+	private MainWindowViewModel CreateViewModel() => CreateViewModel(m_settings);
+
+	// Time passes at once, so games in tests don't wait on the clock.
+	private static AppSettings CreateAppSettings() => new() { TimeSpeed = TimeSpeed.Instant };
+
+	private static MainWindowViewModel CreateViewModel(SaveSettings? saveSettings)
 	{
-		using var viewModel = CreateViewModel(withSchedules: true);
-		var world = viewModel.World;
-		var client = world.Npcs.First(x => x.Family != world.Player.Family);
-		var need = new Need
-		{
-			Id = "errand", Title = "Errand", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
-			StepSettings =
-			[
-				new Step
-				{
-					Kind = StepKind.Ask, With = StepTarget.Anyone, Name = "agreed", Minutes = TestData.Amount(5), Chance = new StepChance { Base = 100 },
-					Player = new StepPlayer { Title = "Ask" },
-					Appointment = TestData.AtPartnerHome([TestData.Do(TestData.Amount(30))]),
-				},
-			],
-		};
-		need.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);
-		var appointment = world.AddAppointment(world.Player, client, need, 0, client.Home, world.GameData.Calendar.AddMinutes(world.Time, 120));
-		world.Player.AskToSetOff(appointment.GetSequence(world.Player)!);
-
-		viewModel.AppointmentPrompt!.CallOff();
-
-		Assert.That((viewModel.AppointmentPrompt, viewModel.NextAppointment, world.Appointments.Count), Is.EqualTo(((object?) null, (string?) null, 0)));
+		var viewModel = new MainWindowViewModel(new Random(0), settings: CreateAppSettings());
+		viewModel.SetData(TestData.CreateGameInfo(), TestData.CreateGameData(), [], null, saveSettings);
+		return viewModel;
 	}
 
-	[Test]
-	public void DevelopersCanSeeSomeonesStatusFromTheirCharacterView()
+	private static void StartGame(MainWindowViewModel viewModel)
 	{
-		using var viewModel = CreateViewModel(isDeveloper: true, withSchedules: true);
-		var person = viewModel.World.Npcs[0];
-		viewModel.ShowCharacter(person);
-		var character = viewModel.Character!;
-
-		Assert.That(character.CanViewStatus, Is.True);
-		character.ViewStatus();
-		Assert.That(viewModel.CharacterStatus!.Person, Is.SameAs(person));
-		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.CharacterStatus));
-
-		// Closing it without changing anything shows the character view again, and leaves the person's plan alone.
-		var choice = person.GoalChoice;
-		viewModel.CharacterStatus.Close();
-		Assert.That(viewModel.CharacterStatus, Is.Null);
-		Assert.That(viewModel.Overlay, Is.SameAs(character));
-		Assert.That(person.GoalChoice, Is.SameAs(choice));
-
-		// After a change, the person chooses a new goal now.
-		character.ViewStatus();
-		var fatigue = viewModel.CharacterStatus!.Needs.Single(x => x.Title == "Fatigue");
-		Assert.That(viewModel.CharacterStatus.IsChanged, Is.False);
-		fatigue.Amount = fatigue.Amount > 50 ? 0 : 100;
-		Assert.That(viewModel.CharacterStatus.IsChanged, Is.True);
-		viewModel.CharacterStatus.Close();
-		Assert.That(person.GoalChoice, Is.Not.SameAs(choice));
-		Assert.That(person.GoalChoice!.Time, Is.EqualTo(viewModel.World.Time));
-
-		// The player's own character view has no status button, and neither does anyone's for non-developers.
-		viewModel.ShowCharacter(viewModel.World.Player);
-		Assert.That(viewModel.Character!.CanViewStatus, Is.False);
-		using var player = CreateViewModel(withSchedules: true);
-		player.ShowCharacter(player.World.Npcs[0]);
-		Assert.That(player.Character!.CanViewStatus, Is.False);
+		viewModel.MainMenu.NewGame();
+		viewModel.NewGame!.StartGame();
 	}
 
-	private static MainWindowViewModel CreateViewModel(int seed = 0, bool isDeveloper = false, bool withSchedules = false)
+	private static void OpenMenu(MainWindowViewModel viewModel)
 	{
-		var gameData = TestData.CreateGameData(withSchedules: withSchedules);
-		var world = GameWorld.CreateNewGame(gameData, TestData.CreatePlayerTraits(gameData), new Random(seed));
-		return new MainWindowViewModel(TestData.CreateGameInfo().Title, world, isDeveloper);
+		viewModel.Escape();
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
 	}
+
+	// Walking somewhere passes time, which changes the game.
+	private static void ChangeGame(MainWindowViewModel viewModel)
+	{
+		var game = viewModel.Game!;
+		game.TravelTo(game.World.Player.Home.Connections[0]);
+	}
+
+	private string m_folder = "";
+	private SaveSettings m_settings = null!;
 }

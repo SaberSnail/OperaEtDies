@@ -3,37 +3,73 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:system="clr-namespace:System;assembly=mscorlib">
 
-	<!--  Misc Brushes  -->
-	<Color x:Key="WindowBackgroundColor">#DDDDDD</Color>
-	<Color x:Key="ContentBackgroundColor">#FFFFFF</Color>
-	<Color x:Key="ContentBackgroundHighContrastColor">#EEEEEE</Color>
+	<!--
+		The theme resources, named by the role they play. The theme in the data replaces them (see ThemeResources), so these
+		values are only the built-in theme, used when the data has no theme or it fails to load. Each color in ThemeColors
+		has a Color and a Brush here, named after it.
+	-->
 
-	<SolidColorBrush x:Key="WindowBackgroundBrush" Color="{StaticResource WindowBackgroundColor}" />
-	<SolidColorBrush x:Key="ContentBackgroundBrush" Color="{StaticResource ContentBackgroundColor}" />
-	<SolidColorBrush x:Key="ContentBackgroundHighContrastBrush" Color="{StaticResource ContentBackgroundHighContrastColor}" />
+	<!--  Surfaces  -->
+	<Color x:Key="SurfaceColor">#EFE4CC</Color>
+	<Color x:Key="PanelColor">#F4EBD7</Color>
+	<Color x:Key="ChromeColor">#E2D2AE</Color>
+	<Color x:Key="InsetColor">#E6D9BC</Color>
+	<Color x:Key="TrackColor">#DCCBA6</Color>
+	<Color x:Key="MeterColor">#6B5434</Color>
+	<Color x:Key="SunColor">#B07A1E</Color>
 
-	<Color x:Key="FontColor">#111111</Color>
-	<Color x:Key="FontLightColor">#555555</Color>
-	<Color x:Key="FontDisabledColor">#777777</Color>
+	<SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+	<SolidColorBrush x:Key="PanelBrush" Color="{StaticResource PanelColor}" />
+	<SolidColorBrush x:Key="ChromeBrush" Color="{StaticResource ChromeColor}" />
+	<SolidColorBrush x:Key="InsetBrush" Color="{StaticResource InsetColor}" />
+	<SolidColorBrush x:Key="TrackBrush" Color="{StaticResource TrackColor}" />
+	<SolidColorBrush x:Key="MeterBrush" Color="{StaticResource MeterColor}" />
+	<SolidColorBrush x:Key="SunBrush" Color="{StaticResource SunColor}" />
 
-	<SolidColorBrush x:Key="FontBrush" Color="{StaticResource FontColor}" />
-	<SolidColorBrush x:Key="FontLightBrush" Color="{StaticResource FontLightColor}" />
-	<SolidColorBrush x:Key="FontDisabledBrush" Color="{StaticResource FontDisabledColor}" />
+	<!--  Text  -->
+	<Color x:Key="TextColor">#2B2118</Color>
+	<Color x:Key="TextMutedColor">#6E5A3E</Color>
+	<Color x:Key="TextDisabledColor">#A8977A</Color>
+	<Color x:Key="TextOnDarkColor">#F4EBD7</Color>
+	<Color x:Key="TextOnAccentColor">#F7EFDD</Color>
 
-	<!--  Developer UI, shown with the developer command line option. Partially transparent so it stays subtle.  -->
-	<Color x:Key="DeveloperBorderColor">#802F7CF6</Color>
+	<SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
+	<SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
+	<SolidColorBrush x:Key="TextDisabledBrush" Color="{StaticResource TextDisabledColor}" />
+	<SolidColorBrush x:Key="TextOnDarkBrush" Color="{StaticResource TextOnDarkColor}" />
+	<SolidColorBrush x:Key="TextOnAccentBrush" Color="{StaticResource TextOnAccentColor}" />
 
-	<SolidColorBrush x:Key="DeveloperBorderBrush" Color="{StaticResource DeveloperBorderColor}" />
+	<!--  Rules, accents, and warnings  -->
+	<Color x:Key="RuleColor">#B49A6E</Color>
+	<Color x:Key="RuleStrongColor">#8B7350</Color>
+	<Color x:Key="AccentColor">#8E1B22</Color>
+	<Color x:Key="ThreatColor">#B0301C</Color>
 
-	<!--  The map: village, outskirts, and landmark quarters, the player's quarter, the paths, the river, and areas.  -->
-	<Color x:Key="MapVillageColor">#F0E2C4</Color>
-	<Color x:Key="MapOutskirtsColor">#D5E8C8</Color>
-	<Color x:Key="MapLandmarkColor">#DCD3EC</Color>
-	<Color x:Key="MapBorderColor">#8A7F6E</Color>
-	<Color x:Key="MapCurrentColor">#2F7CF6</Color>
-	<Color x:Key="MapPathColor">#B0503A</Color>
-	<Color x:Key="MapRiverColor">#8FB8DE</Color>
-	<Color x:Key="MapAreaColor">#A9C49A</Color>
+	<SolidColorBrush x:Key="RuleBrush" Color="{StaticResource RuleColor}" />
+	<SolidColorBrush x:Key="RuleStrongBrush" Color="{StaticResource RuleStrongColor}" />
+	<SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+	<SolidColorBrush x:Key="ThreatBrush" Color="{StaticResource ThreatColor}" />
+
+	<!--  Controls  -->
+	<Color x:Key="ControlColor">#F7EFDD</Color>
+	<Color x:Key="ControlHoverColor">#EADBB8</Color>
+	<Color x:Key="ControlPressedColor">#D3BF94</Color>
+	<Color x:Key="ControlDisabledColor">#EDE4CF</Color>
+
+	<SolidColorBrush x:Key="ControlBrush" Color="{StaticResource ControlColor}" />
+	<SolidColorBrush x:Key="ControlHoverBrush" Color="{StaticResource ControlHoverColor}" />
+	<SolidColorBrush x:Key="ControlPressedBrush" Color="{StaticResource ControlPressedColor}" />
+	<SolidColorBrush x:Key="ControlDisabledBrush" Color="{StaticResource ControlDisabledColor}" />
+
+	<!--  The map: village, outskirts, and landmark quarters, their borders, the player's quarter, the paths, the river, and areas.  -->
+	<Color x:Key="MapVillageColor">#F3E6C8</Color>
+	<Color x:Key="MapOutskirtsColor">#D9E2BF</Color>
+	<Color x:Key="MapLandmarkColor">#E2D2D8</Color>
+	<Color x:Key="MapBorderColor">#8A7458</Color>
+	<Color x:Key="MapCurrentColor">#8E1B22</Color>
+	<Color x:Key="MapPathColor">#9C5A3A</Color>
+	<Color x:Key="MapRiverColor">#8FAFC8</Color>
+	<Color x:Key="MapAreaColor">#A9BC8E</Color>
 
 	<SolidColorBrush x:Key="MapVillageBrush" Color="{StaticResource MapVillageColor}" />
 	<SolidColorBrush x:Key="MapOutskirtsBrush" Color="{StaticResource MapOutskirtsColor}" />
@@ -44,60 +80,39 @@
 	<SolidColorBrush x:Key="MapRiverBrush" Color="{StaticResource MapRiverColor}" />
 	<SolidColorBrush x:Key="MapAreaBrush" Color="{StaticResource MapAreaColor}" />
 
-	<!--  Controls  -->
+	<!--  Fonts, by role: the game's story, and everything else.  -->
+	<FontFamily x:Key="NarrativeFontFamily">Palatino Linotype, Georgia</FontFamily>
+	<FontFamily x:Key="InterfaceFontFamily">Palatino Linotype, Georgia</FontFamily>
+
+	<!--  Text sizes. Ordinary text is DefaultFontSize, and the others are multiples of it.  -->
+	<system:Double x:Key="DefaultFontSize">16</system:Double>
+	<system:Double x:Key="SmallFontSize">13.6</system:Double>
+	<system:Double x:Key="LargeFontSize">18.4</system:Double>
+	<system:Double x:Key="TitleFontSize">28</system:Double>
+	<system:Double x:Key="CaptionFontSize">12</system:Double>
+
+	<!--  Developer UI, shown with the developer command line option. Not part of the theme, so it's the same in every theme. A
+		strong blue that no theme uses, so it stands out, with a faint wash of it behind.  -->
+	<SolidColorBrush x:Key="DeveloperBorderBrush" Color="#2F7CF6" />
+	<SolidColorBrush x:Key="DeveloperBackgroundBrush" Color="#142F7CF6" />
+
+	<!--  Control shapes  -->
 	<Thickness
 		x:Key="ControlBorderThickness"
-		Bottom="2"
-		Left="2"
-		Right="2"
-		Top="2" />
+		Bottom="1"
+		Left="1"
+		Right="1"
+		Top="1" />
 	<Thickness
 		x:Key="ControlBorderLeftRightThickness"
-		Left="2"
-		Right="2" />
-	<Thickness x:Key="ControlBorderLeftThickness" Left="2" />
+		Left="1"
+		Right="1" />
+	<Thickness x:Key="ControlBorderLeftThickness" Left="1" />
 	<CornerRadius
 		x:Key="ControlBorderRadius"
 		BottomLeft="4"
 		BottomRight="4"
 		TopLeft="4"
 		TopRight="4" />
-
-	<Color x:Key="ControlForegroundBaseColor">#111111</Color>
-	<Color x:Key="ControlForegroundBaseDisabledColor">#909090</Color>
-	<Color x:Key="ControlForegroundBaseHoveredColor">#333333</Color>
-	<Color x:Key="ControlForegroundBasePressedColor">#000000</Color>
-
-	<Color x:Key="ControlBackgroundBaseColor">#EEEEEE</Color>
-	<Color x:Key="ControlBackgroundBaseDisabledColor">#F7F7F7</Color>
-	<Color x:Key="ControlBackgroundBaseHoveredColor">#E0E0E0</Color>
-	<Color x:Key="ControlBackgroundBasePressedColor">#D0D0D0</Color>
-
-	<Color x:Key="ControlBorderBaseColor">#C5C5C5</Color>
-	<Color x:Key="ControlBorderBaseDisabledColor">#EEEEEE</Color>
-	<Color x:Key="ControlBorderBaseHoveredColor">#CCCCCC</Color>
-	<Color x:Key="ControlBorderBasePressedColor">#C0C0C0</Color>
-
-	<Color x:Key="ControlBorderHighContrastColor">#DDDDDD</Color>
-
-	<SolidColorBrush x:Key="ControlForegroundBaseBrush" Color="{StaticResource ControlForegroundBaseColor}" />
-	<SolidColorBrush x:Key="ControlForegroundBaseDisabledBrush" Color="{StaticResource ControlForegroundBaseDisabledColor}" />
-	<SolidColorBrush x:Key="ControlForegroundBaseHoveredBrush" Color="{StaticResource ControlForegroundBaseHoveredColor}" />
-	<SolidColorBrush x:Key="ControlForegroundBasePressedBrush" Color="{StaticResource ControlForegroundBasePressedColor}" />
-
-	<SolidColorBrush x:Key="ControlBackgroundBaseBrush" Color="{StaticResource ControlBackgroundBaseColor}" />
-	<SolidColorBrush x:Key="ControlBackgroundBaseDisabledBrush" Color="{StaticResource ControlBackgroundBaseDisabledColor}" />
-	<SolidColorBrush x:Key="ControlBackgroundBaseHoveredBrush" Color="{StaticResource ControlBackgroundBaseHoveredColor}" />
-	<SolidColorBrush x:Key="ControlBackgroundBasePressedBrush" Color="{StaticResource ControlBackgroundBasePressedColor}" />
-
-	<SolidColorBrush x:Key="ControlBorderBaseBrush" Color="{StaticResource ControlBorderBaseColor}" />
-	<SolidColorBrush x:Key="ControlBorderBaseDisabledBrush" Color="{StaticResource ControlBorderBaseDisabledColor}" />
-	<SolidColorBrush x:Key="ControlBorderBaseHoveredBrush" Color="{StaticResource ControlBorderBaseHoveredColor}" />
-	<SolidColorBrush x:Key="ControlBorderBasePressedBrush" Color="{StaticResource ControlBorderBasePressedColor}" />
-
-	<SolidColorBrush x:Key="ControlBorderHighContrastBrush" Color="{StaticResource ControlBorderHighContrastColor}" />
-
-	<!--  Splitters  -->
-	<SolidColorBrush x:Key="SplitterBackgroundBrush" Color="#D0D0D0" />
 
 </ResourceDictionary>

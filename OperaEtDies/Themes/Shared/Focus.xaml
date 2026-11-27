@@ -1,0 +1,26 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+	<!--  Keyboard focus: a strong ring in the accent color just outside the control, so it's easy to see which control Space
+		or Enter will press. WPF only shows it once the keyboard has been used, not after a click. Controls use it as
+		DynamicResource, since it's in another dictionary.  -->
+	<Style x:Key="KeyboardFocusVisualStyle">
+		<Setter Property="Control.Template">
+			<Setter.Value>
+				<ControlTemplate>
+					<Rectangle
+						Margin="-3"
+						RadiusX="4"
+						RadiusY="4"
+						SnapsToDevicePixels="True"
+						Stroke="{DynamicResource AccentBrush}"
+						StrokeThickness="2" />
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+	</Style>
+
+	<Style BasedOn="{StaticResource {x:Type CheckBox}}" TargetType="{x:Type CheckBox}">
+		<Setter Property="FocusVisualStyle" Value="{DynamicResource KeyboardFocusVisualStyle}" />
+	</Style>
+
+</ResourceDictionary>
