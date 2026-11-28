@@ -42,6 +42,16 @@ public sealed class PreviewCharacterViewModel : ViewModelBase
 		];
 		m_place = Places.FirstOrDefault(x => x.Key == settings?.Place) ?? Places[1];
 
+		// Without a sky chosen before, the character is drawn under the sky at noon.
+		var calendar = gameData.Calendar;
+		var noonSky = calendar.GetSky(calendar.CreateTimePoint(calendar.StartYear, 1, 1, 1, 12))?.Id;
+		Skies = [
+			new SkyOption("No sky", null),
+			.. calendar.Skies.Select(x => new SkyOption($"Sky: {x.Id}", x.Id)),
+		];
+		var skyId = settings?.Sky is null ? noonSky : settings.Sky == NoSkyKey ? null : settings.Sky;
+		m_sky = Skies.FirstOrDefault(x => x.Id == skyId) ?? Skies[0];
+
 		if (settings is not null)
 			Restore(properties, settings.Values);
 
@@ -72,6 +82,21 @@ public sealed class PreviewCharacterViewModel : ViewModelBase
 		}
 	}
 
+	/// <summary>
+	/// The skies the character can be drawn under, and none.
+	/// </summary>
+	public IReadOnlyList<SkyOption> Skies { get; }
+
+	public SkyOption SelectedSky
+	{
+		get => VerifyAccess(m_sky);
+		set
+		{
+			if (value is not null && SetPropertyField(value, ref m_sky))
+				OnTraitsChanged();
+		}
+	}
+
 	public ImageSource? Portrait
 	{
 		get => VerifyAccess(m_portrait);
@@ -95,16 +120,20 @@ public sealed class PreviewCharacterViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// The place the character is drawn in. At work, that's the workplace of their profession.
+	/// The place the character is drawn in, under the chosen sky. At work, that's the workplace of their profession.
 	/// </summary>
-	public PortraitPlace? GetPlace() => m_place.Key switch
+	public PortraitPlace? GetPlace()
 	{
-		NoPlaceKey => null,
-		HomeKey => PortraitPlace.Home,
-		AsleepKey => PortraitPlace.Home,
-		WorkKey => m_character.GetTraits().GetValueId(m_professionPropertyId) is { } profession ? PortraitPlace.InWorkplace(profession) : PortraitPlace.Home,
-		var key => PortraitPlace.InQuarter(key[QuarterKeyPrefix.Length..]),
-	};
+		var place = m_place.Key switch
+		{
+			NoPlaceKey => null,
+			HomeKey => PortraitPlace.Home,
+			AsleepKey => PortraitPlace.Home,
+			WorkKey => m_character.GetTraits().GetValueId(m_professionPropertyId) is { } profession ? PortraitPlace.InWorkplace(profession) : PortraitPlace.Home,
+			var key => PortraitPlace.InQuarter(key[QuarterKeyPrefix.Length..]),
+		};
+		return place?.WithSky(m_sky.Id);
+	}
 
 	/// <summary>
 	/// The clothes the character is drawn in: everyday clothes, with work clothes over them at work, or night clothes
@@ -142,7 +171,7 @@ public sealed class PreviewCharacterViewModel : ViewModelBase
 			int number => number.ToString(CultureInfo.InvariantCulture),
 			var value => value.ToString() ?? "",
 		}, StringComparer.Ordinal);
-		return new PreviewSettings(values, m_place.Key);
+		return new PreviewSettings(values, m_place.Key, m_sky.Id ?? NoSkyKey);
 	}
 
 	private void Restore(IReadOnlyList<CharacterProperty> properties, IReadOnlyDictionary<string, string> values)
@@ -185,6 +214,7 @@ public sealed class PreviewCharacterViewModel : ViewModelBase
 	private const string AsleepKey = "asleep";
 	private const string WorkKey = "work";
 	private const string QuarterKeyPrefix = "quarter:";
+	private const string NoSkyKey = "none";
 
 	private readonly CharacterRandomizer m_character;
 	private readonly GameData m_gameData;
@@ -194,6 +224,7 @@ public sealed class PreviewCharacterViewModel : ViewModelBase
 	private readonly CharacterPropertyOption? m_atWork;
 	private readonly CharacterPropertyOption? m_notAtWork;
 	private PlaceOption m_place;
+	private SkyOption m_sky;
 	private PortraitRenderer? m_renderer;
 	private ImageSource? m_portrait;
 	private bool m_isEditing;
@@ -205,6 +236,12 @@ public sealed class PreviewCharacterViewModel : ViewModelBase
 public sealed record PlaceOption(string Title, string Key);
 
 /// <summary>
-/// A preview character's values (by property id: a value id, a number, or text) and place, kept between sessions.
+/// A sky a preview character can be drawn under, or none, with a null id.
 /// </summary>
-public sealed record PreviewSettings(IReadOnlyDictionary<string, string> Values, string Place);
+public sealed record SkyOption(string Title, string? Id);
+
+/// <summary>
+/// A preview character's values (by property id: a value id, a number, or text), place, and sky ("none" for none, or null
+/// for the sky at noon), kept between sessions.
+/// </summary>
+public sealed record PreviewSettings(IReadOnlyDictionary<string, string> Values, string Place, string? Sky = null);

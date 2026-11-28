@@ -1,4 +1,4 @@
-using System.Collections.Specialized;
+﻿using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -15,7 +15,8 @@ namespace OperaEtDies.Controls.Locations;
 /// Shows the location the player is in, with options to examine it, examine the people in it, wait there, and travel to
 /// connected locations, and spend time on anything the player can do there, such as sleeping at home. The people in it are
 /// kept up to date as people come and go, and how long each action would take as time passes. Developers also see
-/// where each person is going and why.
+/// where each person is going and why. A conversation with someone here, or their asking the player to chat, is shown in
+/// their line, and while it is, the rest of the location can't be used, and the number keys press its choices.
 /// </summary>
 public sealed class LocationScreenViewModel : ViewModelBase, INumberedChoices
 {
@@ -171,6 +172,37 @@ public sealed class LocationScreenViewModel : ViewModelBase, INumberedChoices
 	public bool HasPeople => People.Count != 0;
 
 	/// <summary>
+	/// What's shown in a person's line: a conversation with them, or their asking the player to chat, or null if nothing
+	/// is. While it's shown, the rest of the location can't be used.
+	/// </summary>
+	public ViewModelBase? Interaction
+	{
+		get => VerifyAccess(m_interaction);
+		private set => SetPropertyField([nameof(Interaction), nameof(HasInteraction)], value, ref m_interaction);
+	}
+
+	/// <summary>
+	/// Whether something is shown in a person's line, so the rest of the location can't be used.
+	/// </summary>
+	public bool HasInteraction => Interaction is not null;
+
+	/// <summary>
+	/// Shows a conversation with someone, or their asking the player to chat, in their line, or with null, closes it. It
+	/// must have numbered choices, which the number keys press while it's shown. The person stays listed while it's shown,
+	/// even if they leave, so the player can see that they've gone.
+	/// </summary>
+	internal void SetInteraction(Person? person, ViewModelBase? interaction)
+	{
+		VerifyAccess();
+		if (interaction is not null and not INumberedChoices)
+			throw new ArgumentException($"An interaction must be {nameof(INumberedChoices)}.", nameof(interaction));
+
+		m_interactionPerson = interaction is null ? null : person;
+		Interaction = interaction;
+		UpdatePeople();
+	}
+
+	/// <summary>
 	/// The steps the player has left for what they're in the middle of, or null if they aren't in the middle of anything.
 	/// </summary>
 	public PlayerStepsViewModel? Steps
@@ -202,7 +234,11 @@ public sealed class LocationScreenViewModel : ViewModelBase, INumberedChoices
 	{
 		VerifyAccess();
 		var isChosen = false;
-		if (number >= 1 && number <= Connections.Count)
+		if (m_interaction is INumberedChoices interaction)
+		{
+			isChosen = interaction.ChooseNumber(number);
+		}
+		else if (number >= 1 && number <= Connections.Count)
 		{
 			Connections[number - 1].Travel();
 			isChosen = true;
@@ -220,7 +256,8 @@ public sealed class LocationScreenViewModel : ViewModelBase, INumberedChoices
 	public bool OpenChoiceMenu(int number)
 	{
 		VerifyAccess();
-		return number >= 1 && number <= Connections.Count ? Connections[number - 1].Action.OpenMenu() : Steps is { } steps && steps.OpenChoiceMenu(number);
+		return m_interaction is INumberedChoices interaction ? interaction.OpenChoiceMenu(number) :
+			number >= 1 && number <= Connections.Count ? Connections[number - 1].Action.OpenMenu() : Steps is { } steps && steps.OpenChoiceMenu(number);
 	}
 
 	public bool CanExamine() => !m_isExamined;
@@ -309,12 +346,33 @@ public sealed class LocationScreenViewModel : ViewModelBase, INumberedChoices
 
 	/// <summary>
 	/// Lists the people in the location other than the player, keeping the view models of anyone already listed so
-	/// they stay examined.
+	/// they stay examined. The person whose line shows a conversation stays where they were listed, even if they've left.
 	/// </summary>
-	private IReadOnlyList<LocationPersonViewModel> CreatePeople(IReadOnlyList<LocationPersonViewModel> existing) =>
-		Location.People.Where(x => !x.IsPlayer)
+	private IReadOnlyList<LocationPersonViewModel> CreatePeople(IReadOnlyList<LocationPersonViewModel> existing)
+	{
+		var people = Location.People.Where(x => !x.IsPlayer)
 			.Select(x => existing.FirstOrDefault(person => person.Person == x) ?? CreatePerson(x))
 			.ToList();
+		if (m_interactionPerson is { } talking && people.All(x => x.Person != talking))
+		{
+			var index = existing.ToList().FindIndex(x => x.Person == talking);
+			people.Insert(index < 0 ? people.Count : Math.Min(index, people.Count), existing.FirstOrDefault(x => x.Person == talking) ?? CreatePerson(talking));
+		}
+		return people;
+	}
+
+	/// <summary>
+	/// Shows what's shown in a person's line in theirs, and blocks everyone else's.
+	/// </summary>
+	private void UpdateInteraction()
+	{
+		foreach (var person in m_people)
+		{
+			var isTalking = m_interactionPerson is not null && person.Person == m_interactionPerson;
+			person.Interaction = isTalking ? m_interaction : null;
+			person.IsBlocked = m_interaction is not null && !isTalking;
+		}
+	}
 
 	private LocationPersonViewModel CreatePerson(Person person) =>
 		new(person, m_world.GameData.PortraitRenderer, m_world.GameData.Schedules, m_world.GameData.Relationships, toggleFollow: ToggleFollow,
@@ -503,7 +561,18 @@ public sealed class LocationScreenViewModel : ViewModelBase, INumberedChoices
 		world.GetPlayerAppointments() is [var next, ..] && next.Place == location ? ExitMarker.Appointment :
 		null;
 
-	private void OnPeopleChanged(object? sender, NotifyCollectionChangedEventArgs e) => People = CreatePeople(m_people);
+	private void OnPeopleChanged(object? sender, NotifyCollectionChangedEventArgs e) => UpdatePeople();
+
+	/// <summary>
+	/// Brings the list of people up to date, keeping it as it is if no one came or went, so their lines aren't drawn again.
+	/// </summary>
+	private void UpdatePeople()
+	{
+		var people = CreatePeople(m_people);
+		if (!people.SequenceEqual(m_people))
+			People = people;
+		UpdateInteraction();
+	}
 
 	private void OnPlayerDestinationChanged(object? sender, PropertyChangedEventArgs e) => UpdateDestination();
 
@@ -539,4 +608,6 @@ public sealed class LocationScreenViewModel : ViewModelBase, INumberedChoices
 	private string? m_waitResult;
 	private SplitActionViewModel m_waitAction;
 	private bool m_isExamined;
+	private ViewModelBase? m_interaction;
+	private Person? m_interactionPerson;
 }

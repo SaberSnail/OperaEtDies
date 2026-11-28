@@ -9,6 +9,7 @@
 		<ResourceDictionary Source="Conversation/ConversationView.xaml" />
 		<ResourceDictionary Source="Game/GameScreenView.xaml" />
 		<ResourceDictionary Source="LoadGame/LoadGameView.xaml" />
+		<ResourceDictionary Source="Loading/LoadingScreenView.xaml" />
 		<ResourceDictionary Source="Log/LogView.xaml" />
 		<ResourceDictionary Source="MainMenu/MainMenuView.xaml" />
 		<ResourceDictionary Source="Locations/LocationView.xaml" />

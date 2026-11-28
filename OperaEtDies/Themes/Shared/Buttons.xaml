@@ -4,9 +4,12 @@
 	xmlns:local="clr-namespace:OperaEtDies">
 
 	<!--  States are triggers on the theme brushes rather than color animations, so a new theme changes them at once. A button
-		pressed by a number key (see Hotkeys.Badge) shows the key in a small badge at its right end.  -->
+		pressed by a number key (see Hotkeys.Badge) shows the key in a small badge at its right end, while it can be pressed.  -->
 	<Style x:Key="ButtonStyleBase" TargetType="{x:Type Button}">
 		<Setter Property="OverridesDefaultStyle" Value="true" />
+		<!--  The button's own text color too, not only its border's, since content given as elements (such as a split button's
+			text and chevron) takes it from the button rather than from the border it's drawn in.  -->
+		<Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
 		<Setter Property="FocusVisualStyle" Value="{DynamicResource KeyboardFocusVisualStyle}" />
 		<Setter Property="local:TemplateHelper.CornerRadius" Value="{DynamicResource ControlBorderRadius}" />
 		<Setter Property="BorderThickness" Value="{DynamicResource ControlBorderThickness}" />
@@ -64,13 +67,18 @@
 							<Setter TargetName="Border" Property="Background" Value="{DynamicResource ControlDisabledBrush}" />
 							<Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource ControlDisabledBrush}" />
 							<Setter TargetName="Border" Property="TextBlock.Foreground" Value="{DynamicResource TextDisabledBrush}" />
-							<Setter TargetName="Badge" Property="BorderBrush" Value="{DynamicResource TextDisabledBrush}" />
-							<Setter TargetName="BadgeText" Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+							<!--  Its key does nothing, so its badge is hidden, keeping its space so the button doesn't change size.  -->
+							<Setter TargetName="Badge" Property="Opacity" Value="0" />
 						</Trigger>
 					</ControlTemplate.Triggers>
 				</ControlTemplate>
 			</Setter.Value>
 		</Setter>
+		<Style.Triggers>
+			<Trigger Property="IsEnabled" Value="false">
+				<Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+			</Trigger>
+		</Style.Triggers>
 	</Style>
 
 	<Style BasedOn="{StaticResource ButtonStyleBase}" TargetType="{x:Type Button}" />

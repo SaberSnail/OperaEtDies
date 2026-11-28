@@ -4,8 +4,9 @@ using System.Windows.Media;
 namespace OperaEtDies.Controls.Game;
 
 /// <summary>
-/// A small dial showing the time of day: an arc over a horizon, with the sun moving along it through the day, and the moon
-/// through the night. Marks on the arc show where the parts of the day in between start.
+/// A small dial showing the time of day: a faint arc over a horizon, with the sun moving along it from sunrise to sunset,
+/// and a crescent moon from sunset to sunrise. Marks on the arc show noon and midnight. It's drawn simply so it
+/// reads well at the size of a line of text.
 /// </summary>
 public sealed class DayDial : FrameworkElement
 {
@@ -20,6 +21,9 @@ public sealed class DayDial : FrameworkElement
 
 	public static readonly DependencyProperty StrokeProperty = DependencyProperty.Register(nameof(Stroke), typeof(Brush), typeof(DayDial),
 		new FrameworkPropertyMetadata(Brushes.Black, FrameworkPropertyMetadataOptions.AffectsRender));
+
+	public static readonly DependencyProperty ArcBrushProperty = DependencyProperty.Register(nameof(ArcBrush), typeof(Brush), typeof(DayDial),
+		new FrameworkPropertyMetadata(Brushes.Gray, FrameworkPropertyMetadataOptions.AffectsRender));
 
 	public static readonly DependencyProperty SunBrushProperty = DependencyProperty.Register(nameof(SunBrush), typeof(Brush), typeof(DayDial),
 		new FrameworkPropertyMetadata(Brushes.Goldenrod, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -55,12 +59,21 @@ public sealed class DayDial : FrameworkElement
 	}
 
 	/// <summary>
-	/// The arc, the horizon, the marks, and the outline of the moon.
+	/// The horizon.
 	/// </summary>
 	public Brush? Stroke
 	{
 		get => (Brush?) GetValue(StrokeProperty);
 		set => SetValue(StrokeProperty, value);
+	}
+
+	/// <summary>
+	/// The arc and its marks, which are fainter than the horizon so the sun and moon stand out.
+	/// </summary>
+	public Brush? ArcBrush
+	{
+		get => (Brush?) GetValue(ArcBrushProperty);
+		set => SetValue(ArcBrushProperty, value);
 	}
 
 	/// <summary>
@@ -86,7 +99,7 @@ public sealed class DayDial : FrameworkElement
 		ArgumentNullException.ThrowIfNull(drawingContext);
 		var width = ActualWidth;
 		var height = ActualHeight;
-		var marker = Math.Max(height * 0.18, 2);
+		var marker = Math.Max(height * 0.2, 2);
 		var radius = Math.Min((width / 2) - marker, height - (marker * 2));
 		if (radius > 0)
 		{
@@ -94,8 +107,9 @@ public sealed class DayDial : FrameworkElement
 			var thickness = Math.Max(height / 14, 1);
 			var pen = new Pen(Stroke, thickness) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
 			pen.Freeze();
+			var arcPen = new Pen(ArcBrush, thickness * 0.75) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+			arcPen.Freeze();
 
-			drawingContext.DrawLine(pen, new Point(center.X - radius - marker, center.Y), new Point(center.X + radius + marker, center.Y));
 			var arc = new StreamGeometry();
 			using (var context = arc.Open())
 			{
@@ -103,17 +117,29 @@ public sealed class DayDial : FrameworkElement
 				context.ArcTo(GetPoint(center, radius, 1), new Size(radius, radius), 0, false, SweepDirection.Clockwise, true, false);
 			}
 			arc.Freeze();
-			drawingContext.DrawGeometry(null, pen, arc);
-
+			drawingContext.DrawGeometry(null, arcPen, arc);
 			foreach (var mark in Marks ?? [])
-				drawingContext.DrawLine(pen, GetPoint(center, radius - (marker * 0.6), mark), GetPoint(center, radius + (marker * 0.6), mark));
+				drawingContext.DrawLine(arcPen, GetPoint(center, radius - (marker * 0.5), mark), GetPoint(center, radius + (marker * 0.5), mark));
+			drawingContext.DrawLine(pen, new Point(center.X - radius - marker, center.Y), new Point(center.X + radius + marker, center.Y));
 
 			var position = GetPoint(center, radius, Math.Clamp(Position, 0, 1));
 			if (IsNight)
-				drawingContext.DrawEllipse(MoonBrush, pen, position, marker * 0.85, marker * 0.85);
+				drawingContext.DrawGeometry(MoonBrush, null, CreateCrescent(position, marker * 1.1));
 			else
-				drawingContext.DrawEllipse(SunBrush, null, position, marker, marker);
+				drawingContext.DrawEllipse(SunBrush, null, position, marker * 1.1, marker * 1.1);
 		}
+	}
+
+	/// <summary>
+	/// Creates a crescent moon around a point: a circle with a slightly smaller one cut out of its right side.
+	/// </summary>
+	internal static Geometry CreateCrescent(Point center, double radius)
+	{
+		var outer = new EllipseGeometry(center, radius, radius);
+		var inner = new EllipseGeometry(new Point(center.X + (radius * 0.55), center.Y - (radius * 0.2)), radius * 0.85, radius * 0.85);
+		var crescent = Geometry.Combine(outer, inner, GeometryCombineMode.Exclude, null);
+		crescent.Freeze();
+		return crescent;
 	}
 
 	/// <summary>

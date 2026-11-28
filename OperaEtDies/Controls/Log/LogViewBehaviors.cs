@@ -1,12 +1,13 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 
 namespace OperaEtDies.Controls.Log;
 
 /// <summary>
-/// Attached properties for showing the event log: a text block filled with an entry's pieces, with the people and places
-/// in it as links, and a scroll viewer that stays scrolled to the end as entries are added.
+/// Attached properties for showing the event log: a text block filled with an entry's pieces, with the people (with their
+/// tooltip) and places in it as links, and a scroll viewer that stays scrolled to the end as entries are added, which a
+/// conversation also uses.
 /// </summary>
 public static class LogViewBehaviors
 {
@@ -40,6 +41,14 @@ public static class LogViewBehaviors
 				var link = new Hyperlink(new Run(part.Text));
 				link.SetResourceReference(FrameworkContentElement.StyleProperty, "LogLinkStyle");
 				link.Click += (_, _) => part.Click();
+				if (part.Person is not null)
+				{
+					// The person's tooltip is only made once it's about to show.
+					var toolTip = new ToolTip();
+					toolTip.SetResourceReference(ContentControl.ContentTemplateProperty, "PersonToolTipTemplate");
+					link.ToolTip = toolTip;
+					link.ToolTipOpening += (_, _) => toolTip.Content ??= part.GetPersonToolTip();
+				}
 				textBlock.Inlines.Add(link);
 			}
 			else

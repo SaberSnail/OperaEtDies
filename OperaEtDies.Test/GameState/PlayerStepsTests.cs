@@ -122,7 +122,7 @@ public sealed class PlayerStepsTests
 		player.Location = player.Home;
 		var need = AddNeed(new Need
 		{
-			Id = "choosing", Title = "Choosing", Icon = "icon", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			Id = "choosing", Title = "Choosing", Icon = "icon", Category = NeedCategory.Personal, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings =
 			[
 				new Step
@@ -159,7 +159,7 @@ public sealed class PlayerStepsTests
 		player.Location = player.Home;
 		var need = AddNeed(new Need
 		{
-			Id = "chores", Title = "Chores", Icon = "icon", Hours = Hours(0, 24),
+			Id = "chores", Title = "Chores", Icon = "icon", Category = NeedCategory.Personal, Hours = Hours(0, 24),
 			Quota = new QuotaNeedSettings { Lead = 600, Time = new QuotaTime { Minutes = Amount(120), Shift = 120 } },
 			StepSettings = [new Step { Kind = StepKind.Repeat, Reconsider = true, Steps = [new Step { Kind = StepKind.Do, Minutes = Amount(30), MeetsQuota = true, Player = new StepPlayer { Title = "Work", Result = "You worked" } }] }],
 		});
@@ -184,7 +184,7 @@ public sealed class PlayerStepsTests
 		player.Location = player.Home;
 		var need = AddNeed(new Need
 		{
-			Id = "chores", Title = "Chores", Icon = "icon", Hours = Hours(0, 24),
+			Id = "chores", Title = "Chores", Icon = "icon", Category = NeedCategory.Personal, Hours = Hours(0, 24),
 			Quota = new QuotaNeedSettings { Lead = 600, Time = new QuotaTime { Minutes = Amount(480), Shift = 480 } },
 			StepSettings = [new Step { Kind = StepKind.Repeat, Steps = [new Step { Kind = StepKind.Do, Minutes = Amount(30), MeetsQuota = true, Player = new StepPlayer { Title = "Work", Result = "You worked" } }] }],
 		});

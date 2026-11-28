@@ -40,6 +40,7 @@ Problems are reported against the file holding the item or setting they're about
 | `days`, `weeks`, `seasons` | list | [Calendar Item](#calendar-item) |
 | `dayParts` | list | [Day Part](#day-part) |
 | `specialDays` | list | [Special Day](#special-day). Optional. |
+| `skies` | list | [Sky](#sky). Optional. |
 | `schedules` | settings | [Schedules](#schedules-settings). Optional; without it, people stay at home. |
 | `needs` | list | [Need](#need). Optional. |
 | `stepLists` | list | [Step List](#step-list). Optional. |
@@ -674,6 +675,7 @@ The `village` settings section.
 | `travelTime` | integer | At least 0. Minutes to walk a path to or from the kind. A path takes the longer of its ends' times. |
 | `traffic` | [Frequency](#frequency) | Optional (the [Modesty Traffic](#modesty-traffic) `quarter`). How likely someone is to come by a quarter of the kind (see [Modesty Settings](#modesty-settings)). |
 | `modestyComfort` | integer | Optional (0). From -100 to 100. How much more (or less, when negative) comfortable people in a quarter of the kind are with how covered they are. |
+| `goTo` | boolean | Optional (false). Whether the player's "Go to" menu offers the quarter of the kind they can reach most quickly. |
 
 #### Quarter Count
 
@@ -805,6 +807,8 @@ The `calendar` settings section.
 |---|---|---|
 | `startYear` | integer | At least 1. The year a new game starts in. |
 | `yearFormat` | string | How a year is shown. Must include `{year}`. |
+| `sunrise` | integer | Optional (6). From 0 to 23. The hour the sun rises. The day dial's sun crosses its arc from sunrise to sunset, and the moon from sunset to sunrise. |
+| `sunset` | integer | Optional (18). After `sunrise`, and at most 24. The hour the sun sets. |
 
 #### Calendar Item
 
@@ -826,6 +830,16 @@ Each lasts until the next starts, and the last until the first starts the next d
 | `start` | integer | From 0 to 23, after the one before. |
 | `announcement` | [Long Text](#long-text) | Optional. What the player notices when it starts while they wait. Without it, they're told which part has begun. |
 | `trafficSteps` | integer | Optional (0). How many steps more common (or less, when negative) it is for someone to come by while it lasts (see [Modesty Settings](#modesty-settings)). |
+
+#### Sky
+
+Each lasts until the next starts, in order of the time they start, and the last until the first starts the next day. Portrait layers can be drawn only under some of them.
+
+| Property | Type | Notes |
+|---|---|---|
+| `id` | string | |
+| `from` | string | `sunrise` or `sunset`. What its start is measured from. |
+| `minutes` | integer | Optional (0). Less than a day either way. How many minutes after (or before, when negative) `from` it starts. No two can start at the same time. |
 
 #### Special Day
 
@@ -985,8 +999,9 @@ Has exactly one of `level` and `quota`, and exactly one of `place` and `steps`. 
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | |
-| `title` | string | Shown to the player with its level's title, for a need with `levels`. |
+| `title` | string | Shown to the player, with its level's title for a need with `levels`. |
 | `icon` | string | A Game Icon id. Stands for the need where it's shown to the player. |
+| `category` | string | `personal`, `work`, or `household`: where it's shown to the player, with their own needs, their work, or their household's chores. `work` and `household` are only for quota needs. |
 | `role` | string | Optional. `sleep` (required on one need when there are needs) or `socializing`, each on at most one level need. |
 | `activity` | string | Optional (the title). What someone meeting it is shown doing, unless their step has its own. For a need that's work, the activity of the profession of the person's business comes before it. Someone seen meeting it is described with the activity of the step they were on, and someone asked what they're doing for it tells the activity of the step they're on, or else of their next `do` step. |
 | `when` | [Condition](#condition) | Optional. Can't use `hidden`. Who has the need. Without it, everyone does. |
@@ -1244,7 +1259,7 @@ A level from 0 to 100 that grows by `perHour` each hour, except while it's met (
 | `urgentFrom` | number | Optional (0). At least 0 and less than 100. The level at which it starts to be urgent. |
 | `wakeUrgency` | number | Optional. At least 0. A sleeper (not the player) wakes once this need's urgency reaches it and passes sleep's, unless sleep pauses it. Without it, the need never wakes anyone. |
 | `startLevel` | [Integer Range](#integer-range) | Optional (0). From 0 to 100. The level at the start of a new game. |
-| `levels` | list of [Level](#level) | Optional. The words for how high it is. Needs with them are shown to the player. |
+| `levels` | list of [Level](#level) | Optional. The words for how high it is, shown to the player. |
 
 #### Level
 
@@ -1391,17 +1406,29 @@ A shift, applied after stretching.
 | Property | Type | Notes |
 |---|---|---|
 | `id` | string | |
-| `when` | [Condition](#condition) | Optional. Can't use `hidden`. Who the layer is drawn for. |
+| `when` | [Portrait Condition](#portrait-condition) | Optional. Who the layer is drawn for, and under which skies. |
 | `at` | [Portrait Place](#portrait-place) | Optional. Without it, drawn anywhere. |
+| `backdrop` | boolean | Optional (false). Whether the layer is behind the character, so `onCharacter` layers are never drawn over it. |
 | `scale` | string | Optional. A Portrait Scale id, for shapes without their own. |
 | `offset` | string | Optional. A Portrait Offset id, for all shapes. |
 | `clothing` | list of string | Optional. Unique clothing item ids. The layer is only drawn while one of them is worn, and uses the color names of the first one in the list that is. |
 | `hiddenBy` | [Portrait Hidden By](#portrait-hidden-by) | Optional. Without it, clothing never hides the layer. |
 | `cut` | [Portrait Cut](#portrait-cut) | Optional. Without it, the layer cuts nothing away from the layers under it. |
-| `onCharacter` | boolean | Optional (false). Whether the layer is only drawn over the character: over the filled shapes (other than included shape sets) of the layers under it that have no `at`, as they're drawn. |
+| `onCharacter` | boolean | Optional (false). Whether the layer is only drawn over the character: over the filled shapes (other than included shape sets) of the layers under it that have no `at` and aren't a `backdrop`, as they're drawn. |
 | `colors` | list of [Portrait Color](#portrait-color) | Optional. Unique ids. The layer's own colors, worked out after the Portrait Colors and its clothing's colors, each using only the layer colors before it. |
 | `shapes` | list of [Portrait Shape](#portrait-shape) | Drawn bottom to top. |
 | `ai` | boolean | Whether AI drew the layer. Not used by the game. |
+
+#### Portrait Condition
+
+A [Condition](#condition) on the character (which can't use `hidden`), and optionally on the sky they're under. It needs at least one of `values`, `notValues`, and `skies`.
+
+| Property | Type | Notes |
+|---|---|---|
+| `values` | map of string to list of string | Optional. As for a [Condition](#condition). |
+| `notValues` | map of string to list of string | Optional. As for a [Condition](#condition). |
+| `hidden` | list of string | Not allowed. |
+| `skies` | list of string | Optional. Unique [Sky](#sky) ids. Met only under one of them. Without it, met under any sky, or none. A character is under the sky of the game's time, or on the new game screen the sky at noon. |
 
 #### Portrait Cut
 
@@ -1500,6 +1527,7 @@ Every color is required.
 | `track` | color | The empty part of a bar or meter. |
 | `meter` | color | The filled part of a bar or meter. |
 | `sun` | color | The sun on the day dial, which shows the time of day. |
+| `moon` | color | The moon on the day dial at night. |
 | `text` | color | Ordinary text, and icons drawn in the same color. |
 | `textMuted` | color | Secondary text, such as labels, hints, and notes. |
 | `textDisabled` | color | The text of disabled controls. |

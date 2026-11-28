@@ -1,5 +1,6 @@
 using System.IO;
 using OperaEtDies.Controls.LoadGame;
+using OperaEtDies.Controls.Loading;
 using OperaEtDies.Controls.ManageMods;
 using OperaEtDies.Controls.Settings;
 using OperaEtDies.Data;
@@ -28,20 +29,35 @@ public sealed class MainWindowViewModelTests
 	}
 
 	[Test]
-	public void ShowsTheMainMenuWhileLoading()
+	public void ShowsTheLoadingScreenUntilTheDataIsShown()
 	{
 		using var viewModel = new MainWindowViewModel(new Random(0), settings: CreateAppSettings());
 
-		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
+		Assert.That(viewModel.Screen, Is.InstanceOf<LoadingScreenViewModel>());
+		Assert.That(viewModel.IsLoading, Is.True);
+		Assert.That(viewModel.IsPlaying, Is.False);
 		Assert.That(viewModel.Game, Is.Null);
-		Assert.That(viewModel.MainMenu.IsLoading, Is.True);
-		Assert.That(viewModel.MainMenu.CanNewGame(), Is.False);
+		Assert.That(viewModel.Title, Is.EqualTo(OurResources.EngineName));
+
+		// Esc does nothing while loading.
+		viewModel.Escape();
+		Assert.That(viewModel.IsLoading, Is.True);
 
 		viewModel.SetData(TestData.CreateGameInfo(), TestData.CreateGameData(), [], null);
-		Assert.That(viewModel.MainMenu.IsLoading, Is.False);
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
+		Assert.That(viewModel.IsLoading, Is.False);
 		Assert.That(viewModel.Title, Is.EqualTo("Title"));
 		Assert.That(viewModel.MainMenu.Title, Is.EqualTo("Title"));
 		Assert.That(viewModel.MainMenu.CanNewGame(), Is.True);
+	}
+
+	[Test]
+	public void TheGameTitleCanBeKnownBeforeTheDataLoads()
+	{
+		using var viewModel = new MainWindowViewModel(new Random(0), settings: CreateAppSettings(), title: "Title");
+
+		Assert.That(viewModel.IsLoading, Is.True);
+		Assert.That(viewModel.Title, Is.EqualTo("Title"));
 	}
 
 	[Test]
@@ -321,23 +337,22 @@ public sealed class MainWindowViewModelTests
 		Assert.That(viewModel.Screen, Is.InstanceOf<ManageModsViewModel>());
 
 		viewModel.Escape();
-		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
+		Assert.That(viewModel.Screen, Is.InstanceOf<LoadingScreenViewModel>());
+		Assert.That(viewModel.IsLoading, Is.True);
 		Assert.That(reloadCount, Is.EqualTo(1));
-		Assert.That(viewModel.MainMenu.IsLoading, Is.True);
-		Assert.That(viewModel.MainMenu.CanNewGame(), Is.False);
 
 		// The new game being set up used the old data, so it's gone.
 		Assert.That(viewModel.NewGame, Is.Null);
 
 		viewModel.SetData(TestData.CreateGameInfo(), null, [new DataLoadError(@"C:\Data\Characters.json", "Broken", "with mods")], store);
-		Assert.That(viewModel.MainMenu.IsLoading, Is.False);
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
 		Assert.That(viewModel.MainMenu.LoadErrors, Is.EqualTo(new[] { "Characters.json (with mods): Broken" }));
 		Assert.That(viewModel.MainMenu.CanNewGame(), Is.False);
 		Assert.That(viewModel.MainMenu.CanManageMods(), Is.True);
 	}
 
 	[Test]
-	public void ManagingModsDuringAGameQuitsIt()
+	public void ModsCanOnlyBeManagedOutsideAGame()
 	{
 		var store = new ManageModsViewModelTests.FakeModListStore();
 		using var viewModel = new MainWindowViewModel(new Random(0), new ManageModsViewModelTests.FakeFolderPicker(), settings: CreateAppSettings());
@@ -345,9 +360,15 @@ public sealed class MainWindowViewModelTests
 		StartGame(viewModel);
 
 		OpenMenu(viewModel);
+		Assert.That(viewModel.MainMenu.CanManageMods(), Is.False);
 		viewModel.MainMenu.ManageMods();
+		Assert.That(viewModel.Game, Is.Not.Null);
+		Assert.That(viewModel.Screen, Is.SameAs(viewModel.MainMenu));
 
-		Assert.That(viewModel.Game, Is.Null);
+		// Once the player quits to the main menu, they can.
+		viewModel.MainMenu.QuitToMainMenu();
+		Assert.That(viewModel.MainMenu.CanManageMods(), Is.True);
+		viewModel.MainMenu.ManageMods();
 		Assert.That(viewModel.Screen, Is.InstanceOf<ManageModsViewModel>());
 	}
 

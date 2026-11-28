@@ -5,9 +5,15 @@
 	xmlns:operaEtDies="clr-namespace:OperaEtDies"
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
 
-	<!--  One entry in the log, with the date above it when the day changes, and the time beside it when the time changes.  -->
+	<!--  One entry in the log, with the date above it when the day changes (under a light rule separating it from the day
+		before), and the time beside it when the time changes.  -->
 	<DataTemplate x:Key="LogEntryTemplate" DataType="{x:Type local:LogEntryViewModel}">
 		<StackPanel>
+			<Border
+				Height="1"
+				Margin="0,8,0,0"
+				Background="{DynamicResource RuleBrush}"
+				Visibility="{Binding StartsNewDay, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
 			<TextBlock
 				Margin="0,8,0,4"
 				FontWeight="Bold"
@@ -32,9 +38,9 @@
 		</StackPanel>
 	</DataTemplate>
 
-	<!--  The event log, oldest first, staying scrolled to the newest entry unless the player scrolled back. Its heading sits
-		right under the splitter above it, with buttons that open the log in a sheet and collapse it down to the heading, left
-		of the splitter's ribbon.  -->
+	<!--  The event log, oldest first, staying scrolled to the newest entry unless the player scrolled back. Right under the
+		splitter above it are buttons that open the log in a sheet and collapse it, left of the splitter's ribbon. While it's
+		collapsed, a "Log" label beside them says what they open.  -->
 	<DataTemplate DataType="{x:Type local:EventLogViewModel}">
 		<DockPanel>
 			<DockPanel Margin="12,0,48,4" DockPanel.Dock="Top">
@@ -67,7 +73,8 @@
 					Margin="0"
 					VerticalAlignment="Center"
 					Style="{DynamicResource CaptionTextStyle}"
-					Text="{x:Static operaEtDies:OurResources.EventLogHeader}" />
+					Text="{x:Static operaEtDies:OurResources.LogCollapsedHeader}"
+					Visibility="{Binding IsCollapsed, Converter={x:Static utility:CommonConverters.BooleanToVisibilityWithHidden}}" />
 			</DockPanel>
 			<ScrollViewer
 				Visibility="{Binding IsCollapsed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}"

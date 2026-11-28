@@ -63,7 +63,7 @@ public sealed class ClothingRulesTests
 		var swimming = new Need
 		{
 			Id = "swimming",
-			Title = "Swimming", Icon = "icon",
+			Title = "Swimming", Icon = "icon", Category = NeedCategory.Personal,
 			Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings =
 			[
@@ -126,7 +126,7 @@ public sealed class ClothingRulesTests
 		var swimming = new Need
 		{
 			Id = "swimming",
-			Title = "Swimming", Icon = "icon",
+			Title = "Swimming", Icon = "icon", Category = NeedCategory.Personal,
 			Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings =
 			[
@@ -170,7 +170,7 @@ public sealed class ClothingRulesTests
 		var swimming = new Need
 		{
 			Id = "swimming",
-			Title = "Swimming", Icon = "icon",
+			Title = "Swimming", Icon = "icon", Category = NeedCategory.Personal,
 			Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings =
 			[
@@ -454,7 +454,8 @@ public sealed class ClothingRulesTests
 		Assert.That(player.Inventory.Items, Is.Empty);
 		Assert.That(sequence.CurrentStep?.Kind, Is.EqualTo(StepKind.Take));
 		foreach (var piece in work!.Pieces.Where(world.CanPlayerTake))
-			await world.PlayerTakeAsync(piece);
+			world.PlayerTake(piece);
+		await world.UpdatePlayerStepsAsync();
 		Assert.That(world.GetPlayerSteps(sequence)[0].Place, Is.EqualTo(player.Workplace));
 
 		// Getting there, changing into them is next, which they do themselves too, and then work.
@@ -491,7 +492,7 @@ public sealed class ClothingRulesTests
 		Assert.That(player.Inventory.Items, Is.Empty);
 		await world.MovePlayerAsync(player.Home);
 		foreach (var piece in work!.Pieces)
-			await world.PlayerTakeAsync(piece);
+			world.PlayerTake(piece);
 		await world.MovePlayerAsync(player.Workplace);
 		Assert.That(player.Inventory.Items, Is.SupersetOf(work.Pieces));
 
@@ -591,10 +592,10 @@ public sealed class ClothingRulesTests
 		Assert.That(await world.FinishPlayerChangingAsync(player.Clothing.Pieces.ToList()), Is.Null);
 
 		Assert.That(world.CanPlayerTake(piece), Is.True);
-		await world.PlayerTakeAsync(piece);
+		world.PlayerTake(piece);
 		Assert.That(piece.Container, Is.SameAs(player.Inventory));
 		Assert.That(world.CanPlayerPutAway(piece), Is.True);
-		await world.PlayerPutAwayAsync(piece);
+		world.PlayerPutAway(piece);
 		Assert.That(piece.Container, Is.SameAs(player.Home.Items));
 
 		// Clothes still drying can't be worn or taken.

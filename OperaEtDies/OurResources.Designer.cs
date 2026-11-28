@@ -441,15 +441,6 @@ namespace OperaEtDies {
         /// <summary>
         ///   Looks up a localized string similar to Close.
         /// </summary>
-        public static string CloseView {
-            get {
-                return ResourceManager.GetString("CloseView", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Close.
-        /// </summary>
         public static string CloseWindow {
             get {
                 return ResourceManager.GetString("CloseWindow", resourceCulture);
@@ -700,6 +691,15 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to With --generate-villages, draw everyone's portrait under the sky with this id, instead of the sky at the time..
+        /// </summary>
+        public static string CommandLinePortraitsSky {
+            get {
+                return ResourceManager.GetString("CommandLinePortraitsSky", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Forget the settings chosen on the settings screen (such as the text size and full screen), and use the defaults..
         /// </summary>
         public static string CommandLineResetSettings {
@@ -853,6 +853,33 @@ namespace OperaEtDies {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Go to.
+        /// </summary>
+        public static string ConcernsGoTo {
+            get {
+                return ResourceManager.GetString("ConcernsGoTo", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You&apos;re here.
+        /// </summary>
+        public static string ConcernsGoToHereToolTip {
+            get {
+                return ResourceManager.GetString("ConcernsGoToHereToolTip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Choose a place to head for.
+        /// </summary>
+        public static string ConcernsGoToToolTip {
+            get {
+                return ResourceManager.GetString("ConcernsGoToToolTip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Clear the destination.
         /// </summary>
         public static string ConcernsClearDestinationToolTip {
@@ -907,11 +934,11 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Concerns.
+        ///   Looks up a localized string similar to Work.
         /// </summary>
-        public static string ConcernsHeader {
+        public static string ConcernsWorkHeader {
             get {
-                return ResourceManager.GetString("ConcernsHeader", resourceCulture);
+                return ResourceManager.GetString("ConcernsWorkHeader", resourceCulture);
             }
         }
         
@@ -1164,15 +1191,6 @@ namespace OperaEtDies {
         public static string ConversationCallOffToolTip {
             get {
                 return ResourceManager.GetString("ConversationCallOffToolTip", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Talking with {0}.
-        /// </summary>
-        public static string ConversationHeader {
-            get {
-                return ResourceManager.GetString("ConversationHeader", resourceCulture);
             }
         }
         
@@ -1861,11 +1879,11 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Examine.
+        ///   Looks up a localized string similar to Log.
         /// </summary>
-        public static string ExamineCharacter {
+        public static string LogCollapsedHeader {
             get {
-                return ResourceManager.GetString("ExamineCharacter", resourceCulture);
+                return ResourceManager.GetString("LogCollapsedHeader", resourceCulture);
             }
         }
         
@@ -2316,6 +2334,15 @@ namespace OperaEtDies {
         public static string GameDate {
             get {
                 return ResourceManager.GetString("GameDate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} {1}, {2}.
+        /// </summary>
+        public static string GameSeasonAndYear {
+            get {
+                return ResourceManager.GetString("GameSeasonAndYear", resourceCulture);
             }
         }
         
@@ -4903,15 +4930,6 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Quit Game and Manage Mods.
-        /// </summary>
-        public static string QuitAndManageMods {
-            get {
-                return ResourceManager.GetString("QuitAndManageMods", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Quit to Main Menu.
         /// </summary>
         public static string QuitToMainMenu {
@@ -5151,6 +5169,15 @@ namespace OperaEtDies {
         public static string RoleMissing {
             get {
                 return ResourceManager.GetString("RoleMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" is "{1}", so it must be a quota need..
+        /// </summary>
+        public static string NeedCategoryNotQuota {
+            get {
+                return ResourceManager.GetString("NeedCategoryNotQuota", resourceCulture);
             }
         }
         
@@ -6307,7 +6334,7 @@ namespace OperaEtDies {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Stop Following.
+        ///   Looks up a localized string similar to Stop following.
         /// </summary>
         public static string StopFollowing {
             get {
@@ -7239,6 +7266,78 @@ namespace OperaEtDies {
         public static string WorkHeader {
             get {
                 return ResourceManager.GetString("WorkHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to you.
+        /// </summary>
+        public static string RelationYou {
+            get {
+                return ResourceManager.GetString("RelationYou", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to your {0}.
+        /// </summary>
+        public static string RelationYour {
+            get {
+                return ResourceManager.GetString("RelationYour", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Stop talking.
+        /// </summary>
+        public static string StopTalking {
+            get {
+                return ResourceManager.GetString("StopTalking", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to End conversation.
+        /// </summary>
+        public static string ConversationEnd {
+            get {
+                return ResourceManager.GetString("ConversationEnd", resourceCulture);
+            }
+        }
+        
+    
+        /// <summary>
+        ///   Looks up a localized string similar to The sun rises at {0} and sets at {1}, but sunrise must be from 0 to 23, and sunset after it and no later than 24..
+        /// </summary>
+        public static string CalendarSunTimesInvalid {
+            get {
+                return ResourceManager.GetString("CalendarSunTimesInvalid", resourceCulture);
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized string similar to The sky "{0}" starts {1} minutes from sunrise or sunset, but it must be less than a day..
+        /// </summary>
+        public static string CalendarSkyMinutesOutOfRange {
+            get {
+                return ResourceManager.GetString("CalendarSkyMinutesOutOfRange", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The sky "{0}" starts at the same time as "{1}"..
+        /// </summary>
+        public static string CalendarSkySameStart {
+            get {
+                return ResourceManager.GetString("CalendarSkySameStart", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to "{0}" has "{1}", but it isn't a sky in the calendar's "skies" list..
+        /// </summary>
+        public static string PortraitSkyUnknown {
+            get {
+                return ResourceManager.GetString("PortraitSkyUnknown", resourceCulture);
             }
         }
     }

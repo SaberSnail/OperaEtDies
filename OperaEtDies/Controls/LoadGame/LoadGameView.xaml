@@ -6,7 +6,7 @@
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
 
 	<DataTemplate DataType="{x:Type local:LoadGameViewModel}">
-		<Grid>
+		<Grid MaxWidth="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=44}" Margin="24">
 			<Grid.RowDefinitions>
 				<RowDefinition Height="Auto" />
 				<RowDefinition Height="*" />

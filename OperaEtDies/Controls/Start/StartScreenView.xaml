@@ -6,42 +6,26 @@
 	xmlns:operaEtDies="clr-namespace:OperaEtDies"
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
 
-	<!--  What the player can start: what they're in the middle of, and each need, with how it's going and a split button
-		that starts it (with shorter shifts and having it done for them in its menu), or why it can't be started now. The
-		note sits after the button, so it doesn't move it.  -->
+	<!--  What the player can start, in a sheet, whose frame has the title and the close button: what they're in the middle
+		of, and each need, with how it's going and a split button that starts it (with shorter shifts and having it done for
+		them in its menu), or why it can't be started now. The note sits after the button, so it doesn't move it.  -->
 	<DataTemplate DataType="{x:Type local:StartScreenViewModel}">
-		<Grid Margin="24">
+		<Grid>
 			<Grid.RowDefinitions>
-				<RowDefinition Height="Auto" />
 				<RowDefinition Height="Auto" />
 				<RowDefinition Height="*" />
 			</Grid.RowDefinitions>
 
-			<DockPanel Grid.Row="0" LastChildFill="True">
-				<Button
-					Width="120"
-					Height="32"
-					VerticalAlignment="Center"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Close}"
-					Content="{x:Static operaEtDies:OurResources.CloseView}"
-					DockPanel.Dock="Right" />
-				<TextBlock
-					Style="{DynamicResource TitleTextStyle}"
-					Text="{Binding Title}"
-					TextWrapping="Wrap" />
-			</DockPanel>
-
-			<StackPanel Grid.Row="1" Margin="0,12,0,0">
-				<TextBlock
-					Foreground="{DynamicResource TextMutedBrush}"
-					Text="{Binding InProgress}"
-					TextWrapping="Wrap"
-					Visibility="{Binding InProgress, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
-			</StackPanel>
+			<TextBlock
+				Grid.Row="0"
+				Margin="0,0,0,12"
+				Foreground="{DynamicResource TextMutedBrush}"
+				Text="{Binding InProgress}"
+				TextWrapping="Wrap"
+				Visibility="{Binding InProgress, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 
 			<ScrollViewer
-				Grid.Row="2"
-				Margin="0,12,0,0"
+				Grid.Row="1"
 				HorizontalScrollBarVisibility="Disabled"
 				VerticalScrollBarVisibility="Auto">
 				<ItemsControl ItemsSource="{Binding Choices}">

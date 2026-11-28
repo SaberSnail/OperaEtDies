@@ -87,6 +87,7 @@ public sealed class CommandLineOptions
 			($"{VillageReport.SeedArgument} <number>", OurResources.CommandLineSeed),
 			($"{VillageReport.PortraitsArgument} <folder>", OurResources.CommandLinePortraits),
 			(VillageReport.PortraitsAtWorkArgument, OurResources.CommandLinePortraitsAtWork),
+			($"{VillageReport.PortraitsSkyArgument} <sky>", OurResources.CommandLinePortraitsSky),
 			(VillageReport.ThroughSaveArgument, OurResources.CommandLineThroughSave),
 			($"{VillageReport.SimulateDaysArgument} <days>", OurResources.CommandLineSimulateDays),
 		];

@@ -472,11 +472,11 @@ public sealed class CharacterData : IValidatedData
 
 	/// <summary>
 	/// Checks that a condition's values use value list properties and their values, and that its hidden properties
-	/// exist. Only template conditions can use hidden properties.
+	/// exist. Only template conditions can use hidden properties. A portrait condition can instead have only skies.
 	/// </summary>
 	internal static IEnumerable<string> ValidateCondition(string path, CharacterCondition condition, IReadOnlyDictionary<string, CharacterProperty> properties, bool isTemplate)
 	{
-		if (condition.Values is null && condition.NotValues is null && condition.Hidden is null)
+		if (condition.Values is null && condition.NotValues is null && condition.Hidden is null && (condition as PortraitCondition)?.Skies is null)
 			yield return OurResources.ConditionEmpty.FormatCurrentCulture(path);
 
 		if (condition.Values is { } values)

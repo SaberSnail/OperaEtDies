@@ -126,6 +126,33 @@ public sealed class GameCalendar : CalendarBase
 	}
 
 	/// <summary>
+	/// The skies over the day, in data order.
+	/// </summary>
+	public IReadOnlyList<CalendarSky> Skies => m_settings.Skies;
+
+	/// <summary>
+	/// The hour the sun rises.
+	/// </summary>
+	public int Sunrise => m_settings.Sunrise;
+
+	/// <summary>
+	/// The hour the sun sets.
+	/// </summary>
+	public int Sunset => m_settings.Sunset;
+
+	/// <summary>
+	/// Gets the sky at the time: the last one that starts at or before its minute of the day, or else the last one of the
+	/// day before, which lasts past midnight. Null if there are no skies.
+	/// </summary>
+	public CalendarSky? GetSky(TimePoint point)
+	{
+		var parts = GetParts(point);
+		var minute = (parts.Hour * MinutesInHour) + parts.Minute;
+		var skies = m_settings.Skies.OrderBy(m_settings.GetSkyStart).ToList();
+		return skies.LastOrDefault(x => m_settings.GetSkyStart(x) <= minute) ?? skies.LastOrDefault();
+	}
+
+	/// <summary>
 	/// Gets midnight at the start of the first day of the time's week.
 	/// </summary>
 	public TimePoint GetStartOfWeek(TimePoint point) => GetStartOfDay(point) + CreateTimeOffset(1 - GetParts(point).Day, 0, 0);
@@ -166,6 +193,16 @@ public sealed class GameCalendar : CalendarBase
 		var parts = GetParts(point);
 		return OurResources.GameDate.FormatCurrentCulture(m_settings.Days[parts.Day - 1].Title, m_settings.Weeks[parts.Week - 1].Title,
 			m_settings.Seasons[parts.Season - 1].Title, FormatYear(parts.Year));
+	}
+
+	/// <summary>
+	/// Shows the part of a time's date after the day of the week, with its year, such as "Mid Winter, 227 CR".
+	/// </summary>
+	public string FormatSeasonAndYear(TimePoint point)
+	{
+		var parts = GetParts(point);
+		return OurResources.GameSeasonAndYear.FormatCurrentCulture(m_settings.Weeks[parts.Week - 1].Title, m_settings.Seasons[parts.Season - 1].Title,
+			FormatYear(parts.Year));
 	}
 
 	/// <summary>

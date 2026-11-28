@@ -10,14 +10,20 @@ public sealed class PortraitLayer : IIdentified
 	public required string Id { get; init; }
 
 	/// <summary>
-	/// A condition on the character's properties that must be met for the layer to be drawn.
+	/// A condition on the character's properties, and the sky, that must be met for the layer to be drawn.
 	/// </summary>
-	public CharacterCondition? When { get; init; }
+	public PortraitCondition? When { get; init; }
 
 	/// <summary>
 	/// The places the layer is drawn in, or null to draw it anywhere.
 	/// </summary>
 	public PortraitPlaceCondition? At { get; init; }
+
+	/// <summary>
+	/// Whether the layer is behind the character rather than part of them, so layers drawn only over the character (see
+	/// <see cref="OnCharacter"/>) are never drawn over it, though it's drawn everywhere, such as the sky.
+	/// </summary>
+	public bool Backdrop { get; init; }
 
 	/// <summary>
 	/// The id of the portrait scale that stretches the layer's shapes, except shapes that name their own.
@@ -48,8 +54,9 @@ public sealed class PortraitLayer : IIdentified
 	public PortraitCut? Cut { get; init; }
 
 	/// <summary>
-	/// Whether the layer is only drawn over the character: over the filled shapes of the layers under it that are drawn
-	/// anywhere (without <see cref="At"/>), so it never spills onto the background, such as dust on the clothes and hair.
+	/// Whether the layer is only drawn over the character: over the filled shapes of the layers under it that are part of
+	/// the character (see <see cref="IsCharacter"/>), so it never spills onto the background, such as dust on the clothes
+	/// and hair.
 	/// </summary>
 	public bool OnCharacter { get; init; }
 
@@ -61,11 +68,27 @@ public sealed class PortraitLayer : IIdentified
 	public IReadOnlyList<PortraitColor>? Colors { get; init; }
 
 	/// <summary>
+	/// Whether the layer is part of the character: it's drawn anywhere and isn't a <see cref="Backdrop"/>.
+	/// </summary>
+	public bool IsCharacter => At is null && !Backdrop;
+
+	/// <summary>
 	/// Whether the layer is drawn for a character in a place wearing clothing, given a function that gets the value id
 	/// of a value list property. A null place only draws the layers that are drawn anywhere.
 	/// </summary>
 	public bool IsDrawn(Func<string, string?> getValueId, PortraitPlace? place, PortraitClothing clothing) =>
-		(At is null || At.IsMet(place)) && CharacterCondition.IsMet(When, getValueId) && IsClothingMet(clothing);
+		IsPlaceMet(place) && IsConditionMet(getValueId, place) && IsClothingMet(clothing);
+
+	/// <summary>
+	/// Whether the layer is drawn in the place: it's one of the layer's places, if it has any.
+	/// </summary>
+	public bool IsPlaceMet(PortraitPlace? place) => At is null || At.IsMet(place);
+
+	/// <summary>
+	/// Whether the layer's condition is met for a character, given a function that gets the value id of a value list
+	/// property, under the sky of the place.
+	/// </summary>
+	public bool IsConditionMet(Func<string, string?> getValueId, PortraitPlace? place) => PortraitCondition.IsMet(When, getValueId, place?.Sky);
 
 	/// <summary>
 	/// Whether the clothing allows the layer to be drawn: one of the layer's articles of clothing is worn, if it has

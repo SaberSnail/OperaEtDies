@@ -6,7 +6,8 @@ using OperaEtDies.GameState;
 namespace OperaEtDies.Controls.Status;
 
 /// <summary>
-/// Shows how someone is doing: each of their needs, and for the player, their appointments and jobs. It's usually the player's, but
+/// Shows how someone is doing: each of their needs, grouped into their own needs, their work, and their household's
+/// chores, and for the player, their appointments and jobs. It's usually the player's, but
 /// developers can see anyone's, and change their needs.
 /// </summary>
 public sealed class StatusViewModel : ViewModelBase, ISheet
@@ -24,6 +25,10 @@ public sealed class StatusViewModel : ViewModelBase, ISheet
 			.Where(x => Scheduler.HasNeed(person, x))
 			.Select(x => new NeedStatusViewModel(world, person, x, isDeveloper))
 			.ToList();
+		NeedGroups = new[] { (NeedCategory.Personal, OurResources.NeedsHeader), (NeedCategory.Work, OurResources.WorkHeader), (NeedCategory.Household, OurResources.HouseholdHeader) }
+			.Select(x => new NeedStatusGroupViewModel(x.Item2, Needs.Where(need => need.Category == x.Item1).ToList()))
+			.Where(x => x.Needs.Count != 0)
+			.ToList();
 		Appointments = person.IsPlayer ? GetAppointments(world) : null;
 		Jobs = person.IsPlayer ? GetJobs(world) : [];
 		foreach (var need in Needs)
@@ -39,7 +44,16 @@ public sealed class StatusViewModel : ViewModelBase, ISheet
 
 	public bool IsFullWidth => false;
 
+	/// <summary>
+	/// All the person's needs, in the order of the data.
+	/// </summary>
 	public IReadOnlyList<NeedStatusViewModel> Needs { get; }
+
+	/// <summary>
+	/// The person's needs grouped by their category, each with its heading, such as "Household". Groups without needs are
+	/// left out.
+	/// </summary>
+	public IReadOnlyList<NeedStatusGroupViewModel> NeedGroups { get; }
 
 	/// <summary>
 	/// For the player, their appointments, soonest first, such as "14:30 today: Attending an expectant mother with Mary Smith,
@@ -82,6 +96,11 @@ public sealed class StatusViewModel : ViewModelBase, ISheet
 }
 
 /// <summary>
+/// A group of someone's needs on the status page, such as their household's chores, with its heading.
+/// </summary>
+public sealed record NeedStatusGroupViewModel(string Title, IReadOnlyList<NeedStatusViewModel> Needs);
+
+/// <summary>
 /// How someone is doing with one need, such as "Fatigue: Tired (62 of 100)", "Work: 2 hours of 8 hours today", or
 /// "Fetching water: 1 of 3 visits today (5 minutes each)", whether a quota need is done, and notes such as whether the
 /// household shares it, and whether the player still has to finish a trip for it at home. Developers can change how far
@@ -98,6 +117,11 @@ public sealed class NeedStatusViewModel : ViewModelBase
 		IsDeveloper = isDeveloper;
 		Title = need.Title;
 	}
+
+	/// <summary>
+	/// Whose the need is, which decides the group it's shown in.
+	/// </summary>
+	public NeedCategory Category => m_need.Category;
 
 	/// <summary>
 	/// Raised when a developer changes the need.

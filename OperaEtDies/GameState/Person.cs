@@ -189,17 +189,28 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	/// <summary>
 	/// Where the person is, for drawing their portrait: a business's place is the workplace of its profession, and a
 	/// house is a home, unless it's the person's own home and they're working from it. Anywhere else is its kind of
-	/// quarter.
+	/// quarter. It's under the current <see cref="Sky"/>.
 	/// </summary>
 	public PortraitPlace? PortraitPlace
 	{
 		get
 		{
 			var location = Location;
-			return location.BusinessProfession is { } businessProfession ? Data.PortraitPlace.InWorkplace(businessProfession) :
+			var place = location.BusinessProfession is { } businessProfession ? Data.PortraitPlace.InWorkplace(businessProfession) :
 				location.IsHouse ? (location == Workplace && IsAtWork && Profession is { } profession ? Data.PortraitPlace.InWorkplace(profession) : Data.PortraitPlace.Home) :
 				location.QuarterKind is { } quarterKind ? Data.PortraitPlace.InQuarter(quarterKind) : null;
+			return place?.WithSky(m_sky);
 		}
+	}
+
+	/// <summary>
+	/// The id of the sky right now, or null for none, which the world keeps up to date from the time (see
+	/// <see cref="GameWorld.Sky"/>). It isn't saved.
+	/// </summary>
+	public string? Sky
+	{
+		get => m_sky;
+		internal set => SetPropertyField([nameof(Sky), nameof(PortraitPlace)], value, ref m_sky);
 	}
 
 	/// <summary>
@@ -765,6 +776,7 @@ public sealed class Person : NotifyPropertyChangedBase, IWorldObject
 	private readonly Dictionary<Person, Relationship> m_relationships = [];
 	private readonly Dictionary<Person, Sighting> m_sightings = [];
 	private Person? m_talkRequest;
+	private string? m_sky;
 	private Location m_location;
 	private GoalChoice? m_goalChoice;
 	private Person? m_askRequest;

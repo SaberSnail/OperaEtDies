@@ -1,4 +1,4 @@
-using GoldenAnvil.Utility;
+﻿using GoldenAnvil.Utility;
 using OperaEtDies.Controls;
 using OperaEtDies.Controls.Conversation;
 using OperaEtDies.Data;
@@ -17,21 +17,22 @@ public sealed class ConversationViewModelTests
 		using var timeRunner = new TimeRunner(world, settings: null);
 		var viewModel = new ConversationViewModel(person, world, timeRunner);
 
-		Assert.That(viewModel.Title, Is.EqualTo(OurResources.ConversationHeader.FormatCurrentCulture(person.FullName)));
+		Assert.That(viewModel.Person.Person, Is.SameAs(person));
 		Assert.That(viewModel.Unavailable, Is.Null);
 		Assert.That(viewModel.Subjects.Any(x => x == person || x.IsPlayer), Is.False);
 		Assert.That(viewModel.AskWhatDoingText, Does.Contain("5 minutes"));
 
 		viewModel.AskWhatDoing();
-		Assert.That(viewModel.Lines, Is.EqualTo(new[] { OurResources.ConversationAskedDoing.FormatCurrentCulture(person.FullName), OurResources.TalkPlanIdle }));
+		Assert.That(viewModel.Lines, Is.EqualTo(new[] { new ConversationLine(OurResources.ConversationAskedDoing.FormatCurrentCulture(person.FullName), IsPlayer: true), new ConversationLine(OurResources.TalkPlanIdle, IsPlayer: false) }));
 
 		var subject = viewModel.Subjects.First(x => !person.Sightings.ContainsKey(x));
 		viewModel.SelectedSubject = subject;
 		viewModel.AskAbout();
-		Assert.That(viewModel.Lines[^1], Is.EqualTo(OurResources.TalkNotSeen.FormatCurrentCulture(subject.FullName)));
+		Assert.That(viewModel.Lines[^1], Is.EqualTo(new ConversationLine(OurResources.TalkNotSeen.FormatCurrentCulture(subject.FullName), IsPlayer: false)));
 
 		viewModel.Socialize();
-		Assert.That(viewModel.Lines[^1], Does.StartWith(OurResources.ConversationSocialized.FormatCurrentCulture(person.FullName, "")[..^2]));
+		Assert.That(viewModel.Lines[^1].IsPlayer, Is.True);
+		Assert.That(viewModel.Lines[^1].Text, Does.StartWith(OurResources.ConversationSocialized.FormatCurrentCulture(person.FullName, "")[..^2]));
 	}
 
 	[Test]
@@ -45,7 +46,7 @@ public sealed class ConversationViewModelTests
 		// With an "ask" step next, its title is a button, and asking says its text and the answer.
 		var need = new Need
 		{
-			Id = "errand", Title = "Errand", Icon = "icon", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			Id = "errand", Title = "Errand", Icon = "icon", Category = NeedCategory.Personal, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings =
 			[
 				new Step
@@ -61,7 +62,7 @@ public sealed class ConversationViewModelTests
 
 		viewModel.AskStep();
 
-		Assert.That(viewModel.Lines, Is.EqualTo(new[] { "Can I help?", OurResources.ConversationAgreed.FormatCurrentCulture(person.FullName) }));
+		Assert.That(viewModel.Lines, Is.EqualTo(new[] { new ConversationLine("Can I help?", IsPlayer: true), new ConversationLine(OurResources.ConversationAgreed.FormatCurrentCulture(person.FullName), IsPlayer: false) }));
 		Assert.That(viewModel.AskStepText, Is.Null);
 	}
 

@@ -51,33 +51,19 @@
 		<Setter Property="Text" Value="{x:Static operaEtDies:OurResources.ClothingNone}" />
 	</Style>
 
-	<!--  The player's inventory or wardrobe. The wardrobe also has the player's outfits, and the clothes they keep at home.  -->
+	<!--  The player's inventory or wardrobe, in a sheet, whose frame has the title and the close button. The wardrobe also has
+		the player's outfits, and the clothes they keep at home.  -->
 	<DataTemplate DataType="{x:Type local:ClothingScreenViewModel}">
-		<Grid Margin="24">
+		<Grid>
 			<Grid.RowDefinitions>
-				<RowDefinition Height="Auto" />
 				<RowDefinition Height="Auto" />
 				<RowDefinition Height="*" />
 			</Grid.RowDefinitions>
 
-			<DockPanel Grid.Row="0" LastChildFill="True">
-				<Button
-					Width="120"
-					Height="32"
-					VerticalAlignment="Center"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Close}"
-					Content="{x:Static operaEtDies:OurResources.CloseView}"
-					DockPanel.Dock="Right" />
-				<TextBlock
-					Style="{DynamicResource TitleTextStyle}"
-					Text="{Binding Title}"
-					TextWrapping="Wrap" />
-			</DockPanel>
-
-			<!--  Which parts of the body the player must cover more before they can leave, which keeps the page from closing. It's
+			<!--  Which parts of the body the player must cover more before they can leave, which keeps the sheet from closing. It's
 				hidden rather than removed while they're dressed enough, so the lists don't move when it appears. For developers, how
 				modest the player is in each region their modesty rule checks.  -->
-			<StackPanel Grid.Row="1" Margin="0,8,0,0">
+			<StackPanel Grid.Row="0">
 				<Border
 					Padding="8,4"
 					HorizontalAlignment="Left"
@@ -99,7 +85,7 @@
 			</StackPanel>
 
 			<ScrollViewer
-				Grid.Row="2"
+				Grid.Row="1"
 				Margin="0,4,0,0"
 				HorizontalScrollBarVisibility="Disabled"
 				VerticalScrollBarVisibility="Auto">

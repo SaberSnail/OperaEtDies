@@ -1,4 +1,4 @@
-# To Do
+﻿# To Do
 
 ## Long Term
 
@@ -79,6 +79,7 @@
 * A journal or notes recording what has happened and what the player has learned about people.
 * Make it clear where firewood can be gathered (any wayside or fields quarter). Nothing tells the player that, so they don't know where to go.
 * Make it clear to the player when a rest day cuts a night shift in half.
+* A calendar screen showing upcoming appointments and other known events for the next week (or longer).
 
 ### Interface and Saves
 
@@ -90,6 +91,8 @@
 * Alternate themes, such as a dark one: turn the `theme` data section into a list of themes for the settings screen to choose from. The theme resources are already named by role and filled from the data, so a new palette needs no new XAML or art.
 * Save titles: show the village name and the in-game date and time in each save's title, alongside the main character's name. The in-game date and time need the passage of time first.
 * Choose a destination from the status sheet's appointments too (they're only text so far), and from places in the log.
+* Give other names of people the person tooltip (portrait, name, relationship, profession) as they become links, such as the character sheet's relationships and sightings, and the appointments in Concerns and on the status sheet.
+* Consider showing the other prompts about someone in the location (someone asking the player a question for their steps, or asking to start an appointment) in that person's line, as asking to chat is.
 
 ### Tuning
 

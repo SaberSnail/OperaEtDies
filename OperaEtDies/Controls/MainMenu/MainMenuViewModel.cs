@@ -51,19 +51,6 @@ public sealed class MainMenuViewModel : ViewModelBase
 	public bool HasLoadErrors => LoadErrors.Count != 0;
 
 	/// <summary>
-	/// True while the game data is being loaded. The errors from loading it before are cleared.
-	/// </summary>
-	public bool IsLoading
-	{
-		get => VerifyAccess(m_isLoading);
-		set
-		{
-			if (SetPropertyField(value, ref m_isLoading) && value)
-				LoadErrors = [];
-		}
-	}
-
-	/// <summary>
 	/// Whether a game is being played, which changes the choices.
 	/// </summary>
 	public bool IsInGame
@@ -144,12 +131,12 @@ public sealed class MainMenuViewModel : ViewModelBase
 
 	public void Resume() => Choose(MainMenuChoice.Resume, CanResume());
 
-	public bool CanContinueNewGame() => !IsInGame && IsNewGameInProgress && !IsLoading;
+	public bool CanContinueNewGame() => !IsInGame && IsNewGameInProgress;
 
 	public void ContinueNewGame() => Choose(MainMenuChoice.ContinueNewGame, CanContinueNewGame());
 
 	// A new game can't be started without the game data.
-	public bool CanNewGame() => !IsInGame && m_hasGameInfo && m_hasGameData && !IsLoading;
+	public bool CanNewGame() => !IsInGame && m_hasGameInfo && m_hasGameData;
 
 	public void NewGame() => Choose(MainMenuChoice.NewGame, CanNewGame());
 
@@ -159,16 +146,16 @@ public sealed class MainMenuViewModel : ViewModelBase
 	public void SaveGame() => Choose(MainMenuChoice.SaveGame, CanSaveGame());
 
 	// Games can't be loaded without the game data, or without knowing where saves are kept.
-	public bool CanLoadGame() => m_hasGameData && m_saveSettings is not null && !IsLoading;
+	public bool CanLoadGame() => m_hasGameData && m_saveSettings is not null;
 
 	public void LoadGame() => Choose(MainMenuChoice.LoadGame, CanLoadGame());
 
 	// The settings don't depend on the data, so they're always there.
 	public void OpenSettings() => Choose(MainMenuChoice.Settings, true);
 
-	// The mod list is kept under the game's title, so it can't be managed without the game info. During a game, managing
-	// mods quits the game first, since changing them loads the data again.
-	public bool CanManageMods() => m_canManageMods && !IsLoading;
+	// The mod list is kept under the game's title, so it can't be managed without the game info. Mods are only managed
+	// outside a game, since changing them loads the data again, which a game can't survive.
+	public bool CanManageMods() => !IsInGame && m_canManageMods;
 
 	public void ManageMods() => Choose(MainMenuChoice.ManageMods, CanManageMods());
 
@@ -196,7 +183,6 @@ public sealed class MainMenuViewModel : ViewModelBase
 	private string m_title;
 	private string m_description;
 	private IReadOnlyList<string> m_loadErrors;
-	private bool m_isLoading;
 	private bool m_isInGame;
 	private bool m_isNewGameInProgress;
 	private string? m_saveStatus;

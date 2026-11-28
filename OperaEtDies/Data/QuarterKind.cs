@@ -78,6 +78,11 @@ public sealed class QuarterKind : IIdentified
 	/// How much more (or, when negative, less) comfortable people in a quarter of this kind are with how covered they are.
 	/// </summary>
 	public int ModestyComfort { get; init; }
+
+	/// <summary>
+	/// Whether the player's "Go to" menu offers the nearest quarter of this kind as a destination, such as the well.
+	/// </summary>
+	public bool GoTo { get; init; }
 }
 
 /// <summary>

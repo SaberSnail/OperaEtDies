@@ -449,6 +449,12 @@
 					ItemsSource="{Binding Places}"
 					SelectedItem="{Binding SelectedPlace}"
 					ToolTip="Where the character is drawn" />
+				<ComboBox
+					Margin="0,0,0,4"
+					DisplayMemberPath="Title"
+					ItemsSource="{Binding Skies}"
+					SelectedItem="{Binding SelectedSky}"
+					ToolTip="The sky the character is drawn under" />
 				<ItemsControl
 					Focusable="False"
 					controls:LabeledRow.IsAlignmentScope="True"

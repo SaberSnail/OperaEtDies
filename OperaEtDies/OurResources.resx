@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
 	<xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
 		<xsd:element name="root" msdata:IsDataSet="true">
@@ -136,10 +136,6 @@
 	<data name="PeopleHeader" xml:space="preserve">
 		<value>People here:</value>
 		<comment>Header above the list of characters in the current location.</comment>
-	</data>
-	<data name="ExamineCharacter" xml:space="preserve">
-		<value>Examine</value>
-		<comment>Button that shows a description of a character.</comment>
 	</data>
 	<data name="WeightedValueMissing" xml:space="preserve">
 		<value>A value in the "{0}" list is blank.</value>
@@ -631,10 +627,6 @@
 		<value>The {0} Family</value>
 		<comment>Header above the members of one family in the list of villagers. {0} is the last name of the head of the family.</comment>
 	</data>
-	<data name="CloseView" xml:space="preserve">
-		<value>Close</value>
-		<comment>Button that closes a screen and returns to the player&apos;s location.</comment>
-	</data>
 	<data name="FamilyAgeGroupUnknown" xml:space="preserve">
 		<value>&quot;{0}&quot; has the key &quot;{1}&quot;, but the character property &quot;{2}&quot; has no group with that id.</value>
 		<comment>{0} is the setting in the data file. {1} is the key found. {2} is the age property&apos;s id.</comment>
@@ -874,6 +866,10 @@
 		<value>With --generate-villages, draw everyone's portrait at work in their own workplace, instead of where they start the game.</value>
 		<comment>Explains the --portraits-at-work command line option.</comment>
 	</data>
+	<data name="CommandLinePortraitsSky" xml:space="preserve">
+		<value>With --generate-villages, draw everyone's portrait under the sky with this id, instead of the sky at the time.</value>
+		<comment>Explains the --portraits-sky command line option.</comment>
+	</data>
 	<data name="PortraitQuarterKindUnknown" xml:space="preserve">
 		<value>&quot;{0}&quot; has &quot;{1}&quot;, but it isn&apos;t a quarter kind in Locations.json.</value>
 		<comment>{0} is the path to the portrait layer's quarter kinds, {1} is the quarter kind.</comment>
@@ -1099,6 +1095,10 @@
 		<value>{0}, {1} {2}, {3}</value>
 		<comment>{0} is the day of the week, {1} the week of the season (such as &quot;Early&quot;), {2} the season, and {3} the year as the calendar shows it (such as &quot;227 CR&quot;).</comment>
 	</data>
+	<data name="GameSeasonAndYear" xml:space="preserve">
+		<value>{0} {1}, {2}</value>
+		<comment>The date without its day of the week, under the day of the week in the left column. {0} is the week of the season (such as &quot;Early&quot;), {1} the season, and {2} the year as the calendar shows it (such as &quot;227 CR&quot;).</comment>
+	</data>
 	<data name="GameClock" xml:space="preserve">
 		<value>{0}:{1:00}</value>
 		<comment>{0} is the hour (0 to 23) and {1} the minute.</comment>
@@ -1193,11 +1193,11 @@
 	</data>
 	<data name="FollowPerson" xml:space="preserve">
 		<value>Follow</value>
-		<comment>The button beside someone in the player&apos;s location that has the player follow them when they leave while the player waits.</comment>
+		<comment>The tooltip of the button beside someone in the player&apos;s location that has the player follow them when they leave while the player waits.</comment>
 	</data>
 	<data name="StopFollowing" xml:space="preserve">
-		<value>Stop Following</value>
-		<comment>The button beside the person the player is following.</comment>
+		<value>Stop following</value>
+		<comment>The tooltip of the follow button beside the person the player is following.</comment>
 	</data>
 	<data name="WaitResultFollowed" xml:space="preserve">
 		<value>You followed {0} to {1}.</value>
@@ -1217,7 +1217,7 @@
 	</data>
 	<data name="NeedsHeader" xml:space="preserve">
 		<value>Needs</value>
-		<comment>Heading for the list of the player needs on the status page.</comment>
+		<comment>The heading of someone&apos;s own needs on the status page, and of the player&apos;s needs in the left column.</comment>
 	</data>
 	<data name="NeedStatusLevel" xml:space="preserve">
 		<value>{0} of {1}</value>
@@ -1429,11 +1429,7 @@
 	</data>
 	<data name="TalkToPerson" xml:space="preserve">
 		<value>Talk</value>
-		<comment>The button beside someone in the player&apos;s location that starts a conversation with them.</comment>
-	</data>
-	<data name="ConversationHeader" xml:space="preserve">
-		<value>Talking with {0}</value>
-		<comment>Header of the conversation view. {0} is the name of the person being talked with.</comment>
+		<comment>The tooltip of the button beside someone in the player&apos;s location that starts a conversation with them.</comment>
 	</data>
 	<data name="ConversationAskDoing" xml:space="preserve">
 		<value>What are you doing? ({0})</value>
@@ -1679,6 +1675,10 @@
 	</data>
 	<data name="RoleMissing" xml:space="preserve">
 		<value>One item in "{0}" must have the role "{1}".</value>
+	</data>
+	<data name="NeedCategoryNotQuota" xml:space="preserve">
+		<value>"{0}" is "{1}", so it must be a quota need.</value>
+		<comment>{0} is the location of the setting in the data file. {1} is the need's category, such as "household".</comment>
 	</data>
 	<data name="RoleWrongType" xml:space="preserve">
 		<value>"{0}" has the role "{1}", so it must be a {2}.</value>
@@ -2369,7 +2369,11 @@
 	</data>
 	<data name="EventLogHeader" xml:space="preserve">
 		<value>What you saw</value>
-		<comment>The heading of the log of what the player has seen happen, in the sidebar.</comment>
+		<comment>The title of the sheet showing the log of what the player has seen happen.</comment>
+	</data>
+	<data name="LogCollapsedHeader" xml:space="preserve">
+		<value>Log</value>
+		<comment>The label of the log of what the player has seen happen, in the right column, shown only while it's collapsed.</comment>
 	</data>
 	<data name="LogYou" xml:space="preserve">
 		<value>You</value>
@@ -2604,9 +2608,6 @@
 	<data name="ContinueNewGame" xml:space="preserve">
 		<value>Continue New Game</value>
 	</data>
-	<data name="QuitAndManageMods" xml:space="preserve">
-		<value>Quit Game and Manage Mods</value>
-	</data>
 	<data name="QuitToMainMenu" xml:space="preserve">
 		<value>Quit to Main Menu</value>
 	</data>
@@ -2627,11 +2628,11 @@
 	</data>
 	<data name="WorkHeader" xml:space="preserve">
 		<value>Work</value>
-		<comment>The heading of the player&apos;s own work quotas in the left column, such as their trade.</comment>
+		<comment>The heading of someone&apos;s work, such as their trade, in Concerns and on the status page.</comment>
 	</data>
 	<data name="HouseholdHeader" xml:space="preserve">
 		<value>Household</value>
-		<comment>The heading of the chores the player&apos;s household shares in the left column, such as cooking.</comment>
+		<comment>The heading of the chores someone&apos;s household shares, such as cooking, in Concerns and on the status page.</comment>
 	</data>
 	<data name="QuotaProgressToolTip" xml:space="preserve">
 		<value>{0}: {1} of {2} done {3}</value>
@@ -2643,15 +2644,15 @@
 	</data>
 	<data name="ConcernsChoreToolTip" xml:space="preserve">
 		<value>{0}. {1}</value>
-		<comment>The tooltip of a household chore&apos;s icon in Concerns. {0} is how much is done, such as &quot;Cooking: 1h of 2h done today&quot;, and {1} what clicking it does, or why it can&apos;t be started now.</comment>
+		<comment>The tooltip of a need&apos;s icon in the left column or a household chore&apos;s icon in Concerns. {0} is how it&apos;s going, such as &quot;Cooking: 1h of 2h done today&quot; or &quot;Fatigue: Tired&quot;, and {1} what clicking it does, or why it can&apos;t be started now.</comment>
 	</data>
 	<data name="ConcernsStartToolTip" xml:space="preserve">
 		<value>Click to start.</value>
-		<comment>In the tooltip of a household chore&apos;s icon in Concerns, when clicking it starts the chore.</comment>
+		<comment>In the tooltip of a need&apos;s icon in the left column or a household chore&apos;s icon in Concerns, when clicking it starts it.</comment>
 	</data>
 	<data name="ConcernsCarryOnToolTip" xml:space="preserve">
 		<value>Click to carry on.</value>
-		<comment>In the tooltip of a household chore&apos;s icon in Concerns, when the player is in the middle of the chore, and clicking it carries on with it.</comment>
+		<comment>In the tooltip of a need&apos;s icon in the left column or a household chore&apos;s icon in Concerns, when the player is in the middle of it, and clicking it carries on with it.</comment>
 	</data>
 	<data name="QuotaToday" xml:space="preserve">
 		<value>today</value>
@@ -2679,11 +2680,11 @@
 	</data>
 	<data name="NeedToolTip" xml:space="preserve">
 		<value>{0}: {1}</value>
-		<comment>The tooltip of a need&apos;s bar in the left column. {0} is the need&apos;s title, such as &quot;Fatigue&quot;, and {1} the word for its level, such as &quot;Tired&quot;.</comment>
+		<comment>The tooltip of a need&apos;s bar in the left column. {0} is the need&apos;s title, such as &quot;Fatigue&quot;, and {1} the word for its level, such as &quot;Tired&quot;, or for a need without words for its levels, the level, such as &quot;42 of 100&quot;.</comment>
 	</data>
-	<data name="ConcernsHeader" xml:space="preserve">
-		<value>Concerns</value>
-		<comment>The heading of the panel at the top of the right column listing what the player should keep in mind.</comment>
+	<data name="ConcernsWorkHeader" xml:space="preserve">
+		<value>Work</value>
+		<comment>The heading of the player&apos;s work in the Concerns panel at the top of the right column.</comment>
 	</data>
 	<data name="ConcernsAppointmentsHeader" xml:space="preserve">
 		<value>Today&apos;s appointments</value>
@@ -2764,6 +2765,18 @@
 	<data name="ConcernsNoDestination" xml:space="preserve">
 		<value>Nowhere in particular</value>
 		<comment>Shown in the Concerns panel when the player has no destination.</comment>
+	</data>
+	<data name="ConcernsGoTo" xml:space="preserve">
+		<value>Go to</value>
+		<comment>The menu button in the Concerns panel, shown while the player has no destination, that lists places to choose as the destination.</comment>
+	</data>
+	<data name="ConcernsGoToToolTip" xml:space="preserve">
+		<value>Choose a place to head for</value>
+		<comment>The tooltip of the Go to menu button in the Concerns panel.</comment>
+	</data>
+	<data name="ConcernsGoToHereToolTip" xml:space="preserve">
+		<value>You're here</value>
+		<comment>The tooltip of a place in the Concerns panel's Go to menu that can't be chosen because the player is there.</comment>
 	</data>
 	<data name="ConcernsClearDestinationToolTip" xml:space="preserve">
 		<value>Clear the destination</value>
@@ -3004,5 +3017,37 @@
 	<data name="WalkAllTheWay" xml:space="preserve">
 		<value>Walk all the way to {0} ({1})</value>
 		<comment>In the menu of the exit that's the way to the player's destination. {0} is the destination, and {1} is how long it takes to walk there, such as "12 minutes".</comment>
+	</data>
+	<data name="RelationYou" xml:space="preserve">
+		<value>you</value>
+		<comment>How the player is labeled in the list of villagers.</comment>
+	</data>
+	<data name="RelationYour" xml:space="preserve">
+		<value>your {0}</value>
+		<comment>{0} is how a person is related to the player, such as son or mother-in-law. Shown beside them in the location, the list of villagers, and their tooltip.</comment>
+	</data>
+	<data name="StopTalking" xml:space="preserve">
+		<value>Stop talking</value>
+		<comment>The tooltip of the talk button beside the person the player is talking with, which ends the conversation.</comment>
+	</data>
+	<data name="ConversationEnd" xml:space="preserve">
+		<value>End conversation</value>
+		<comment>The button in a conversation that ends it.</comment>
+	</data>
+	<data name="CalendarSunTimesInvalid" xml:space="preserve">
+		<value>The sun rises at {0} and sets at {1}, but sunrise must be from 0 to 23, and sunset after it and no later than 24.</value>
+		<comment>{0} is the sunrise hour. {1} is the sunset hour.</comment>
+	</data>
+	<data name="CalendarSkyMinutesOutOfRange" xml:space="preserve">
+		<value>The sky &quot;{0}&quot; starts {1} minutes from sunrise or sunset, but it must be less than a day.</value>
+		<comment>{0} is the id of the sky. {1} is its minutes.</comment>
+	</data>
+	<data name="CalendarSkySameStart" xml:space="preserve">
+		<value>The sky &quot;{0}&quot; starts at the same time as &quot;{1}&quot;.</value>
+		<comment>{0} and {1} are the ids of the skies.</comment>
+	</data>
+	<data name="PortraitSkyUnknown" xml:space="preserve">
+		<value>&quot;{0}&quot; has &quot;{1}&quot;, but it isn&apos;t a sky in the calendar&apos;s &quot;skies&quot; list.</value>
+		<comment>{0} is the path to the portrait layer's skies, {1} is the sky id.</comment>
 	</data>
 </root>

@@ -90,7 +90,7 @@ public sealed class ProfessionStepTests
 		var need = new Need
 		{
 			Id = "stroll",
-			Title = "Stroll", Icon = "icon",
+			Title = "Stroll", Icon = "icon", Category = NeedCategory.Personal,
 			StepSettings =
 			[
 				new Step { Kind = StepKind.Wander, Place = Quarters(false, "square", "landmark"), Minutes = Amount(90), StopMinutes = new IntegerRange { Minimum = 10, Maximum = 10 } },

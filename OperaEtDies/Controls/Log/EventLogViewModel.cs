@@ -1,6 +1,7 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using GoldenAnvil.Utility.Calendar;
+using OperaEtDies.Controls.Locations;
 using OperaEtDies.GameState;
 using OperaEtDies.Time;
 
@@ -99,8 +100,8 @@ public sealed class EventLogViewModel : ViewModelBase
 	{
 		var day = previous is null || m_calendar.GetStartOfDay(previous.Time) != m_calendar.GetStartOfDay(entry.Time) ? m_calendar.FormatDate(entry.Time) : null;
 		var clock = day is not null || previous!.Time != entry.Time ? m_calendar.FormatClock(entry.Time) : null;
-		var parts = LogEntryText.Format(entry).Select(x => new LogTextPartViewModel(x.Text, x.Person is { } person ? () => m_examinePerson(person) : x.Place is { } place ? () => m_showPlace(place) : null)).ToList();
-		return new LogEntryViewModel(entry, day, clock, parts);
+		var parts = LogEntryText.Format(entry).Select(x => new LogTextPartViewModel(x.Text, x.Person is { } person ? () => m_examinePerson(person) : x.Place is { } place ? () => m_showPlace(place) : null, x.Person)).ToList();
+		return new LogEntryViewModel(entry, day, day is not null && previous is not null, clock, parts);
 	}
 
 	private readonly EventLog m_log;
@@ -115,7 +116,7 @@ public sealed class EventLogViewModel : ViewModelBase
 /// <summary>
 /// An entry in the event log, with the date above it if the day changed, and the time beside it if it changed.
 /// </summary>
-public sealed class LogEntryViewModel(LogEntry entry, string? day, string? clock, IReadOnlyList<LogTextPartViewModel> parts) : ViewModelBase
+public sealed class LogEntryViewModel(LogEntry entry, string? day, bool startsNewDay, string? clock, IReadOnlyList<LogTextPartViewModel> parts) : ViewModelBase
 {
 	public LogEntry Entry { get; } = entry;
 
@@ -123,6 +124,12 @@ public sealed class LogEntryViewModel(LogEntry entry, string? day, string? clock
 	/// The date, such as "Aftday, Mid Winter, 227 CR", for the first entry of a day, or null.
 	/// </summary>
 	public string? Day { get; } = day;
+
+	/// <summary>
+	/// Whether this is the first entry of a day after entries from an earlier day, so a rule separates it from them. The
+	/// first entry in the log shows its date, but has nothing before it to separate it from.
+	/// </summary>
+	public bool StartsNewDay { get; } = startsNewDay;
 
 	/// <summary>
 	/// The time on the clock, such as "6:05", when it's different from the entry before, or null.
@@ -141,13 +148,34 @@ public sealed class LogEntryViewModel(LogEntry entry, string? day, string? clock
 }
 
 /// <summary>
-/// A piece of an entry's text: plain text, or a person or place, which does something when clicked.
+/// A piece of an entry's text: plain text, or a person or place, which does something when clicked. A person has the
+/// tooltip a person's name has in the location.
 /// </summary>
-public sealed class LogTextPartViewModel(string text, Action? click) : ViewModelBase
+public sealed class LogTextPartViewModel(string text, Action? click, Person? person = null) : ViewModelBase
 {
 	public string Text { get; } = text;
 
 	public bool IsLink => m_click is not null;
+
+	/// <summary>
+	/// The person the piece names, or null if it doesn't name one.
+	/// </summary>
+	public Person? Person { get; } = person;
+
+	/// <summary>
+	/// Gets what the person's tooltip shows, created the first time it's shown, since the log can name a great many people,
+	/// or null if the piece doesn't name one.
+	/// </summary>
+	public LocationPersonViewModel? GetPersonToolTip()
+	{
+		VerifyAccess();
+		if (m_personToolTip is null && Person is { } named)
+		{
+			var gameData = named.GameData;
+			m_personToolTip = new LocationPersonViewModel(named, gameData.PortraitRenderer, gameData.Schedules, gameData.Relationships);
+		}
+		return m_personToolTip;
+	}
 
 	public void Click()
 	{
@@ -156,4 +184,5 @@ public sealed class LogTextPartViewModel(string text, Action? click) : ViewModel
 	}
 
 	private readonly Action? m_click = click;
+	private LocationPersonViewModel? m_personToolTip;
 }

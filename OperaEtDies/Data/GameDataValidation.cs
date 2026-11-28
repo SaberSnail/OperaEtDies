@@ -36,7 +36,8 @@ internal static class GameDataValidation
 		if (portraits is not null)
 		{
 			var quarterKinds = locations.QuarterKinds.Where(x => x?.Id is not null).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
-			errors.AddRange(ValidatePortraits(portraits, properties, quarterKinds, professionProperty, clothing ?? ClothingData.None));
+			var skies = calendar.Skies.Where(x => x?.Id is not null).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+			errors.AddRange(ValidatePortraits(portraits, properties, quarterKinds, skies, professionProperty, clothing ?? ClothingData.None));
 		}
 
 		// Outfits and modesty rules are given to characters by their properties.
@@ -69,11 +70,11 @@ internal static class GameDataValidation
 			.Concat(regions.Where(x => !string.IsNullOrWhiteSpace(x) && !slotIds.Contains(x)).Select(x => OurResources.DataIdUnknown.FormatCurrentCulture(path, x, "clothingSlots")));
 
 	/// <summary>
-	/// Checks the portrait data against the character properties, the kinds of quarter, and the profession property (if
+	/// Checks the portrait data against the character properties, the kinds of quarter, the skies, and the profession property (if
 	/// it's known), and against the clothing: the regions whose coverage hides layers, the clothing layers draw, and the
 	/// colors of that clothing they use.
 	/// </summary>
-	public static IEnumerable<string> ValidatePortraits(PortraitData portraits, IReadOnlyDictionary<string, CharacterProperty> properties, IReadOnlySet<string> quarterKinds, CharacterProperty? professionProperty, ClothingData clothing)
+	public static IEnumerable<string> ValidatePortraits(PortraitData portraits, IReadOnlyDictionary<string, CharacterProperty> properties, IReadOnlySet<string> quarterKinds, IReadOnlySet<string> skies, CharacterProperty? professionProperty, ClothingData clothing)
 	{
 		var clothingById = new Dictionary<string, ClothingItem>(StringComparer.Ordinal);
 		foreach (var item in clothing.Items.Where(x => !string.IsNullOrWhiteSpace(x?.Id)))
@@ -108,6 +109,9 @@ internal static class GameDataValidation
 		errors.AddRange(portraits.GetQuarterKinds()
 			.Where(x => !quarterKinds.Contains(x.QuarterKind))
 			.Select(x => OurResources.PortraitQuarterKindUnknown.FormatCurrentCulture(x.Path, x.QuarterKind)));
+		errors.AddRange(portraits.GetSkies()
+			.Where(x => !skies.Contains(x.Sky))
+			.Select(x => OurResources.PortraitSkyUnknown.FormatCurrentCulture(x.Path, x.Sky)));
 		if (professionProperty is not null)
 		{
 			var professionIds = professionProperty.GetConditionValueIds().ToHashSet(StringComparer.Ordinal);

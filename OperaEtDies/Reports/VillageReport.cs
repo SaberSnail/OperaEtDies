@@ -43,6 +43,11 @@ public sealed class VillageReport : ILogDestination
 	public const string PortraitsAtWorkArgument = "--portraits-at-work";
 
 	/// <summary>
+	/// The optional command line argument for a sky to draw everyone's portrait under, instead of the sky at the time.
+	/// </summary>
+	public const string PortraitsSkyArgument = "--portraits-sky";
+
+	/// <summary>
 	/// The optional command line argument for how many days to run each village for after creating it, writing what
 	/// people do as they go.
 	/// </summary>
@@ -65,9 +70,9 @@ public sealed class VillageReport : ILogDestination
 	public static int Run(IReadOnlyList<string> args, bool areModsEnabled, IReadOnlyList<string>? modDirectories, TextWriter output, TextWriter error)
 	{
 		int exitCode;
-		if (TryParseArguments(args, out var count, out var firstSeed, out var portraitFolder, out var simulateDays, out var argumentError))
+		if (TryParseArguments(args, out var count, out var firstSeed, out var portraitFolder, out var portraitSky, out var simulateDays, out var argumentError))
 		{
-			var report = new VillageReport(output, portraitFolder, args.Contains(PortraitsAtWorkArgument, StringComparer.OrdinalIgnoreCase), args.Contains(ThroughSaveArgument, StringComparer.OrdinalIgnoreCase), simulateDays);
+			var report = new VillageReport(output, portraitFolder, args.Contains(PortraitsAtWorkArgument, StringComparer.OrdinalIgnoreCase), portraitSky, args.Contains(ThroughSaveArgument, StringComparer.OrdinalIgnoreCase), simulateDays);
 			LogManager.Initialize(report);
 			exitCode = report.Generate(count, firstSeed, areModsEnabled, modDirectories, error);
 		}
@@ -88,8 +93,9 @@ public sealed class VillageReport : ILogDestination
 			WriteRecord("log", m_village, severity, source, message);
 	}
 
-	private VillageReport(TextWriter output, string? portraitFolder, bool arePortraitsAtWork, bool isThroughSave, int simulateDays)
+	private VillageReport(TextWriter output, string? portraitFolder, bool arePortraitsAtWork, string? portraitSky, bool isThroughSave, int simulateDays)
 	{
+		m_portraitSky = portraitSky;
 		m_simulateDays = simulateDays;
 		m_isThroughSave = isThroughSave;
 		m_output = output;
@@ -97,8 +103,9 @@ public sealed class VillageReport : ILogDestination
 		m_arePortraitsAtWork = arePortraitsAtWork;
 	}
 
-	private static bool TryParseArguments(IReadOnlyList<string> args, out int count, out int firstSeed, out string? portraitFolder, out int simulateDays, out string error)
+	private static bool TryParseArguments(IReadOnlyList<string> args, out int count, out int firstSeed, out string? portraitFolder, out string? portraitSky, out int simulateDays, out string error)
 	{
+		portraitSky = null;
 		simulateDays = 0;
 		count = 0;
 		firstSeed = Random.Shared.Next();
@@ -117,6 +124,14 @@ public sealed class VillageReport : ILogDestination
 					portraitFolder = args[index];
 				else
 					error = $"{PortraitsArgument} must be followed by a folder.";
+			}
+			else if (string.Equals(args[index], PortraitsSkyArgument, StringComparison.OrdinalIgnoreCase))
+			{
+				index++;
+				if (index < args.Count && !string.IsNullOrWhiteSpace(args[index]))
+					portraitSky = args[index];
+				else
+					error = $"{PortraitsSkyArgument} must be followed by a sky id.";
 			}
 			else if (isDays)
 			{
@@ -169,7 +184,7 @@ public sealed class VillageReport : ILogDestination
 	/// Generates villages with the game data and writes them to the output, without capturing logging, for tests.
 	/// </summary>
 	internal static void Write(GameData gameData, int count, int firstSeed, bool isThroughSave, TextWriter output, int simulateDays = 0) =>
-		new VillageReport(output, portraitFolder: null, arePortraitsAtWork: false, isThroughSave, simulateDays).WriteVillages(gameData, count, firstSeed);
+		new VillageReport(output, portraitFolder: null, arePortraitsAtWork: false, portraitSky: null, isThroughSave, simulateDays).WriteVillages(gameData, count, firstSeed);
 
 	private void WriteVillages(GameData gameData, int count, int firstSeed)
 	{
@@ -323,7 +338,9 @@ public sealed class VillageReport : ILogDestination
 					ClothingGenerator.DressAtStart(person, isAtWork: true);
 				}
 
-				var portraitLayers = gameData.PortraitRenderer?.GetLayerIds(person.Traits, person.PortraitPlace, person.Clothing.GetPortraitClothing()) ?? [];
+				// Portraits are drawn under the sky at the time, or the one asked for.
+				var portraitPlace = m_portraitSky is null ? person.PortraitPlace : person.PortraitPlace?.WithSky(m_portraitSky);
+				var portraitLayers = gameData.PortraitRenderer?.GetLayerIds(person.Traits, portraitPlace, person.Clothing.GetPortraitClothing()) ?? [];
 				WriteRecord(["person", village, index, member, person.Role, person.IsPlayer, work, person.Business?.Profession.Id,
 					startTraits.GetFullName(gameData.CharacterTemplates), description, names[startLocation], startPlace, string.Join(" ", portraitLayers), goal, task, taskEnd, person.Current?.Step,
 					person.Current is { UnwindRunning: { } running } unwinding ? $"{string.Join(",", unwinding.UnwindQueue.Prepend(running))}>{unwinding.UnwindTo}" : null, person.Sequences.Count < 2 ? null : string.Join(" ", person.Sequences.Where(x => x != person.Current).Select(x => $"{x.Need.Id}@{x.Step}{(x.HasSetOff ? null : $"~{x.SetOff}")}")),
@@ -332,7 +349,7 @@ public sealed class VillageReport : ILogDestination
 					.. gameData.CharacterProperties.Select(x => FormatValue(startTraits.Values.GetValueOrDefault(x.Id)))]);
 
 				if (m_portraitFolder is not null && gameData.PortraitRenderer is { } portraitRenderer)
-					WritePortrait(portraitRenderer, person.Traits, person.PortraitPlace, person.Clothing.GetPortraitClothing(), Path.Combine(m_portraitFolder, FormattableString.Invariant($"{village}-{index}-{member}.png")));
+					WritePortrait(portraitRenderer, person.Traits, portraitPlace, person.Clothing.GetPortraitClothing(), Path.Combine(m_portraitFolder, FormattableString.Invariant($"{village}-{index}-{member}.png")));
 			}
 		}
 
@@ -501,6 +518,7 @@ public sealed class VillageReport : ILogDestination
 	private readonly TextWriter m_output;
 	private readonly string? m_portraitFolder;
 	private readonly bool m_arePortraitsAtWork;
+	private readonly string? m_portraitSky;
 	private readonly bool m_isThroughSave;
 	private readonly int m_simulateDays;
 	private int? m_village;

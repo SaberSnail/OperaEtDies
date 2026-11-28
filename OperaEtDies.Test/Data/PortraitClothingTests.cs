@@ -82,6 +82,50 @@ public sealed class PortraitClothingTests
 	}
 
 	[Test]
+	public void LayersOnTheCharacterAreNeverDrawnOverTheBackdrop()
+	{
+		// The sky is drawn everywhere, but it's behind the character, so dust isn't drawn over it.
+		var (renderer, traits) = CreateRenderer(
+		[
+			new PortraitLayer { Ai = true, Id = "sky", Backdrop = true, When = new PortraitCondition { Skies = ["night"] }, Shapes = [new PortraitShape { Path = "M0,0 H100 V100 H0 Z", Fill = "#223355" }] },
+			new PortraitLayer { Ai = true, Id = "dust", OnCharacter = true, Shapes = [new PortraitShape { Path = "M0,0 H100 V100 H0 Z", Fill = "#FFFFFF" }] },
+		],
+		body: "M0,0 H50 V100 H0 Z");
+
+		var dust = GetDrawings(renderer.Render(traits, PortraitPlace.Home.WithSky("night"), new PortraitClothing([]))).OfType<DrawingGroup>().Single();
+		Assert.That((dust.ClipGeometry.FillContains(new Point(25, 50)), dust.ClipGeometry.FillContains(new Point(75, 50))), Is.EqualTo((true, false)));
+	}
+
+	[Test]
+	public void LayersWithSkyConditionsAreOnlyDrawnUnderThem()
+	{
+		var (renderer, traits) = CreateRenderer([new PortraitLayer { Ai = true, Id = "stars", When = new PortraitCondition { Skies = ["night"] }, Shapes = [new PortraitShape { Path = "M0,0 H1 V1 Z", Fill = "#FFFFFF" }] }]);
+		var clothing = new PortraitClothing([]);
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(renderer.GetLayerIds(traits, PortraitPlace.Home.WithSky("night"), clothing), Does.Contain("stars"));
+			Assert.That(renderer.GetLayerIds(traits, PortraitPlace.Home.WithSky("day"), clothing), Does.Not.Contain("stars"));
+			Assert.That(renderer.GetLayerIds(traits, PortraitPlace.Home, clothing), Does.Not.Contain("stars"));
+			Assert.That(renderer.GetLayerIds(traits, null, clothing), Does.Not.Contain("stars"));
+		});
+	}
+
+	[Test]
+	public void LayerConditionSkiesMustBeCalendarSkies()
+	{
+		var portraits = new PortraitData
+		{
+			Width = 100,
+			Height = 100,
+			Layers = [new PortraitLayer { Ai = true, Id = "sky", When = new PortraitCondition { Skies = ["night", "noon"] }, Shapes = [new PortraitShape { Path = "M0,0 H1 V1 Z", Fill = "#000000" }] }],
+		};
+
+		var errors = GameDataValidation.ValidatePortraits(portraits, new Dictionary<string, CharacterProperty>(), new HashSet<string>(), new HashSet<string> { "night" }, null, ClothingData.None);
+		Assert.That(errors, Is.EqualTo(new[] { OurResources.PortraitSkyUnknown.FormatCurrentCulture("portraitLayers[sky].when.skies", "noon") }));
+	}
+
+	[Test]
 	public void CutsMustBeValid()
 	{
 		var portraits = new PortraitData
@@ -166,7 +210,7 @@ public sealed class PortraitClothingTests
 		};
 		Assert.That(portraits.Validate(), Is.Empty);
 
-		var errors = GameDataValidation.ValidatePortraits(portraits, new Dictionary<string, CharacterProperty>(), new HashSet<string>(), null,
+		var errors = GameDataValidation.ValidatePortraits(portraits, new Dictionary<string, CharacterProperty>(), new HashSet<string>(), new HashSet<string>(), null,
 			new ClothingData { Slots = [new ClothingSlot { Id = "scalp", Title = "Scalp" }, new ClothingSlot { Id = "torso", Title = "Torso" }], Items = [s_tunic, s_gown, s_hat] });
 		Assert.That(errors, Is.EquivalentTo(new[]
 		{

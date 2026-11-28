@@ -140,7 +140,7 @@ public sealed class CoverUpTests
 	/// </summary>
 	private static (GameWorld World, Person Person) CreateWorld(params Step[] steps)
 	{
-		var need = new Need { Id = "test", Title = "Test", Icon = "icon", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 }, StepSettings = steps };
+		var need = new Need { Id = "test", Title = "Test", Icon = "icon", Category = NeedCategory.Personal, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 }, StepSettings = steps };
 		need.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);
 		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
 		gameData.Schedules.Needs = [.. gameData.Schedules.Needs, need];

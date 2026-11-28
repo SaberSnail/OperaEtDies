@@ -14,7 +14,8 @@
 	<Color x:Key="InsetColor">#EEEEEE</Color>
 	<Color x:Key="TrackColor">#E0E0E0</Color>
 	<Color x:Key="MeterColor">#555555</Color>
-	<Color x:Key="SunColor">#B07A1E</Color>
+	<Color x:Key="SunColor">#F2BE2C</Color>
+	<Color x:Key="MoonColor">#111111</Color>
 
 	<SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
 	<SolidColorBrush x:Key="PanelBrush" Color="{StaticResource PanelColor}" />
@@ -23,6 +24,7 @@
 	<SolidColorBrush x:Key="TrackBrush" Color="{StaticResource TrackColor}" />
 	<SolidColorBrush x:Key="MeterBrush" Color="{StaticResource MeterColor}" />
 	<SolidColorBrush x:Key="SunBrush" Color="{StaticResource SunColor}" />
+	<SolidColorBrush x:Key="MoonBrush" Color="{StaticResource MoonColor}" />
 
 	<Color x:Key="TextColor">#111111</Color>
 	<Color x:Key="TextMutedColor">#555555</Color>

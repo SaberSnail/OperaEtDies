@@ -28,6 +28,17 @@ public sealed class SplitActionViewModel : ViewModelBase
 	}
 
 	/// <summary>
+	/// Creates an action for a menu button (see <see cref="MenuButton"/>), such as "Go to", whose default opens the menu of
+	/// the given choices.
+	/// </summary>
+	public static SplitActionViewModel CreateMenu(string text, IReadOnlyList<MenuActionViewModel> choices, string? toolTip = null)
+	{
+		SplitActionViewModel? menu = null;
+		menu = new SplitActionViewModel(text, () => menu!.OpenMenu(), alternatives: choices, toolTip: toolTip);
+		return menu;
+	}
+
+	/// <summary>
 	/// What the default does, such as "Wait" or "Work until 15:00 (1 hour)".
 	/// </summary>
 	public string Text { get; }

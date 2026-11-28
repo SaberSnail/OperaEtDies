@@ -135,6 +135,11 @@ public sealed class ThemeColors
 	public required string Sun { get; init; }
 
 	/// <summary>
+	/// The moon on the day dial at night.
+	/// </summary>
+	public required string Moon { get; init; }
+
+	/// <summary>
 	/// Ordinary text, and icons drawn in the same color.
 	/// </summary>
 	public required string Text { get; init; }

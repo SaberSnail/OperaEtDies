@@ -465,7 +465,7 @@ public sealed class NewGameViewModelTests
 			Layers =
 			[
 				new PortraitLayer { Ai = true, Id = "hearth", At = new PortraitPlaceCondition { Home = true }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#FF0000" }] },
-				new PortraitLayer { Ai = true, Id = "apron", When = TestData.Condition("atWork", "atWork"), Shapes = [new PortraitShape { Path = "M0,5 H10", Stroke = "#FFFFFF" }] },
+				new PortraitLayer { Ai = true, Id = "apron", When = TestData.PortraitCondition("atWork", "atWork"), Shapes = [new PortraitShape { Path = "M0,5 H10", Stroke = "#FFFFFF" }] },
 			],
 		};
 		var gameData = new GameData(TestData.CreateCharacterData(), TestData.CreateLocationList(), TestData.CreateProfessionList(), TestData.CreateFamilySettings(), TestData.CreateRelationshipSettings(), TestData.CreateCalendarSettings(), portraits: portraits);

@@ -103,10 +103,6 @@
 					Content="{x:Static operaEtDies:OurResources.Settings}"
 					Style="{StaticResource MainMenuButtonStyle}" />
 				<Button
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=ManageMods}"
-					Content="{x:Static operaEtDies:OurResources.QuitAndManageMods}"
-					Style="{StaticResource MainMenuButtonStyle}" />
-				<Button
 					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=QuitToMainMenu}"
 					Content="{x:Static operaEtDies:OurResources.QuitToMainMenu}"
 					Style="{StaticResource MainMenuButtonStyle}" />
@@ -123,12 +119,6 @@
 					TextWrapping="Wrap"
 					Visibility="{Binding SaveStatus, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 			</StackPanel>
-
-			<TextBlock
-				Grid.Row="2"
-				Foreground="{DynamicResource TextMutedBrush}"
-				Text="{x:Static operaEtDies:OurResources.LoadingGameData}"
-				Visibility="{Binding IsLoading, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}" />
 
 			<StackPanel Grid.Row="2" Visibility="{Binding HasLoadErrors, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 				<TextBlock Text="{x:Static operaEtDies:OurResources.DataLoadErrorsHeader}" />

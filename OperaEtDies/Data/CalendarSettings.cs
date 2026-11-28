@@ -41,6 +41,22 @@ public sealed class CalendarSettings : IValidatedData
 	public IReadOnlyList<CalendarSpecialDay> SpecialDays { get; init; } = [];
 
 	/// <summary>
+	/// The skies over the day, such as dawn and night, each starting a time before or after sunrise or sunset and lasting
+	/// until the next one starts. Portrait layers can be drawn only under some of them.
+	/// </summary>
+	public IReadOnlyList<CalendarSky> Skies { get; init; } = [];
+
+	/// <summary>
+	/// The hour the sun rises, from 0 to 23.
+	/// </summary>
+	public int Sunrise { get; init; } = CalendarSection.DefaultSunrise;
+
+	/// <summary>
+	/// The hour the sun sets, after <see cref="Sunrise"/> and up to 24.
+	/// </summary>
+	public int Sunset { get; init; } = CalendarSection.DefaultSunset;
+
+	/// <summary>
 	/// The year a new game starts in.
 	/// </summary>
 	public required int StartYear { get; init; }
@@ -63,6 +79,13 @@ public sealed class CalendarSettings : IValidatedData
 			errors.AddRange(DataValidation.ValidateIdentifiedItems("specialDays", SpecialDays, x => x.Id, x => x.Title));
 			errors.AddRange(SpecialDays.OfType<CalendarSpecialDay>().SelectMany(ValidateSpecialDay));
 		}
+		if (Skies.Count != 0)
+		{
+			errors.AddRange(DataValidation.ValidateIdentifiedItems("skies", Skies, x => x.Id, null));
+			errors.AddRange(ValidateSkies());
+		}
+		if (Sunrise < 0 || Sunrise >= 24 || Sunset <= Sunrise || Sunset > 24)
+			errors.Add(OurResources.CalendarSunTimesInvalid.FormatCurrentCulture(Sunrise, Sunset));
 		if (StartYear < 1)
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture("startYear", StartYear, 1));
 		if (string.IsNullOrWhiteSpace(YearFormat) || !YearFormat.Contains(YearPlaceholder, StringComparison.Ordinal))
@@ -80,6 +103,30 @@ public sealed class CalendarSettings : IValidatedData
 			if (dayPart.Announcement is not null && string.IsNullOrWhiteSpace(dayPart.Announcement.Text))
 				yield return OurResources.DataValueMissing.FormatCurrentCulture($"dayParts[{dayPart.Id}].announcement");
 			previousStart = Math.Max(previousStart, dayPart.Start);
+		}
+	}
+
+	/// <summary>
+	/// Gets the minute of the day a sky starts at, from 0 to one less than the minutes in a day.
+	/// </summary>
+	public int GetSkyStart(CalendarSky sky)
+	{
+		ArgumentNullException.ThrowIfNull(sky);
+		const int minutesInDay = 24 * 60;
+		var anchor = (sky.From == CalendarSkyAnchor.Sunset ? Sunset : Sunrise) * 60;
+		return (((anchor + sky.Minutes) % minutesInDay) + minutesInDay) % minutesInDay;
+	}
+
+	private IEnumerable<string> ValidateSkies()
+	{
+		// Two skies starting at the same minute would leave one of them never shown.
+		var starts = new Dictionary<int, string>();
+		foreach (var sky in Skies.OfType<CalendarSky>().Where(x => !string.IsNullOrWhiteSpace(x.Id)))
+		{
+			if (Math.Abs(sky.Minutes) >= 24 * 60)
+				yield return OurResources.CalendarSkyMinutesOutOfRange.FormatCurrentCulture(sky.Id, sky.Minutes);
+			else if (!starts.TryAdd(GetSkyStart(sky), sky.Id))
+				yield return OurResources.CalendarSkySameStart.FormatCurrentCulture(sky.Id, starts[GetSkyStart(sky)]);
 		}
 	}
 
@@ -152,6 +199,33 @@ public sealed class CalendarDayPart : IIdentified
 }
 
 /// <summary>
+/// A sky over part of the day, such as dawn, which lasts until the next sky starts.
+/// </summary>
+public sealed class CalendarSky : IIdentified
+{
+	public required string Id { get; init; }
+
+	/// <summary>
+	/// Whether the sky starts from sunrise or sunset.
+	/// </summary>
+	public required CalendarSkyAnchor From { get; init; }
+
+	/// <summary>
+	/// How many minutes after (or, when negative, before) sunrise or sunset the sky starts.
+	/// </summary>
+	public int Minutes { get; init; }
+}
+
+/// <summary>
+/// What a sky's start is measured from.
+/// </summary>
+public enum CalendarSkyAnchor
+{
+	Sunrise,
+	Sunset,
+}
+
+/// <summary>
 /// A day of the year that has its own name, such as a festival. It falls on the same day every year.
 /// </summary>
 public sealed class CalendarSpecialDay : IIdentified
@@ -181,6 +255,20 @@ public sealed class CalendarSpecialDay : IIdentified
 /// </summary>
 public sealed class CalendarSection
 {
+	public const int DefaultSunrise = 6;
+
+	public const int DefaultSunset = 18;
+
+	/// <summary>
+	/// The hour the sun rises, from 0 to 23.
+	/// </summary>
+	public int Sunrise { get; init; } = DefaultSunrise;
+
+	/// <summary>
+	/// The hour the sun sets, after sunrise and up to 24.
+	/// </summary>
+	public int Sunset { get; init; } = DefaultSunset;
+
 	/// <summary>
 	/// The year a new game starts in.
 	/// </summary>

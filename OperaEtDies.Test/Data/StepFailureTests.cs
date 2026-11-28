@@ -204,7 +204,7 @@ public sealed class StepFailureTests
 				OnFail = new StepFailure { ByCause = new Dictionary<FailCause, StepFailureResult> { [FailCause.Left] = next } },
 				Steps = [new Step { Kind = StepKind.Do, Minutes = Amount(5), MeetsQuota = true, OnFail = new StepFailure { ByCause = new Dictionary<FailCause, StepFailureResult> { [FailCause.No] = new(StepFailureKind.SkipTo, "start") } } }],
 			});
-		need = new Need { Id = need.Id, Title = need.Title, Icon = "icon", Hours = need.Hours, Quota = need.Quota, StepSettings = [new Step { Kind = StepKind.Do, Minutes = Amount(5), Id = "start" }, .. need.StepSettings!.Skip(1)], OnFail = new StepFailure { Any = next } };
+		need = new Need { Id = need.Id, Title = need.Title, Icon = "icon", Category = NeedCategory.Personal, Hours = need.Hours, Quota = need.Quota, StepSettings = [new Step { Kind = StepKind.Do, Minutes = Amount(5), Id = "start" }, .. need.StepSettings!.Skip(1)], OnFail = new StepFailure { Any = next } };
 
 		// The step's own result comes first, then the repeat's, then the need's, and without any, the steps are given up.
 		Assert.That(need.GetFailure(1, FailCause.No), Is.EqualTo((StepFailureKind.SkipTo, (int?) 0)));
@@ -283,12 +283,12 @@ public sealed class StepFailureTests
 		}));
 	}
 
-	private static Need Need(params Step[] steps) => new() { Id = "n", Title = "N", Icon = "icon", StepSettings = steps, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1 } };
+	private static Need Need(params Step[] steps) => new() { Id = "n", Title = "N", Icon = "icon", Category = NeedCategory.Personal, StepSettings = steps, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1 } };
 
 	private static ScheduleSettings With(params Need[] needs)
 	{
 		var settings = CreateScheduleSettings();
-		settings.Needs = [new Need { Id = "sleep", Title = "Sleep", Icon = "icon", Role = ScheduleSettings.SleepRole, PlaceSetting = Home, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1 } }, .. needs];
+		settings.Needs = [new Need { Id = "sleep", Title = "Sleep", Icon = "icon", Category = NeedCategory.Personal, Role = ScheduleSettings.SleepRole, PlaceSetting = Home, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1 } }, .. needs];
 		settings.UrgencyFactors = [];
 		foreach (var need in settings.Needs)
 			need.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);

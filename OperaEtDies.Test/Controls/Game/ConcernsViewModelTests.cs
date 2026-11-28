@@ -21,7 +21,7 @@ public sealed class ConcernsViewModelTests
 		var others = world.Npcs.Where(x => x.Family != world.Player.Family).Take(3).ToList();
 		var need = new Need
 		{
-			Id = "errand", Title = "Errand", Icon = "icon", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			Id = "errand", Title = "Errand", Icon = "icon", Category = NeedCategory.Personal, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings =
 			[
 				new Step
@@ -82,7 +82,9 @@ public sealed class ConcernsViewModelTests
 		Assert.That((meter.Fraction, meter.IsComplete), Is.EqualTo((30.0 / quota, false)));
 		if (meter.IsActive)
 			Assert.That(meter.ToolTip, Does.StartWith(OurResources.QuotaProgressToolTip.FormatCurrentCulture("Upkeep", "30m", ConcernsViewModel.FormatQuotaAmount(upkeep, quota), OurResources.QuotaToday)));
-		Assert.That(concerns.Work.Select(x => x.Title), Is.EqualTo(world.Player.Business is null ? Array.Empty<string>() : new[] { "Work" }));
+		// The work is named by the player's profession.
+		var profession = (world.Player.Traits.Values.GetValueOrDefault(world.GameData.Families.Roles.Properties.Profession) as CharacterPropertyOption)?.Title ?? "Work";
+		Assert.That(concerns.Work.Select(x => x.Title), Is.EqualTo(world.Player.Business is null ? Array.Empty<string>() : new[] { profession }));
 		Assert.That(concerns.Household.Select(x => x.Title), Has.None.EqualTo("Work"));
 
 		// Once it's done, it's shown as done, and can't be started.
@@ -112,6 +114,45 @@ public sealed class ConcernsViewModelTests
 
 		// Without a way to start them, nothing can be started.
 		Assert.That(new ConcernsViewModel(world).Household.Any(x => x.IsStartable), Is.False);
+	}
+
+	[Test]
+	public async Task GoToOffersHomeWorkAndMarkedQuartersAlphabeticallyAsync()
+	{
+		var world = CreateWorld();
+		var player = world.Player;
+		await world.MovePlayerAsync(player.Home);
+		var chosen = new List<Location>();
+		var concerns = new ConcernsViewModel(world, chosen.Add);
+
+		// The square is the only kind marked for the menu in the test data.
+		var square = world.Locations.Single(x => x.Quarter == x && x.QuarterKind == "square");
+		var expected = new List<Location> { player.Home, square };
+		if (player.Business is not null && player.Workplace != player.Home)
+			expected.Add(player.Workplace);
+		expected = expected.OrderBy(x => x.Title, StringComparer.CurrentCulture).ToList();
+
+		var choices = concerns.GoTo.Alternatives;
+		Assert.That(concerns.GoTo.Text, Is.EqualTo(OurResources.ConcernsGoTo));
+		Assert.That(choices.Select(x => x.Text.Split(" (")[0]), Is.EqualTo(expected.Select(x => x.Title)));
+
+		// The place the player is in can't be chosen, and shows no walking time.
+		var home = choices[expected.IndexOf(player.Home)];
+		Assert.That((home.Text, home.CanDo(), home.ToolTip), Is.EqualTo((player.Home.Title, false, OurResources.ConcernsGoToHereToolTip)));
+
+		// Pressing the button opens the menu, and choosing a place chooses it as the destination.
+		concerns.GoTo.Do();
+		Assert.That(concerns.GoTo.IsMenuOpen, Is.True);
+		Assert.That(concerns.GoTo.ChooseAlternative(expected.IndexOf(square) + 1), Is.True);
+		Assert.That(chosen, Is.EqualTo(new[] { square }));
+
+		// Once the player moves, the menu follows them.
+		await world.MovePlayerAsync(square);
+		concerns.Update();
+		choices = concerns.GoTo.Alternatives;
+		Assert.That(choices[expected.IndexOf(square)].CanDo(), Is.False);
+		Assert.That(choices[expected.IndexOf(player.Home)].CanDo(), Is.True);
+		Assert.That(choices[expected.IndexOf(player.Home)].Text, Does.StartWith(player.Home.Title + " ("));
 	}
 
 	[Test]

@@ -10,6 +10,19 @@ namespace OperaEtDies.Test.Controls.Status;
 public sealed class StatusViewModelTests
 {
 	[Test]
+	public void NeedsAreGroupedByCategory()
+	{
+		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);
+		var viewModel = new StatusViewModel(world);
+		var groups = viewModel.NeedGroups.ToDictionary(x => x.Title, x => x.Needs.Select(need => need.Title).ToList());
+
+		Assert.That(groups[OurResources.NeedsHeader], Is.EqualTo(new[] { "Fatigue", "Hunger", "Restlessness", "Socializing" }));
+		Assert.That(groups[OurResources.HouseholdHeader], Is.EqualTo(new[] { "Upkeep", "Water", "Mending", "Laundry", "Market" }));
+		Assert.That(groups.ContainsKey(OurResources.WorkHeader), Is.EqualTo(world.Player.Business is not null));
+		Assert.That(viewModel.NeedGroups.SelectMany(x => x.Needs), Is.EquivalentTo(viewModel.Needs));
+	}
+
+	[Test]
 	public void DevelopersCanChangeNeeds()
 	{
 		var (_, world) = GameWorldTests.CreateWorld(withSchedules: true);

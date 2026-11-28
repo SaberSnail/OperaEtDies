@@ -152,6 +152,7 @@ public static class DataReferences
 			[(typeof(PortraitColor), nameof(PortraitColor.Color))] = new(colors),
 			[(typeof(PortraitColor), nameof(PortraitColor.Mix))] = new(colors),
 			[(typeof(PortraitColorVariant), nameof(PortraitColorVariant.Color))] = new(colors),
+			[(typeof(PortraitCondition), nameof(PortraitCondition.Skies))] = new(new SectionIds("skies")),
 			[(typeof(PortraitPlaceCondition), nameof(PortraitPlaceCondition.QuarterKinds))] = new(quarterKinds),
 			[(typeof(PortraitPlaceCondition), nameof(PortraitPlaceCondition.Workplaces))] = new(professions),
 		};

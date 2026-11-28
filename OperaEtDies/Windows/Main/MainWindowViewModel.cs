@@ -2,6 +2,7 @@ using System.IO;
 using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Logging;
 using OperaEtDies.Controls.Game;
+using OperaEtDies.Controls.Loading;
 using OperaEtDies.Controls.LoadGame;
 using OperaEtDies.Controls.MainMenu;
 using OperaEtDies.Controls.ManageMods;
@@ -16,18 +17,19 @@ namespace OperaEtDies.Windows.Main;
 
 /// <summary>
 /// The game's one window. It shows the game being played, if there is one, with a screen over it that takes over the
-/// window: the main menu, or a screen opened from it (setting up a new game, loading a game, settings, or managing mods). The game
+/// window: the loading screen while the game data loads, the main menu, or a screen opened from it (setting up a new game, loading a game, settings, or managing mods). The game
 /// stays underneath while a screen is over it, so resuming returns to it exactly as it was. Leaving a game with changes
 /// since it was last saved asks whether to save it first.
 /// </summary>
 public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 {
 	/// <summary>
-	/// Creates the window, showing the main menu while the data loads (see <see cref="SetData"/>). Mods that are turned
-	/// off, or replaced by mod folders chosen from the command line, are still listed, but aren't loaded. Without
-	/// settings, the defaults are used, and they aren't kept.
+	/// Creates the window, showing the loading screen until the data is shown (see <see cref="SetData"/>), when the main
+	/// menu takes its place. Mods that are turned off, or replaced by mod folders chosen from the command line, are still
+	/// listed, but aren't loaded. Without settings, the defaults are used, and they aren't kept. The title is the game's,
+	/// if it's known before the rest of the data loads, or the engine's name.
 	/// </summary>
-	public MainWindowViewModel(Random random, IFolderPicker? folderPicker = null, bool areModsEnabled = true, bool isDeveloper = false, bool areModsOverridden = false, AppSettings? settings = null)
+	public MainWindowViewModel(Random random, IFolderPicker? folderPicker = null, bool areModsEnabled = true, bool isDeveloper = false, bool areModsOverridden = false, AppSettings? settings = null, string? title = null)
 	{
 		m_random = random;
 		m_folderPicker = folderPicker ?? new FolderPicker();
@@ -35,10 +37,11 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		m_areModsOverridden = areModsOverridden;
 		Settings = settings ?? new AppSettings();
 		IsDeveloper = isDeveloper;
-		m_title = OurResources.EngineName;
-		MainMenu = new MainMenuViewModel(isDeveloper) { IsLoading = true };
+		m_title = title ?? OurResources.EngineName;
+		MainMenu = new MainMenuViewModel(isDeveloper);
 		MainMenu.Chosen += OnMainMenuChosen;
-		m_screen = MainMenu;
+		m_loadingScreen = new LoadingScreenViewModel();
+		m_screen = m_loadingScreen;
 	}
 
 	/// <summary>
@@ -71,6 +74,11 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	public AppSettings Settings { get; }
 
 	/// <summary>
+	/// Whether the game data is loading, so the loading screen is showing.
+	/// </summary>
+	public bool IsLoading => VerifyAccess(m_screen == m_loadingScreen);
+
+	/// <summary>
 	/// The game being played, or null if there isn't one.
 	/// </summary>
 	public GameScreenViewModel? Game
@@ -80,13 +88,13 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// The screen taking over the window, over any game: the main menu, setting up a new game, loading a game, or managing
-	/// mods. Null while the game is showing.
+	/// The screen taking over the window, over any game: the loading screen, the main menu, setting up a new game, loading
+	/// a game, or managing mods. Null while the game is showing.
 	/// </summary>
 	public ViewModelBase? Screen
 	{
 		get => VerifyAccess(m_screen);
-		private set => SetPropertyField([nameof(Screen), nameof(IsPlaying)], value, ref m_screen);
+		private set => SetPropertyField([nameof(Screen), nameof(IsPlaying), nameof(IsLoading)], value, ref m_screen);
 	}
 
 	/// <summary>
@@ -109,7 +117,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Shows the loaded game data, at start up or after <see cref="ReloadDataRequested"/>.
+	/// Shows the loaded game data, at start up or after <see cref="ReloadDataRequested"/>, replacing the loading screen
+	/// with the main menu.
 	/// </summary>
 	public void SetData(GameInfo? gameInfo, GameData? gameData, IReadOnlyList<DataLoadError> loadErrors, IModListStore? modListStore, SaveSettings? saveSettings = null)
 	{
@@ -119,7 +128,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 		m_saveSettings = saveSettings;
 		Title = gameInfo?.Title ?? OurResources.EngineName;
 		MainMenu.SetData(gameInfo, gameData, loadErrors, modListStore is not null, saveSettings);
-		MainMenu.IsLoading = false;
+		if (m_screen == m_loadingScreen)
+			Screen = MainMenu;
 
 		// Commands only check whether they can run after input, so make sure they see the new data.
 		System.Windows.Input.CommandManager.InvalidateRequerySuggested();
@@ -218,7 +228,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
 	/// <summary>
 	/// Handles Esc. In a game, it stops time, closes the sheet on top (or every sheet, pressed twice quickly), or closes the
-	/// view in the center, or if there's nothing to do that for, opens the main menu. On the main menu, it resumes the game. On another screen, it goes back. With the save prompt open, it
+	/// view in the center, or if there's nothing to do that for, opens the main menu. On the main menu, it resumes the
+	/// game. On the loading screen, it does nothing. On another screen, it goes back. With the save prompt open, it
 	/// cancels it.
 	/// </summary>
 	public void Escape()
@@ -311,7 +322,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 			ShowSettings();
 			break;
 		case MainMenuChoice.ManageMods:
-			LeaveGame(ShowManageMods);
+			ShowManageMods();
 			break;
 		case MainMenuChoice.QuitToMainMenu:
 			LeaveGame(() => { });
@@ -532,12 +543,13 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
 	private void OnLoadGameBackRequested(object? sender, EventArgs e) => CloseLoadGame();
 
-	// Returning from the mod list loads the game data again, with the mods as they are now.
+	// Returning from the mod list loads the game data again, with the mods as they are now, showing the loading screen
+	// until it's done.
 	private void OnManageModsBackRequested(object? sender, EventArgs e)
 	{
 		CloseManageMods();
 		CloseNewGame();
-		MainMenu.IsLoading = true;
+		Screen = m_loadingScreen;
 		ReloadDataRequested.Raise(this);
 	}
 
@@ -547,6 +559,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 	private readonly IFolderPicker m_folderPicker;
 	private readonly bool m_areModsEnabled;
 	private readonly bool m_areModsOverridden;
+	private readonly LoadingScreenViewModel m_loadingScreen;
 	private GameData? m_gameData;
 	private IModListStore? m_modListStore;
 	private SaveSettings? m_saveSettings;

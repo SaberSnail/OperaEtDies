@@ -45,7 +45,7 @@ public sealed class PlayerStepsViewModelTests
 		var player = world.Player;
 		var need = new Need
 		{
-			Id = "choosing", Title = "Choosing", Icon = "icon", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			Id = "choosing", Title = "Choosing", Icon = "icon", Category = NeedCategory.Personal, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings = [new Step { Kind = StepKind.Choose, Options = [new StepOption { Player = new StepOptionPlayer { Title = "Rest" }, Steps = [TestData.Do(TestData.Amount(10))] }] }],
 		};
 		var sequence = Scheduler.StartSequence(player, need, 0, null, [], null);

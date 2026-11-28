@@ -150,6 +150,7 @@ public sealed class GameCalendarTests
 		Assert.Multiple(() =>
 		{
 			Assert.That(calendar.FormatYear(227), Is.EqualTo("227 CR"));
+			Assert.That(calendar.FormatSeasonAndYear(calendar.CreateTimePoint(1227, 2, 3, 1, 6, 0)), Is.EqualTo("Late Summer, 1227 CR"));
 			Assert.That(calendar.FormatTime(calendar.CreateTimePoint(1227, 1, 1, 1, 6, 0), TimeFormat.Long), Is.EqualTo("Day 1, Early Spring, 1227 CR, 6:00"));
 		});
 	}
@@ -208,6 +209,28 @@ public sealed class GameCalendarTests
 	{
 		var point = m_calendar.CreateTimePoint(1, 1, 1, 1, hour, minute);
 		Assert.That(m_calendar.GetDayPart(point).Id, Is.EqualTo(expectedId));
+	}
+
+	[TestCase(4, 59, "night")]
+	[TestCase(5, 0, "dawn")]
+	[TestCase(6, 59, "dawn")]
+	[TestCase(7, 0, "day")]
+	[TestCase(16, 59, "day")]
+	[TestCase(17, 0, "dusk")]
+	[TestCase(19, 0, "night")]
+	[TestCase(0, 0, "night")]
+	public void SkyIsTheLastToStartWrappingPastMidnight(int hour, int minute, string expectedId)
+	{
+		var point = m_calendar.CreateTimePoint(1, 1, 1, 1, hour, minute);
+		Assert.That(m_calendar.GetSky(point)?.Id, Is.EqualTo(expectedId));
+	}
+
+	[Test]
+	public void WithoutSkiesThereIsNoSky()
+	{
+		var settings = TestData.CreateCalendarSettings();
+		var calendar = new GameCalendar(new CalendarSettings { Days = settings.Days, Weeks = settings.Weeks, Seasons = settings.Seasons, DayParts = settings.DayParts, StartYear = 1, YearFormat = settings.YearFormat });
+		Assert.That(calendar.GetSky(calendar.CreateTimePoint(1, 1, 1, 1, 12)), Is.Null);
 	}
 
 	[Test]

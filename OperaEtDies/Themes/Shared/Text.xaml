@@ -8,7 +8,7 @@
 	<Style x:Key="CaptionTextStyle" TargetType="TextBlock">
 		<Setter Property="Margin" Value="0,14,0,4" />
 		<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
-		<Setter Property="FontSize" Value="{DynamicResource SmallFontSize}" />
+		<Setter Property="FontSize" Value="{DynamicResource DefaultFontSize}" />
 		<Setter Property="Typography.Capitals" Value="AllSmallCaps" />
 		<Setter Property="TextWrapping" Value="Wrap" />
 	</Style>
@@ -30,6 +30,40 @@
 		<Style.Triggers>
 			<Trigger Property="IsMouseOver" Value="True">
 				<Setter Property="TextDecorations" Value="Underline" />
+			</Trigger>
+		</Style.Triggers>
+	</Style>
+
+	<!--  Text in a part of the screen that can be disabled, such as the location while a conversation is open, which is
+		drawn disabled along with the buttons around it. Text doesn't dim on its own when it's disabled.  -->
+	<Style x:Key="DisablableTextStyle" TargetType="TextBlock">
+		<Style.Triggers>
+			<Trigger Property="IsEnabled" Value="False">
+				<Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+			</Trigger>
+		</Style.Triggers>
+	</Style>
+
+	<!--  Muted text, such as what someone is doing, that's drawn disabled with the part of the screen it's in.  -->
+	<Style
+		x:Key="MutedTextStyle"
+		BasedOn="{StaticResource DisablableTextStyle}"
+		TargetType="TextBlock">
+		<Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+	</Style>
+
+	<!--  A person's name that opens their character sheet, such as in the list of people in a location. It reads as plain
+		text, and is underlined on hover.  -->
+	<Style x:Key="PersonLinkStyle" TargetType="Hyperlink">
+		<Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+		<Setter Property="TextDecorations" Value="{x:Null}" />
+		<Setter Property="FocusVisualStyle" Value="{DynamicResource KeyboardFocusVisualStyle}" />
+		<Style.Triggers>
+			<Trigger Property="IsMouseOver" Value="True">
+				<Setter Property="TextDecorations" Value="Underline" />
+			</Trigger>
+			<Trigger Property="IsEnabled" Value="False">
+				<Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
 			</Trigger>
 		</Style.Triggers>
 	</Style>

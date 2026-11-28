@@ -82,9 +82,46 @@ public sealed class CalendarSettingsTests
 		Assert.That(settings.Validate(), Has.Exactly(1).Contains("yearFormat"));
 	}
 
+	[TestCase(6, 18, true)]
+	[TestCase(0, 24, true)]
+	[TestCase(-1, 18, false)]
+	[TestCase(24, 25, false)]
+	[TestCase(12, 12, false)]
+	[TestCase(18, 6, false)]
+	[TestCase(6, 25, false)]
+	public void SunsetMustBeAfterSunrise(int sunrise, int sunset, bool isValid)
+	{
+		var settings = With(sunrise: sunrise, sunset: sunset, skies: []);
+		Assert.That(settings.Validate(), isValid ? Is.Empty : Has.Exactly(1).Contains("sets at"));
+	}
+
+	[Test]
+	public void SkiesMustNotStartAtTheSameTime()
+	{
+		// Seven hours after sunrise is five hours before sunset.
+		var settings = With(skies: [Sky("a", CalendarSkyAnchor.Sunrise, 420), Sky("b", CalendarSkyAnchor.Sunset, -300)]);
+		Assert.That(settings.Validate(), Has.Exactly(1).Contains("\"b\"").And.Contains("\"a\""));
+	}
+
+	[Test]
+	public void SkyMinutesMustBeLessThanADay()
+	{
+		var settings = With(skies: [Sky("a", CalendarSkyAnchor.Sunrise, -1440)]);
+		Assert.That(settings.Validate(), Has.Exactly(1).Contains("\"a\""));
+	}
+
+	[TestCase(CalendarSkyAnchor.Sunrise, -60, 300)]
+	[TestCase(CalendarSkyAnchor.Sunset, 60, 1140)]
+	[TestCase(CalendarSkyAnchor.Sunrise, -480, 1320)]
+	[TestCase(CalendarSkyAnchor.Sunset, 420, 60)]
+	public void SkyStartWrapsAroundTheDay(CalendarSkyAnchor from, int minutes, int expected) =>
+		Assert.That(With().GetSkyStart(Sky("a", from, minutes)), Is.EqualTo(expected));
+
+	private static CalendarSky Sky(string id, CalendarSkyAnchor from, int minutes) => new() { Id = id, From = from, Minutes = minutes };
+
 	private static CalendarDayPart DayPart(string id, int start) => new() { Id = id, Title = id, Start = start };
 
-	private static CalendarSettings With(IReadOnlyList<CalendarDayPart>? dayParts = null, IReadOnlyList<CalendarSpecialDay>? specialDays = null, int? startYear = null, string? yearFormat = null)
+	private static CalendarSettings With(IReadOnlyList<CalendarDayPart>? dayParts = null, IReadOnlyList<CalendarSpecialDay>? specialDays = null, int? startYear = null, string? yearFormat = null, IReadOnlyList<CalendarSky>? skies = null, int sunrise = 6, int sunset = 18)
 	{
 		var settings = TestData.CreateCalendarSettings();
 		return new CalendarSettings
@@ -94,6 +131,9 @@ public sealed class CalendarSettingsTests
 			Seasons = settings.Seasons,
 			DayParts = dayParts ?? settings.DayParts,
 			SpecialDays = specialDays ?? settings.SpecialDays,
+			Skies = skies ?? settings.Skies,
+			Sunrise = sunrise,
+			Sunset = sunset,
 			StartYear = startYear ?? settings.StartYear,
 			YearFormat = yearFormat ?? settings.YearFormat,
 		};

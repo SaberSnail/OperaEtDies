@@ -10,10 +10,13 @@
 		<ResourceDictionary Source="ToggleButtons.xaml" />
 		<ResourceDictionary Source="SplitButtons.xaml" />
 		<ResourceDictionary Source="Splitters.xaml" />
+		<ResourceDictionary Source="ScrollBars.xaml" />
+		<ResourceDictionary Source="Sliders.xaml" />
 		<ResourceDictionary Source="Meters.xaml" />
 		<ResourceDictionary Source="Windows.xaml" />
 		<ResourceDictionary Source="TextBox.xaml" />
 		<ResourceDictionary Source="ComboBox.xaml" />
+		<ResourceDictionary Source="ListBox.xaml" />
 		<ResourceDictionary Source="Tabs.xaml" />
 		<ResourceDictionary Source="Developer.xaml" />
 	</ResourceDictionary.MergedDictionaries>

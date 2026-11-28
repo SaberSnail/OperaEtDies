@@ -175,7 +175,7 @@ public sealed class GameWorldTests
 		Assert.That(home.People, Does.Not.Contain(player));
 		Assert.That(quarter.People, Does.Contain(player));
 		Assert.That(changed, Is.SupersetOf(new[] { nameof(Person.Location), nameof(Person.PortraitPlace) }));
-		Assert.That(player.PortraitPlace, Is.EqualTo(PortraitPlace.InQuarter(quarter.QuarterKind!)));
+		Assert.That(player.PortraitPlace, Is.EqualTo(PortraitPlace.InQuarter(quarter.QuarterKind!).WithSky(world.Sky)));
 	}
 
 	[Test]

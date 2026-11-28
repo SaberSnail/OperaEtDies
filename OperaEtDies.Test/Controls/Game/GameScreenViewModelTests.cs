@@ -1,4 +1,4 @@
-using GoldenAnvil.Utility;
+﻿using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Calendar;
 using OperaEtDies.Controls;
 using OperaEtDies.Controls.Characters;
@@ -141,7 +141,6 @@ public sealed class GameScreenViewModelTests
 		var villagers = viewModel.Top<VillagersViewModel>()!;
 		var families = viewModel.World.Families.OrderBy(x => x.LastName, StringComparer.CurrentCulture).ToList();
 		Assert.That(viewModel.Sheets, Is.EqualTo(new[] { villagers }));
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
 		Assert.That(changed, Does.Contain(nameof(GameScreenViewModel.TopSheet)).And.Contain(nameof(GameScreenViewModel.IsVillagersOpen)));
 		Assert.That(viewModel.IsVillagersOpen, Is.True);
 		// Families are sorted by last name.
@@ -235,7 +234,7 @@ public sealed class GameScreenViewModelTests
 
 		// Started at the square, fetching water is next, and the start page says it's in progress.
 		GetStart(viewModel, "water").Action!.Do();
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
+		Assert.That(viewModel.StartScreen, Is.Null);
 		Assert.That(player.Current?.Need, Is.EqualTo(water));
 		viewModel.ShowStart();
 		Assert.That(viewModel.StartScreen!.InProgress, Is.EqualTo("In progress: Water. Starting something else puts it on hold."));
@@ -423,6 +422,26 @@ public sealed class GameScreenViewModelTests
 	}
 
 	[Test]
+	public async Task TheWalkToTheDestinationIsUpdatedOnArrivalAsync()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		var world = viewModel.World;
+		var player = world.Player;
+
+		// A destination more than one path away, so the player is still heading for it after one.
+		var target = world.Locations.First(x => x != player.Location && IsFarAway(x));
+		world.SetPlayerDestination(target);
+		var way = world.GetPlayerWayToDestination()!;
+		Assert.That(await world.WalkPlayerToAsync(way), Is.True);
+
+		var time = world.GetPlayerTravelTimeTo(target)!;
+		Assert.That(viewModel.Concerns.Destination,
+			Is.EqualTo(OurResources.ConcernsDestination.FormatCurrentCulture(target.Title, world.GameData.Calendar.FormatOffsetFrom(world.Time, time, GoldenAnvil.Utility.Calendar.TimeFormat.Long))));
+
+		bool IsFarAway(Location place) => world.GetPlayerTravelTimeTo(place) is not null && !player.Location.Connections.Contains(place);
+	}
+
+	[Test]
 	public async Task ThePlayerIsAskedWhetherToKeepGoingAsync()
 	{
 		using var viewModel = CreateViewModel(withSchedules: true);
@@ -492,7 +511,6 @@ public sealed class GameScreenViewModelTests
 		viewModel.ToggleVillagers();
 		Assert.That(viewModel.HasSheets, Is.False);
 		Assert.That(viewModel.TimeRunner.IsHeld, Is.False);
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
 
 		viewModel.ToggleStatus();
 		Assert.That(viewModel.IsStatusOpen, Is.True);
@@ -539,7 +557,7 @@ public sealed class GameScreenViewModelTests
 	}
 
 	[Test]
-	public void TheWardrobeAndInventoryOpenInTheCenterClosingTheSheets()
+	public void TheWardrobeAndInventoryOpenInSheetsReplacingTheSheets()
 	{
 		using var viewModel = CreateViewModel(withSchedules: true);
 		Assert.That(viewModel.World.Player.Location, Is.SameAs(viewModel.World.Player.Home));
@@ -547,16 +565,22 @@ public sealed class GameScreenViewModelTests
 
 		viewModel.ToggleWardrobe();
 
-		Assert.That(viewModel.HasSheets, Is.False);
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.Clothing));
+		Assert.That(viewModel.Sheets, Is.EqualTo(new[] { viewModel.Clothing }));
 		Assert.That((viewModel.IsWardrobeOpen, viewModel.IsInventoryOpen), Is.EqualTo((true, false)));
+		Assert.That(viewModel.TimeRunner.IsHeld, Is.True);
 
-		// A sheet can open over it, and its button then closes the sheets rather than the wardrobe.
-		viewModel.ToggleMap();
+		// A sheet can open over it, and its button then closes the sheets over it rather than the wardrobe.
+		viewModel.ShowCharacter(viewModel.World.Npcs[0]);
+		viewModel.ToggleWardrobe();
+		Assert.That(viewModel.TopSheet, Is.Not.Null.And.SameAs(viewModel.Clothing));
 		viewModel.ToggleWardrobe();
 		Assert.That(viewModel.HasSheets, Is.False);
-		Assert.That(viewModel.IsWardrobeOpen, Is.True);
-		viewModel.ToggleWardrobe();
+
+		// Another sheet from the toolbar replaces it.
+		viewModel.ToggleInventory();
+		Assert.That(viewModel.IsInventoryOpen, Is.True);
+		viewModel.ToggleMap();
+		Assert.That(viewModel.Sheets, Is.EqualTo(new[] { viewModel.Top<TownMapViewModel>() }));
 		Assert.That(viewModel.Clothing, Is.Null);
 	}
 
@@ -617,14 +641,11 @@ public sealed class GameScreenViewModelTests
 		viewModel.HandleHotkey(new Hotkey(HotkeyCommand.Status));
 		Assert.That(viewModel.Sheets, Is.EqualTo(new[] { viewModel.Top<StatusViewModel>() }));
 
-		// What the player can start is in the center, so it doesn't open under a sheet.
+		// What the player can start is a sheet too, replacing the others.
 		viewModel.HandleHotkey(new Hotkey(HotkeyCommand.Start));
-		Assert.That(viewModel.StartScreen, Is.Null);
-		viewModel.CloseSheets();
+		Assert.That(viewModel.Sheets, Is.EqualTo(new[] { viewModel.StartScreen }));
 		viewModel.HandleHotkey(new Hotkey(HotkeyCommand.Start));
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.StartScreen));
-		viewModel.HandleHotkey(new Hotkey(HotkeyCommand.Start));
-		Assert.That(viewModel.StartScreen, Is.Null);
+		Assert.That(viewModel.HasSheets, Is.False);
 
 		// The player starts at home, where the wardrobe is.
 		viewModel.HandleHotkey(new Hotkey(HotkeyCommand.Wardrobe));
@@ -644,12 +665,13 @@ public sealed class GameScreenViewModelTests
 	}
 
 	[Test]
-	public void NumberKeysTakeTheExitsAndAreOffUnderASheet()
+	public void NumberKeysTakeTheExitsAndAreOffUnderASheetWithoutChoices()
 	{
 		using var viewModel = CreateViewModel(withSchedules: true);
 		var location = viewModel.CurrentLocation;
 		Assert.That(location.Connections.Select(x => x.Badge), Is.EqualTo(Enumerable.Range(1, location.Connections.Count).Select(Hotkeys.GetChoiceKeyText)));
 
+		// The map has no numbered choices, and the exits under it can't be taken.
 		viewModel.ShowMap();
 		Assert.That(viewModel.ChooseNumber(1), Is.False);
 		Assert.That(viewModel.World.Player.Location, Is.SameAs(location.Location));
@@ -720,7 +742,8 @@ public sealed class GameScreenViewModelTests
 		// The game starts at home, with the family there.
 		Assert.That(relatives, Is.Not.Empty);
 		Assert.That(relatives.Select(x => x.PlayerLabel), Has.All.StartsWith("This is your "));
-		Assert.That(viewModel.CurrentLocation.People.Where(x => x.Person.Family != player.Family).Select(x => x.PlayerLabel), Has.All.Null);
+		Assert.That(relatives.Select(x => x.Relation), Is.EqualTo(relatives.Select(x => x.PlayerLabel!["This is ".Length..])));
+		Assert.That(viewModel.CurrentLocation.People.Where(x => x.Person.Family != player.Family).Select(x => (x.PlayerLabel, x.Relation)), Has.All.EqualTo(((string?) null, (string?) null)));
 		Assert.That(viewModel.CurrentLocation.People.Any(x => x.IsYou), Is.False);
 	}
 
@@ -797,6 +820,7 @@ public sealed class GameScreenViewModelTests
 				person.Person.Role == FamilyRole.Child ? (person.Person.Traits.GetValueId("gender") == "male" ? "This is your son" : "This is your daughter") :
 				person.Person.Traits.GetValueId("gender") == "male" ? "This is your father" : "This is your mother";
 			Assert.That(person.PlayerLabel, Is.EqualTo(expected), person.Name);
+			Assert.That(person.Relation, Is.EqualTo(expected?["This is ".Length..]), person.Name);
 		}
 		Assert.That(people.Count(x => x.PlayerLabel is not null), Is.GreaterThan(1));
 		Assert.That(people.Any(x => x.CanGoTo), Is.False);
@@ -932,7 +956,6 @@ public sealed class GameScreenViewModelTests
 		person.Examine();
 
 		Assert.That(viewModel.Top<CharacterViewModel>()!.Person.Person, Is.SameAs(person.Person));
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
 
 		// Opening another sheet from the toolbar replaces the character's.
 		viewModel.ToggleStatus();
@@ -970,7 +993,7 @@ public sealed class GameScreenViewModelTests
 		Assert.That(viewModel.Top<VillagersViewModel>(), Is.Null);
 		Assert.That(viewModel.World.Player.Location, Is.SameAs(family.Family.Home));
 		Assert.That(viewModel.CurrentLocation.Location, Is.SameAs(family.Family.Home));
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
+		Assert.That(viewModel.HasSheets, Is.False);
 	}
 
 	[Test]
@@ -1091,7 +1114,31 @@ public sealed class GameScreenViewModelTests
 		Assert.That(viewModel.World.Time, Is.EqualTo(time), "Developers' jumps take no time.");
 		Assert.That(viewModel.Top<TownMapViewModel>(), Is.Null);
 		Assert.That(viewModel.World.Player.Location, Is.SameAs(quarter.Quarter));
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.CurrentLocation));
+		Assert.That(viewModel.HasSheets, Is.False);
+	}
+
+	[Test]
+	public async Task ChoosingAQuarterOnTheMapDoesNothingWhileNotDressedEnoughForItAsync()
+	{
+		// The test data has no modesty rules, so this uses the game's data.
+		var gameData = GameData.Load(JsonDataLoader.DefaultDataDirectory).Value!;
+		var random = new Random(0);
+		var world = GameWorld.CreateNewGame(gameData, OperaEtDies.Characters.CharacterRandomizer.CreateRandomPlayer(gameData, random), random);
+		await world.MovePlayerAsync(world.Player.Home);
+		using var viewModel = new GameScreenViewModel(world, isDeveloper: true);
+		viewModel.ToggleWardrobe();
+		while (viewModel.Clothing!.Wearing.FirstOrDefault(x => x.CanTakeOff()) is { } piece)
+			piece.TakeOff();
+		viewModel.ShowMap();
+		var quarter = viewModel.Top<TownMapViewModel>()!.Quarters.First(x => !x.IsCurrent && world.GetPlayerUncoveredSlotsAt(x.Quarter).Count != 0);
+		var sheets = viewModel.Sheets.ToList();
+		var time = world.Time;
+
+		quarter.Visit();
+
+		Assert.That(viewModel.Sheets, Is.EqualTo(sheets));
+		Assert.That(world.Player.Location, Is.SameAs(world.Player.Home));
+		Assert.That(world.Time, Is.EqualTo(time));
 	}
 
 	[Test]
@@ -1114,7 +1161,12 @@ public sealed class GameScreenViewModelTests
 
 		viewModel.CurrentLocation.ChooseStart();
 
-		Assert.That(viewModel.CurrentView, Is.SameAs(viewModel.StartScreen));
+		Assert.That(viewModel.TopSheet, Is.Not.Null.And.SameAs(viewModel.StartScreen));
+
+		// Its numbered buttons take the number keys, and starting something closes it.
+		Assume.That(viewModel.StartScreen!.Choices.Any(x => x.Action is SplitActionViewModel), "The player can't start anything now.");
+		Assert.That(viewModel.ChooseNumber(1), Is.True);
+		Assert.That(viewModel.HasSheets, Is.False);
 	}
 
 	[Test]
@@ -1133,27 +1185,30 @@ public sealed class GameScreenViewModelTests
 
 		Assert.Multiple(() =>
 		{
-			Assert.That(panel.Date, Is.EqualTo("Day 4, Mid Summer, year 2"));
+			Assert.That((panel.DayOfWeek, panel.SeasonAndYear), Is.EqualTo(("Day 4", "Mid Summer, year 2")));
 			Assert.That(panel.TimeOfDay, Is.EqualTo("Afternoon, 13:05"));
 			Assert.That(panel.SpecialDay, Is.EqualTo("Midsummer"));
-			Assert.That(changes, Is.SupersetOf(new[] { nameof(CharacterPanelViewModel.Date), nameof(CharacterPanelViewModel.TimeOfDay), nameof(CharacterPanelViewModel.SpecialDay), nameof(CharacterPanelViewModel.DayDialPosition) }));
+			Assert.That(changes, Is.SupersetOf(new[] { nameof(CharacterPanelViewModel.DayOfWeek), nameof(CharacterPanelViewModel.SeasonAndYear), nameof(CharacterPanelViewModel.TimeOfDay), nameof(CharacterPanelViewModel.SpecialDay), nameof(CharacterPanelViewModel.DayDialPosition) }));
 
-			// The day runs from the start of the morning (6:00) to the start of the night (21:00), with marks where the
-			// afternoon and evening start.
-			Assert.That((panel.DayDialPosition, panel.IsNight), Is.EqualTo((425.0 / 900, false)));
-			Assert.That(panel.DayDialMarks, Is.EqualTo(new[] { 0.4, 0.8 }).Within(1e-9));
+			// The day runs from sunrise (6:00) to sunset (18:00), so noon is at the top, with a mark.
+			Assert.That((panel.DayDialPosition, panel.IsNight), Is.EqualTo((425.0 / 720, false)));
+			Assert.That(panel.DayDialMarks, Is.EqualTo(new[] { 0.5 }).Within(1e-9));
+			Assert.That((world.Sky, world.Player.Sky, world.Player.PortraitPlace?.Sky), Is.EqualTo(("day", "day", "day")));
 		});
 
 		world.AdvanceTime(calendar.CreateTimeOffset(1, 9, 0));
 
 		Assert.Multiple(() =>
 		{
-			Assert.That(panel.Date, Is.EqualTo("Day 5, Mid Summer, year 2"));
+			Assert.That((panel.DayOfWeek, panel.SeasonAndYear), Is.EqualTo(("Day 5", "Mid Summer, year 2")));
 			Assert.That(panel.TimeOfDay, Is.EqualTo("Night, 22:05"));
 			Assert.That(panel.SpecialDay, Is.Null);
 
-			// The night runs from 21:00 to 6:00.
-			Assert.That((panel.DayDialPosition, panel.IsNight), Is.EqualTo((65.0 / 540, true)));
+			// The night runs from sunset (18:00) to sunrise (6:00), so midnight is at the top, with a mark.
+			Assert.That((panel.DayDialPosition, panel.IsNight), Is.EqualTo((245.0 / 720, true)));
+			Assert.That(panel.DayDialMarks, Is.EqualTo(new[] { 0.5 }).Within(1e-9));
+			Assert.That(changes, Does.Contain(nameof(CharacterPanelViewModel.DayDialMarks)));
+			Assert.That((world.Sky, world.Player.Sky), Is.EqualTo(("night", "night")));
 		});
 	}
 
@@ -1165,11 +1220,22 @@ public sealed class GameScreenViewModelTests
 
 		Assert.That(target.CanTalk, Is.True);
 		target.Talk();
+		var location = viewModel.CurrentLocation;
 		Assert.That(viewModel.Conversation!.Person.Person, Is.SameAs(target.Person));
-		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.Conversation));
 
-		viewModel.Conversation.Close();
-		Assert.That((viewModel.Conversation, viewModel.Overlay), Is.EqualTo(((object?) null, (object?) null)));
+		// It's shown in their line, not on top of the location, and everyone else's line is blocked.
+		Assert.That(viewModel.Overlay, Is.Null);
+		Assert.That((location.Interaction, target.Interaction), Is.EqualTo((viewModel.Conversation, viewModel.Conversation)));
+		Assert.That(location.People.Where(x => x != target).Select(x => (x.Interaction, x.IsBlocked)), Has.All.EqualTo(((object?) null, true)));
+		Assert.That(target.IsBlocked, Is.False);
+
+		Assert.That((target.IsTalking, target.TalkText), Is.EqualTo((true, OurResources.StopTalking)));
+
+		// The talk button is a toggle: pressing it again ends the conversation.
+		target.Talk();
+		Assert.That((viewModel.Conversation, location.Interaction, target.Interaction), Is.EqualTo(((object?) null, (object?) null, (object?) null)));
+		Assert.That(location.People.Any(x => x.IsBlocked), Is.False);
+		Assert.That((target.IsTalking, target.TalkText), Is.EqualTo((false, OurResources.TalkToPerson)));
 
 		target.Talk();
 		viewModel.CurrentLocation.Connections[0].Travel();
@@ -1192,11 +1258,55 @@ public sealed class GameScreenViewModelTests
 		Assert.That(viewModel.Top<TownMapViewModel>(), Is.Not.Null);
 		Assert.That(viewModel.Conversation, Is.SameAs(conversation));
 		viewModel.ToggleMap();
-		Assert.That(viewModel.Overlay, Is.SameAs(conversation));
+		Assert.That(viewModel.CurrentLocation.Interaction, Is.SameAs(conversation));
 	}
 
 	[Test]
-	public void SomeoneAskingThePlayerToChatShowsAPromptOnTop()
+	public void TheNumberKeysPressTheConversationsChoicesWhileItsOpen()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		var location = viewModel.CurrentLocation;
+		Assume.That(location.Connections, Is.Not.Empty);
+		location.People[0].Talk();
+		var conversation = viewModel.Conversation!;
+		var start = viewModel.World.Time;
+
+		// 1 asks what they're doing, rather than taking the first path, and Start doesn't open.
+		Assert.That(viewModel.ChooseNumber(1), Is.True);
+		Assert.That(viewModel.CurrentLocation, Is.SameAs(location));
+		Assert.That(conversation.Lines, Is.Not.Empty);
+		Assert.That(viewModel.World.Time, Is.GreaterThan(start));
+		viewModel.ToggleStart();
+		Assert.That(viewModel.StartScreen, Is.Null);
+
+		// 7 ends it, and then the number keys are the location's again.
+		Assert.That(viewModel.ChooseNumber(7), Is.True);
+		Assert.That(viewModel.Conversation, Is.Null);
+		Assert.That(viewModel.ChooseNumber(1), Is.True);
+		Assert.That(viewModel.CurrentLocation, Is.Not.SameAs(location));
+	}
+
+	[Test]
+	public void SomeoneWhoLeavesStaysListedWhileTheConversationWithThemIsOpen()
+	{
+		using var viewModel = CreateViewModel(withSchedules: true);
+		var world = viewModel.World;
+		var location = viewModel.CurrentLocation;
+		var target = location.People[0];
+		target.Talk();
+
+		// They're still listed, so the player can see they've gone, until the conversation closes.
+		target.Person.Location = location.Location.Exits[0].Location;
+		Assert.That(location.Location.People, Does.Not.Contain(target.Person));
+		Assert.That(location.People, Does.Contain(target));
+		Assert.That(viewModel.Conversation!.Unavailable, Is.EqualTo(OurResources.ConversationNotHere.FormatCurrentCulture(target.Person.FullName)));
+
+		viewModel.Conversation.Close();
+		Assert.That(location.People, Does.Not.Contain(target));
+	}
+
+	[Test]
+	public void SomeoneAskingThePlayerToChatShowsAPromptInTheirLine()
 	{
 		using var viewModel = CreateViewModel(withSchedules: true);
 		var world = viewModel.World;
@@ -1205,13 +1315,14 @@ public sealed class GameScreenViewModelTests
 
 		world.Player.TalkRequest = asker;
 		Assert.That(viewModel.TalkPrompt!.Text, Is.EqualTo(OurResources.TalkPromptText.FormatCurrentCulture(asker.FullName)));
-		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.TalkPrompt));
+		Assert.That(viewModel.Overlay, Is.Null);
+		Assert.That((viewModel.CurrentLocation.Interaction, viewModel.CurrentLocation.People[0].Interaction), Is.EqualTo((viewModel.TalkPrompt, viewModel.TalkPrompt)));
 
 		// Turning them down closes the prompt, and they don't ask again for a while.
 		viewModel.TalkPrompt.Decline();
 		Assert.That((viewModel.TalkPrompt, world.Player.TalkRequest), Is.EqualTo(((object?) null, (object?) null)));
 		Assert.That(asker.GetRelationship(world.Player).LastDeclined, Is.EqualTo(world.Time));
-		Assert.That(viewModel.Overlay, Is.SameAs(viewModel.Conversation));
+		Assert.That(viewModel.CurrentLocation.Interaction, Is.SameAs(viewModel.Conversation));
 
 		// Agreeing chats with them, and says so.
 		var start = world.Time;
@@ -1230,7 +1341,7 @@ public sealed class GameScreenViewModelTests
 		var client = world.Npcs.First(x => x.Family != world.Player.Family && x.Home != world.Player.Location);
 		var need = new Need
 		{
-			Id = "errand", Title = "Errand", Icon = "icon", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			Id = "errand", Title = "Errand", Icon = "icon", Category = NeedCategory.Personal, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings =
 			[
 				new Step
@@ -1275,7 +1386,7 @@ public sealed class GameScreenViewModelTests
 		var client = world.Npcs.First(x => x.Family != world.Player.Family);
 		var need = new Need
 		{
-			Id = "errand", Title = "Errand", Icon = "icon", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			Id = "errand", Title = "Errand", Icon = "icon", Category = NeedCategory.Personal, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings =
 			[
 				new Step

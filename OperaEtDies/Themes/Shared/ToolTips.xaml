@@ -7,6 +7,8 @@
 		across the screen. Their text includes the hotkey, if there is one (see Hotkeys).  -->
 	<Style TargetType="{x:Type ToolTip}">
 		<Setter Property="OverridesDefaultStyle" Value="true" />
+		<!--  Their top left corner is at the mouse pointer, whichever side Windows opens menus on (see ToolTipPlacement).  -->
+		<Setter Property="local:ToolTipPlacement.IsAtMouse" Value="True" />
 		<Setter Property="HasDropShadow" Value="False" />
 		<Setter Property="Foreground" Value="{DynamicResource TextOnDarkBrush}" />
 		<Setter Property="Background" Value="{DynamicResource TextBrush}" />

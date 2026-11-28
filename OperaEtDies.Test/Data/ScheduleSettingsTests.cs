@@ -10,10 +10,10 @@ public sealed class ScheduleSettingsTests
 	[Test]
 	public void NeedsAreLevelOrQuota()
 	{
-		var both = new Need { Id = "both", Title = "Both", Icon = "icon", PlaceSetting = Home, Level = Level(), Quota = Timed(60) };
-		var neither = new Need { Id = "neither", Title = "Neither", Icon = "icon", PlaceSetting = Home };
-		var noHours = new Need { Id = "noHours", Title = "No hours", Icon = "icon", PlaceSetting = Home, Quota = Timed(60) };
-		var levelDays = new Need { Id = "levelDays", Title = "Level days", Icon = "icon", PlaceSetting = Home, Hours = new Hours { Start = 6, End = 12, Days = ["day1"] }, Level = Level() };
+		var both = new Need { Id = "both", Title = "Both", Icon = "icon", Category = NeedCategory.Personal, PlaceSetting = Home, Level = Level(), Quota = Timed(60) };
+		var neither = new Need { Id = "neither", Title = "Neither", Icon = "icon", Category = NeedCategory.Personal, PlaceSetting = Home };
+		var noHours = new Need { Id = "noHours", Title = "No hours", Icon = "icon", Category = NeedCategory.Personal, PlaceSetting = Home, Quota = Timed(60) };
+		var levelDays = new Need { Id = "levelDays", Title = "Level days", Icon = "icon", Category = NeedCategory.Personal, PlaceSetting = Home, Hours = new Hours { Start = 6, End = 12, Days = ["day1"] }, Level = Level() };
 
 		Assert.That(With(both, neither, noHours, levelDays).Validate(), Is.EquivalentTo(new[]
 		{
@@ -46,10 +46,10 @@ public sealed class ScheduleSettingsTests
 	[Test]
 	public void StepsMustFitTheirNeed()
 	{
-		var both = new Need { Id = "both", Title = "Both", Icon = "icon", PlaceSetting = Home, StepSettings = [Do(Amount(5))], Level = Level() };
-		var neither = new Need { Id = "neither", Title = "Neither", Icon = "icon", Level = Level() };
-		var empty = new Need { Id = "empty", Title = "Empty", Icon = "icon", StepSettings = [], Level = Level() };
-		var idle = new Need { Id = "idle", Title = "Idle", Icon = "icon", StepSettings = [GoTo(Home)], Level = Level() };
+		var both = new Need { Id = "both", Title = "Both", Icon = "icon", Category = NeedCategory.Personal, PlaceSetting = Home, StepSettings = [Do(Amount(5))], Level = Level() };
+		var neither = new Need { Id = "neither", Title = "Neither", Icon = "icon", Category = NeedCategory.Personal, Level = Level() };
+		var empty = new Need { Id = "empty", Title = "Empty", Icon = "icon", Category = NeedCategory.Personal, StepSettings = [], Level = Level() };
+		var idle = new Need { Id = "idle", Title = "Idle", Icon = "icon", Category = NeedCategory.Personal, StepSettings = [GoTo(Home)], Level = Level() };
 		var uncounted = Runs("uncounted", Amount(1), shared: false, Do(Amount(5)));
 		var counted = Quota("counted", new QuotaNeedSettings { Lead = 60, Time = new QuotaTime { Minutes = Amount(60), Shift = 60 } }, new Step { Kind = StepKind.Do, MeetsQuota = true }, CountRun());
 		var unmet = Quota("unmet", new QuotaNeedSettings { Lead = 60, Time = new QuotaTime { Minutes = Amount(60), Shift = 60 } }, new Step { Kind = StepKind.Do });
@@ -73,7 +73,7 @@ public sealed class ScheduleSettingsTests
 	{
 		var level = new Need
 		{
-			Id = "level", Title = "Level", Icon = "icon", Level = Level(),
+			Id = "level", Title = "Level", Icon = "icon", Category = NeedCategory.Personal, Level = Level(),
 			StepSettings =
 			[
 				new Step { Kind = StepKind.GoTo, Minutes = Amount(5) },
@@ -116,8 +116,8 @@ public sealed class ScheduleSettingsTests
 		var daily = Quota("daily", Home, new QuotaNeedSettings { Lead = 60, OverdueUrgency = 50, Time = new QuotaTime { Minutes = Amount(60), Shift = 60 } }, days: ["day1"]);
 		var everyDay = Quota("everyDay", Home, new QuotaNeedSettings { Period = NeedPeriod.Week, Lead = 60, OverdueUrgency = 50, Time = new QuotaTime { Minutes = Amount(60), Shift = 60 } });
 		var tooUrgent = Quota("tooUrgent", Home, new QuotaNeedSettings { Period = NeedPeriod.Week, Lead = 60, OverdueUrgency = 150, Time = new QuotaTime { Minutes = Amount(60), Shift = 60 } }, days: ["day1"]);
-		var blankStep = new Need { Id = "blankStep", Title = "Blank step", Icon = "icon", StepSettings = [new Step { Kind = StepKind.Do, Activity = " " }], Level = Level() };
-		var blank = new Need { Id = "blank", Title = "Blank", Icon = "icon", Activity = " ", PlaceSetting = Home, Level = Level() };
+		var blankStep = new Need { Id = "blankStep", Title = "Blank step", Icon = "icon", Category = NeedCategory.Personal, StepSettings = [new Step { Kind = StepKind.Do, Activity = " " }], Level = Level() };
+		var blank = new Need { Id = "blank", Title = "Blank", Icon = "icon", Category = NeedCategory.Personal, Activity = " ", PlaceSetting = Home, Level = Level() };
 
 		Assert.That(With(blank, daily, everyDay, tooUrgent, blankStep).Validate(), Is.EquivalentTo(new[]
 		{
@@ -133,7 +133,7 @@ public sealed class ScheduleSettingsTests
 	public void PlayerActionsMustBeValid()
 	{
 		var action = new StepPlayer { Title = " ", Result = "" };
-		var settings = With(new Need { Id = "acting", Title = "Acting", Icon = "icon", StepSettings = [new Step { Kind = StepKind.Do, Player = action }], Level = Level() });
+		var settings = With(new Need { Id = "acting", Title = "Acting", Icon = "icon", Category = NeedCategory.Personal, StepSettings = [new Step { Kind = StepKind.Do, Player = action }], Level = Level() });
 
 		Assert.That(settings.Validate(), Is.EquivalentTo(new[]
 		{
@@ -148,7 +148,7 @@ public sealed class ScheduleSettingsTests
 		var settings = With(
 			new Need
 			{
-				Id = "level", Title = "Level", Icon = "icon", Level = Level(),
+				Id = "level", Title = "Level", Icon = "icon", Category = NeedCategory.Personal, Level = Level(),
 				StepSettings =
 				[
 					GoTo(Home, player: new StepPlayer { Title = "Go", Result = "You went" }),
@@ -266,12 +266,12 @@ public sealed class ScheduleSettingsTests
 	[Test]
 	public void HoursMustBeValid()
 	{
-		var overnight = new Need { Id = "overnight", Title = "Overnight", Icon = "icon", PlaceSetting = Home, Level = Level(), Hours = Hours(21, 4) };
+		var overnight = new Need { Id = "overnight", Title = "Overnight", Icon = "icon", Category = NeedCategory.Personal, PlaceSetting = Home, Level = Level(), Hours = Hours(21, 4) };
 		var pastMidnight = Quota("pastMidnight", Home, Timed(240), Hours(22, 2));
 		var lateLong = Quota("lateLong", Home, Timed(180), Hours(23, 1));
 		var never = Quota("never", Home, Timed(60), Hours(12, 12));
 		var tooLong = Quota("tooLong", Home, Timed(90), Hours(6, 7));
-		var midnight = new Need { Id = "midnight", Title = "Midnight", Icon = "icon", PlaceSetting = Home, Level = Level(), Hours = Hours(20, 0) };
+		var midnight = new Need { Id = "midnight", Title = "Midnight", Icon = "icon", Category = NeedCategory.Personal, PlaceSetting = Home, Level = Level(), Hours = Hours(20, 0) };
 
 		Assert.That(With(overnight, pastMidnight, lateLong, never, tooLong, midnight).Validate(), Is.EquivalentTo(new[]
 		{
@@ -285,7 +285,7 @@ public sealed class ScheduleSettingsTests
 	[Test]
 	public void NeedsMustReferToNeedsAndPlaces()
 	{
-		var paused = new Need { Id = "paused", Title = "Paused", Icon = "icon", PlaceSetting = new SchedulePlace { Kind = NeedPlace.Quarter }, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1, PausedBy = ["missing"] } };
+		var paused = new Need { Id = "paused", Title = "Paused", Icon = "icon", Category = NeedCategory.Personal, PlaceSetting = new SchedulePlace { Kind = NeedPlace.Quarter }, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1, PausedBy = ["missing"] } };
 
 		Assert.That(With(paused).Validate(), Is.EquivalentTo(new[]
 		{
@@ -297,9 +297,9 @@ public sealed class ScheduleSettingsTests
 	[Test]
 	public void RolesMustBeValid()
 	{
-		var sleep = new Need { Id = "sleep", Title = "Sleep", Icon = "icon", Role = ScheduleSettings.SleepRole, PlaceSetting = Home, Quota = Timed(60), Hours = Hours(6, 12) };
-		var other = new Need { Id = "other", Title = "Other", Icon = "icon", Role = ScheduleSettings.SleepRole, PlaceSetting = Home, Level = Level() };
-		var odd = new Need { Id = "odd", Title = "Odd", Icon = "icon", Role = "dreaming", PlaceSetting = Home, Level = Level() };
+		var sleep = new Need { Id = "sleep", Title = "Sleep", Icon = "icon", Category = NeedCategory.Personal, Role = ScheduleSettings.SleepRole, PlaceSetting = Home, Quota = Timed(60), Hours = Hours(6, 12) };
+		var other = new Need { Id = "other", Title = "Other", Icon = "icon", Category = NeedCategory.Personal, Role = ScheduleSettings.SleepRole, PlaceSetting = Home, Level = Level() };
+		var odd = new Need { Id = "odd", Title = "Odd", Icon = "icon", Category = NeedCategory.Personal, Role = "dreaming", PlaceSetting = Home, Level = Level() };
 		var settings = CreateScheduleSettings();
 		settings.Needs = [sleep, other, odd];
 		settings.UrgencyFactors = [];
@@ -313,10 +313,28 @@ public sealed class ScheduleSettingsTests
 	}
 
 	[Test]
+	public void OnlyQuotaNeedsCanBeWorkOrHousehold()
+	{
+		var sleep = new Need { Id = "sleep", Title = "Sleep", Icon = "icon", Category = NeedCategory.Personal, Role = ScheduleSettings.SleepRole, PlaceSetting = Home, Level = Level() };
+		var chore = new Need { Id = "chore", Title = "Chore", Icon = "icon", Category = NeedCategory.Household, PlaceSetting = Home, Level = Level() };
+		var job = new Need { Id = "job", Title = "Job", Icon = "icon", Category = NeedCategory.Work, PlaceSetting = Home, Level = Level() };
+		var quota = new Need { Id = "quota", Title = "Quota", Icon = "icon", Category = NeedCategory.Household, PlaceSetting = Home, Quota = Timed(60), Hours = Hours(6, 12) };
+		var settings = CreateScheduleSettings();
+		settings.Needs = [sleep, chore, job, quota];
+		settings.UrgencyFactors = [];
+
+		Assert.That(settings.Validate(), Is.EquivalentTo(new[]
+		{
+			OurResources.NeedCategoryNotQuota.FormatCurrentCulture("needs[chore].category", "household"),
+			OurResources.NeedCategoryNotQuota.FormatCurrentCulture("needs[job].category", "work"),
+		}));
+	}
+
+	[Test]
 	public void SleepNeedIsRequired()
 	{
 		var settings = CreateScheduleSettings();
-		settings.Needs = [new Need { Id = "hunger", Title = "Hunger", Icon = "icon", PlaceSetting = Home, Level = Level() }];
+		settings.Needs = [new Need { Id = "hunger", Title = "Hunger", Icon = "icon", Category = NeedCategory.Personal, PlaceSetting = Home, Level = Level() }];
 		settings.UrgencyFactors = [];
 
 		Assert.That(settings.Validate(), Is.EqualTo(new[] { OurResources.RoleMissing.FormatCurrentCulture("needs", ScheduleSettings.SleepRole) }));
@@ -340,12 +358,12 @@ public sealed class ScheduleSettingsTests
 		var schedules = CreateScheduleSettings();
 		var outing = new Need
 		{
-			Id = "outing", Title = "Outing", Icon = "icon", PlaceSetting = Quarters(false, "beach"), When = Condition("profession", "pirate"),
+			Id = "outing", Title = "Outing", Icon = "icon", Category = NeedCategory.Personal, PlaceSetting = Quarters(false, "beach"), When = Condition("profession", "pirate"),
 			Hours = new Hours { Start = 6, End = 12, Days = ["someday"] }, Quota = Timed(60),
 		};
 		var errand = new Need
 		{
-			Id = "errand", Title = "Errand", Icon = "icon", Level = Level(),
+			Id = "errand", Title = "Errand", Icon = "icon", Category = NeedCategory.Personal, Level = Level(),
 			StepSettings = [new Step { Kind = StepKind.Do, When = new StepCondition { BusinessProfession = "pirate" } }, new Step { Kind = StepKind.Do, When = new StepCondition { BusinessProfession = "homemaker" } }],
 		};
 		schedules.Needs = [.. schedules.Needs, outing, errand];
@@ -368,13 +386,13 @@ public sealed class ScheduleSettingsTests
 	private static QuotaNeedSettings Timed(int minutes) => new() { Lead = 60, Time = new QuotaTime { Minutes = Amount(minutes), Shift = 60 } };
 
 	private static Need Quota(string id, SchedulePlace place, QuotaNeedSettings quota, Hours? hours = null) =>
-		new() { Id = id, Title = id, Icon = "icon", PlaceSetting = place, Quota = quota, Hours = hours ?? Hours(6, 12) };
+		new() { Id = id, Title = id, Icon = "icon", Category = NeedCategory.Personal, PlaceSetting = place, Quota = quota, Hours = hours ?? Hours(6, 12) };
 
 	private static Need Quota(string id, SchedulePlace place, QuotaNeedSettings quota, IReadOnlyList<string> days) =>
-		new() { Id = id, Title = id, Icon = "icon", PlaceSetting = place, Quota = quota, Hours = new Hours { Start = 6, End = 12, Days = days } };
+		new() { Id = id, Title = id, Icon = "icon", Category = NeedCategory.Personal, PlaceSetting = place, Quota = quota, Hours = new Hours { Start = 6, End = 12, Days = days } };
 
 	private static Need Quota(string id, QuotaNeedSettings quota, params Step[] steps) =>
-		new() { Id = id, Title = id, Icon = "icon", StepSettings = steps, Quota = quota, Hours = Hours(6, 12) };
+		new() { Id = id, Title = id, Icon = "icon", Category = NeedCategory.Personal, StepSettings = steps, Quota = quota, Hours = Hours(6, 12) };
 
 	private static Need Runs(string id, FamilyAmount runs, bool shared, params Step[] steps) => Quota(id, new QuotaNeedSettings { Lead = 60, SharedByFamily = shared, Runs = runs }, steps);
 
@@ -386,7 +404,7 @@ public sealed class ScheduleSettingsTests
 	private static ScheduleSettings With(params Need[] needs)
 	{
 		var settings = CreateScheduleSettings();
-		settings.Needs = [new Need { Id = "sleep", Title = "Sleep", Icon = "icon", Role = ScheduleSettings.SleepRole, PlaceSetting = Home, Level = Level() }, .. needs];
+		settings.Needs = [new Need { Id = "sleep", Title = "Sleep", Icon = "icon", Category = NeedCategory.Personal, Role = ScheduleSettings.SleepRole, PlaceSetting = Home, Level = Level() }, .. needs];
 		settings.UrgencyFactors = [];
 		return settings;
 	}

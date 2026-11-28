@@ -91,6 +91,7 @@ public static class DataSchema
 		["seasons"] = typeof(CalendarSeason),
 		["dayParts"] = typeof(CalendarDayPart),
 		["specialDays"] = typeof(CalendarSpecialDay),
+		["skies"] = typeof(CalendarSky),
 		["needs"] = typeof(Need),
 		["urgencyFactors"] = typeof(UrgencyFactor),
 		["travelTimeFactors"] = typeof(TravelTimeFactor),

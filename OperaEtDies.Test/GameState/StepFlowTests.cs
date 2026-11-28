@@ -79,7 +79,7 @@ public sealed class StepFlowTests
 		var need = new Need
 		{
 			Id = "chore",
-			Title = "Chore", Icon = "icon",
+			Title = "Chore", Icon = "icon", Category = NeedCategory.Personal,
 			StepSettings = [new Step { Kind = StepKind.Choose, Options = [Option([Do(Amount(5))]), Option([Do(Amount(2000))])] }, new Step { Kind = StepKind.CountRun }],
 			Hours = new Hours { Start = 0, End = 24 },
 			Quota = new QuotaNeedSettings { Lead = 30, Runs = new FamilyAmount { Base = 1 } },
@@ -93,7 +93,7 @@ public sealed class StepFlowTests
 		var nothingFits = new Need
 		{
 			Id = "chore",
-			Title = "Chore", Icon = "icon",
+			Title = "Chore", Icon = "icon", Category = NeedCategory.Personal,
 			StepSettings = [new Step { Kind = StepKind.Choose, Options = [Option([Do(Amount(1500))]), Option([Do(Amount(2000))])] }, new Step { Kind = StepKind.CountRun }],
 			Hours = new Hours { Start = 0, End = 24 },
 			Quota = new QuotaNeedSettings { Lead = 30, Runs = new FamilyAmount { Base = 1 } },
@@ -497,7 +497,7 @@ public sealed class StepFlowTests
 				new Step { Kind = StepKind.Ask, With = StepTarget.Anyone, Name = "q", Player = new StepPlayer { Title = "Ask" }, Minutes = Amount(1), Chance = new StepChance { Base = 150 } },
 				DoWhen(Amount(5), new StepCondition { AnsweredYes = "unasked" }),
 			]),
-			new Need { Id = "remembering", Title = "Remembering", Icon = "icon", PlaceSetting = new SchedulePlace { Kind = NeedPlace.Remembered, Remembered = "spot" }, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1 } },
+			new Need { Id = "remembering", Title = "Remembering", Icon = "icon", Category = NeedCategory.Personal, PlaceSetting = new SchedulePlace { Kind = NeedPlace.Remembered, Remembered = "spot" }, Level = new LevelNeedSettings { PerHour = 1, SatisfyPerHour = 1 } },
 		];
 		settings.UrgencyFactors = [];
 
@@ -529,7 +529,7 @@ public sealed class StepFlowTests
 	/// </summary>
 	private static Need Errand(IReadOnlyList<Step> steps, IReadOnlyList<StepList>? stepLists = null)
 	{
-		var need = new Need { Id = "errand", Title = "Errand", Icon = "icon", StepSettings = steps, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 } };
+		var need = new Need { Id = "errand", Title = "Errand", Icon = "icon", Category = NeedCategory.Personal, StepSettings = steps, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 } };
 		need.StepLists = (stepLists ?? []).ToDictionary(x => x.Id, StringComparer.Ordinal);
 		return need;
 	}

@@ -11,9 +11,9 @@ namespace OperaEtDies.Controls.Game;
 
 /// <summary>
 /// The Concerns panel at the top of the right column during play: what the player should keep in mind. For now that's
-/// their own work and their household's chores, which they can start from here, where they're heading, and their
-/// appointments for the rest of today. The game screen tells it when the time, the player's destination, or their
-/// appointments or steps change.
+/// their own work and their household's chores, which they can start from here, where they're heading (or a menu of
+/// places to head for), and their appointments for the rest of today. The game screen tells it when the time, the
+/// player's destination, or their appointments or steps change.
 /// </summary>
 public sealed class ConcernsViewModel : ViewModelBase
 {
@@ -29,11 +29,15 @@ public sealed class ConcernsViewModel : ViewModelBase
 		m_replaceDestination = replaceDestination;
 		m_appointments = GetAppointments();
 		m_destination = GetDestination();
+		m_goToChoices = GetGoToChoices();
+		m_goTo = CreateGoTo(m_goToChoices);
 
 		// The player has the same work and chores for the whole game.
 		var quotas = world.GetPlayerQuotaProgress();
-		Work = quotas.Where(x => !x.Need.SharedByFamily).Select(x => new ConcernsWorkViewModel(x.Need, world.GameData.GetIcon(x.Need.Icon), start)).ToList();
-		Household = quotas.Where(x => x.Need.SharedByFamily).Select(x => new MeterViewModel(x.Need, world.GameData.GetIcon(x.Need.Icon), start)).ToList();
+		// The work is named by the player's profession, since the heading above it already says it's work.
+		var profession = (world.Player.Traits.Values.GetValueOrDefault(world.GameData.Families.Roles.Properties.Profession) as CharacterPropertyOption)?.Title;
+		Work = quotas.Where(x => x.Need.Category == NeedCategory.Work).Select(x => new ConcernsWorkViewModel(x.Need, profession ?? x.Need.Title, world.GameData.GetIcon(x.Need.Icon), start)).ToList();
+		Household = quotas.Where(x => x.Need.Category == NeedCategory.Household).Select(x => new MeterViewModel(x.Need, world.GameData.GetIcon(x.Need.Icon), start)).ToList();
 		UpdateQuotas();
 	}
 
@@ -61,6 +65,17 @@ public sealed class ConcernsViewModel : ViewModelBase
 	/// Whether the player has a destination.
 	/// </summary>
 	public bool HasDestination => VerifyAccess(m_world.Player.Destination is not null);
+
+	/// <summary>
+	/// The "Go to" menu shown while the player has no destination, offering their home, where they work (if not at home),
+	/// and the nearest quarter of each kind marked for it in the data (such as the well), in alphabetical order, each with
+	/// how long it takes to walk there. Choosing one makes it the destination. The place the player is in can't be chosen.
+	/// </summary>
+	public SplitActionViewModel GoTo
+	{
+		get => VerifyAccess(m_goTo);
+		private set => SetPropertyField(value, ref m_goTo);
+	}
 
 	/// <summary>
 	/// The destination can be cleared while there is one.
@@ -147,6 +162,13 @@ public sealed class ConcernsViewModel : ViewModelBase
 		if (!appointments.SequenceEqual(m_appointments))
 			Appointments = appointments;
 		Destination = GetDestination();
+		var goToChoices = GetGoToChoices();
+		if (!goToChoices.SequenceEqual(m_goToChoices))
+		{
+			m_goToChoices = goToChoices;
+			GoTo = CreateGoTo(goToChoices);
+		}
+
 		UpdateQuotas();
 		if (m_pendingDestination is not null && !m_world.WouldDestinationStopPlayerSteps(m_pendingDestination))
 			CancelDestination();
@@ -185,25 +207,9 @@ public sealed class ConcernsViewModel : ViewModelBase
 			foreach (var meter in Household)
 			{
 				if (progress.GetValueOrDefault(meter.Need) is { } quota)
-					UpdateChore(meter, quota, choices.GetValueOrDefault(meter.Need));
+					meter.UpdateQuota(m_world, quota, choices.GetValueOrDefault(meter.Need));
 			}
 		}
-	}
-
-	/// <summary>
-	/// Shows how far along a chore is, and whether it can be started now, with both in its tooltip.
-	/// </summary>
-	private void UpdateChore(MeterViewModel meter, PlayerQuotaProgress quota, PlayerStartChoice? choice)
-	{
-		var need = quota.Need;
-		var status = quota.IsOpenToday ?
-			OurResources.QuotaProgressToolTip.FormatCurrentCulture(need.Title, FormatQuotaAmount(need, quota.Done), FormatQuotaAmount(need, quota.Total), need.Period == NeedPeriod.Week ? OurResources.QuotaThisWeek : OurResources.QuotaToday) :
-			OurResources.QuotaClosedToolTip.FormatCurrentCulture(need.Title);
-		var action = choice is null ? null :
-			choice.CanStart ? (choice.IsInProgress ? OurResources.ConcernsCarryOnToolTip : OurResources.ConcernsStartToolTip) :
-			StartChoiceViewModel.GetNote(choice, m_world);
-		var toolTip = action is null ? status : OurResources.ConcernsChoreToolTip.FormatCurrentCulture(status, action);
-		meter.Update(quota.Fraction, toolTip, isActive: quota.IsOpenToday, isComplete: quota.Done >= quota.Total, isStartable: choice?.CanStart ?? false);
 	}
 
 	private string GetDestination()
@@ -216,6 +222,48 @@ public sealed class ConcernsViewModel : ViewModelBase
 			? OurResources.ConcernsDestination.FormatCurrentCulture(destination.Title, m_world.GameData.Calendar.FormatOffsetFrom(m_world.Time, offset, TimeFormat.Long))
 			: destination.Title;
 	}
+
+	/// <summary>
+	/// Gets the places the "Go to" menu offers, in alphabetical order, each with its text and whether the player is there.
+	/// </summary>
+	private IReadOnlyList<GoToChoice> GetGoToChoices()
+	{
+		var player = m_world.Player;
+		var quarterKinds = m_world.GameData.QuarterKinds;
+		var places = new List<Location> { player.Home };
+		if (player.Business is not null && player.Workplace != player.Home)
+			places.Add(player.Workplace);
+
+		// The nearest quarter of each kind marked for the menu.
+		places.AddRange(m_world.Locations
+			.Where(x => x.Quarter == x && x.QuarterKind is { } kind && (quarterKinds.Find(kind)?.GoTo ?? false))
+			.GroupBy(x => x.QuarterKind)
+			.Select(group => group
+				.Select(x => (Place: x, Time: m_world.GetPlayerTravelTimeTo(x)))
+				.OrderBy(x => x.Time is null)
+				.ThenBy(x => x.Time)
+				.First().Place));
+
+		var calendar = m_world.GameData.Calendar;
+		return places
+			.Distinct()
+			.OrderBy(x => x.Title, StringComparer.CurrentCulture)
+			.Select(place =>
+			{
+				var isHere = place == player.Location;
+				var text = !isHere && m_world.GetPlayerTravelTimeTo(place) is { } offset
+					? OurResources.ConcernsDestination.FormatCurrentCulture(place.Title, calendar.FormatOffsetFrom(m_world.Time, offset, TimeFormat.Long))
+					: place.Title;
+				return new GoToChoice(place, text, isHere);
+			})
+			.ToList();
+	}
+
+	private SplitActionViewModel CreateGoTo(IReadOnlyList<GoToChoice> choices) =>
+		SplitActionViewModel.CreateMenu(OurResources.ConcernsGoTo,
+			choices.Select(choice => new MenuActionViewModel(choice.Text, () => m_chooseDestination?.Invoke(choice.Place), () => !choice.IsHere && m_chooseDestination is not null,
+				choice.IsHere ? OurResources.ConcernsGoToHereToolTip : null)).ToList(),
+			OurResources.ConcernsGoToToolTip);
 
 	private IReadOnlyList<ConcernsAppointmentViewModel> GetAppointments()
 	{
@@ -235,6 +283,10 @@ public sealed class ConcernsViewModel : ViewModelBase
 	private string m_destination;
 	private string? m_destinationQuestion;
 	private Location? m_pendingDestination;
+	private IReadOnlyList<GoToChoice> m_goToChoices;
+	private SplitActionViewModel m_goTo;
+
+	private sealed record GoToChoice(Location Place, string Text, bool IsHere);
 }
 
 /// <summary>
@@ -264,16 +316,20 @@ public sealed record ConcernsAppointmentViewModel(string Clock, string Text, Loc
 /// </summary>
 public sealed class ConcernsWorkViewModel : ViewModelBase
 {
-	public ConcernsWorkViewModel(Need need, Geometry icon, Action<Need>? start = null)
+	public ConcernsWorkViewModel(Need need, string title, Geometry icon, Action<Need>? start = null)
 	{
 		Need = need;
+		Title = title;
 		Icon = icon;
 		m_start = start;
 	}
 
 	public Need Need { get; }
 
-	public string Title => Need.Title;
+	/// <summary>
+	/// What the work is called, such as the player's profession ("Blacksmith").
+	/// </summary>
+	public string Title { get; }
 
 	/// <summary>
 	/// The work's icon, on a 24 by 24 grid.

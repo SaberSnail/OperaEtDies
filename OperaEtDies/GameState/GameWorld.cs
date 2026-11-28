@@ -156,6 +156,7 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 		EventLog = objects.OfType<EventLog>().Single();
 		m_scheduler = new Scheduler(this);
 		m_stepsDestination = GetPlayerStepsDestination();
+		UpdatePeopleSky();
 	}
 
 	/// <summary>
@@ -295,8 +296,22 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	public TimePoint Time
 	{
 		get => m_time;
-		private set => SetPropertyField(value, ref m_time);
+		private set
+		{
+			var sky = Sky;
+			if (SetPropertyField(value, ref m_time) && Sky != sky)
+			{
+				UpdatePeopleSky();
+				RaisePropertyChanged(nameof(Sky));
+			}
+		}
 	}
+
+	/// <summary>
+	/// The id of the sky at the current time, such as dawn, or null if the calendar has no skies. Portraits are drawn under
+	/// it.
+	/// </summary>
+	public string? Sky => GameData.Calendar.GetSky(m_time)?.Id;
 
 	/// <summary>
 	/// Gets how long it takes to go from one location to a location next to it. A path between two quarters takes the
@@ -1459,17 +1474,17 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	public bool CanPlayerTake(ClothingPiece piece) => Player.Location == Player.Home && piece.Container == Player.Home.Items && piece.IsReady(Time);
 
 	/// <summary>
-	/// Has the player pick up a piece of clothing kept at home to carry it, which takes no time, though it can carry them on through their steps.
+	/// Has the player pick up a piece of clothing kept at home to carry it, which takes no time. It carries them on through
+	/// their steps once they leave their clothes (see <see cref="FinishPlayerChangingAsync"/>).
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The player can't take the piece.</exception>
-	public async Task PlayerTakeAsync(ClothingPiece piece)
+	public void PlayerTake(ClothingPiece piece)
 	{
 		if (!CanPlayerTake(piece))
 			throw new InvalidOperationException($"The player can't take {piece.Id}.");
 
 		Player.Home.Items.Remove(piece);
 		Player.Inventory.Add(piece);
-		await UpdatePlayerStepsAsync().ConfigureAwait(true);
 	}
 
 	/// <summary>
@@ -1479,17 +1494,17 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	public bool CanPlayerPutAway(ClothingPiece piece) => Player.Location == Player.Home && piece.Container == Player.Inventory && !Player.IsInBundle(piece);
 
 	/// <summary>
-	/// Has the player put away a piece of clothing they're carrying at home, which takes no time, though it can carry them on through their steps.
+	/// Has the player put away a piece of clothing they're carrying at home, which takes no time. It carries them on through
+	/// their steps once they leave their clothes (see <see cref="FinishPlayerChangingAsync"/>).
 	/// </summary>
 	/// <exception cref="InvalidOperationException">The player can't put the piece away.</exception>
-	public async Task PlayerPutAwayAsync(ClothingPiece piece)
+	public void PlayerPutAway(ClothingPiece piece)
 	{
 		if (!CanPlayerPutAway(piece))
 			throw new InvalidOperationException($"The player can't put away {piece.Id}.");
 
 		Player.Inventory.Remove(piece);
 		Player.Home.Items.Add(piece);
-		await UpdatePlayerStepsAsync().ConfigureAwait(true);
 	}
 
 	/// <summary>
@@ -2042,6 +2057,16 @@ public sealed class GameWorld : NotifyPropertyChangedBase
 	/// Has someone and everyone else where they are see each other doing what they're doing now. Anyone asleep sees no
 	/// one, except that the person sees everyone as they fall asleep.
 	/// </summary>
+	/// <summary>
+	/// Puts everyone under the current sky.
+	/// </summary>
+	private void UpdatePeopleSky()
+	{
+		var sky = Sky;
+		foreach (var person in People)
+			person.Sky = sky;
+	}
+
 	internal static void SeeEachOther(Person person, TimePoint time)
 	{
 		var seen = Observe(person, time);

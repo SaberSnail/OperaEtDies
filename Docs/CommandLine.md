@@ -13,6 +13,7 @@ OperaEtDies.exe accepts these options. Options are matched ignoring case, can co
 | `--seed <number>` | With `--generate-villages`, the random seed of the first village. |
 | `--portraits <folder>` | With `--generate-villages`, also saves each person's portrait to the folder as a PNG file. |
 | `--portraits-at-work` | With `--generate-villages`, draws everyone's portrait at work in their own workplace, instead of where they start the game. |
+| `--portraits-sky <sky>` | With `--generate-villages`, draws everyone's portrait under the sky with this id, instead of the sky at the time. |
 | `--through-save` | With `--generate-villages`, saves each village and loads it again before writing it, to check that saving keeps everything. |
 | `--simulate-days <days>` | With `--generate-villages`, runs each village for this many days after it's created, writing what people do. |
 
@@ -110,6 +111,10 @@ With `--generate-villages`, draws each person's portrait at its full size and sa
 ## --portraits-at-work
 
 With `--generate-villages`, draws everyone at work in their own workplace instead of where they start the game: in their business's place, or at home for those who work from home, with the at work property set to working. This shows each profession's portrait art. It changes the portraits saved by `--portraits` and the `portraitLayers` column of the `person` records, but not the other columns.
+
+## --portraits-sky
+
+With `--generate-villages`, draws everyone's portrait under the sky with the given id (from the calendar's `skies`), such as `sky_night`, instead of the sky at the time, to see how the portraits look at another time of day. It changes the portraits saved by `--portraits` and the `portraitLayers` column of the `person` records, but not the other columns. An id that isn't a sky draws no sky. A missing id is an invalid option (exit code 2).
 
 ## --simulate-days
 

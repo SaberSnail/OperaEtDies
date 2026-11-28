@@ -1,4 +1,4 @@
-using GoldenAnvil.Utility;
+﻿using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Calendar;
 using OperaEtDies.Controls.Locations;
 using OperaEtDies.GameState;
@@ -6,7 +6,8 @@ using OperaEtDies.GameState;
 namespace OperaEtDies.Controls.Conversation;
 
 /// <summary>
-/// Asks the player whether they'll chat with someone who asked them to, shown on top of everything else until they answer.
+/// Asks the player whether they'll chat with someone who asked them to, shown in the asker's line in the player's location
+/// (or on top of it, if they aren't listed there) until they answer.
 /// </summary>
 public sealed class TalkPromptViewModel : ViewModelBase, INumberedChoices
 {

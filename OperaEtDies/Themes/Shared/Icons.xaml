@@ -21,6 +21,10 @@
 	<Geometry x:Key="StepsIcon">M9 6 H20 M9 12 H20 M9 18 H20 M4.5 5.5 L5 6.5 L6.5 4.5 M4.5 12 H5.5 M4.5 18 H5.5</Geometry>
 	<Geometry x:Key="StopIcon">M3.5 12 a8.5 8.5 0 1 0 17 0 a8.5 8.5 0 1 0 -17 0 M6 6 L18 18</Geometry>
 	<Geometry x:Key="ReturnToGameIcon">M8 4 H20 V16 M4 8 H16 V20 H4 Z M7.5 11.5 L12.5 16.5 M12.5 11.5 L7.5 16.5</Geometry>
+	<!--  A speech bubble with a tail at its lower left, for talking with someone.  -->
+	<Geometry x:Key="TalkIcon">M12 4.5 C17 4.5 20.5 7.5 20.5 11 C20.5 14.5 17 17.5 12 17.5 C10.9 17.5 9.9 17.35 9 17.1 L4.5 19.5 L5.8 15.6 C4.3 14.4 3.5 12.8 3.5 11 C3.5 7.5 7 4.5 12 4.5 Z</Geometry>
+	<!--  Two footprints, one ahead of the other, for following someone.  -->
+	<Geometry x:Key="FollowIcon">M4.9 12.5 a2.6 3.8 0 1 0 5.2 0 a2.6 3.8 0 1 0 -5.2 0 M5.7 19.3 a1.8 1.7 0 1 0 3.6 0 a1.8 1.7 0 1 0 -3.6 0 M13.9 6.5 a2.6 3.8 0 1 0 5.2 0 a2.6 3.8 0 1 0 -5.2 0 M14.7 13.3 a1.8 1.7 0 1 0 3.6 0 a1.8 1.7 0 1 0 -3.6 0</Geometry>
 
 	<!--  The title bar's window buttons.  -->
 	<Geometry x:Key="MinimizeIcon">M7 12 H17</Geometry>
@@ -37,5 +41,8 @@
 	<Geometry x:Key="FleuronOrnament">M12 8 L15 12 L12 16 L9 12 Z M8 12 C6.5 9.2 3.2 8.8 0.5 12 C3.2 15.2 6.5 14.8 8 12 Z M16 12 C17.5 9.2 20.8 8.8 23.5 12 C20.8 15.2 17.5 14.8 16 12 Z</Geometry>
 	<!--  A tailpiece: an ivy leaf on a curling stem, ending the location's description.  -->
 	<Geometry x:Key="TailpieceOrnament">M12 21 C6.5 16.5 3.5 12.5 6 9 C8.2 6.5 10.8 7.6 12 9.8 C13.2 7.6 15.8 6.5 18 9 C20.5 12.5 17.5 16.5 12 21 Z M11.4 9.4 C11 5.4 13.4 2.6 17.4 3 L17.2 4.1 C14 3.9 12.2 6 12.6 9.4 Z</Geometry>
+	<!--  The rules on either side of the tailpiece, curling back at their outer ends. Unlike the other ornaments, they're
+		stroked, and on a 220 by 24 grid, with a gap from 92 to 128 for the tailpiece's 24 by 24 grid at 98.  -->
+	<Geometry x:Key="TailpieceRulesOrnament">M92 14 H30 C20 14 14 10 16 6 C18 3 23 5 21 8 M128 14 H190 C200 14 206 10 204 6 C202 3 197 5 199 8</Geometry>
 
 </ResourceDictionary>

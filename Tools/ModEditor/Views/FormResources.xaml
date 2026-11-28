@@ -484,7 +484,7 @@
 							SelectedItem="{Binding ChosenProperty}"
 							ToolTip="Add a property">
 							<ComboBox.ItemContainerStyle>
-								<Style TargetType="ComboBoxItem">
+								<Style BasedOn="{StaticResource {x:Type ComboBoxItem}}" TargetType="ComboBoxItem">
 									<Setter Property="ToolTip" Value="{Binding ToolTip}" />
 								</Style>
 							</ComboBox.ItemContainerStyle>

@@ -81,7 +81,8 @@
 					<StackPanel DataContext="{Binding Person}">
 						<TextBlock
 							Margin="0,0,0,4"
-							FontWeight="Bold"
+							FontStyle="Italic"
+							Foreground="{DynamicResource TextMutedBrush}"
 							Text="{Binding PlayerLabel}"
 							Visibility="{Binding PlayerLabel, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 						<TextBlock

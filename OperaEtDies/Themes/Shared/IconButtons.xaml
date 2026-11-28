@@ -54,6 +54,20 @@
 		</Style.Triggers>
 	</Style>
 
+	<!--  An icon button in the center that stands for something going on now looks pressed while it is (TemplateHelper.IsActive),
+		such as following someone. Unlike the toolbar's, it takes keyboard focus.  -->
+	<Style
+		x:Key="ActiveIconButtonStyle"
+		BasedOn="{StaticResource IconButtonStyle}"
+		TargetType="{x:Type Button}">
+		<Setter Property="Focusable" Value="True" />
+		<Style.Triggers>
+			<Trigger Property="local:TemplateHelper.IsActive" Value="true">
+				<Setter Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+			</Trigger>
+		</Style.Triggers>
+	</Style>
+
 	<!--  A toolbar button in the title bar, clickable through the window chrome. One that stands for something open now,
 		such as a sheet, looks pressed.  -->
 	<Style
@@ -125,6 +139,45 @@
 			</Trigger>
 			<Trigger Property="IsEnabled" Value="false">
 				<Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+			</Trigger>
+		</Style.Triggers>
+	</Style>
+
+	<!--  The button that closes a sheet, which needs to be easy to find: a larger, heavier icon in the accent color, which
+		fills its background with the accent color on hover, as the window's close button does.  -->
+	<Style
+		x:Key="CloseButtonStyle"
+		BasedOn="{StaticResource IconButtonStyle}"
+		TargetType="{x:Type Button}">
+		<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="Button">
+					<Border
+						Padding="{TemplateBinding Padding}"
+						Background="{TemplateBinding Background}"
+						CornerRadius="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=(local:TemplateHelper.CornerRadius)}">
+						<Viewbox
+							Width="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static local:EmConverter.Instance}, ConverterParameter=1.5}"
+							Height="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static local:EmConverter.Instance}, ConverterParameter=1.5}">
+							<Canvas Width="24" Height="24">
+								<Path
+									Data="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}"
+									Stroke="{TemplateBinding Foreground}"
+									StrokeEndLineCap="Round"
+									StrokeLineJoin="Round"
+									StrokeStartLineCap="Round"
+									StrokeThickness="2.4" />
+							</Canvas>
+						</Viewbox>
+					</Border>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+		<Style.Triggers>
+			<Trigger Property="IsMouseOver" Value="true">
+				<Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+				<Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
 			</Trigger>
 		</Style.Triggers>
 	</Style>

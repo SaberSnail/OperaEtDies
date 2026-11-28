@@ -12,7 +12,7 @@ namespace OperaEtDies.Controls.Start;
 /// button that starts it (or carries on with it), with shorter shifts and having it all done for them in its menu, or why
 /// it can't be started now.
 /// </summary>
-public sealed class StartScreenViewModel : ViewModelBase, INumberedChoices
+public sealed class StartScreenViewModel : ViewModelBase, ISheet, INumberedChoices
 {
 	public StartScreenViewModel(GameWorld world)
 	{
@@ -24,10 +24,6 @@ public sealed class StartScreenViewModel : ViewModelBase, INumberedChoices
 			m_actions[index].Badge = Hotkeys.GetChoiceKeyText(index + 1);
 	}
 
-	/// <summary>
-	/// Raised when the screen should close without starting anything.
-	/// </summary>
-	public event EventHandler? CloseRequested;
 
 	/// <summary>
 	/// Raised when the player chooses something to start, or carry on with, with how.
@@ -36,18 +32,14 @@ public sealed class StartScreenViewModel : ViewModelBase, INumberedChoices
 
 	public string Title { get; } = OurResources.StartTitle;
 
+	public bool IsFullWidth => false;
+
 	/// <summary>
 	/// What the player is in the middle of, which starting something else puts on hold, or null if nothing.
 	/// </summary>
 	public string? InProgress { get; }
 
 	public IReadOnlyList<StartChoiceViewModel> Choices { get; }
-
-	public void Close()
-	{
-		VerifyAccess();
-		CloseRequested.Raise(this);
-	}
 
 	/// <summary>
 	/// Presses the numbered button: the buttons that start something are numbered in the order they're listed.

@@ -118,6 +118,13 @@ public sealed class PortraitData : IValidatedData
 		Layers.Where(x => x?.At?.Workplaces is not null)
 			.SelectMany(layer => layer.At!.Workplaces!.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => ($"portraitLayers[{layer.Id}].at.workplaces", x)));
 
+	/// <summary>
+	/// Gets every sky a layer is drawn under, with the path to it, so they can be checked against the calendar's skies.
+	/// </summary>
+	public IEnumerable<(string Path, string Sky)> GetSkies() =>
+		Layers.Where(x => x?.When?.Skies is not null)
+			.SelectMany(layer => layer.When!.Skies!.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => ($"portraitLayers[{layer.Id}].when.skies", x)));
+
 	public IEnumerable<string> Validate()
 	{
 		var errors = new List<string>();
@@ -348,6 +355,12 @@ public sealed class PortraitData : IValidatedData
 
 			if (!at.Home && at.QuarterKinds is null && at.Workplaces is null)
 				yield return OurResources.PortraitPlaceEmpty.FormatCurrentCulture($"{path}.at");
+		}
+
+		if (layer.When?.Skies is { } skies)
+		{
+			foreach (var error in DataValidation.ValidateStrings($"{path}.when.skies", skies))
+				yield return error;
 		}
 
 		if (layer.Shapes is null || layer.Shapes.Count == 0)

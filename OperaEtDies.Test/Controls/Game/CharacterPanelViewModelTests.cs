@@ -26,6 +26,33 @@ public sealed class CharacterPanelViewModelTests
 	}
 
 	[Test]
+	public void TheNeedsArePersonalNeedsWhichStartWhenPressed()
+	{
+		var world = CreateWorld();
+		var hunger = world.GameData.Schedules.Needs.Single(x => x.Id == "hunger");
+		world.Player.UpdateNeeds(world.Time);
+		world.Player.SetLevel(hunger, 42);
+		var started = new List<Need>();
+		var panel = new CharacterPanelViewModel(world, started.Add);
+
+		// Every personal need the player has, including one without words for its levels, and no work or chores.
+		var expected = world.GameData.Schedules.Needs.Where(x => x.Category == NeedCategory.Personal && Scheduler.HasNeed(world.Player, x)).Select(x => x.Title);
+		Assert.That(panel.Needs.Select(x => x.Title), Is.EqualTo(expected));
+		Assert.That(panel.Needs.Select(x => x.Title), Has.Member("Hunger").And.None.EqualTo("Work").And.None.EqualTo("Upkeep"));
+
+		// A need without words for its levels shows the level, and says what pressing it does.
+		var meter = panel.Needs.Single(x => x.Need == hunger);
+		var choice = world.GetPlayerStartChoices().Single(x => x.Need == hunger);
+		Assume.That(choice.CanStart, Is.True);
+		Assert.That(meter.IsStartable, Is.True);
+		Assert.That(meter.ToolTip, Is.EqualTo(OurResources.ConcernsChoreToolTip.FormatCurrentCulture(
+			OurResources.NeedToolTip.FormatCurrentCulture("Hunger", OurResources.NeedStatusLevel.FormatCurrentCulture(42, Need.MaximumLevel)), OurResources.ConcernsStartToolTip)));
+
+		meter.Start();
+		Assert.That(started, Is.EqualTo(new[] { hunger }));
+	}
+
+	[Test]
 	public void ANeedAtItsWorstLevelIsAWarning()
 	{
 		var world = CreateWorld();

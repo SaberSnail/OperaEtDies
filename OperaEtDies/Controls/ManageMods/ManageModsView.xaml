@@ -6,7 +6,7 @@
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
 
 	<DataTemplate DataType="{x:Type local:ManageModsViewModel}">
-		<Grid>
+		<Grid MaxWidth="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=44}" Margin="24">
 			<Grid.RowDefinitions>
 				<RowDefinition Height="Auto" />
 				<RowDefinition Height="Auto" />
@@ -45,16 +45,12 @@
 				<!--  The folders, in the order their mod files are applied.  -->
 				<ListBox
 					Grid.Column="0"
-					Background="{DynamicResource PanelBrush}"
-					BorderBrush="{DynamicResource RuleBrush}"
-					Foreground="{DynamicResource TextBrush}"
 					ItemsSource="{Binding Mods}"
 					ScrollViewer.HorizontalScrollBarVisibility="Disabled"
 					SelectedItem="{Binding SelectedMod}">
 					<ListBox.ItemTemplate>
 						<DataTemplate>
 							<TextBlock
-								Margin="2"
 								Text="{Binding}"
 								TextTrimming="CharacterEllipsis"
 								ToolTip="{Binding}" />

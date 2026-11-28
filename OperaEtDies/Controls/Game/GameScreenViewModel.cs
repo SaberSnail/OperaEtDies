@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -35,8 +35,8 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 		IsDeveloper = isDeveloper;
 		World = world;
 		TimeRunner = new TimeRunner(world, settings);
-		CharacterPanel = new CharacterPanelViewModel(world);
-		Concerns = new ConcernsViewModel(world, ChooseDestination, ReplaceDestination, StartFromConcerns);
+		CharacterPanel = new CharacterPanelViewModel(world, StartNeed);
+		Concerns = new ConcernsViewModel(world, ChooseDestination, ReplaceDestination, StartNeed);
 		m_currentLocation = CreateLocationScreen(world.Player.Location);
 		m_sheets = [];
 		Sheets = new ReadOnlyObservableCollection<ViewModelBase>(m_sheets);
@@ -91,45 +91,33 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	public LocationScreenViewModel CurrentLocation
 	{
 		get => VerifyAccess(m_currentLocation);
-		private set => SetPropertyField([nameof(CurrentLocation), nameof(CurrentView)], value, ref m_currentLocation);
+		private set => SetPropertyField(value, ref m_currentLocation);
 	}
 
 	/// <summary>
-	/// What the player can start, while it's open in the center.
+	/// What the player can start, while its sheet is open, or null.
 	/// </summary>
-	public StartScreenViewModel? StartScreen
-	{
-		get => VerifyAccess(m_start);
-		private set => SetPropertyField([nameof(StartScreen), nameof(CurrentView)], value, ref m_start);
-	}
+	public StartScreenViewModel? StartScreen => VerifyAccess(m_sheets.OfType<StartScreenViewModel>().FirstOrDefault());
 
 	/// <summary>
-	/// The player's inventory or wardrobe, while it's open in the center. They're places the player visits rather than
-	/// sheets, since they use the engine: taking clothes passes time, and changing takes time once the player is done.
+	/// The player's inventory or wardrobe, while its sheet is open, or null. Changing clothes takes time once the player
+	/// closes it.
 	/// </summary>
-	public ClothingScreenViewModel? Clothing
-	{
-		get => VerifyAccess(m_clothing);
-		private set => SetPropertyField([nameof(Clothing), nameof(CurrentView), nameof(IsWardrobeOpen), nameof(IsInventoryOpen)], value, ref m_clothing);
-	}
+	public ClothingScreenViewModel? Clothing => VerifyAccess(m_sheets.OfType<ClothingScreenViewModel>().FirstOrDefault());
 
 	/// <summary>
-	/// The view shown in the center: what the player can start, or their inventory or wardrobe, while one is open, or else
-	/// the player's location.
+	/// What's shown on top of <see cref="CurrentLocation"/> in the center: the player being asked whether to keep going or
+	/// something else, or null if nothing is. Someone asking the player to chat is only shown here if they aren't listed
+	/// in the location, since it's otherwise shown in their line, as a conversation is (see
+	/// <see cref="LocationScreenViewModel.Interaction"/>).
 	/// </summary>
-	public ViewModelBase CurrentView => VerifyAccess((ViewModelBase?) m_start ?? (ViewModelBase?) m_clothing ?? m_currentLocation);
-
-	/// <summary>
-	/// What's shown on top of <see cref="CurrentView"/> in the center: someone asking the player to chat, the player being
-	/// asked whether to keep going or something else, or a conversation, or null if nothing is.
-	/// </summary>
-	public ViewModelBase? Overlay => VerifyAccess((ViewModelBase?) m_talkPrompt ?? (ViewModelBase?) m_askPrompt ?? (ViewModelBase?) m_startPrompt ?? (ViewModelBase?) m_appointmentPrompt ?? (ViewModelBase?) m_noticePrompt ?? (ViewModelBase?) m_repeatPrompt ?? (ViewModelBase?) m_stopPrompt ??
-		m_conversation);
+	public ViewModelBase? Overlay => VerifyAccess((m_isTalkPromptInLine ? null : (ViewModelBase?) m_talkPrompt) ?? (ViewModelBase?) m_askPrompt ?? (ViewModelBase?) m_startPrompt ?? (ViewModelBase?) m_appointmentPrompt ??
+		(ViewModelBase?) m_noticePrompt ?? (ViewModelBase?) m_repeatPrompt ?? m_stopPrompt);
 
 	/// <summary>
 	/// The sheets drawn over the center, from the bottom up, each one an <see cref="ISheet"/>: detailed information such as a
-	/// person, the villagers, the map, the player's status, or the full log. Only the top one shows. Time is held still while
-	/// any are open, and the center can't be used.
+	/// person, the villagers, the map, the player's status, or the full log, or what the player can start, or their
+	/// inventory or wardrobe. Only the top one shows. Time is held still while any are open, and the center can't be used.
 	/// </summary>
 	public ReadOnlyObservableCollection<ViewModelBase> Sheets { get; }
 
@@ -164,14 +152,14 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	public bool IsStatusOpen => VerifyAccess(m_sheets.Any(IsPlayerStatusSheet));
 
 	/// <summary>
-	/// Whether the wardrobe is open in the center.
+	/// Whether the wardrobe sheet is open.
 	/// </summary>
-	public bool IsWardrobeOpen => VerifyAccess(m_clothing is { IsWardrobe: true });
+	public bool IsWardrobeOpen => VerifyAccess(Clothing is { IsWardrobe: true });
 
 	/// <summary>
-	/// Whether the inventory is open in the center.
+	/// Whether the inventory sheet is open.
 	/// </summary>
-	public bool IsInventoryOpen => VerifyAccess(m_clothing is { IsWardrobe: false });
+	public bool IsInventoryOpen => VerifyAccess(Clothing is { IsWardrobe: false });
 
 	/// <summary>
 	/// How soon a second Esc after one that closed a sheet counts as pressing it twice, closing every sheet. It's the
@@ -217,7 +205,8 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Someone asking the player to chat, shown on top of everything until the player answers, or null if no one is.
+	/// Someone asking the player to chat, shown in their line in the location (or on top of it, if they aren't listed there)
+	/// until the player answers, or null if no one is.
 	/// </summary>
 	public TalkPromptViewModel? TalkPrompt
 	{
@@ -246,12 +235,16 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// The conversation the player is having with someone in their location, shown on top of it, or null if there isn't one.
+	/// The conversation the player is having with someone in their location, shown in their line, or null if there isn't one.
 	/// </summary>
 	public ConversationViewModel? Conversation
 	{
 		get => VerifyAccess(m_conversation);
-		private set => SetPropertyField([nameof(Conversation), nameof(Overlay)], value, ref m_conversation);
+		private set
+		{
+			SetPropertyField(value, ref m_conversation);
+			UpdateInteraction();
+		}
 	}
 
 	/// <summary>
@@ -339,34 +332,28 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Closes the sheet on top, showing the one under it, if there is one, or else the center.
+	/// Closes the sheet on top, showing the one under it, if there is one, or else the center. The player's inventory or
+	/// wardrobe stays open while they aren't dressed enough to leave it, still warning them.
 	/// </summary>
 	public void CloseTopSheet()
 	{
 		VerifyAccess();
-		if (m_sheets.Count != 0)
+		if (m_sheets.Count != 0 && CanCloseSheet(m_sheets[^1]))
 		{
-			var sheet = m_sheets[^1];
-			m_sheets.RemoveAt(m_sheets.Count - 1);
-			DetachSheet(sheet);
+			RemoveTopSheet();
 			OnSheetsChanged();
 		}
 	}
 
 	/// <summary>
-	/// Closes every sheet, returning to the center.
+	/// Closes every sheet, returning to the center, down to the player's inventory or wardrobe if they aren't dressed enough
+	/// to leave it.
 	/// </summary>
 	public void CloseSheets()
 	{
 		VerifyAccess();
-		if (m_sheets.Count != 0)
-		{
-			var sheets = m_sheets.Reverse().ToList();
-			m_sheets.Clear();
-			foreach (var sheet in sheets)
-				DetachSheet(sheet);
+		if (RemoveSheets())
 			OnSheetsChanged();
-		}
 	}
 
 	/// <summary>
@@ -375,42 +362,36 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	public bool CanCloseSheets() => HasSheets;
 
 	/// <summary>
-	/// Opens what the player can start in place of the player's location.
+	/// Opens what the player can start in a sheet, replacing any sheets, unless the player isn't dressed enough to leave
+	/// their inventory or wardrobe. If it's already open, the sheets over it close.
 	/// </summary>
 	public void ShowStart()
 	{
 		VerifyAccess();
 		CloseConversation();
-		if (TryCloseClothing() && m_start is null)
-		{
-			var start = new StartScreenViewModel(World);
-			start.CloseRequested += OnStartCloseRequested;
-			start.StartRequested += OnStartRequested;
-			StartScreen = start;
-		}
+		if (StartScreen is { } start)
+			CloseSheetsAbove(start);
+		else
+			TryReplaceSheets(() => new StartScreenViewModel(World));
 	}
 
 	/// <summary>
-	/// Closes what the player can start, returning to the player's location.
+	/// Closes what the player can start, and any sheets over it.
 	/// </summary>
 	public void CloseStart()
 	{
 		VerifyAccess();
-		if (m_start is { } start)
-		{
-			start.CloseRequested -= OnStartCloseRequested;
-			start.StartRequested -= OnStartRequested;
-			StartScreen = null;
-		}
+		if (StartScreen is { } start)
+			CloseSheetsFrom(start);
 	}
 
 	/// <summary>
-	/// Opens the player's inventory from the toolbar, or closes it if it's already open and nothing is over it.
+	/// Opens the player's inventory from the toolbar, or closes it if it's on top.
 	/// </summary>
 	public void ToggleInventory() => ToggleClothing(isWardrobe: false);
 
 	/// <summary>
-	/// Opens the player's wardrobe from the toolbar, or closes it if it's already open and nothing is over it.
+	/// Opens the player's wardrobe from the toolbar, or closes it if it's on top.
 	/// </summary>
 	public void ToggleWardrobe() => ToggleClothing(isWardrobe: true);
 
@@ -420,70 +401,89 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	public bool CanToggleWardrobe() => World.Player.Location == World.Player.Home;
 
 	/// <summary>
-	/// Opens the player's inventory or wardrobe in the center, in place of the player's location, replacing the other one.
-	/// Any sheets close, and time stops first if it's passing.
+	/// Opens the player's inventory or wardrobe in a sheet, replacing any sheets, including the other one, unless the
+	/// player isn't dressed enough to leave it. If it's already open, the sheets over it close. Time stops first if it's
+	/// passing. Changing clothes takes its time once the player closes it.
 	/// </summary>
 	public void ShowClothing(bool isWardrobe)
 	{
 		VerifyAccess();
 		WhenStopped(() =>
 		{
-			CloseSheets();
-			CloseStart();
 			CloseConversation();
+			if (Clothing is { } clothing && clothing.IsWardrobe == isWardrobe)
+				CloseSheetsAbove(clothing);
 
 			// Stopping time can leave the player somewhere the wardrobe isn't.
-			if (m_clothing?.IsWardrobe != isWardrobe && (!isWardrobe || CanToggleWardrobe()) && TryCloseClothing())
-			{
-				var clothing = new ClothingScreenViewModel(World, TimeRunner, isWardrobe, IsDeveloper);
-				clothing.CloseRequested += OnClothingCloseRequested;
-				Clothing = clothing;
-			}
+			else if (!isWardrobe || CanToggleWardrobe())
+				TryReplaceSheets(() => new ClothingScreenViewModel(World, isWardrobe, IsDeveloper));
 		});
-	}
-
-	/// <summary>
-	/// Closes the player's inventory or wardrobe, returning to the player's location, which takes the time to change clothes if they changed
-	/// what they're wearing.
-	/// </summary>
-	public void CloseClothing()
-	{
-		VerifyAccess();
-		if (m_clothing is { } clothing)
-		{
-			clothing.CloseRequested -= OnClothingCloseRequested;
-			Clothing = null;
-			TimeRunner.Run(async () =>
-			{
-				// Changing clothes takes its time once the player is done.
-				if (await clothing.FinishAsync().ConfigureAwait(true) is { } result)
-					m_currentLocation.ShowWaitResult(result);
-
-				// Changing or carrying clothes can do one of the player's steps, such as changing into their work clothes.
-				await World.UpdatePlayerStepsAsync().ConfigureAwait(true);
-				ShowPlayerLocation();
-			});
-		}
-	}
-
-	/// <summary>
-	/// Closes the player's inventory or wardrobe, if it's open, unless they aren't dressed enough to leave it, in which case
-	/// it stays open, still warning them. Returns whether it's closed.
-	/// </summary>
-	private bool TryCloseClothing()
-	{
-		var canClose = m_clothing?.CanClose() ?? true;
-		if (canClose)
-			CloseClothing();
-		return canClose;
 	}
 
 	private void ToggleClothing(bool isWardrobe)
 	{
-		if (m_clothing?.IsWardrobe != isWardrobe || Overlay is not null || HasSheets || TimeRunner.IsRunning)
-			ShowClothing(isWardrobe);
+		if (TopSheet is ClothingScreenViewModel clothing && clothing.IsWardrobe == isWardrobe)
+			CloseTopSheet();
 		else
-			TryCloseClothing();
+			ShowClothing(isWardrobe);
+	}
+
+	/// <summary>
+	/// Whether a sheet can be closed: any can but the player's inventory or wardrobe, while they aren't dressed enough to
+	/// leave it.
+	/// </summary>
+	private static bool CanCloseSheet(ViewModelBase sheet) => sheet is not ClothingScreenViewModel clothing || clothing.CanClose();
+
+	private void RemoveTopSheet()
+	{
+		var sheet = m_sheets[^1];
+		m_sheets.RemoveAt(m_sheets.Count - 1);
+		DetachSheet(sheet);
+	}
+
+	/// <summary>
+	/// Removes the sheets from the top down, stopping at any that can't be closed, without telling anyone. Returns whether
+	/// any were removed.
+	/// </summary>
+	private bool RemoveSheets()
+	{
+		var isRemoved = false;
+		while (m_sheets.Count != 0 && CanCloseSheet(m_sheets[^1]))
+		{
+			RemoveTopSheet();
+			isRemoved = true;
+		}
+		return isRemoved;
+	}
+
+	/// <summary>
+	/// Closes the sheets over a sheet, as far as they can be closed.
+	/// </summary>
+	private void CloseSheetsAbove(ViewModelBase sheet)
+	{
+		var isRemoved = false;
+		while (m_sheets.Count != 0 && m_sheets[^1] != sheet && CanCloseSheet(m_sheets[^1]))
+		{
+			RemoveTopSheet();
+			isRemoved = true;
+		}
+		if (isRemoved)
+			OnSheetsChanged();
+	}
+
+	/// <summary>
+	/// Closes a sheet and the sheets over it, as far as they can be closed.
+	/// </summary>
+	private void CloseSheetsFrom(ViewModelBase sheet)
+	{
+		var isRemoved = false;
+		while (m_sheets.Contains(sheet) && CanCloseSheet(m_sheets[^1]))
+		{
+			RemoveTopSheet();
+			isRemoved = true;
+		}
+		if (isRemoved)
+			OnSheetsChanged();
 	}
 
 	/// <summary>
@@ -516,10 +516,27 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 			WhenStopped(() => ReplaceSheets(create()));
 	}
 
+	/// <summary>
+	/// Replaces the sheets with a new one. If the player isn't dressed enough to leave their inventory or wardrobe, it stays
+	/// open under the new sheet.
+	/// </summary>
 	private void ReplaceSheets(ViewModelBase sheet)
 	{
-		CloseSheets();
+		RemoveSheets();
 		PushSheet(sheet);
+	}
+
+	/// <summary>
+	/// Replaces the sheets with a new one, unless the player isn't dressed enough to leave their inventory or wardrobe, in
+	/// which case only the sheets over it close.
+	/// </summary>
+	private void TryReplaceSheets(Func<ViewModelBase> create)
+	{
+		var isRemoved = RemoveSheets();
+		if (m_sheets.Count == 0)
+			PushSheet(create());
+		else if (isRemoved)
+			OnSheetsChanged();
 	}
 
 	private void PushSheet(ViewModelBase sheet)
@@ -530,13 +547,14 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Holds time still while any sheets are open, tells the window what changed, and once they're all closed, carries on
-	/// with steps given up while they were open.
+	/// Holds time still while any sheets are open, tells the window what changed, and once they're all closed, finishes
+	/// changing clothes and carries on with steps given up while they were open.
 	/// </summary>
 	private void OnSheetsChanged()
 	{
 		TimeRunner.IsHeld = m_sheets.Count != 0;
-		RaisePropertyChanged(nameof(TopSheet), nameof(HasSheets), nameof(IsPlayerCharacterOpen), nameof(IsVillagersOpen), nameof(IsMapOpen), nameof(IsStatusOpen));
+		RaisePropertyChanged(nameof(TopSheet), nameof(HasSheets), nameof(IsPlayerCharacterOpen), nameof(IsVillagersOpen), nameof(IsMapOpen), nameof(IsStatusOpen),
+			nameof(StartScreen), nameof(Clothing), nameof(IsWardrobeOpen), nameof(IsInventoryOpen));
 		UpdatePendingPlayerSteps();
 	}
 
@@ -544,6 +562,9 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	{
 		switch (sheet)
 		{
+		case StartScreenViewModel start:
+			start.StartRequested += OnStartRequested;
+			break;
 		case VillagersViewModel villagers:
 			villagers.TravelRequested += OnSheetTravelRequested;
 			villagers.ExamineRequested += OnExamineRequested;
@@ -559,11 +580,18 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 
 	/// <summary>
 	/// Stops listening to a sheet that closed. If a developer changed someone else's needs in it, they choose a new goal.
+	/// Closing the player's clothes finishes their changing once no sheets are open.
 	/// </summary>
 	private void DetachSheet(ViewModelBase sheet)
 	{
 		switch (sheet)
 		{
+		case StartScreenViewModel start:
+			start.StartRequested -= OnStartRequested;
+			break;
+		case ClothingScreenViewModel clothing:
+			m_closedClothing = clothing;
+			break;
 		case VillagersViewModel villagers:
 			villagers.TravelRequested -= OnSheetTravelRequested;
 			villagers.ExamineRequested -= OnExamineRequested;
@@ -619,20 +647,22 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Starts the player's work or a chore chosen in Concerns, or carries on with it, as choosing it from what they can start
-	/// would. Starting it passes no time, so it can be chosen with sheets open; the player carries on with its steps once
-	/// no sheets are open, as they do after choosing a destination. If time is passing, it stops first.
+	/// Starts a need of the player's chosen in the left column, or their work or a chore chosen in Concerns, or carries on
+	/// with it, as choosing it from what they can start would. Starting it passes no time, so it can be chosen with sheets open; the player carries on with its steps once
+	/// no sheets are open, as they do after choosing a destination. What the player can start closes, if it's open, since
+	/// it's out of date. If time is passing, it stops first.
 	/// </summary>
-	public void StartFromConcerns(Need need)
+	public void StartNeed(Need need)
 	{
 		VerifyAccess();
 		ArgumentNullException.ThrowIfNull(need);
 		WhenStopped(() =>
 		{
-			CloseStart();
 			World.StartPlayerSteps(need);
+			CharacterPanel.OnStepsChanged();
 			Concerns.Update();
 			m_isPlayerStepsUpdatePending = true;
+			CloseStart();
 			UpdatePendingPlayerSteps();
 		});
 	}
@@ -678,20 +708,44 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Carries the player on with their steps, if they gave some up while choosing a destination, once nothing is open
-	/// over the center and time isn't passing.
+	/// Once nothing is open over the center and time isn't passing, finishes the player's changing of clothes, if they
+	/// closed their inventory or wardrobe, and carries them on with their steps, if they did that or gave some up while
+	/// choosing a destination.
 	/// </summary>
 	private void UpdatePendingPlayerSteps()
 	{
-		if (m_isPlayerStepsUpdatePending && m_sheets.Count == 0 && !TimeRunner.IsRunning)
+		if ((m_isPlayerStepsUpdatePending || m_closedClothing is not null) && m_sheets.Count == 0 && !TimeRunner.IsRunning)
 		{
-			m_isPlayerStepsUpdatePending = false;
+			var clothing = TakeClosedClothing();
 			TimeRunner.Run(async () =>
 			{
+				await FinishChangingAsync(clothing).ConfigureAwait(true);
 				await World.UpdatePlayerStepsAsync().ConfigureAwait(true);
 				ShowPlayerLocation();
 			});
 		}
+	}
+
+	/// <summary>
+	/// Takes the player's closed inventory or wardrobe, if they closed one that hasn't finished their changing yet, and
+	/// clears any pending update of their steps, which whatever runs next does.
+	/// </summary>
+	private ClothingScreenViewModel? TakeClosedClothing()
+	{
+		var clothing = m_closedClothing;
+		m_closedClothing = null;
+		m_isPlayerStepsUpdatePending = false;
+		return clothing;
+	}
+
+	/// <summary>
+	/// Finishes the player's changing of clothes once they've closed their inventory or wardrobe, which takes its time if
+	/// they changed what they're wearing, and carries them on through their steps, such as taking their work clothes along.
+	/// </summary>
+	private async Task FinishChangingAsync(ClothingScreenViewModel? clothing)
+	{
+		if (clothing is not null && await clothing.FinishAsync().ConfigureAwait(true) is { } result)
+			m_currentLocation.ShowWaitResult(result);
 	}
 
 	/// <summary>
@@ -843,44 +897,51 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Opens what the player can start, as the location's button does, or closes it if it's open. It's only used in the
-	/// center, so not while a sheet or a prompt covers it. Time stops first if it's passing.
+	/// Opens what the player can start, as the location's button does, replacing any sheets, or closes it if it's on top.
+	/// It doesn't open while a prompt is waiting for the player. Time stops first if it's passing.
 	/// </summary>
 	public void ToggleStart()
 	{
 		VerifyAccess();
-		if (m_start is not null && !HasSheets && Overlay is null && !TimeRunner.IsRunning)
+		if (TopSheet is StartScreenViewModel)
 		{
-			CloseStart();
+			CloseTopSheet();
 		}
-		else if (m_start is null)
+		else
 		{
 			WhenStopped(() =>
 			{
-				if (!HasSheets && Overlay is null)
+				if (Overlay is null && !m_currentLocation.HasInteraction)
 					ShowStart();
 			});
 		}
 	}
 
 	/// <summary>
-	/// Presses the numbered choice in the center, if nothing covers it and time isn't passing. Returns whether it was pressed.
+	/// Presses the numbered choice in what shows: the sheet on top, or else what's in the center, if time isn't passing.
+	/// Returns whether it was pressed.
 	/// </summary>
 	public bool ChooseNumber(int number)
 	{
 		VerifyAccess();
-		return !HasSheets && !TimeRunner.IsRunning && (Overlay ?? CurrentView) is INumberedChoices choices && choices.ChooseNumber(number);
+		return !TimeRunner.IsRunning && NumberedChoices is { } choices && choices.ChooseNumber(number);
 	}
 
 	/// <summary>
-	/// Opens the menu of other ways of the numbered choice in the center, when it's a split button, if nothing covers it and
-	/// time isn't passing. Returns whether it opened.
+	/// Opens the menu of other ways of the numbered choice in what shows, when it's a split button, if time isn't passing.
+	/// Returns whether it opened.
 	/// </summary>
 	public bool OpenChoiceMenu(int number)
 	{
 		VerifyAccess();
-		return !HasSheets && !TimeRunner.IsRunning && (Overlay ?? CurrentView) is INumberedChoices choices && choices.OpenChoiceMenu(number);
+		return !TimeRunner.IsRunning && NumberedChoices is { } choices && choices.OpenChoiceMenu(number);
 	}
+
+	/// <summary>
+	/// What shows that the number keys could press, or null if it has no numbered choices: the sheet on top, or else
+	/// what's on top of the center.
+	/// </summary>
+	private INumberedChoices? NumberedChoices => (TopSheet ?? Overlay ?? m_currentLocation) as INumberedChoices;
 
 	/// <summary>
 	/// Changes to a new object each time keyboard focus should move to Concerns, which the view does. Null until then.
@@ -914,9 +975,8 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Handles Esc: stops time if it's passing (giving up any sheet waiting for it to stop), or else closes the sheet on top,
-	/// or closes the view in the center that Esc can close. Pressed again soon after it closed a sheet, it closes every
-	/// other sheet, and never does anything else. Returns false if there was nothing for it to do, so it can open the main
+	/// Handles Esc: stops time if it's passing (giving up any sheet waiting for it to stop), or else closes the sheet on top.
+	/// Pressed again soon after it closed a sheet, it closes every other sheet, and never does anything else. Returns false if there was nothing for it to do, so it can open the main
 	/// menu instead.
 	/// </summary>
 	public bool HandleEscape()
@@ -942,18 +1002,6 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 		else if (isRepeat)
 		{
 			// A quick second Esc only closes sheets.
-		}
-		else if (Overlay is not null)
-		{
-			isHandled = false;
-		}
-		else if (m_start is not null)
-		{
-			CloseStart();
-		}
-		else if (m_clothing is not null)
-		{
-			TryCloseClothing();
 		}
 		else
 		{
@@ -996,11 +1044,6 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// Moves the player straight to any location without any time passing, for developers.
-	/// </summary>
-	private void JumpTo(Location location) => TimeRunner.Run(() => MoveToAsync(location));
-
-	/// <summary>
 	/// Moves the player to a location and shows it.
 	/// </summary>
 	private async Task MoveToAsync(Location location)
@@ -1033,6 +1076,7 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 			m_currentLocation.WalkToDestinationRequested -= OnWalkToDestinationRequested;
 		}
 		CurrentLocation = CreateLocationScreen(location, following);
+		UpdateInteraction();
 		CharacterPanel.OnLocationChanged();
 	}
 
@@ -1085,13 +1129,6 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 		m_currentLocation.WalkToDestinationRequested -= OnWalkToDestinationRequested;
 		foreach (var sheet in m_sheets)
 			DetachSheet(sheet);
-		if (m_start is not null)
-		{
-			m_start.CloseRequested -= OnStartCloseRequested;
-			m_start.StartRequested -= OnStartRequested;
-		}
-		if (m_clothing is not null)
-			m_clothing.CloseRequested -= OnClothingCloseRequested;
 		if (m_conversation is not null)
 			m_conversation.CloseRequested -= OnConversationCloseRequested;
 		TimeRunner.Dispose();
@@ -1156,16 +1193,30 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
-	/// For developers, goes straight to a place chosen in a sheet, which takes no time. It's the one thing in a sheet that
-	/// uses the engine, so it closes the sheets.
+	/// For developers, goes straight to a place chosen in a sheet, which takes no time. It uses the engine, so it closes the
+	/// sheets. Developers still have to be dressed enough, so it does nothing if the player isn't dressed enough for the
+	/// place or can't leave their inventory or wardrobe. If they closed their clothes to get here, they finish changing
+	/// first.
 	/// </summary>
 	private void OnSheetTravelRequested(object? sender, GenericEventArgs<Location> e)
 	{
-		CloseSheets();
-		JumpTo(e.Value);
+		var location = e.Value;
+		if (GetTravelWarning(location) is { } warning)
+		{
+			Log.Info($"Not jumping to {location.Title} ({location.Id}): {warning}");
+		}
+		else if (m_sheets.All(CanCloseSheet))
+		{
+			RemoveSheets();
+			var clothing = TakeClosedClothing();
+			OnSheetsChanged();
+			TimeRunner.Run(async () =>
+			{
+				await FinishChangingAsync(clothing).ConfigureAwait(true);
+				await MoveToAsync(location).ConfigureAwait(true);
+			});
+		}
 	}
-
-	private void OnStartCloseRequested(object? sender, EventArgs e) => CloseStart();
 
 	private void OnChooseStartRequested(object? sender, EventArgs e) => ShowStart();
 
@@ -1173,26 +1224,35 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 
 	/// <summary>
 	/// Starts something the player chose, or carries on with it, showing where they are while it goes on, and how it went
-	/// if it was done for them.
+	/// if it was done for them. What they can start closes, along with any sheets over it, and if they closed their
+	/// clothes to open it, they finish changing first.
 	/// </summary>
 	private void OnStartRequested(object? sender, GenericEventArgs<StartRequest> e)
 	{
-		CloseStart();
-		ShowPlayerLocation();
-		var (need, isAutomatic, minutes) = e.Value;
-		TimeRunner.Run(async () =>
+		RemoveSheets();
+		if (m_sheets.Count == 0)
 		{
-			var activity = PlayerStepsViewModel.LowerFirst(ActivityText.Fill(need.GetActivity(0, World.Player.Business?.Profession.Id), World.Player.GetSequence(need)));
-			var start = World.Time;
-			await World.StartPlayerStepsAsync(need, isAutomatic, minutes).ConfigureAwait(true);
-			var spent = World.GameData.Calendar.FormatOffsetFrom(start, World.Time - start, TimeFormat.Long);
+			var clothing = TakeClosedClothing();
+			OnSheetsChanged();
 			ShowPlayerLocation();
-			if (isAutomatic)
-				m_currentLocation.ShowWaitResult((World.Player.GetSequence(need) is not null ? OurResources.PlayerStepsStopped : OurResources.PlayerStepsDone).FormatCurrentCulture(activity, spent));
-		});
+			var (need, isAutomatic, minutes) = e.Value;
+			TimeRunner.Run(async () =>
+			{
+				await FinishChangingAsync(clothing).ConfigureAwait(true);
+				var activity = PlayerStepsViewModel.LowerFirst(ActivityText.Fill(need.GetActivity(0, World.Player.Business?.Profession.Id), World.Player.GetSequence(need)));
+				var start = World.Time;
+				await World.StartPlayerStepsAsync(need, isAutomatic, minutes).ConfigureAwait(true);
+				var spent = World.GameData.Calendar.FormatOffsetFrom(start, World.Time - start, TimeFormat.Long);
+				ShowPlayerLocation();
+				if (isAutomatic)
+					m_currentLocation.ShowWaitResult((World.Player.GetSequence(need) is not null ? OurResources.PlayerStepsStopped : OurResources.PlayerStepsDone).FormatCurrentCulture(activity, spent));
+			});
+		}
+		else
+		{
+			OnSheetsChanged();
+		}
 	}
-
-	private void OnClothingCloseRequested(object? sender, EventArgs e) => CloseClothing();
 
 	private void OnCharacterStatusRequested(object? sender, GenericEventArgs<Person> e) => ShowCharacterStatus(e.Value);
 
@@ -1206,6 +1266,10 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 		// left is still running what they did, and says how it went once it's done.
 		if (e.PropertyName is nameof(Person.Location) && TimeRunner.IsRunning && World.Player.Location != m_currentLocation.Location)
 			ShowLocation(m_currentLocation.Following, isOldScreenKept: true);
+		// Walking passes the time before the player arrives, so how far away their destination is (and the places to go to)
+		// changes again once they have.
+		if (e.PropertyName is nameof(Person.Location) or null or "")
+			Concerns.Update();
 		if (e.PropertyName is nameof(Person.TalkRequest) or null or "")
 			UpdateTalkPrompt();
 		if (e.PropertyName is nameof(Person.Sequences) or null or "")
@@ -1483,6 +1547,28 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 			newPrompt.Declined += OnTalkPromptDeclined;
 			TalkPrompt = newPrompt;
 		}
+		UpdateInteraction();
+	}
+
+	/// <summary>
+	/// Shows someone asking the player to chat in their line in the location, if they're listed there, or else the
+	/// conversation, in the line of the one it's with. Someone asking to chat who isn't listed is shown on top instead.
+	/// </summary>
+	private void UpdateInteraction()
+	{
+		var isTalkPromptInLine = m_talkPrompt is { } prompt && m_currentLocation.Location.People.Contains(prompt.Asker.Person);
+		if (isTalkPromptInLine != m_isTalkPromptInLine)
+		{
+			m_isTalkPromptInLine = isTalkPromptInLine;
+			RaisePropertyChanged(nameof(Overlay));
+		}
+
+		if (isTalkPromptInLine)
+			m_currentLocation.SetInteraction(m_talkPrompt!.Asker.Person, m_talkPrompt);
+		else if (m_conversation is { } conversation)
+			m_currentLocation.SetInteraction(conversation.Person.Person, conversation);
+		else
+			m_currentLocation.SetInteraction(null, null);
 	}
 
 	private void OnTalkPromptAccepted(object? sender, EventArgs e)
@@ -1576,9 +1662,9 @@ public sealed class GameScreenViewModel : ViewModelBase, IDisposable
 	private string? m_savedState;
 	private LocationScreenViewModel m_currentLocation;
 	private readonly ObservableCollection<ViewModelBase> m_sheets;
-	private StartScreenViewModel? m_start;
-	private ClothingScreenViewModel? m_clothing;
+	private ClothingScreenViewModel? m_closedClothing;
 	private ConversationViewModel? m_conversation;
+	private bool m_isTalkPromptInLine;
 	private TalkPromptViewModel? m_talkPrompt;
 	private AppointmentPromptViewModel? m_appointmentPrompt;
 	private AskPromptViewModel? m_askPrompt;

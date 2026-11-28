@@ -61,10 +61,13 @@
 
 				<ScrollViewer
 					Grid.Row="1"
-					Margin="0,16,0,0"
+					Margin="0,12,0,0"
 					HorizontalScrollBarVisibility="Disabled"
 					VerticalScrollBarVisibility="Auto">
+					<!--  Part of the space above is inside the scroll viewer, so a developer border that reaches above the first row
+						(see the developer options of a value list) isn't clipped.  -->
 					<ContentControl
+						Margin="0,4,0,0"
 						HorizontalAlignment="Center"
 						Content="{Binding CurrentStep}"
 						Focusable="False" />
@@ -237,8 +240,11 @@
 							Visibility="{Binding IsFixed, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
 						<TextBlock Style="{StaticResource NewGameFixedValueStyle}" />
 						<!--  For developers: any value, including the ones the player isn't usually allowed.  -->
+						<!--  Its border sits outside the row's height, over the gap below and the gap before the randomize button, so the
+							combo box inside keeps the full height of the row rather than being clipped, and lines up with the one under it.  -->
 						<Border
 							Grid.Column="1"
+							Margin="0,-4,-4,-4"
 							HorizontalAlignment="Right"
 							Style="{DynamicResource DeveloperBorderStyle}"
 							Visibility="{Binding HasDeveloperOptions, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">

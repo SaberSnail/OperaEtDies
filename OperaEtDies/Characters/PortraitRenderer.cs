@@ -121,7 +121,7 @@ public sealed class PortraitRenderer
 					{
 						var transform = CombineTransforms(scales.GetValueOrDefault(shape.Shape.Scale ?? layer.Layer.Scale ?? ""), offset);
 						target.Children.Add(CreateDrawing(shape, layerColors, transform));
-						if (layer.Layer.At is null && shape.Shape.Fill is not null)
+						if (layer.Layer.IsCharacter && shape.Shape.Fill is not null)
 						{
 							var drawnGeometry = Transform(shape.Geometry, transform);
 							character.Add(layerClip is null ? drawnGeometry : Clip(drawnGeometry, layerClip));
@@ -163,8 +163,8 @@ public sealed class PortraitRenderer
 		for (var layerIndex = 0; layerIndex < m_layers.Count; layerIndex++)
 		{
 			var layer = m_layers[layerIndex];
-			var isLayerConditionMet = CharacterCondition.IsMet(layer.Layer.When, getValueId);
-			var isPlaceMet = layer.Layer.At is null || layer.Layer.At.IsMet(place);
+			var isLayerConditionMet = layer.Layer.IsConditionMet(getValueId, place);
+			var isPlaceMet = layer.Layer.IsPlaceMet(place);
 			var isClothingMet = layer.Layer.IsClothingMet(clothing);
 			var offset = offsets.GetValueOrDefault(layer.Layer.Offset ?? "");
 			for (var shapeIndex = 0; shapeIndex < layer.Shapes.Count; shapeIndex++)
@@ -452,7 +452,7 @@ public sealed class PortraitRenderer
 public sealed record PortraitShapePlacement(int LayerIndex, int ShapeIndex, PortraitShape Shape, Geometry Geometry, Matrix Transform)
 {
 	/// <summary>
-	/// Whether the character meets the layer's condition.
+	/// Whether the character meets the layer's condition, under the sky of the place.
 	/// </summary>
 	public bool IsLayerConditionMet { get; init; }
 

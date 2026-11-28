@@ -265,6 +265,8 @@ public sealed class ScheduleSettings
 			errors.Add(OurResources.RoleMissing.FormatCurrentCulture("needs", SleepRole));
 		foreach (var need in needs.Where(x => x.Role is SleepRole or SocializingRole && x.Kind != NeedKind.Level))
 			errors.Add(OurResources.RoleWrongType.FormatCurrentCulture($"needs[{need.Id}]", need.Role, "level need"));
+		foreach (var need in needs.Where(x => x.Category is NeedCategory.Work or NeedCategory.Household && x.Kind != NeedKind.Quota))
+			errors.Add(OurResources.NeedCategoryNotQuota.FormatCurrentCulture($"needs[{need.Id}].category", JsonNamingPolicy.CamelCase.ConvertName(need.Category.ToString())));
 
 		if (SightingHours < 1)
 			errors.Add(OurResources.DataNumberTooSmall.FormatCurrentCulture($"{path}.sightingHours", SightingHours, 1));
@@ -619,6 +621,12 @@ public sealed class Need : IIdentified
 	/// The id of the icon that stands for the need where it's shown to the player, from the icons section.
 	/// </summary>
 	public required string Icon { get; init; }
+
+	/// <summary>
+	/// Whose the need is, which decides where it's shown to the player: their own needs, their work, or their household's
+	/// chores.
+	/// </summary>
+	public required NeedCategory Category { get; init; }
 
 	/// <summary>
 	/// What the engine uses the need for, such as <see cref="ScheduleSettings.SleepRole"/>, or null for none.
@@ -1685,6 +1693,28 @@ public enum NeedKind
 	/// water, which grows more urgent as time runs out.
 	/// </summary>
 	Quota,
+}
+
+/// <summary>
+/// Whose a need is, which decides where it's shown to the player.
+/// </summary>
+public enum NeedCategory
+{
+	/// <summary>
+	/// The person's own need, such as fatigue, shown with the player's needs in the left column.
+	/// </summary>
+	Personal,
+
+	/// <summary>
+	/// The person's work, shown in Concerns. Only for quota needs.
+	/// </summary>
+	Work,
+
+	/// <summary>
+	/// A chore of the person's household, such as cooking, shown with the household's chores in Concerns. Only for quota
+	/// needs.
+	/// </summary>
+	Household,
 }
 
 /// <summary>

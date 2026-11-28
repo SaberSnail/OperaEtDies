@@ -42,6 +42,7 @@ public static partial class HelpTopics
 		[typeof(CalendarSeason)] = "Calendar Item",
 		[typeof(CalendarDayPart)] = "Day Part",
 		[typeof(CalendarSpecialDay)] = "Special Day",
+		[typeof(CalendarSky)] = "Sky",
 		[typeof(ScheduleSettings)] = "Schedules Settings",
 		[typeof(SleepSettings)] = "Sleep",
 		[typeof(TalkingSettings)] = "Talking",

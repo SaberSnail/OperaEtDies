@@ -2,7 +2,7 @@ namespace OperaEtDies.Data;
 
 /// <summary>
 /// Where a character is, for choosing the layers of their portrait: in a home, in the workplace of a profession, or
-/// in a kind of quarter.
+/// in a kind of quarter, under a sky.
 /// </summary>
 public sealed record PortraitPlace
 {
@@ -28,12 +28,26 @@ public sealed record PortraitPlace
 	/// </summary>
 	public string? Id { get; }
 
-	public override string ToString() => Kind switch
+	/// <summary>
+	/// The id of the sky over the place right now, or null for none.
+	/// </summary>
+	public string? Sky { get; private init; }
+
+	/// <summary>
+	/// Gets the same place under a sky.
+	/// </summary>
+	public PortraitPlace WithSky(string? sky) => this with { Sky = sky };
+
+	public override string ToString()
 	{
-		PortraitPlaceKind.Home => "home",
-		PortraitPlaceKind.Quarter => $"quarter:{Id}",
-		_ => $"workplace:{Id}",
-	};
+		var place = Kind switch
+		{
+			PortraitPlaceKind.Home => "home",
+			PortraitPlaceKind.Quarter => $"quarter:{Id}",
+			_ => $"workplace:{Id}",
+		};
+		return Sky is null ? place : $"{place}@{Sky}";
+	}
 
 	private PortraitPlace(PortraitPlaceKind kind, string? id)
 	{

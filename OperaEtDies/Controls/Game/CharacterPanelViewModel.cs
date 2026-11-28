@@ -9,23 +9,26 @@ namespace OperaEtDies.Controls.Game;
 
 /// <summary>
 /// The left column during play, showing the state of the player's character: who they are, the date and time, their next
-/// appointment, their needs, their work and their household's chores, and the mini-map. The game screen tells it when the
-/// time, the player's location, or their appointments change.
+/// appointment, their own needs, which they can start from here, and the mini-map. The game screen tells it when the time,
+/// the player's location, their appointments, or their steps change.
 /// </summary>
 public sealed class CharacterPanelViewModel : ViewModelBase
 {
-	public CharacterPanelViewModel(GameWorld world)
+	/// <summary>
+	/// Creates the panel. Starting a need calls the given action.
+	/// </summary>
+	public CharacterPanelViewModel(GameWorld world, Action<Need>? start = null)
 	{
 		m_world = world;
 		Player = new LocationPersonViewModel(world.Player, world.GameData.PortraitRenderer);
 		m_miniMap = CreateMiniMap(world.Player.Location);
 
-		// The needs shown to the player are the level needs with words for their levels.
+		// The player has the same personal needs for the whole game.
 		Needs = world.GameData.Schedules.Needs
-			.Where(x => x.Kind == NeedKind.Level && x.Levels is { Count: > 0 })
-			.Select(x => new MeterViewModel(x, world.GameData.GetIcon(x.Icon)))
+			.Where(x => x.Category == NeedCategory.Personal && Scheduler.HasNeed(world.Player, x))
+			.Select(x => new MeterViewModel(x, world.GameData.GetIcon(x.Icon), start))
 			.ToList();
-		UpdateMeters();
+		UpdateNeeds();
 	}
 
 	/// <summary>
@@ -47,9 +50,14 @@ public sealed class CharacterPanelViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Today's date, such as "Aftday, Mid Winter, 227 CR".
+	/// Today's day of the week, such as "Aftday".
 	/// </summary>
-	public string Date => VerifyAccess(m_world.GameData.Calendar.FormatDate(m_world.Time));
+	public string DayOfWeek => VerifyAccess(m_world.GameData.Calendar.GetDayOfWeek(m_world.Time).Title);
+
+	/// <summary>
+	/// The rest of today's date, under the day of the week, such as "Mid Winter, 227 CR".
+	/// </summary>
+	public string SeasonAndYear => VerifyAccess(m_world.GameData.Calendar.FormatSeasonAndYear(m_world.Time));
 
 	/// <summary>
 	/// The special days that fall today, such as a festival, or null if today is an ordinary day.
@@ -78,27 +86,31 @@ public sealed class CharacterPanelViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Where the time is on the day dial: how far through the day it is (from the start of the first part of the day to the
-	/// start of the last), or while <see cref="IsNight"/>, how far through the night, from 0 to 1.
+	/// Where the time is on the day dial: how far it is from sunrise to sunset, or while <see cref="IsNight"/>, from
+	/// sunset to sunrise, from 0 to 1.
 	/// </summary>
 	public double DayDialPosition => VerifyAccess(GetDayDial().Position);
 
 	/// <summary>
-	/// Whether it's night: the last part of the day, or before the first part starts. The day dial shows the moon rather
-	/// than the sun.
+	/// Whether it's night: from sunset until sunrise. The day dial shows the moon rather than the sun.
 	/// </summary>
 	public bool IsNight => VerifyAccess(GetDayDial().IsNight);
 
 	/// <summary>
-	/// Where each part of the day between the first and the last starts on the day dial, from 0 to 1.
+	/// Where noon (or, at night, midnight) is on the day dial, from 0 to 1, or nothing if the sun (or moon) doesn't cross
+	/// the dial then.
 	/// </summary>
 	public IReadOnlyList<double> DayDialMarks
 	{
 		get
 		{
 			VerifyAccess();
-			var (dayStart, nightStart) = GetDayHours();
-			return nightStart <= dayStart ? [] : m_world.GameData.Calendar.DayParts.Skip(1).SkipLast(1).Select(x => (double) (x.Start - dayStart) / (nightStart - dayStart)).ToList();
+			var isNight = GetDayDial().IsNight;
+			return new[] { c_noon, 0 }
+				.Select(GetDayDialPosition)
+				.Where(x => x.IsNight == isNight && x.Position > 0 && x.Position < 1)
+				.Select(x => x.Position)
+				.ToList();
 		}
 	}
 
@@ -117,7 +129,8 @@ public sealed class CharacterPanelViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// How well each need shown to the player is met, such as fatigue, as icons: a full bar is a need that's fully met.
+	/// How well each of the player's personal needs is met, such as fatigue, as icons that start them: a full bar is a need
+	/// that's fully met.
 	/// </summary>
 	public IReadOnlyList<MeterViewModel> Needs { get; }
 
@@ -136,8 +149,8 @@ public sealed class CharacterPanelViewModel : ViewModelBase
 	public void OnTimeChanged()
 	{
 		VerifyAccess();
-		RaisePropertyChanged(nameof(Date), nameof(SpecialDay), nameof(TimeOfDay), nameof(DayDialPosition), nameof(IsNight));
-		UpdateMeters();
+		RaisePropertyChanged(nameof(DayOfWeek), nameof(SeasonAndYear), nameof(SpecialDay), nameof(TimeOfDay), nameof(DayDialPosition), nameof(IsNight), nameof(DayDialMarks));
+		UpdateNeeds();
 		OnAppointmentsChanged();
 	}
 
@@ -148,6 +161,16 @@ public sealed class CharacterPanelViewModel : ViewModelBase
 	{
 		VerifyAccess();
 		MiniMap = CreateMiniMap(m_world.Player.Location);
+		UpdateNeeds();
+	}
+
+	/// <summary>
+	/// Shows how the player's needs are going, and whether each can be started now, once their steps may have changed.
+	/// </summary>
+	public void OnStepsChanged()
+	{
+		VerifyAccess();
+		UpdateNeeds();
 	}
 
 	/// <summary>
@@ -182,44 +205,49 @@ public sealed class CharacterPanelViewModel : ViewModelBase
 		return TownMapViewModel.CreateMiniMap(location, m_world.Features, MiniMapSize, player.Home, player.Business is null ? null : player.Workplace, m_miniMapAppointment, player.Destination);
 	}
 
-	private void UpdateMeters()
+	private void UpdateNeeds()
 	{
-		foreach (var meter in Needs)
+		if (Needs.Count != 0)
 		{
-			var need = meter.Need;
-			var level = m_world.Player.GetLevel(need);
-			meter.Update(1 - (level / Need.MaximumLevel), OurResources.NeedToolTip.FormatCurrentCulture(need.Title, need.GetLevelTitle(level)), isWarning: need.IsWorstLevel(level));
+			var choices = m_world.GetPlayerStartChoices().ToDictionary(x => x.Need);
+			var quotas = Needs.Any(x => x.Need.Kind == NeedKind.Quota) ? m_world.GetPlayerQuotaProgress().ToDictionary(x => x.Need) : new Dictionary<Need, PlayerQuotaProgress>();
+			foreach (var meter in Needs)
+			{
+				var choice = choices.GetValueOrDefault(meter.Need);
+				if (meter.Need.Kind == NeedKind.Level)
+					meter.UpdateLevel(m_world, choice);
+				else if (quotas.GetValueOrDefault(meter.Need) is { } quota)
+					meter.UpdateQuota(m_world, quota, choice);
+			}
 		}
-	}
-
-	/// <summary>
-	/// Gets the hours the day starts and the night starts: the starts of the first and last parts of the day. With fewer
-	/// than two parts of the day, there's no night.
-	/// </summary>
-	private (int DayStart, int NightStart) GetDayHours()
-	{
-		var dayParts = m_world.GameData.Calendar.DayParts;
-		return dayParts.Count < 2 ? (0, GameCalendar.HoursInDay) : (dayParts[0].Start, dayParts[^1].Start);
 	}
 
 	private (double Position, bool IsNight) GetDayDial()
 	{
-		var calendar = m_world.GameData.Calendar;
-		var parts = calendar.GetParts(m_world.Time);
-		var minute = (parts.Hour * GameCalendar.MinutesInHour) + parts.Minute;
-		var (dayStart, nightStart) = GetDayHours();
-		var dayStartMinute = dayStart * GameCalendar.MinutesInHour;
-		var nightStartMinute = nightStart * GameCalendar.MinutesInHour;
-		const int minutesInDay = GameCalendar.HoursInDay * GameCalendar.MinutesInHour;
-		if (minute >= dayStartMinute && minute < nightStartMinute)
-			return ((double) (minute - dayStartMinute) / (nightStartMinute - dayStartMinute), false);
+		var parts = m_world.GameData.Calendar.GetParts(m_world.Time);
+		return GetDayDialPosition((parts.Hour * GameCalendar.MinutesInHour) + parts.Minute);
+	}
 
-		var nightLength = minutesInDay - (nightStartMinute - dayStartMinute);
-		var intoNight = (minute - nightStartMinute + minutesInDay) % minutesInDay;
+	/// <summary>
+	/// Gets where a minute of the day is on the day dial: how far from sunrise to sunset, or at night, from sunset to
+	/// sunrise.
+	/// </summary>
+	private (double Position, bool IsNight) GetDayDialPosition(int minute)
+	{
+		var calendar = m_world.GameData.Calendar;
+		var sunrise = calendar.Sunrise * GameCalendar.MinutesInHour;
+		var sunset = calendar.Sunset * GameCalendar.MinutesInHour;
+		const int minutesInDay = GameCalendar.HoursInDay * GameCalendar.MinutesInHour;
+		if (minute >= sunrise && minute < sunset)
+			return ((double) (minute - sunrise) / (sunset - sunrise), false);
+
+		var nightLength = minutesInDay - (sunset - sunrise);
+		var intoNight = (minute - sunset + minutesInDay) % minutesInDay;
 		return ((double) intoNight / nightLength, true);
 	}
 
 	private const double MiniMapSize = 196;
+	private const int c_noon = 12 * GameCalendar.MinutesInHour;
 
 	private readonly GameWorld m_world;
 	private TownMapViewModel m_miniMap;

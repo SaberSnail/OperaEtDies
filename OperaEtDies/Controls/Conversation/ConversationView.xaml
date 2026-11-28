@@ -1,78 +1,51 @@
-<ResourceDictionary
+﻿<ResourceDictionary
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:local="clr-namespace:OperaEtDies.Controls.Conversation"
+	xmlns:log="clr-namespace:OperaEtDies.Controls.Log"
 	xmlns:operaEtDies="clr-namespace:OperaEtDies"
 	xmlns:utility="clr-namespace:GoldenAnvil.Utility.Windows;assembly=GoldenAnvil.Utility.Windows">
 
-	<!--  Talking with someone: their portrait and what they're doing, what was said, why they can't talk (if they can't), and
-		the things the player can say, each with how long it takes.  -->
+	<!--  Talking with someone, shown in their line in the location, below their name, so their portrait and what they're
+		doing are already there: what was said, scrolling once there's more than a few lines (and following new lines), the
+		things the player can say, each with how long it takes, ending with ending the conversation, and why they can't talk
+		(if they can't). What the player says or does is muted, so the answers stand out.  -->
 	<DataTemplate DataType="{x:Type local:ConversationViewModel}">
-		<Grid Margin="24">
-			<Grid.RowDefinitions>
-				<RowDefinition Height="Auto" />
-				<RowDefinition Height="Auto" />
-				<RowDefinition Height="*" />
-				<RowDefinition Height="Auto" />
-			</Grid.RowDefinitions>
+		<Border
+			Padding="10,0,0,0"
+			BorderBrush="{DynamicResource RuleBrush}"
+			BorderThickness="2,0,0,0">
+			<StackPanel>
+				<!--  What was said, in order.  -->
+				<ScrollViewer
+					MaxHeight="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=11}"
+					log:LogViewBehaviors.IsScrolledToEnd="True"
+					HorizontalScrollBarVisibility="Disabled"
+					VerticalScrollBarVisibility="Auto">
+					<ItemsControl FontFamily="{DynamicResource NarrativeFontFamily}" ItemsSource="{Binding Lines}">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate DataType="{x:Type local:ConversationLine}">
+								<TextBlock
+									x:Name="Line"
+									Margin="0,0,0,6"
+									Text="{Binding Text}"
+									TextWrapping="Wrap" />
+								<DataTemplate.Triggers>
+									<DataTrigger Binding="{Binding IsPlayer}" Value="True">
+										<Setter TargetName="Line" Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+									</DataTrigger>
+								</DataTemplate.Triggers>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+				</ScrollViewer>
 
-			<DockPanel Grid.Row="0" LastChildFill="True">
-				<Button
-					Width="120"
-					Height="32"
-					VerticalAlignment="Center"
-					Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Close}"
-					Content="{x:Static operaEtDies:OurResources.CloseView}"
-					DockPanel.Dock="Right" />
-				<TextBlock
-					Style="{DynamicResource TitleTextStyle}"
-					Text="{Binding Title}"
-					TextWrapping="Wrap" />
-			</DockPanel>
-
-			<DockPanel
-				Grid.Row="1"
-				Margin="0,12,0,0"
-				DataContext="{Binding Person}"
-				LastChildFill="True">
-				<Image
-					Width="96"
-					Margin="0,0,12,0"
-					VerticalAlignment="Top"
-					DockPanel.Dock="Left"
-					Source="{Binding Portrait}"
-					Stretch="Uniform"
-					Visibility="{Binding Portrait, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
-				<TextBlock
-					Foreground="{DynamicResource TextMutedBrush}"
-					Text="{Binding Activity}"
-					TextWrapping="Wrap" />
-			</DockPanel>
-
-			<!--  What was said, in order.  -->
-			<ScrollViewer
-				Grid.Row="2"
-				Margin="0,12,0,0"
-				HorizontalScrollBarVisibility="Disabled"
-				VerticalScrollBarVisibility="Auto">
-				<ItemsControl FontFamily="{DynamicResource NarrativeFontFamily}" ItemsSource="{Binding Lines}">
-					<ItemsControl.ItemTemplate>
-						<DataTemplate>
-							<TextBlock
-								Margin="0,0,0,8"
-								Text="{Binding}"
-								TextWrapping="Wrap" />
-						</DataTemplate>
-					</ItemsControl.ItemTemplate>
-				</ItemsControl>
-			</ScrollViewer>
-
-			<!--  What the player can say. Why the person can't talk is shown below, so the buttons don't move.  -->
-			<StackPanel Grid.Row="3" Margin="0,12,0,0">
-				<StackPanel Orientation="Horizontal">
+				<!--  What the player can say. Why the person can't talk is shown below, so the buttons don't move.  -->
+				<WrapPanel Margin="0,2,0,0">
 					<Button
 						MinWidth="160"
 						Height="32"
+						Margin="0,0,8,4"
 						Padding="12,0"
 						operaEtDies:Hotkeys.Badge="1"
 						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AskWhatDoing}"
@@ -80,7 +53,7 @@
 					<Button
 						MinWidth="120"
 						Height="32"
-						Margin="8,0,0,0"
+						Margin="0,0,8,4"
 						Padding="12,0"
 						operaEtDies:Hotkeys.Badge="2"
 						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Socialize}"
@@ -89,7 +62,7 @@
 					<Button
 						MinWidth="120"
 						Height="32"
-						Margin="8,0,0,0"
+						Margin="0,0,8,4"
 						Padding="12,0"
 						operaEtDies:Hotkeys.Badge="3"
 						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AskStep}"
@@ -98,7 +71,7 @@
 					<Button
 						MinWidth="120"
 						Height="32"
-						Margin="8,0,0,0"
+						Margin="0,0,8,4"
 						Padding="12,0"
 						operaEtDies:Hotkeys.Badge="4"
 						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CallOff}"
@@ -109,14 +82,14 @@
 					<Button
 						MinWidth="120"
 						Height="32"
-						Margin="8,0,0,0"
+						Margin="0,0,8,4"
 						Padding="12,0"
 						operaEtDies:Hotkeys.Badge="5"
 						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AskToStart}"
 						Content="{Binding AskToStartText}"
 						Visibility="{Binding AskToStartText, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
-				</StackPanel>
-				<StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+				</WrapPanel>
+				<WrapPanel Margin="0,4,0,0">
 					<TextBlock VerticalAlignment="Center" Text="{x:Static operaEtDies:OurResources.ConversationAskAboutLabel}" />
 					<ComboBox
 						Width="220"
@@ -133,18 +106,28 @@
 						operaEtDies:Hotkeys.Badge="6"
 						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=AskAbout}"
 						Content="{Binding AskAboutText}" />
-				</StackPanel>
+					<!--  Ending the conversation is always there, so it's last, where it never moves.  -->
+					<Button
+						MinWidth="120"
+						Height="32"
+						Margin="8,0,0,0"
+						Padding="12,0"
+						operaEtDies:Hotkeys.Badge="7"
+						Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Close}"
+						Content="{x:Static operaEtDies:OurResources.ConversationEnd}" />
+				</WrapPanel>
 				<TextBlock
 					Margin="0,8,0,0"
 					FontWeight="Bold"
 					Text="{Binding Unavailable}"
+					TextWrapping="Wrap"
 					Visibility="{Binding Unavailable, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 			</StackPanel>
-		</Grid>
+		</Border>
 	</DataTemplate>
 
-
-	<!--  Someone asking the player to chat, with their portrait, and buttons to agree or turn them down.  -->
+	<!--  Someone asking the player to chat, with their portrait, and buttons to agree or turn them down, shown on top of the
+		location when they aren't listed in it. (When they are, it's shown in their line; see LocationView.)  -->
 	<DataTemplate DataType="{x:Type local:TalkPromptViewModel}">
 		<StackPanel Margin="24">
 			<DockPanel DataContext="{Binding Asker}" LastChildFill="True">

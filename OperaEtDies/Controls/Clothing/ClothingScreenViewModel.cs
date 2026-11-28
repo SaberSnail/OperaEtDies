@@ -8,17 +8,17 @@ using OperaEtDies.GameState;
 namespace OperaEtDies.Controls.Clothing;
 
 /// <summary>
-/// The player's clothes: their inventory, with what they're wearing and carrying, or their wardrobe at home, which also
-/// has the outfits they can change into and the clothes they keep there. Changing clothes takes time once, when the player
-/// leaves the page having changed what they're wearing, however many things they tried. They can't leave it while they
-/// aren't dressed enough to be seen where they are, unless they're no less covered than when they opened it.
+/// The player's clothes, in a sheet: their inventory, with what they're wearing and carrying, or their wardrobe at home,
+/// which also has the outfits they can change into and the clothes they keep there. No time passes while it's open.
+/// Changing clothes takes time once, when the player leaves it having changed what they're wearing, however many things
+/// they tried, and then picking up or putting away clothes can carry them on through their steps. They can't leave it
+/// while they aren't dressed enough to be seen where they are, unless they're no less covered than when they opened it.
 /// </summary>
-public sealed class ClothingScreenViewModel : ViewModelBase
+public sealed class ClothingScreenViewModel : ViewModelBase, ISheet
 {
-	public ClothingScreenViewModel(GameWorld world, TimeRunner timeRunner, bool isWardrobe, bool isDeveloper = false)
+	public ClothingScreenViewModel(GameWorld world, bool isWardrobe, bool isDeveloper = false)
 	{
 		m_world = world;
-		m_timeRunner = timeRunner;
 		IsWardrobe = isWardrobe;
 		IsDeveloper = isDeveloper;
 		m_wornBefore = world.Player.Clothing.Pieces.ToList();
@@ -32,9 +32,9 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 		Refresh();
 	}
 
-	public event EventHandler? CloseRequested;
-
 	public string Title { get; }
+
+	public bool IsFullWidth => false;
 
 	/// <summary>
 	/// Whether this is the wardrobe at home, rather than the inventory.
@@ -121,20 +121,13 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// The page can only be closed while the player is dressed enough to be seen where they are, or no less covered than
+	/// The sheet can only be closed while the player is dressed enough to be seen where they are, or no less covered than
 	/// when it opened, so they can always put more on.
 	/// </summary>
 	public bool CanClose() => Warning is null || m_world.IsPlayerNoLessCovered(m_wornWhenOpened);
 
-	public void Close()
-	{
-		VerifyAccess();
-		if (CanClose())
-			CloseRequested.Raise(this);
-	}
-
 	/// <summary>
-	/// Finishes changing clothes as the page closes, which takes time if the player is wearing something different from
+	/// Finishes changing clothes once the sheet closes, which takes time if the player is wearing something different from
 	/// when it opened. Returns how long it took, to show the player, or null if nothing changed.
 	/// </summary>
 	internal async Task<string?> FinishAsync()
@@ -146,18 +139,8 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Runs something the player does here that can pass time, such as picking up clothes, which can carry them on through
-	/// their steps, then shows their clothes as they are now.
-	/// </summary>
-	internal void Run(Func<Task> action) =>
-		m_timeRunner.Run(async () =>
-		{
-			await action().ConfigureAwait(true);
-			Refresh();
-		});
-
-	/// <summary>
-	/// Has the player change clothes, which takes no time until they're done, then shows their clothes as they are now.
+	/// Has the player change, pick up, or put away clothes, which takes no time until they're done, then shows their clothes
+	/// as they are now.
 	/// </summary>
 	internal void Change(Action change)
 	{
@@ -186,7 +169,6 @@ public sealed class ClothingScreenViewModel : ViewModelBase
 	}
 
 	private readonly GameWorld m_world;
-	private readonly TimeRunner m_timeRunner;
 	private IReadOnlyList<ClothingPieceViewModel> m_wearing;
 	private IReadOnlyList<ClothingPieceViewModel> m_carrying;
 	private IReadOnlyList<BundleViewModel> m_bundles;
@@ -284,7 +266,7 @@ public sealed class ClothingPieceViewModel : ViewModelBase
 	public void Take()
 	{
 		VerifyAccess();
-		m_screen.Run(() => m_world.PlayerTakeAsync(Piece));
+		m_screen.Change(() => m_world.PlayerTake(Piece));
 	}
 
 	public bool CanPutAway() => m_world.CanPlayerPutAway(Piece);
@@ -292,7 +274,7 @@ public sealed class ClothingPieceViewModel : ViewModelBase
 	public void PutAway()
 	{
 		VerifyAccess();
-		m_screen.Run(() => m_world.PlayerPutAwayAsync(Piece));
+		m_screen.Change(() => m_world.PlayerPutAway(Piece));
 	}
 
 	internal static string FirstUpper(string text) => text.Length == 0 ? text : text[..1].ToUpper(CultureInfo.CurrentCulture) + text[1..];

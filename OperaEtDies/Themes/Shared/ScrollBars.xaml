@@ -1,0 +1,174 @@
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+	<system:Double x:Key="ScrollBarThickness">8</system:Double>
+	<CornerRadius x:Key="ScrollBarCornerRadius">4</CornerRadius>
+
+	<!--  The parts of the track either side of the thumb, which page through the content when clicked. They're invisible, so
+		the track shows through.  -->
+	<Style x:Key="ScrollBarPageButtonStyle" TargetType="{x:Type RepeatButton}">
+		<Setter Property="OverridesDefaultStyle" Value="true" />
+		<Setter Property="Focusable" Value="false" />
+		<Setter Property="IsTabStop" Value="false" />
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="{x:Type RepeatButton}">
+					<Border Background="Transparent" />
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+	</Style>
+
+	<!--  The thumb: a rounded bar in the rule color, stronger on hover, and ink while it's dragged.  -->
+	<Style x:Key="ScrollBarThumbStyle" TargetType="{x:Type Thumb}">
+		<Setter Property="OverridesDefaultStyle" Value="true" />
+		<Setter Property="Focusable" Value="false" />
+		<Setter Property="IsTabStop" Value="false" />
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="{x:Type Thumb}">
+					<Border
+						x:Name="Bar"
+						Background="{DynamicResource RuleBrush}"
+						CornerRadius="{StaticResource ScrollBarCornerRadius}" />
+					<ControlTemplate.Triggers>
+						<Trigger Property="IsMouseOver" Value="true">
+							<Setter TargetName="Bar" Property="Background" Value="{DynamicResource RuleStrongBrush}" />
+						</Trigger>
+						<Trigger Property="IsDragging" Value="true">
+							<Setter TargetName="Bar" Property="Background" Value="{DynamicResource MeterBrush}" />
+						</Trigger>
+					</ControlTemplate.Triggers>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+	</Style>
+
+	<!--  A thin scrollbar with no arrow buttons: a rounded track with the thumb in it. The mouse wheel, dragging the thumb,
+		and clicking the track to page are enough. While it's disabled, the thumb is hidden.  -->
+	<Style TargetType="{x:Type ScrollBar}">
+		<Setter Property="OverridesDefaultStyle" Value="true" />
+		<Setter Property="SnapsToDevicePixels" Value="true" />
+		<Setter Property="Focusable" Value="false" />
+		<Setter Property="Width" Value="{StaticResource ScrollBarThickness}" />
+		<Setter Property="MinWidth" Value="{StaticResource ScrollBarThickness}" />
+		<Setter Property="Height" Value="NaN" />
+		<Setter Property="MinHeight" Value="0" />
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="{x:Type ScrollBar}">
+					<Border Background="{DynamicResource TrackBrush}" CornerRadius="{StaticResource ScrollBarCornerRadius}">
+						<Track x:Name="PART_Track" IsDirectionReversed="true">
+							<Track.DecreaseRepeatButton>
+								<RepeatButton Command="ScrollBar.PageUpCommand" Style="{StaticResource ScrollBarPageButtonStyle}" />
+							</Track.DecreaseRepeatButton>
+							<Track.Thumb>
+								<Thumb Style="{StaticResource ScrollBarThumbStyle}" />
+							</Track.Thumb>
+							<Track.IncreaseRepeatButton>
+								<RepeatButton Command="ScrollBar.PageDownCommand" Style="{StaticResource ScrollBarPageButtonStyle}" />
+							</Track.IncreaseRepeatButton>
+						</Track>
+					</Border>
+					<ControlTemplate.Triggers>
+						<Trigger Property="IsEnabled" Value="false">
+							<Setter TargetName="PART_Track" Property="Visibility" Value="Hidden" />
+						</Trigger>
+					</ControlTemplate.Triggers>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+		<Style.Triggers>
+			<Trigger Property="Orientation" Value="Horizontal">
+				<Setter Property="Width" Value="NaN" />
+				<Setter Property="MinWidth" Value="0" />
+				<Setter Property="Height" Value="{StaticResource ScrollBarThickness}" />
+				<Setter Property="MinHeight" Value="{StaticResource ScrollBarThickness}" />
+				<Setter Property="Template">
+					<Setter.Value>
+						<ControlTemplate TargetType="{x:Type ScrollBar}">
+							<Border Background="{DynamicResource TrackBrush}" CornerRadius="{StaticResource ScrollBarCornerRadius}">
+								<Track x:Name="PART_Track" IsDirectionReversed="false">
+									<Track.DecreaseRepeatButton>
+										<RepeatButton Command="ScrollBar.PageLeftCommand" Style="{StaticResource ScrollBarPageButtonStyle}" />
+									</Track.DecreaseRepeatButton>
+									<Track.Thumb>
+										<Thumb Style="{StaticResource ScrollBarThumbStyle}" />
+									</Track.Thumb>
+									<Track.IncreaseRepeatButton>
+										<RepeatButton Command="ScrollBar.PageRightCommand" Style="{StaticResource ScrollBarPageButtonStyle}" />
+									</Track.IncreaseRepeatButton>
+								</Track>
+							</Border>
+							<ControlTemplate.Triggers>
+								<Trigger Property="IsEnabled" Value="false">
+									<Setter TargetName="PART_Track" Property="Visibility" Value="Hidden" />
+								</Trigger>
+							</ControlTemplate.Triggers>
+						</ControlTemplate>
+					</Setter.Value>
+				</Setter>
+			</Trigger>
+		</Style.Triggers>
+	</Style>
+
+	<!--  A scroll viewer with the thin scrollbars, set a little apart from the content, and nothing drawn in the corner where
+		they meet, so the panel behind shows through rather than a system-colored square.  -->
+	<Style TargetType="{x:Type ScrollViewer}">
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="{x:Type ScrollViewer}">
+					<Grid Background="{TemplateBinding Background}">
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="*" />
+							<ColumnDefinition Width="Auto" />
+						</Grid.ColumnDefinitions>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="*" />
+							<RowDefinition Height="Auto" />
+						</Grid.RowDefinitions>
+						<ScrollContentPresenter
+							x:Name="PART_ScrollContentPresenter"
+							Grid.Row="0"
+							Grid.Column="0"
+							Margin="{TemplateBinding Padding}"
+							CanContentScroll="{TemplateBinding CanContentScroll}"
+							CanHorizontallyScroll="False"
+							CanVerticallyScroll="False"
+							Content="{TemplateBinding Content}"
+							ContentTemplate="{TemplateBinding ContentTemplate}" />
+						<ScrollBar
+							x:Name="PART_VerticalScrollBar"
+							Grid.Row="0"
+							Grid.Column="1"
+							Margin="4,0,0,0"
+							AutomationProperties.AutomationId="VerticalScrollBar"
+							Cursor="Arrow"
+							Maximum="{TemplateBinding ScrollableHeight}"
+							Minimum="0"
+							Orientation="Vertical"
+							ViewportSize="{TemplateBinding ViewportHeight}"
+							Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"
+							Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" />
+						<ScrollBar
+							x:Name="PART_HorizontalScrollBar"
+							Grid.Row="1"
+							Grid.Column="0"
+							Margin="0,4,0,0"
+							AutomationProperties.AutomationId="HorizontalScrollBar"
+							Cursor="Arrow"
+							Maximum="{TemplateBinding ScrollableWidth}"
+							Minimum="0"
+							Orientation="Horizontal"
+							ViewportSize="{TemplateBinding ViewportWidth}"
+							Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}"
+							Value="{Binding HorizontalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" />
+					</Grid>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+	</Style>
+
+</ResourceDictionary>

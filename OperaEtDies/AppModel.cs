@@ -74,7 +74,7 @@ public sealed class AppModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Opens the window, showing the main menu, and loads the game data. Mods aren't loaded if they're turned off, the
+	/// Opens the window, showing the loading screen, and loads the game data, then shows the main menu. Mods aren't loaded if they're turned off, the
 	/// given mod folders are loaded instead of the mod list if there are any, and developer UI is only shown if it's
 	/// turned on. The kept settings are forgotten first if they're to be reset.
 	/// </summary>
@@ -91,12 +91,17 @@ public sealed class AppModel : ViewModelBase
 			Log.Info("Mods were chosen on the command line, instead of the mod list");
 
 		// The window opens where it was last, which is kept under the game's title, so the game info is read first, along
-		// with the theme the window is drawn in. The rest of the data loads while the window shows that it's loading.
+		// with the theme the window is drawn in and the icon, so the window has its title and icon from the start (mods
+		// can't change either). The rest of the data loads while the window shows that it's loading.
 		await state.ToThreadPool();
-		var (baseGameInfoResult, baseTheme) = LoadBase(JsonDataLoader.DefaultDataDirectory);
+		var dataDirectory = JsonDataLoader.DefaultDataDirectory;
+		var (baseGameInfoResult, baseTheme) = LoadBase(dataDirectory);
+		var baseGameInfo = baseGameInfoResult.Value;
+		var iconPath = baseGameInfo?.GetIconPath(dataDirectory);
+		var iconReadResult = iconPath is null ? null : ImageDataLoader.Read(iconPath);
 		await state.ToSyncContext();
 		Theme = baseTheme;
-		var baseGameInfo = baseGameInfoResult.Value;
+		LoadIcon(iconPath, iconReadResult);
 		WindowPlacementKeyPath = baseGameInfo is null ? null : GameRegistry.GetKeyPath(baseGameInfo.Title);
 
 		// The settings are kept under the game's title too. Without it, they still work, but aren't kept.
@@ -107,7 +112,7 @@ public sealed class AppModel : ViewModelBase
 			settingsStore?.Reset();
 		}
 		Settings = new AppSettings(settingsStore);
-		OpenMainWindow();
+		OpenMainWindow(baseGameInfo?.Title);
 
 		await LoadDataAsync(state);
 		ShowData();
@@ -163,30 +168,36 @@ public sealed class AppModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// Loads the game data and its theme, and the icon from the game info without mods.
+	/// Decodes the icon from the game info without mods. Images belong to the thread that decodes them, so this is done
+	/// here rather than on the thread pool.
+	/// </summary>
+	private void LoadIcon(string? iconPath, DataLoadResult<byte[]>? iconReadResult)
+	{
+		var iconResult = iconReadResult?.Value is { } iconContents ? ImageDataLoader.Decode(iconPath!, iconContents) : null;
+		using (ScopedPropertyChange(nameof(Icon)))
+		{
+			m_icon = iconResult?.Value;
+			m_iconErrors = iconResult?.Errors ?? iconReadResult?.Errors ?? [];
+		}
+	}
+
+	/// <summary>
+	/// Loads the game data and its theme.
 	/// </summary>
 	private async Task LoadDataAsync(TaskStateController state)
 	{
 		await state.ToThreadPool();
 
-		var (content, baseGameInfoResult, baseTheme, modListStore) = LoadContent(m_areModsEnabled, m_modDirectoriesOverride);
+		var (content, _, baseTheme, modListStore) = LoadContent(m_areModsEnabled, m_modDirectoriesOverride);
 		var gameInfoResult = content.GameInfoResult;
 		var gameDataResult = content.GameDataResult;
 
-		var iconPath = baseGameInfoResult.Value?.GetIconPath(JsonDataLoader.DefaultDataDirectory);
-		var iconReadResult = iconPath is null ? null : ImageDataLoader.Read(iconPath);
-
 		await state.ToSyncContext();
 
-		// Images belong to the thread that decodes them, so the icon is decoded here rather than on the thread pool.
-		var iconResult = iconReadResult?.Value is { } iconContents ? ImageDataLoader.Decode(iconPath!, iconContents) : null;
-
-		using (ScopedPropertyChange(nameof(GameInfo), nameof(GameData), nameof(Icon)))
+		using (ScopedPropertyChange(nameof(GameInfo), nameof(GameData)))
 		{
 			m_gameInfoResult = gameInfoResult;
 			m_gameDataResult = gameDataResult;
-			m_icon = iconResult?.Value;
-			m_iconErrors = iconResult?.Errors ?? iconReadResult?.Errors ?? [];
 		}
 
 		// When the game data doesn't load, the theme without mods is used, so the errors are drawn in the usual theme.
@@ -206,9 +217,9 @@ public sealed class AppModel : ViewModelBase
 
 	private void ShowData() => m_mainWindow?.SetData(m_gameInfoResult.Value, m_gameDataResult.Value, GetLoadErrors(), m_modListStore, m_saveSettings);
 
-	private void OpenMainWindow()
+	private void OpenMainWindow(string? title)
 	{
-		var mainWindow = new MainWindowViewModel(Random, new FolderPicker(), m_areModsEnabled, m_isDeveloper, m_modDirectoriesOverride is not null, m_settings);
+		var mainWindow = new MainWindowViewModel(Random, new FolderPicker(), m_areModsEnabled, m_isDeveloper, m_modDirectoriesOverride is not null, m_settings, title);
 		mainWindow.ExitRequested += OnExitGameRequested;
 		mainWindow.ReloadDataRequested += OnReloadDataRequested;
 		MainWindow = mainWindow;

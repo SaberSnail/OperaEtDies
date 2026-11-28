@@ -103,7 +103,7 @@ public sealed class EventLogTests
 		var npc = world.Npcs[0];
 		var need = new Need
 		{
-			Id = "lesson", Title = "Lesson", Icon = "icon", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			Id = "lesson", Title = "Lesson", Icon = "icon", Category = NeedCategory.Personal, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings = [new Step { Kind = StepKind.Do, Minutes = TestData.Amount(60), Activity = "Teaching {partner} to swim" }],
 		};
 		need.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);

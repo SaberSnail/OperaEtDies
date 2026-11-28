@@ -88,6 +88,45 @@
 		</Setter>
 	</Style>
 
+	<!--  A menu button (see MenuButton): one button with its text and a chevron after it, which opens the same menu as a split
+		button's chevron. While the menu is open, it ignores the mouse, so clicking it closes the menu rather than opening it
+		again.  -->
+	<Style TargetType="{x:Type controls:MenuButton}">
+		<Setter Property="Focusable" Value="False" />
+		<Setter Property="VerticalAlignment" Value="Center" />
+		<Setter Property="HorizontalAlignment" Value="Left" />
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="{x:Type controls:MenuButton}">
+					<ToggleButton
+						x:Name="PART_Toggle"
+						IsChecked="{Binding Action.IsMenuOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+						IsHitTestVisible="{Binding Action.IsMenuOpen, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static utility:CommonConverters.BooleanNot}}"
+						ToolTip="{Binding Action.ToolTip, RelativeSource={RelativeSource TemplatedParent}}">
+						<StackPanel Margin="6,0,2,0" Orientation="Horizontal">
+							<TextBlock VerticalAlignment="Center" Text="{Binding Action.Text, RelativeSource={RelativeSource TemplatedParent}}" />
+							<Viewbox
+								Width="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static local:EmConverter.Instance}, ConverterParameter=0.9}"
+								Height="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static local:EmConverter.Instance}, ConverterParameter=0.9}"
+								Margin="6,0,0,0"
+								VerticalAlignment="Center">
+								<Canvas Width="24" Height="24">
+									<Path
+										Data="{DynamicResource ChevronDownIcon}"
+										Stroke="{Binding Path=(TextElement.Foreground), RelativeSource={RelativeSource Self}}"
+										StrokeEndLineCap="Round"
+										StrokeLineJoin="Round"
+										StrokeStartLineCap="Round"
+										StrokeThickness="2" />
+								</Canvas>
+							</Viewbox>
+						</StackPanel>
+					</ToggleButton>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+	</Style>
+
 	<!--  A choice in a split button's menu, with the number key that chooses it while the menu is open at its right end. One
 		that can't be chosen now is drawn disabled, and still shows its tooltip, which says why.  -->
 	<Style x:Key="SplitButtonMenuItemStyle" TargetType="{x:Type MenuItem}">

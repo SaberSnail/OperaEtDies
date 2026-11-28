@@ -343,7 +343,7 @@ public sealed class CanvasViewModel : ViewModelBase
 		else
 		{
 			if (layerState == CanvasState.Normal && !placement.IsLayerConditionMet)
-				reasons.Add("the layer's condition");
+				reasons.Add("the layer's condition or sky");
 			if (layerState == CanvasState.Normal && !placement.IsPlaceMet)
 				reasons.Add("the layer's place");
 			if (!placement.IsShapeConditionMet)

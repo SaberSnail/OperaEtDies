@@ -1,8 +1,11 @@
 namespace OperaEtDies.Controls;
 
 /// <summary>
-/// Detailed information shown in a sheet over the center during play (see <see cref="Game.GameScreenViewModel.Sheets"/>).
-/// Sheets don't use the engine, and the sheet's frame draws its title and the button that closes it.
+/// A page shown in a sheet over the center during play (see <see cref="Game.GameScreenViewModel.Sheets"/>), such as
+/// detailed information, what the player can start, or their clothes. No time passes while a sheet is open: anything done
+/// in one that passes time closes it first, or waits until every sheet is closed. The sheet's frame draws its title and
+/// the button that closes it. A sheet with numbered choices (<see cref="INumberedChoices"/>) takes the number keys while
+/// it's on top.
 /// </summary>
 public interface ISheet
 {

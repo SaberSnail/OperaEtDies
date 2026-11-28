@@ -248,10 +248,10 @@ public sealed class PortraitDataTests
 			Layers =
 			[
 				new PortraitLayer { Ai = true, Id = "face", Scale = "wide", Shapes = [new PortraitShape { Path = "M10,10 H90 V110 H10 Z", Fill = "skin" }] },
-				new PortraitLayer { Ai = true, Id = "beard", When = TestData.Condition("gender", "male"), Scale = "short", Offset = "height", Shapes = [new PortraitShape { Path = "M20,80 H80 V110 H20 Z", Fill = "#202020" }] },
-				new PortraitLayer { Ai = true, Id = "wrinkles", When = TestData.Condition("age", "old"), Scale = "wide", Shapes = [new PortraitShape { Path = "M20,30 H80", Stroke = "#000000", StrokeWidth = 2, Opacity = 0.5, Scale = "short" }] },
+				new PortraitLayer { Ai = true, Id = "beard", When = TestData.PortraitCondition("gender", "male"), Scale = "short", Offset = "height", Shapes = [new PortraitShape { Path = "M20,80 H80 V110 H20 Z", Fill = "#202020" }] },
+				new PortraitLayer { Ai = true, Id = "wrinkles", When = TestData.PortraitCondition("age", "old"), Scale = "wide", Shapes = [new PortraitShape { Path = "M20,30 H80", Stroke = "#000000", StrokeWidth = 2, Opacity = 0.5, Scale = "short" }] },
 				new PortraitLayer { Ai = true, Id = "forge", At = new PortraitPlaceCondition { Workplaces = ["smith"] }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#FF8000" }] },
-				new PortraitLayer { Ai = true, Id = "apron", When = TestData.Condition("atWork", "atWork"), Shapes = [new PortraitShape { Path = "M30,90 H70", Stroke = "#FFFFFF" }] },
+				new PortraitLayer { Ai = true, Id = "apron", When = TestData.PortraitCondition("atWork", "atWork"), Shapes = [new PortraitShape { Path = "M30,90 H70", Stroke = "#FFFFFF" }] },
 				new PortraitLayer { Ai = true, Id = "hearth", At = new PortraitPlaceCondition { Home = true }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#FF0000" }] },
 				new PortraitLayer { Ai = true, Id = "street", At = new PortraitPlaceCondition { QuarterKinds = ["lane", "square"] }, Shapes = [new PortraitShape { Path = "M0,0 H10", Stroke = "#808080" }] },
 			],

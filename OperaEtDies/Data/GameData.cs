@@ -150,6 +150,7 @@ public sealed class GameData
 		var seasons = List<CalendarSeason>("seasons");
 		var dayParts = List<CalendarDayPart>("dayParts");
 		var specialDays = List<CalendarSpecialDay>("specialDays");
+		var skies = List<CalendarSky>("skies");
 		var schedules = Section<ScheduleSettings>(ScheduleSettings.SectionName, isRequired: false) ?? (document.GetSection(ScheduleSettings.SectionName) is null ? ScheduleSettings.None : null);
 		var needs = List<Need>("needs");
 		var travelTimeFactors = List<TravelTimeFactor>("travelTimeFactors");
@@ -175,7 +176,7 @@ public sealed class GameData
 			return Fail(errors);
 
 		var locations = new LocationList { Village = village, QuarterKinds = quarterKinds, Layouts = layouts, Features = features, Quarters = quarters, Houses = houses, Businesses = businesses };
-		var calendar = new CalendarSettings { Days = days, Weeks = weeks, Seasons = seasons, DayParts = dayParts, SpecialDays = specialDays, StartYear = calendarSection.StartYear, YearFormat = calendarSection.YearFormat };
+		var calendar = new CalendarSettings { Days = days, Weeks = weeks, Seasons = seasons, DayParts = dayParts, SpecialDays = specialDays, Skies = skies, Sunrise = calendarSection.Sunrise, Sunset = calendarSection.Sunset, StartYear = calendarSection.StartYear, YearFormat = calendarSection.YearFormat };
 		schedules.Needs = needs;
 		schedules.TravelTimeFactors = travelTimeFactors;
 		schedules.UrgencyFactors = urgencyFactors;
@@ -261,14 +262,15 @@ public sealed class GameData
 
 	/// <summary>
 	/// Checks portrait data, which has already been checked on its own, against the rest of the game data: the
-	/// character properties its conditions use, the kinds of quarter and professions its layers are drawn in, and the
+	/// character properties its conditions use, the kinds of quarter, skies, and professions its layers are drawn in, and the
 	/// clothing its layers draw and the regions of the body whose coverage hides them.
 	/// </summary>
 	public IReadOnlyList<string> ValidatePortraits(PortraitData portraits)
 	{
 		var properties = CharacterProperties.ToDictionary(x => x.Id, StringComparer.Ordinal);
 		var quarterKinds = QuarterKinds.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
-		return GameDataValidation.ValidatePortraits(portraits, properties, quarterKinds, CharacterProperties.Find(Families.Roles.Properties.Profession), new ClothingData { Slots = ClothingSlots, Items = Clothing }).ToList();
+		var skies = Calendar.Skies.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+		return GameDataValidation.ValidatePortraits(portraits, properties, quarterKinds, skies, CharacterProperties.Find(Families.Roles.Properties.Profession), new ClothingData { Slots = ClothingSlots, Items = Clothing }).ToList();
 	}
 
 	/// <summary>

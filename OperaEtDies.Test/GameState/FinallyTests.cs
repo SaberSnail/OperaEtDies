@@ -109,7 +109,7 @@ public sealed class FinallyTests
 		var chore = Errand([Spend(600)], [Spend(5)]);
 		var lesson = new Need
 		{
-			Id = "lesson", Title = "Lesson", Icon = "icon", Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
+			Id = "lesson", Title = "Lesson", Icon = "icon", Category = NeedCategory.Personal, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 },
 			StepSettings = [new Step
 			{
 				Kind = StepKind.Ask, With = StepTarget.Anyone, Player = new StepPlayer { Title = "Ask" }, Name = "agreed", Minutes = Amount(5), Chance = new StepChance { Base = 100 },
@@ -144,7 +144,7 @@ public sealed class FinallyTests
 	/// </summary>
 	private static Need Errand(IReadOnlyList<Step> steps, IReadOnlyList<Step>? finallySteps = null)
 	{
-		var need = new Need { Id = "errand", Title = "Errand", Icon = "icon", StepSettings = steps, Finally = finallySteps, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 } };
+		var need = new Need { Id = "errand", Title = "Errand", Icon = "icon", Category = NeedCategory.Personal, StepSettings = steps, Finally = finallySteps, Level = new LevelNeedSettings { PerHour = 0, SatisfyPerHour = 60 } };
 		need.StepLists = new Dictionary<string, StepList>(StringComparer.Ordinal);
 		return need;
 	}

@@ -1,8 +1,9 @@
-using System.Collections.Specialized;
+﻿using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows.Media;
 using GoldenAnvil.Utility;
 using OperaEtDies.Characters;
+using OperaEtDies.Controls.Conversation;
 using OperaEtDies.Data;
 using OperaEtDies.GameState;
 using OperaEtDies.Time;
@@ -12,8 +13,9 @@ namespace OperaEtDies.Controls.Locations;
 /// <summary>
 /// A person who can be examined to open a view focused on them, such as someone in the player's location, with what
 /// they're doing, and how they're related to the player if they're in the player's household. In the player's location,
-/// the player can talk with them and follow them. In the list of villagers, the player is labeled, and developers can go to where anyone
-/// else is.
+/// the player can talk with them and follow them, and a conversation with them, or their asking the player to chat, is
+/// shown in their line (see <see cref="Interaction"/>). In the list of villagers, the player is labeled, and developers
+/// can go to where anyone else is.
 /// </summary>
 public sealed class LocationPersonViewModel : ViewModelBase
 {
@@ -36,8 +38,9 @@ public sealed class LocationPersonViewModel : ViewModelBase
 		m_examine = examine;
 		m_talk = person.IsPlayer ? null : talk;
 		IsYou = labelRelations is not null && person.IsPlayer;
-		PlayerLabel = labelRelations is null ? null : IsYou ? OurResources.ThisIsYou :
-			person.Family.Members.Any(x => x.IsPlayer) && labelRelations.GetPlayerRelation(person.GetConditionValueId) is { } relation ? OurResources.ThisIsYourRelation.FormatCurrentCulture(relation) : null;
+		var relation = labelRelations is not null && !IsYou && person.Family.Members.Any(x => x.IsPlayer) ? labelRelations.GetPlayerRelation(person.GetConditionValueId) : null;
+		PlayerLabel = IsYou ? OurResources.ThisIsYou : relation is null ? null : OurResources.ThisIsYourRelation.FormatCurrentCulture(relation);
+		Relation = IsYou ? OurResources.RelationYou : relation is null ? null : OurResources.RelationYour.FormatCurrentCulture(relation);
 
 		// The person outlives the view model, so it's listened to weakly.
 		PropertyChangedEventManager.AddHandler(person, OnPersonPropertyChanged, "");
@@ -79,9 +82,54 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	public bool IsYou { get; }
 
 	/// <summary>
-	/// How the person is related to the player, such as "This is you" or "This is your son", or null if it isn't shown.
+	/// How the person is related to the player, as a sentence, such as "This is you" or "This is your son", or null if it
+	/// isn't shown.
 	/// </summary>
 	public string? PlayerLabel { get; }
+
+	/// <summary>
+	/// How the person is related to the player, in short, such as "you" or "your son", or null if it isn't shown.
+	/// </summary>
+	public string? Relation { get; }
+
+	/// <summary>
+	/// The person's profession, such as "Miller", or null if they have none.
+	/// </summary>
+	public string? Profession => VerifyAccess((Person.Traits.Values.GetValueOrDefault(Person.GameData.Families.Roles.Properties.Profession) as CharacterPropertyOption)?.Title);
+
+	/// <summary>
+	/// What's shown in the person's line, below their name: a conversation with them, or their asking the player to chat,
+	/// or null if nothing is. While it's shown, their portrait is shown at full size.
+	/// </summary>
+	public ViewModelBase? Interaction
+	{
+		get => VerifyAccess(m_interaction);
+		internal set => SetPropertyField([nameof(Interaction), nameof(HasInteraction), nameof(IsTalking), nameof(TalkText)], value, ref m_interaction);
+	}
+
+	/// <summary>
+	/// Whether the player is talking with the person, so the talk button looks pressed, and ends the conversation.
+	/// </summary>
+	public bool IsTalking => Interaction is ConversationViewModel;
+
+	/// <summary>
+	/// The tooltip of the button that starts talking with the person, or stops.
+	/// </summary>
+	public string TalkText => IsTalking ? OurResources.StopTalking : OurResources.TalkToPerson;
+
+	/// <summary>
+	/// Whether something is shown in the person's line.
+	/// </summary>
+	public bool HasInteraction => Interaction is not null;
+
+	/// <summary>
+	/// Whether the person's line can't be used, since something is shown in someone else's.
+	/// </summary>
+	public bool IsBlocked
+	{
+		get => VerifyAccess(m_isBlocked);
+		internal set => SetPropertyField(value, ref m_isBlocked);
+	}
 
 	/// <summary>
 	/// Whether the player can go straight to where the person is, for developers.
@@ -103,7 +151,7 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	}
 
 	/// <summary>
-	/// The text of the button that starts or stops following the person.
+	/// The tooltip of the button that starts or stops following the person.
 	/// </summary>
 	public string FollowText => IsFollowed ? OurResources.StopFollowing : OurResources.FollowPerson;
 
@@ -113,12 +161,15 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	public bool CanTalk => m_talk is not null;
 
 	/// <summary>
-	/// Starts a conversation with the person.
+	/// Starts a conversation with the person, or ends it if the player is already talking with them.
 	/// </summary>
 	public void Talk()
 	{
 		VerifyAccess();
-		m_talk?.Invoke(Person);
+		if (Interaction is ConversationViewModel conversation)
+			conversation.Close();
+		else
+			m_talk?.Invoke(Person);
 	}
 
 	/// <summary>
@@ -267,6 +318,8 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	{
 		if (e.PropertyName is nameof(Person.Traits) or nameof(Person.PortraitPlace) or null or "")
 			RaisePropertyChanged(nameof(Portrait));
+		if (e.PropertyName is nameof(Person.Traits) or null or "")
+			RaisePropertyChanged(nameof(Profession));
 		if (e.PropertyName is nameof(Person.CurrentTask) or nameof(Person.Location) or null or "")
 			RaisePropertyChanged(nameof(Activity), nameof(DeveloperGoal));
 		if (e.PropertyName is nameof(Person.GoalChoice) or null or "")
@@ -283,4 +336,6 @@ public sealed class LocationPersonViewModel : ViewModelBase
 	private readonly Action<Person>? m_examine;
 	private readonly Action<Person>? m_talk;
 	private bool m_isFollowed;
+	private ViewModelBase? m_interaction;
+	private bool m_isBlocked;
 }

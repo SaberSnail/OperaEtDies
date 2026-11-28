@@ -76,13 +76,18 @@
 		<WrapPanel />
 	</ItemsPanelTemplate>
 
-	<!--  A chore in Concerns as a button that starts it. It only looks like its icon, with the usual hover, since its icon
-		shows whether it's done or can't be done today, and its tooltip why it can't be started now.  -->
+	<!--  The player's needs in the left column, with each row centered, like the rest of the column.  -->
+	<ItemsPanelTemplate x:Key="CenteredMeterPanelTemplate">
+		<layout:CenteredWrapPanel />
+	</ItemsPanelTemplate>
+
+	<!--  A need in the left column or a chore in Concerns as a button that starts it. It only looks like its icon, with the
+		usual hover, since its icon shows how it's going, and its tooltip why it can't be started now.  -->
 	<Style x:Key="MeterButtonStyle" TargetType="{x:Type Button}">
 		<Setter Property="OverridesDefaultStyle" Value="True" />
 		<Setter Property="FocusVisualStyle" Value="{DynamicResource KeyboardFocusVisualStyle}" />
 		<Setter Property="Background" Value="Transparent" />
-		<Setter Property="Margin" Value="0,0,2,2" />
+		<Setter Property="Margin" Value="2,0,2,2" />
 		<Setter Property="Padding" Value="0,3,0,0" />
 		<Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
 		<Setter Property="Template">
@@ -110,6 +115,16 @@
 			</Trigger>
 		</Style.Triggers>
 	</Style>
+
+	<!--  A need or chore as a button that starts it.  -->
+	<DataTemplate x:Key="MeterButtonTemplate" DataType="{x:Type local:MeterViewModel}">
+		<Button
+			Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Start}"
+			Content="{Binding}"
+			IsEnabled="{Binding IsStartable}"
+			Style="{StaticResource MeterButtonStyle}"
+			ToolTip="{Binding ToolTip}" />
+	</DataTemplate>
 
 	<!--  The left column: the player's portrait, name, and profession, the date and time with the day dial, their next
 		appointment, their needs as icons, and the mini-map. In compact mode, the portrait is smaller, and the mini-map is as
@@ -158,25 +173,41 @@
 					TextTrimming="CharacterEllipsis"
 					Visibility="{Binding Profession, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
 
-				<!--  The date, any festival or other special day, the time of day with the day dial, and the next appointment.
-					The appointment's line is kept when there's none, so nothing below it moves.  -->
-				<TextBlock Style="{DynamicResource CaptionTextStyle}" Text="{Binding Date}" />
+				<!--  The date (the day of the week in small caps, over the rest of it, muted), any festival or other special day,
+					the time of day with the day dial, and the next appointment. The appointment's line is kept when there's none,
+					so nothing below it moves.  -->
 				<TextBlock
-					Margin="0,0,0,2"
+					Margin="0,14,0,0"
+					FontSize="{DynamicResource LargeFontSize}"
+					Text="{Binding DayOfWeek}"
+					TextAlignment="Center"
+					TextTrimming="CharacterEllipsis"
+					Typography.Capitals="SmallCaps" />
+				<TextBlock
+					FontSize="{DynamicResource SmallFontSize}"
+					FontStyle="Italic"
+					Foreground="{DynamicResource TextMutedBrush}"
+					Text="{Binding SeasonAndYear}"
+					TextAlignment="Center"
+					TextWrapping="Wrap" />
+				<TextBlock
+					Margin="0,2,0,0"
 					FontWeight="SemiBold"
 					Text="{Binding SpecialDay}"
+					TextAlignment="Center"
 					TextWrapping="Wrap"
 					Visibility="{Binding SpecialDay, Converter={x:Static utility:CommonConverters.IsNullToVisibility}}" />
-				<DockPanel>
+				<DockPanel Margin="0,4,0,0" HorizontalAlignment="Center">
 					<local:DayDial
 						Width="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=2.4}"
 						Height="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=1.3}"
 						Margin="0,0,8,0"
 						VerticalAlignment="Center"
 						DockPanel.Dock="Left"
+						ArcBrush="{DynamicResource RuleStrongBrush}"
 						IsNight="{Binding IsNight}"
 						Marks="{Binding DayDialMarks}"
-						MoonBrush="{DynamicResource PanelBrush}"
+						MoonBrush="{DynamicResource MoonBrush}"
 						Position="{Binding DayDialPosition}"
 						Stroke="{DynamicResource TextBrush}"
 						SunBrush="{DynamicResource SunBrush}" />
@@ -186,20 +217,31 @@
 					Margin="0,4,0,0"
 					FontSize="{DynamicResource SmallFontSize}"
 					Text="{Binding NextAppointment}"
+					TextAlignment="Center"
 					TextTrimming="CharacterEllipsis"
 					ToolTip="{Binding NextAppointment}" />
 
-				<!--  How well the player's needs are met, as icons.  -->
-				<TextBlock Style="{DynamicResource CaptionTextStyle}" Text="{x:Static operaEtDies:OurResources.NeedsHeader}" />
+				<!--  How well the player's needs are met, as icons that start them.  -->
+				<TextBlock
+					Style="{DynamicResource CaptionTextStyle}"
+					Text="{x:Static operaEtDies:OurResources.NeedsHeader}"
+					TextAlignment="Center" />
 				<ItemsControl
 					Focusable="False"
-					ItemsPanel="{StaticResource MeterPanelTemplate}"
+					ItemTemplate="{StaticResource MeterButtonTemplate}"
+					ItemsPanel="{StaticResource CenteredMeterPanelTemplate}"
 					ItemsSource="{Binding Needs}" />
 
-				<TextBlock Style="{DynamicResource CaptionTextStyle}" Text="{x:Static operaEtDies:OurResources.MiniMapHeader}" />
+				<TextBlock
+					Style="{DynamicResource CaptionTextStyle}"
+					Text="{x:Static operaEtDies:OurResources.MiniMapHeader}"
+					TextAlignment="Center" />
 
 				<!--  The player's quarter and the quarters its paths lead to, at most 10 ems wide.  -->
-				<Viewbox MaxWidth="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=10}" Stretch="Uniform">
+				<Viewbox
+					MaxWidth="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=10}"
+					HorizontalAlignment="Center"
+					Stretch="Uniform">
 					<Border
 						Width="204"
 						Height="204"
@@ -219,9 +261,9 @@
 
 	<!--  The Concerns panel: what the player should keep in mind. Its buttons can take keyboard focus, which J moves here.
 		For now, that's the player's work, with how much is done and a button that starts it, their household's chores as
-		icons that start them, where they're heading, with a button that clears it (and while choosing a new destination
-		would give up what they're doing, the question whether to), and today's appointments still to come, each with a
-		button that makes its place the destination. The work and chores are always there, so they come first, and the parts
+		icons that start them, where they're heading, with a button that clears it (or without a destination, a "Go to" menu
+		of places to head for, and while choosing a new destination would give up what they're doing, the question whether
+		to), and today's appointments still to come, each with a button that makes its place the destination. The work and chores are always there, so they come first, and the parts
 		that come and go are below them.  -->
 	<DataTemplate DataType="{x:Type local:ConcernsViewModel}">
 		<ScrollViewer
@@ -229,83 +271,81 @@
 			HorizontalScrollBarVisibility="Disabled"
 			VerticalScrollBarVisibility="Auto">
 			<StackPanel Margin="12,12,12,8">
-				<TextBlock
-					Margin="0,0,0,4"
-					Style="{DynamicResource CaptionTextStyle}"
-					Text="{x:Static operaEtDies:OurResources.ConcernsHeader}" />
-				<!--  The player's work: its title and how much is done beside its icon, with a button that starts it. Why it can't be
-					started now is the button's tooltip, so nothing moves when that changes.  -->
-				<ItemsControl Focusable="False" ItemsSource="{Binding Work}">
-					<ItemsControl.ItemTemplate>
-						<DataTemplate DataType="{x:Type local:ConcernsWorkViewModel}">
-							<DockPanel Margin="0,0,0,8">
-								<Button
-									Margin="8,0,0,0"
-									Padding="8,2"
-									VerticalAlignment="Center"
-									Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Start}"
-									Content="{Binding StartText}"
-									DockPanel.Dock="Right"
-									IsEnabled="{Binding IsStartable}"
-									ToolTip="{Binding Note}"
-									ToolTipService.ShowOnDisabled="True" />
-								<Viewbox
-									Width="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=1.4}"
-									Height="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=1.4}"
-									Margin="0,0,8,0"
-									VerticalAlignment="Center"
-									DockPanel.Dock="Left">
-									<Canvas Width="24" Height="24">
-										<Path
-											x:Name="IconPath"
-											Data="{Binding Icon}"
-											Stroke="{DynamicResource TextBrush}"
-											StrokeEndLineCap="Round"
-											StrokeLineJoin="Round"
-											StrokeStartLineCap="Round"
-											StrokeThickness="1.6" />
-									</Canvas>
-								</Viewbox>
-								<StackPanel VerticalAlignment="Center">
-									<TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-									<TextBlock
-										FontSize="{DynamicResource SmallFontSize}"
-										Foreground="{DynamicResource TextMutedBrush}"
-										Text="{Binding Status}"
-										TextWrapping="Wrap" />
-								</StackPanel>
-							</DockPanel>
-							<DataTemplate.Triggers>
-								<DataTrigger Binding="{Binding IsComplete}" Value="True">
-									<Setter TargetName="IconPath" Property="Stroke" Value="{DynamicResource AccentBrush}" />
-								</DataTrigger>
-							</DataTemplate.Triggers>
-						</DataTemplate>
-					</ItemsControl.ItemTemplate>
-				</ItemsControl>
-
-				<!--  The household's chores, as icons that start them.  -->
-				<StackPanel Margin="0,0,0,8" Visibility="{Binding Household, Converter={x:Static utility:CommonConverters.IsNullOrEmptyToVisibility}}">
-					<TextBlock Margin="0,0,0,2" Text="{x:Static operaEtDies:OurResources.HouseholdHeader}" />
-					<ItemsControl
-						Focusable="False"
-						ItemsPanel="{StaticResource MeterPanelTemplate}"
-						ItemsSource="{Binding Household}">
+				<StackPanel Margin="0,0,0,4" Visibility="{Binding Work, Converter={x:Static utility:CommonConverters.IsNullOrEmptyToVisibility}}">
+					<TextBlock
+						Margin="0,0,0,2"
+						Style="{DynamicResource CaptionTextStyle}"
+						Text="{x:Static operaEtDies:OurResources.ConcernsWorkHeader}" />
+					<!--  The player's work: its title and how much is done beside its icon, with a button that starts it. Why it can't be
+						started now is the button's tooltip, so nothing moves when that changes.  -->
+					<ItemsControl Focusable="False" ItemsSource="{Binding Work}">
 						<ItemsControl.ItemTemplate>
-							<DataTemplate DataType="{x:Type local:MeterViewModel}">
-								<Button
-									Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Start}"
-									Content="{Binding}"
-									IsEnabled="{Binding IsStartable}"
-									Style="{StaticResource MeterButtonStyle}"
-									ToolTip="{Binding ToolTip}" />
+							<DataTemplate DataType="{x:Type local:ConcernsWorkViewModel}">
+								<DockPanel Margin="0,0,0,8">
+									<Button
+										Margin="8,0,0,0"
+										Padding="8,2"
+										VerticalAlignment="Center"
+										Command="{Binding Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=Start}"
+										Content="{Binding StartText}"
+										DockPanel.Dock="Right"
+										IsEnabled="{Binding IsStartable}"
+										ToolTip="{Binding Note}"
+										ToolTipService.ShowOnDisabled="True" />
+									<Viewbox
+										Width="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=1.4}"
+										Height="{Binding Path=(TextElement.FontSize), RelativeSource={RelativeSource Self}, Converter={x:Static operaEtDies:EmConverter.Instance}, ConverterParameter=1.4}"
+										Margin="0,0,8,0"
+										VerticalAlignment="Center"
+										DockPanel.Dock="Left">
+										<Canvas Width="24" Height="24">
+											<Path
+												x:Name="IconPath"
+												Data="{Binding Icon}"
+												Stroke="{DynamicResource TextBrush}"
+												StrokeEndLineCap="Round"
+												StrokeLineJoin="Round"
+												StrokeStartLineCap="Round"
+												StrokeThickness="1.6" />
+										</Canvas>
+									</Viewbox>
+									<StackPanel VerticalAlignment="Center">
+										<TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+										<TextBlock
+											FontSize="{DynamicResource SmallFontSize}"
+											Foreground="{DynamicResource TextMutedBrush}"
+											Text="{Binding Status}"
+											TextWrapping="Wrap" />
+									</StackPanel>
+								</DockPanel>
+								<DataTemplate.Triggers>
+									<DataTrigger Binding="{Binding IsComplete}" Value="True">
+										<Setter TargetName="IconPath" Property="Stroke" Value="{DynamicResource AccentBrush}" />
+									</DataTrigger>
+								</DataTemplate.Triggers>
 							</DataTemplate>
 						</ItemsControl.ItemTemplate>
 					</ItemsControl>
 				</StackPanel>
 
-				<TextBlock Text="{x:Static operaEtDies:OurResources.ConcernsDestinationHeader}" />
-				<DockPanel Margin="0,2,0,0">
+				<!--  The household's chores, as icons that start them.  -->
+				<StackPanel Margin="0,0,0,12" Visibility="{Binding Household, Converter={x:Static utility:CommonConverters.IsNullOrEmptyToVisibility}}">
+					<TextBlock
+						Margin="0,0,0,2"
+						Style="{DynamicResource CaptionTextStyle}"
+						Text="{x:Static operaEtDies:OurResources.HouseholdHeader}" />
+					<ItemsControl
+						Focusable="False"
+						ItemTemplate="{StaticResource MeterButtonTemplate}"
+						ItemsPanel="{StaticResource MeterPanelTemplate}"
+						ItemsSource="{Binding Household}" />
+				</StackPanel>
+
+				<TextBlock
+					Margin="0,0,0,2"
+					Style="{DynamicResource CaptionTextStyle}"
+					Text="{x:Static operaEtDies:OurResources.ConcernsDestinationHeader}" />
+				<DockPanel Margin="0,2,0,0" Visibility="{Binding HasDestination, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 					<Button
 						Padding="2"
 						VerticalAlignment="Center"
@@ -315,19 +355,13 @@
 						Focusable="True"
 						Style="{StaticResource IconButtonStyle}"
 						ToolTip="{x:Static operaEtDies:OurResources.ConcernsClearDestinationToolTip}" />
-					<TextBlock Text="{Binding Destination}" TextWrapping="Wrap">
-						<TextBlock.Style>
-							<Style TargetType="TextBlock">
-								<Style.Triggers>
-									<DataTrigger Binding="{Binding HasDestination}" Value="False">
-										<Setter Property="FontStyle" Value="Italic" />
-										<Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
-									</DataTrigger>
-								</Style.Triggers>
-							</Style>
-						</TextBlock.Style>
-					</TextBlock>
+					<TextBlock Text="{Binding Destination}" TextWrapping="Wrap" />
 				</DockPanel>
+				<!--  Without a destination, a menu of places to choose as one.  -->
+				<layout:MenuButton
+					Margin="0,2,0,0"
+					Action="{Binding GoTo}"
+					Visibility="{Binding HasDestination, Converter={x:Static utility:CommonConverters.BooleanNotToVisibility}}" />
 				<StackPanel Margin="0,4,0,0" Visibility="{Binding IsAskingDestination, Converter={x:Static utility:CommonConverters.BooleanToVisibility}}">
 					<TextBlock Text="{Binding DestinationQuestion}" TextWrapping="Wrap" />
 					<StackPanel Margin="0,4,0,0" Orientation="Horizontal">
@@ -342,7 +376,10 @@
 							Content="{x:Static operaEtDies:OurResources.ConcernsDestinationCancel}" />
 					</StackPanel>
 				</StackPanel>
-				<TextBlock Margin="0,8,0,0" Text="{x:Static operaEtDies:OurResources.ConcernsAppointmentsHeader}" />
+				<TextBlock
+					Margin="0,12,0,2"
+					Style="{DynamicResource CaptionTextStyle}"
+					Text="{x:Static operaEtDies:OurResources.ConcernsAppointmentsHeader}" />
 				<TextBlock
 					Margin="0,2,0,0"
 					FontStyle="Italic"
@@ -397,7 +434,7 @@
 						Command="{Binding DataContext, RelativeSource={RelativeSource AncestorType=layout:SheetHost}, Converter={x:Static utility:MethodToCommandConverter.Instance}, ConverterParameter=CloseTopSheet}"
 						Content="{StaticResource CloseIcon}"
 						DockPanel.Dock="Right"
-						Style="{StaticResource IconButtonStyle}"
+						Style="{StaticResource CloseButtonStyle}"
 						ToolTip="{x:Static operaEtDies:OurResources.CloseSheetToolTip}" />
 					<TextBlock
 						VerticalAlignment="Center"
@@ -481,12 +518,12 @@
 							ToolTip="{Binding SaveStatus}" />
 					</DockPanel>
 
-					<!--  The current view, with any prompt or conversation on top of it. The current view is only hidden, not removed,
+					<!--  The player's location, with any prompt or conversation on top of it. The location is only hidden, not removed,
 						so it comes back as it was (such as scrolled to the same place) when the view on top closes. Neither can be used
 						while time passes.  -->
 					<ContentControl
 						Grid.Row="1"
-						Content="{Binding CurrentView}"
+						Content="{Binding CurrentLocation}"
 						Focusable="False"
 						IsEnabled="{Binding TimeRunner.IsRunning, Converter={x:Static utility:CommonConverters.BooleanNot}}"
 						Visibility="{Binding Overlay, Converter={x:Static utility:CommonConverters.IsNotNullToVisibility}}" />

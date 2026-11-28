@@ -98,7 +98,7 @@ public sealed class NewGameViewModel : ViewModelBase
 	/// A picture of the player character as currently configured, at home and not at work, in everyday clothes, or null
 	/// if there's no portrait data.
 	/// </summary>
-	public ImageSource? Portrait => VerifyAccess(m_portrait ??= m_portraitRenderer?.Render(GetPortraitTraits(), PortraitPlace.Home, GetPortraitClothing()));
+	public ImageSource? Portrait => VerifyAccess(m_portrait ??= m_portraitRenderer?.Render(GetPortraitTraits(), PortraitPlace.Home.WithSky(GetNoonSky()), GetPortraitClothing()));
 
 	/// <summary>
 	/// Randomizes everything except string values the player customized.
@@ -154,6 +154,15 @@ public sealed class NewGameViewModel : ViewModelBase
 		CharacterPropertyType.ValueList => new ValueListPropertyEditorViewModel(m_character, property, hasDeveloperOptions: property.Id == m_developerPropertyId) { IsDeveloperOnly = isDeveloperOnly },
 		_ => throw new InvalidOperationException($"Unknown property type {property.Type}."),
 	};
+
+	/// <summary>
+	/// The sky at noon, which the player's portrait is drawn under.
+	/// </summary>
+	private string? GetNoonSky()
+	{
+		var calendar = m_gameData.Calendar;
+		return calendar.GetSky(calendar.CreateTimePoint(calendar.StartYear, 1, 1, 1, 12))?.Id;
+	}
 
 	private readonly CharacterRandomizer m_character;
 	private readonly GameData m_gameData;

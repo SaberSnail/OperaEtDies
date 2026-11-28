@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using GoldenAnvil.Utility;
 using GoldenAnvil.Utility.Calendar;
@@ -12,8 +12,8 @@ namespace OperaEtDies.Controls.Conversation;
 /// Talking with someone in the player's location: asking what they're doing, asking whether they've seen someone,
 /// chatting with them, asking them the question of the next "ask" step of the player's pending steps, if it asks
 /// them, or asking them to start an appointment with the player. Each but the last takes time, shown on its button, and
-/// what was said is kept as a list of lines. It's shown on top of the
-/// player's location, which is shown again when it closes.
+/// what was said is kept as a list of lines. It's shown in the person's line in the player's location, and while it is,
+/// the rest of the location can't be used.
 /// </summary>
 public sealed class ConversationViewModel : ViewModelBase, INumberedChoices
 {
@@ -44,12 +44,11 @@ public sealed class ConversationViewModel : ViewModelBase, INumberedChoices
 	/// </summary>
 	public LocationPersonViewModel Person { get; }
 
-	public string Title => OurResources.ConversationHeader.FormatCurrentCulture(m_person.FullName);
-
 	/// <summary>
-	/// What was said, in order.
+	/// What was said, in order, each line marked by whether the player said it (or did it, such as chatting) or the person
+	/// answered.
 	/// </summary>
-	public ObservableCollection<string> Lines { get; }
+	public ObservableCollection<ConversationLine> Lines { get; }
 
 	/// <summary>
 	/// Why the player can't talk with the person right now, such as that they've left, or null if they can.
@@ -111,9 +110,9 @@ public sealed class ConversationViewModel : ViewModelBase, INumberedChoices
 		{
 			if (m_world.GetPlayerAsk(m_person) is { } ask)
 			{
-				Say(ask.Step.Player!.Text is { } text ? ActivityText.FillOther(text.Text, m_person) : ask.Step.Player.Title!);
+				SayYou(ask.Step.Player!.Text is { } text ? ActivityText.FillOther(text.Text, m_person) : ask.Step.Player.Title!);
 				var answer = await m_world.AskPlayerQuestionAsync(m_person).ConfigureAwait(true);
-				Say(answer.Appointment is { } appointment ?
+				SayThey(answer.Appointment is { } appointment ?
 					OurResources.ConversationAgreedToMeet.FormatCurrentCulture(m_person.FullName, AppointmentText.FormatPlace(m_world, appointment), AppointmentText.FormatWhen(m_world, appointment.Time)) :
 					(answer.IsYes ? OurResources.ConversationAgreed : OurResources.ConversationSaidNo).FormatCurrentCulture(m_person.FullName));
 			}
@@ -147,9 +146,9 @@ public sealed class ConversationViewModel : ViewModelBase, INumberedChoices
 		{
 			if (m_world.GetPlayerStartAppointment(m_person) is { } appointment)
 			{
-				Say(AppointmentText.GetStartLine(m_world, appointment).Text);
+				SayYou(AppointmentText.GetStartLine(m_world, appointment).Text);
 				var isStarted = await m_world.AskToStartAsync(m_person).ConfigureAwait(true);
-				Say((isStarted ? OurResources.ConversationAgreed : OurResources.ConversationSaidNo).FormatCurrentCulture(m_person.FullName));
+				SayThey((isStarted ? OurResources.ConversationAgreed : OurResources.ConversationSaidNo).FormatCurrentCulture(m_person.FullName));
 			}
 			Refresh();
 		});
@@ -168,7 +167,7 @@ public sealed class ConversationViewModel : ViewModelBase, INumberedChoices
 	{
 		VerifyAccess();
 		m_world.CallOffWith(m_person);
-		Say(OurResources.ConversationCalledOff.FormatCurrentCulture(m_person.FullName));
+		SayYou(OurResources.ConversationCalledOff.FormatCurrentCulture(m_person.FullName));
 		Refresh();
 	}
 
@@ -184,9 +183,9 @@ public sealed class ConversationViewModel : ViewModelBase, INumberedChoices
 		{
 			if (CanAskWhatDoing())
 			{
-				Say(OurResources.ConversationAskedDoing.FormatCurrentCulture(m_person.FullName));
+				SayYou(OurResources.ConversationAskedDoing.FormatCurrentCulture(m_person.FullName));
 				var answer = await m_world.AskWhatDoingAsync(m_person).ConfigureAwait(true);
-				Say(DescribePlan(m_person, answer.Sighting?.Location ?? m_person.Location, answer.Sighting?.Plan));
+				SayThey(DescribePlan(m_person, answer.Sighting?.Location ?? m_person.Location, answer.Sighting?.Plan));
 			}
 			Refresh();
 		});
@@ -204,9 +203,9 @@ public sealed class ConversationViewModel : ViewModelBase, INumberedChoices
 		{
 			if (CanAskAbout() && m_selectedSubject is { } subject)
 			{
-				Say(OurResources.ConversationAskedAbout.FormatCurrentCulture(m_person.FullName, subject.FullName));
+				SayYou(OurResources.ConversationAskedAbout.FormatCurrentCulture(m_person.FullName, subject.FullName));
 				var answer = await m_world.AskAboutAsync(m_person, subject).ConfigureAwait(true);
-				Say(answer.Sighting is { } sighting ? DescribeSighting(subject, sighting) : OurResources.TalkNotSeen.FormatCurrentCulture(subject.FullName));
+				SayThey(answer.Sighting is { } sighting ? DescribeSighting(subject, sighting) : OurResources.TalkNotSeen.FormatCurrentCulture(subject.FullName));
 			}
 			Refresh();
 		});
@@ -226,7 +225,7 @@ public sealed class ConversationViewModel : ViewModelBase, INumberedChoices
 			{
 				var start = m_world.Time;
 				var time = await m_world.SocializeAsync(m_person).ConfigureAwait(true);
-				Say(OurResources.ConversationSocialized.FormatCurrentCulture(m_person.FullName, m_world.GameData.Calendar.FormatOffsetFrom(start, time, TimeFormat.Long)));
+				SayYou(OurResources.ConversationSocialized.FormatCurrentCulture(m_person.FullName, m_world.GameData.Calendar.FormatOffsetFrom(start, time, TimeFormat.Long)));
 			}
 			Refresh();
 		});
@@ -257,8 +256,8 @@ public sealed class ConversationViewModel : ViewModelBase, INumberedChoices
 
 	/// <summary>
 	/// Presses the numbered button. Each keeps its number while the ones before it come and go: 1 asks what they're doing,
-	/// 2 chats, 3 asks the question of the player's step, 4 calls off an appointment, 5 asks to start one, and 6 asks about
-	/// the person chosen.
+	/// 2 chats, 3 asks the question of the player's step, 4 calls off an appointment, 5 asks to start one, 6 asks about
+	/// the person chosen, and 7 ends the conversation.
 	/// </summary>
 	public bool ChooseNumber(int number)
 	{
@@ -271,6 +270,7 @@ public sealed class ConversationViewModel : ViewModelBase, INumberedChoices
 			4 when HasCallOff => CallOff,
 			5 when AskToStartText is not null && CanAskToStart() => AskToStart,
 			6 when CanAskAbout() => AskAbout,
+			7 => Close,
 			_ => null,
 		};
 		choice?.Invoke();
@@ -351,7 +351,9 @@ public sealed class ConversationViewModel : ViewModelBase, INumberedChoices
 	/// </summary>
 	private static string LowerFirst(string text) => text.Length == 0 ? text : char.ToLower(text[0], CultureInfo.CurrentCulture) + text[1..];
 
-	private void Say(string line) => Lines.Add(line);
+	private void SayYou(string line) => Lines.Add(new ConversationLine(line, IsPlayer: true));
+
+	private void SayThey(string line) => Lines.Add(new ConversationLine(line, IsPlayer: false));
 
 	private string FormatMinutes(int minutes)
 	{
@@ -364,3 +366,8 @@ public sealed class ConversationViewModel : ViewModelBase, INumberedChoices
 	private readonly Person m_person;
 	private Person? m_selectedSubject;
 }
+
+/// <summary>
+/// A line of a conversation: something the player said or did, or the answer of the one they're talking with.
+/// </summary>
+public sealed record ConversationLine(string Text, bool IsPlayer);

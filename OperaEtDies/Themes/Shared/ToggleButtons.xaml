@@ -6,6 +6,9 @@
 	<!--  States are triggers on the theme brushes rather than color animations, so a new theme changes them at once.  -->
 	<Style x:Key="ToggleButtonStyleBase" TargetType="{x:Type ToggleButton}">
 		<Setter Property="OverridesDefaultStyle" Value="true" />
+		<!--  The button's own text color too, not only its border's, since content given as elements (such as a split button's
+			text and chevron) takes it from the button rather than from the border it's drawn in.  -->
+		<Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
 		<Setter Property="FocusVisualStyle" Value="{DynamicResource KeyboardFocusVisualStyle}" />
 		<Setter Property="local:TemplateHelper.CornerRadius" Value="{DynamicResource ControlBorderRadius}" />
 		<Setter Property="BorderThickness" Value="{DynamicResource ControlBorderThickness}" />
@@ -28,13 +31,18 @@
 					</Border>
 
 					<ControlTemplate.Triggers>
+						<!--  Hovering and pressing change the background like an ordinary button's. A checked one stays drawn
+							pressed while it's hovered, so it's still clear which is on, which is why IsChecked comes after
+							IsMouseOver.  -->
+						<Trigger Property="IsMouseOver" Value="true">
+							<Setter TargetName="Border" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+							<Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource RuleStrongBrush}" />
+						</Trigger>
 						<Trigger Property="IsChecked" Value="true">
 							<Setter TargetName="Border" Property="Background" Value="{DynamicResource ControlPressedBrush}" />
 						</Trigger>
-						<Trigger Property="IsMouseOver" Value="true">
-							<Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource RuleStrongBrush}" />
-						</Trigger>
 						<Trigger Property="IsPressed" Value="true">
+							<Setter TargetName="Border" Property="Background" Value="{DynamicResource ControlPressedBrush}" />
 							<Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource RuleStrongBrush}" />
 						</Trigger>
 						<Trigger Property="IsEnabled" Value="false">
@@ -46,6 +54,11 @@
 				</ControlTemplate>
 			</Setter.Value>
 		</Setter>
+		<Style.Triggers>
+			<Trigger Property="IsEnabled" Value="false">
+				<Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+			</Trigger>
+		</Style.Triggers>
 	</Style>
 
 	<Style BasedOn="{StaticResource ToggleButtonStyleBase}" TargetType="{x:Type ToggleButton}" />

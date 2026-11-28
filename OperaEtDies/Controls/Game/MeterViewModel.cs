@@ -1,12 +1,15 @@
 using System.Windows.Media;
+using GoldenAnvil.Utility;
+using OperaEtDies.Controls.Start;
 using OperaEtDies.Data;
+using OperaEtDies.GameState;
 
 namespace OperaEtDies.Controls.Game;
 
 /// <summary>
 /// A need shown as its icon over a short bar, such as how rested the player is in the left column, or how much of a
-/// household chore is done in Concerns, with what it shows in words in its tooltip. A chore can be a button that starts
-/// it.
+/// household chore is done in Concerns, with what it shows in words in its tooltip. It can be a button that starts the
+/// need.
 /// </summary>
 public sealed class MeterViewModel : ViewModelBase
 {
@@ -94,6 +97,34 @@ public sealed class MeterViewModel : ViewModelBase
 	}
 
 	/// <summary>
+	/// Shows how the player is doing with a level need: a full bar is a need that's fully met, and one at its worst level is
+	/// a warning. The tooltip has the word for its level (or the level, without words), and what pressing it does, or why
+	/// it can't be started now.
+	/// </summary>
+	internal void UpdateLevel(GameWorld world, PlayerStartChoice? choice)
+	{
+		VerifyAccess();
+		var level = world.Player.GetLevel(Need);
+		var status = OurResources.NeedToolTip.FormatCurrentCulture(Need.Title,
+			Need.GetLevelTitle(level) ?? OurResources.NeedStatusLevel.FormatCurrentCulture(Math.Round(level), Need.MaximumLevel));
+		Update(1 - (level / Need.MaximumLevel), AddAction(status, choice, world), isWarning: Need.IsWorstLevel(level), isStartable: choice?.CanStart ?? false);
+	}
+
+	/// <summary>
+	/// Shows how far along a quota need is, such as a chore, and whether it can be started now, with both in its tooltip.
+	/// One that can't be worked on today is muted, and one that's done for the day or week is shown complete.
+	/// </summary>
+	internal void UpdateQuota(GameWorld world, PlayerQuotaProgress quota, PlayerStartChoice? choice)
+	{
+		VerifyAccess();
+		var status = quota.IsOpenToday ?
+			OurResources.QuotaProgressToolTip.FormatCurrentCulture(Need.Title, ConcernsViewModel.FormatQuotaAmount(Need, quota.Done), ConcernsViewModel.FormatQuotaAmount(Need, quota.Total),
+				Need.Period == NeedPeriod.Week ? OurResources.QuotaThisWeek : OurResources.QuotaToday) :
+			OurResources.QuotaClosedToolTip.FormatCurrentCulture(Need.Title);
+		Update(quota.Fraction, AddAction(status, choice, world), isActive: quota.IsOpenToday, isComplete: quota.Done >= quota.Total, isStartable: choice?.CanStart ?? false);
+	}
+
+	/// <summary>
 	/// Shows how the need is going now.
 	/// </summary>
 	internal void Update(double fraction, string toolTip, bool isActive = true, bool isWarning = false, bool isComplete = false, bool isStartable = false)
@@ -105,6 +136,17 @@ public sealed class MeterViewModel : ViewModelBase
 		IsWarning = isWarning;
 		IsComplete = isComplete;
 		IsStartable = isStartable && m_start is not null;
+	}
+
+	/// <summary>
+	/// Adds what pressing it does, or why it can't be started now, to a tooltip, for a need that can be started from here.
+	/// </summary>
+	private string AddAction(string status, PlayerStartChoice? choice, GameWorld world)
+	{
+		var action = choice is null || m_start is null ? null :
+			choice.CanStart ? (choice.IsInProgress ? OurResources.ConcernsCarryOnToolTip : OurResources.ConcernsStartToolTip) :
+			StartChoiceViewModel.GetNote(choice, world);
+		return action is null ? status : OurResources.ConcernsChoreToolTip.FormatCurrentCulture(status, action);
 	}
 
 	private readonly Action<Need>? m_start;
